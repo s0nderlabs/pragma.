@@ -1,0 +1,38 @@
+{
+  "name": "@pragma/cli",
+  "version": "1.0.0",
+  "description": "Pragma CLI for onboarding, swap, simulate, receipts",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "pragma": "dist/index.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "start": "node dist/index.js",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": [
+    "pragma",
+    "cli",
+    "blockchain",
+    "web3"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.6.0",
+    "commander": "^14.0.0",
+    "inquirer": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.8.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

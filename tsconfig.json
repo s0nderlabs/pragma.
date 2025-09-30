@@ -1,0 +1,21 @@
+{
+  "files": [],
+  "references": [
+    { "path": "apps/cli" },
+    { "path": "apps/web" },
+    { "path": "packages/core" },
+    { "path": "packages/utils" }
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "tsBuildInfoFile": ".tsbuildinfo/root.tsbuildinfo"
+  }
+}

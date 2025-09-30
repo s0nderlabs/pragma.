@@ -1,0 +1,11 @@
+{
+  "name": "@pragma/contracts",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.sol",
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test",
+    "lint": "forge fmt --check"
+  }
+}

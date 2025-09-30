@@ -1,0 +1,20 @@
+{
+  "name": "pragma",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.17.1",
+  "scripts": {
+    "dev:cli": "pnpm --filter @pragma/cli dev",
+    "build:cli": "pnpm --filter @pragma/cli build",
+    "dev": "pnpm -r dev",
+    "build": "pnpm run build:ts && pnpm -r build",
+    "build:ts": "tsc -b tsconfig.json",
+    "clean": "pnpm run clean:ts && pnpm -r --if-present clean",
+    "clean:ts": "tsc -b tsconfig.json --clean",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

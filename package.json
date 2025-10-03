@@ -3,16 +3,21 @@
   "private": true,
   "version": "1.0.0",
   "packageManager": "pnpm@10.17.1",
+  "bin": {
+    "pragma": "./apps/cli/dist/index.js"
+  },
   "scripts": {
     "dev:cli": "pnpm --filter @pragma/cli dev",
     "build:cli": "pnpm --filter @pragma/cli build",
+    "pragma": "node ./apps/cli/dist/index.js",
     "dev": "pnpm -r dev",
     "build": "pnpm run build:ts && pnpm -r build",
     "build:ts": "tsc -b tsconfig.json",
     "clean": "pnpm run clean:ts && pnpm -r --if-present clean",
     "clean:ts": "tsc -b tsconfig.json --clean",
     "lint": "pnpm -r lint",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "prepare": "pnpm run build:cli"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

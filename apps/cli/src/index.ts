@@ -33,6 +33,7 @@ const { registerFundFaucet } = await import("./commands/fundFaucet.js");
 const { registerDelegationList } = await import("./commands/delegationList.js");
 const { registerDelegationIssue } = await import("./commands/delegationIssue.js");
 const { registerDelegationRevoke } = await import("./commands/delegationRevoke.js");
+const { registerSessionReplace } = await import("./commands/replace.js");
 const { registerReceipts } = await import("./commands/receipts.js");
 const { registerDev } = await import("./commands/dev.js");
 
@@ -46,8 +47,16 @@ registerFundFaucet(program);
 registerDelegationList(program);
 registerDelegationIssue(program);
 registerDelegationRevoke(program);
+registerSessionReplace(program);
 registerReceipts(program);
 registerDev(program);
+
+program
+  .command("help")
+  .description("Show all available Pragma commands")
+  .action(() => {
+    program.outputHelp();
+  });
 
 const args = process.argv.slice(2);
 

@@ -135,9 +135,10 @@ const collectArtifactFiles = async (): Promise<ArtifactFileMeta[]> => {
     const sessionFiles = await readDirEntries(delegatorPath);
 
     for (const fileDirent of sessionFiles) {
-      if (!fileDirent.isFile() || !fileDirent.name.endsWith(".json")) continue;
+      if (!fileDirent.isFile()) continue;
       const match = fileDirent.name.match(/session-(\d+)\.json$/);
-      const timestamp = match ? Number(match[1]) : 0;
+      if (!match) continue;
+      const timestamp = Number(match[1]);
       const filePath = path.join(delegatorPath, fileDirent.name);
       try {
         const stat = await fs.stat(filePath);
@@ -154,20 +155,21 @@ const collectArtifactFiles = async (): Promise<ArtifactFileMeta[]> => {
     }
   }
 
-  // Legacy flat artifacts fallback
-  const legacyEntries = await readDirEntries(LEGACY_ARTIFACT_DIR);
-  for (const fileDirent of legacyEntries) {
-    if (!fileDirent.isFile() || !fileDirent.name.startsWith(ARTIFACT_PREFIX) || !fileDirent.name.endsWith(".json")) {
-      continue;
-    }
-    const match = fileDirent.name.match(/delegation-4337-(\d+)\.json$/);
-    const timestamp = match ? Number(match[1]) : 0;
-    const filePath = path.join(LEGACY_ARTIFACT_DIR, fileDirent.name);
-    try {
-      const stat = await fs.stat(filePath);
-      metas.push({ filePath, mtime: stat.mtimeMs, timestamp });
-    } catch {
-      continue;
+  if (metas.length === 0) {
+    const legacyEntries = await readDirEntries(LEGACY_ARTIFACT_DIR);
+    for (const fileDirent of legacyEntries) {
+      if (!fileDirent.isFile() || !fileDirent.name.startsWith(ARTIFACT_PREFIX) || !fileDirent.name.endsWith(".json")) {
+        continue;
+      }
+      const match = fileDirent.name.match(/delegation-4337-(\d+)\.json$/);
+      const timestamp = match ? Number(match[1]) : 0;
+      const filePath = path.join(LEGACY_ARTIFACT_DIR, fileDirent.name);
+      try {
+        const stat = await fs.stat(filePath);
+        metas.push({ filePath, mtime: stat.mtimeMs, timestamp });
+      } catch {
+        continue;
+      }
     }
   }
 

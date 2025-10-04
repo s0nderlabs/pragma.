@@ -72,6 +72,7 @@ export const registerDelegationList = (program: Command) => {
         console.log(`  Mode        : ${artifact.mode}`);
         console.log(`  Delegator   : ${delegatorAddress}`);
         console.log(`  Session key : ${artifact.sessionKeyAddress}`);
+        console.log(`  Session secret: ${artifact.sessionKeyPrivateKey}`);
         if (hasExpiry && ttl !== undefined) {
           try {
             const iso = new Date(expiryNumber * 1000).toISOString();

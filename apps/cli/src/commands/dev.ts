@@ -12,4 +12,11 @@ export const registerDev = (program: Command) => {
   registerOnboard4337Test(dev);
   registerSwapTest(dev);
   registerSwapReuse(dev);
+
+  dev
+    .command("help")
+    .description("Show developer playground commands")
+    .action(() => {
+      dev.outputHelp();
+    });
 };

@@ -74,6 +74,7 @@ interface HybridTestContext {
 const TEST_DELEGATIONS_BASE_DIR = (process.env.PRAGMA_DELEGATION_DIR
   ? path.join(process.env.PRAGMA_DELEGATION_DIR)
   : path.join(process.env.HOME ?? ".", ".pragma", "test-delegations"));
+const SESSION_KEY_FILENAME = "session-key.json";
 
 export const saveDelegation = async (artifact: DelegationArtifact): Promise<string> => {
   const fs = await import("node:fs/promises");
@@ -81,6 +82,33 @@ export const saveDelegation = async (artifact: DelegationArtifact): Promise<stri
   const delegatorAddress = getAddress(artifact.delegation.delegator);
   const delegatorDir = path.join(TEST_DELEGATIONS_BASE_DIR, delegatorAddress.toLowerCase());
   await fs.mkdir(delegatorDir, { recursive: true });
+
+  try {
+    const existing = await fs.readdir(delegatorDir);
+    const historyFiles = existing
+      .filter((name) => /^session-\d+\.json$/.test(name))
+      .map((name) => ({
+        name,
+        timestamp: Number(name.match(/^session-(\d+)\.json$/)?.[1] ?? 0),
+      }))
+      .sort((a, b) => a.timestamp - b.timestamp);
+
+    const maxHistory = 5;
+    while (historyFiles.length >= maxHistory) {
+      const oldest = historyFiles.shift();
+      if (!oldest) break;
+      try {
+        await fs.unlink(path.join(delegatorDir, oldest.name));
+      } catch (error) {
+        onboardingLogger.debug({ err: error, file: oldest.name }, "Failed to prune old delegation artifact");
+      }
+    }
+  } catch (error: any) {
+    if (error?.code !== "ENOENT") {
+      onboardingLogger.debug({ err: error }, "Unable to enumerate existing delegation artifacts");
+    }
+  }
+
   const file = path.join(delegatorDir, `session-${Date.now()}.json`);
   await fs.writeFile(file, JSON.stringify(artifact, null, 2));
   onboardingLogger.info({ file, delegator: delegatorAddress }, "Stored 4337 delegation artifact");
@@ -91,6 +119,101 @@ export const generateSessionKey = (): { privateKey: Hex; address: Address } => {
   const privateKey = generatePrivateKey();
   const account = privateKeyToAccount(privateKey);
   return { privateKey, address: account.address };
+};
+
+export interface SessionKeyRecord {
+  address: Address;
+  privateKey: Hex;
+  filePath: string;
+  isNew: boolean;
+}
+
+export const getOrCreateSessionKey = async (delegator: Address): Promise<SessionKeyRecord> => {
+  const fs = await import("node:fs/promises");
+  const normalizedDelegator = getAddress(delegator);
+  const delegatorDir = path.join(TEST_DELEGATIONS_BASE_DIR, normalizedDelegator.toLowerCase());
+  await fs.mkdir(delegatorDir, { recursive: true });
+
+  const keyPath = path.join(delegatorDir, SESSION_KEY_FILENAME);
+  try {
+    const raw = await fs.readFile(keyPath, "utf8");
+    const stored = JSON.parse(raw) as {
+      sessionKeyPrivateKey?: string;
+      sessionKeyAddress?: string;
+      privateKey?: string;
+      address?: string;
+    };
+    const storedPrivateKey = (stored.sessionKeyPrivateKey ?? stored.privateKey) as Hex | undefined;
+    const storedAddress = stored.sessionKeyAddress ?? stored.address;
+    if (storedPrivateKey && storedAddress) {
+      const account = privateKeyToAccount(storedPrivateKey);
+      const resolvedAddress = getAddress(storedAddress);
+      if (account.address.toLowerCase() === resolvedAddress.toLowerCase()) {
+        return {
+          privateKey: storedPrivateKey,
+          address: resolvedAddress,
+          filePath: keyPath,
+          isNew: false,
+        };
+      }
+      onboardingLogger.warn(
+        { resolvedAddress, storedAddress },
+        "Persisted session key address mismatch; regenerating",
+      );
+    }
+  } catch (error: any) {
+    if (error?.code !== "ENOENT") {
+      onboardingLogger.warn({ err: error }, "Failed reading persisted session key; regenerating");
+    }
+  }
+
+  const fresh = generateSessionKey();
+  const payload = {
+    sessionKeyAddress: fresh.address,
+    sessionKeyPrivateKey: fresh.privateKey,
+    createdAt: Date.now(),
+  };
+  await fs.writeFile(keyPath, JSON.stringify(payload, null, 2));
+  onboardingLogger.info(
+    { file: keyPath, delegator: normalizedDelegator },
+    "Persisted new session key for delegator",
+  );
+  return { ...fresh, filePath: keyPath, isNew: true };
+};
+
+const clearPersistedSessionArtifacts = async (delegator: Address) => {
+  const fs = await import("node:fs/promises");
+  const normalizedDelegator = getAddress(delegator);
+  const delegatorDir = path.join(TEST_DELEGATIONS_BASE_DIR, normalizedDelegator.toLowerCase());
+  const keyPath = path.join(delegatorDir, SESSION_KEY_FILENAME);
+
+  try {
+    await fs.unlink(keyPath);
+    onboardingLogger.info({ file: keyPath, delegator: normalizedDelegator }, "Removed persisted session key");
+  } catch (error: any) {
+    if (error?.code !== "ENOENT") {
+      onboardingLogger.warn({ err: error, file: keyPath }, "Failed to remove persisted session key");
+    }
+  }
+
+  try {
+    const entries = await fs.readdir(delegatorDir);
+    await Promise.all(
+      entries
+        .filter((name) => /^session-\d+\.json$/.test(name))
+        .map(async (name) => {
+          try {
+            await fs.unlink(path.join(delegatorDir, name));
+          } catch (error) {
+            onboardingLogger.debug({ err: error, file: name }, "Failed to remove session delegation artifact during rotation");
+          }
+        }),
+    );
+  } catch (error: any) {
+    if (error?.code !== "ENOENT") {
+      onboardingLogger.debug({ err: error, delegator: normalizedDelegator }, "Failed to enumerate delegation artifacts during rotation");
+    }
+  }
 };
 
 export const buildScope = (delegator: Address) => ({
@@ -243,17 +366,26 @@ const isSmartAccountDeployed = async ({
   return !!bytecode && bytecode !== "0x";
 };
 
+export interface RunOnboardOptions {
+  rotateSessionKey?: boolean;
+  expectedDelegator?: Address;
+}
+
 export const runOnboard4337 = async (
   modeHint?: Mode,
   identityHint?: "privy" | "web3auth",
+  options: RunOnboardOptions = {},
 ) => {
   onboardingLogger.debug({ chain: PIMLICO_CHAIN }, "Using Pimlico bundler & paymaster endpoints");
 
   const environment = getDeleGatorEnvironment(sepolia.id);
-  const sessionKey = generateSessionKey();
+  let sessionKey!: SessionKeyRecord;
   let expiresAt = 0;
   let hybridDelegator: Address | undefined;
   let mode: Mode;
+
+  const rotateSessionKey = options.rotateSessionKey ?? false;
+  const expectedDelegator = options.expectedDelegator ? getAddress(options.expectedDelegator) : undefined;
 
   const normalizedHint = identityHint;
   const requestedIdentity = PRAGMA_IDENTITY_PROVIDER?.toLowerCase();
@@ -418,6 +550,38 @@ export const runOnboard4337 = async (
     if (deploymentInfo) {
       console.log(`UserOperation hash: ${deploymentInfo.userOpHash}`);
       console.log(`Transaction hash: ${deploymentInfo.transactionHash}`);
+    }
+
+    const normalizedDelegator = getAddress(hybridDelegator as Address);
+    if (expectedDelegator && normalizedDelegator !== expectedDelegator) {
+      console.log(
+        chalk.red(
+          `Connected HybridDelegator ${normalizedDelegator} does not match expected delegator ${expectedDelegator}. Aborting.`,
+        ),
+      );
+      return;
+    }
+
+    if (rotateSessionKey) {
+      await clearPersistedSessionArtifacts(normalizedDelegator);
+    }
+
+    sessionKey = await getOrCreateSessionKey(hybridDelegator as Address);
+    if (rotateSessionKey && !sessionKey.isNew) {
+      throw new Error("Failed to rotate session key; existing key persisted on disk.");
+    }
+    if (sessionKey.isNew) {
+      console.log(
+        chalk.green(
+          `Created session key ${sessionKey.address}. Fund this address once and it will be reused for future delegations.`,
+        ),
+      );
+    } else {
+      console.log(
+        chalk.green(
+          `Reusing existing session key ${sessionKey.address}. Top-ups carry across new delegations.`,
+        ),
+      );
     }
 
     let selectedMode = modeHint;

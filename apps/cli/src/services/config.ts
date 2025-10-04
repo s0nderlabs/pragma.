@@ -49,3 +49,18 @@ export const SEPOLIA_WETH_UNI_POOL_ADDRESS =
   process.env.SEPOLIA_WETH_UNI_POOL ?? "0x287B0e934ed0439E2a7b1d5F0FC25eA2c24b64f7";
 export const SEPOLIA_SWAP_ROUTER_ADDRESS =
   process.env.SEPOLIA_SWAP_ROUTER ?? "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E";
+
+export const PRIVY_APP_ID = getEnvOptional("PRIVY_ID");
+export const PRIVY_APP_SECRET = getEnvOptional("PRIVY_SECRET");
+export const PRAGMA_IDENTITY_PROVIDER = getEnvOptional("PRAGMA_IDENTITY_PROVIDER");
+
+const parsePort = (value: string | undefined): number | undefined => {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed) || parsed <= 0 || parsed > 65535) {
+    throw new Error(`Invalid port value: ${value}`);
+  }
+  return parsed;
+};
+
+export const WEB3AUTH_BRIDGE_PORT = parsePort(process.env.WEB3AUTH_BRIDGE_PORT);

@@ -10,6 +10,7 @@ import {
   generateSessionKey,
   saveDelegation,
   Mode,
+  ZERO_SALT,
 } from "../services/onboarding4337.js";
 import { loadDelegationArtifact, isDelegationExpired } from "../services/delegationArtifacts.js";
 import { createSepoliaPublicClient } from "../services/web3authClients.js";
@@ -59,7 +60,7 @@ const renewDelegation = async (
     from: hybridDelegator as Hex,
     to: sessionKey.address as Hex,
     caveats,
-    salt: "0x0",
+    salt: ZERO_SALT,
   });
 
   const { signature: _unused, ...delegationToSign } = unsignedDelegation;

@@ -24,18 +24,30 @@ program
   .version("1.0.0");
 
 const { registerOnboard4337 } = await import("./commands/onboard4337.js");
-const { registerOnboard4337Test } = await import("./commands/onboard4337Test.js");
-const { registerSwapTest } = await import("./commands/swapTest.js");
-const { registerSwapReuse } = await import("./commands/swapExisting.js");
+const { registerSwap } = await import("./commands/swap.js");
 const { registerOnboard7702 } = await import("./commands/onboard7702.js");
 const { registerRevoke } = await import("./commands/revoke.js");
+const { registerStatus } = await import("./commands/status.js");
+const { registerFund } = await import("./commands/fund.js");
+const { registerFundFaucet } = await import("./commands/fundFaucet.js");
+const { registerDelegationList } = await import("./commands/delegationList.js");
+const { registerDelegationIssue } = await import("./commands/delegationIssue.js");
+const { registerDelegationRevoke } = await import("./commands/delegationRevoke.js");
+const { registerReceipts } = await import("./commands/receipts.js");
+const { registerDev } = await import("./commands/dev.js");
 
 registerOnboard4337(program);
-registerOnboard4337Test(program);
-registerSwapTest(program);
-registerSwapReuse(program);
+registerSwap(program);
 registerOnboard7702(program);
 registerRevoke(program);
+registerStatus(program);
+registerFund(program);
+registerFundFaucet(program);
+registerDelegationList(program);
+registerDelegationIssue(program);
+registerDelegationRevoke(program);
+registerReceipts(program);
+registerDev(program);
 
 const args = process.argv.slice(2);
 

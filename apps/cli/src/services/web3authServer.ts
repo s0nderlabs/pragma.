@@ -2,7 +2,14 @@ import http from "node:http";
 import { randomBytes } from "node:crypto";
 import type { Address, Hex } from "viem";
 
-import { WEB3AUTH_CLIENT_ID, WEB3AUTH_NETWORK, SEPOLIA_RPC_URL } from "./config.js";
+const ZERO_SALT = "0x0000000000000000000000000000000000000000000000000000000000000000" as Hex;
+
+import {
+  WEB3AUTH_CLIENT_ID,
+  WEB3AUTH_NETWORK,
+  SEPOLIA_RPC_URL,
+  WEB3AUTH_BRIDGE_PORT,
+} from "./config.js";
 
 type ProviderRequest = {
   method: string;
@@ -33,7 +40,18 @@ type DelegationBridgeJob = {
   payload: StatelessDelegatorDelegationPayload;
 };
 
-type ProviderJob = ProviderBridgeJob | StatusBridgeJob | UpgradeBridgeJob | DelegationBridgeJob;
+type SignTypedDataBridgeJob = {
+  id: string;
+  type: "signDelegationTypedData";
+  payload: SignDelegationTypedDataPayload;
+};
+
+type ProviderJob =
+  | ProviderBridgeJob
+  | StatusBridgeJob
+  | UpgradeBridgeJob
+  | DelegationBridgeJob
+  | SignTypedDataBridgeJob;
 
 type PendingJob = {
   resolve: (value: unknown) => void;
@@ -46,6 +64,7 @@ export type Web3AuthBridge = {
   enqueueDelegatorStatus: (payload: StatelessDelegatorStatusPayload) => Promise<StatelessDelegatorStatusResult>;
   enqueueDelegatorUpgrade: (payload: StatelessDelegatorUpgradePayload) => Promise<StatelessDelegatorUpgradeResult>;
   enqueueDelegatorDelegation: (payload: StatelessDelegatorDelegationPayload) => Promise<StatelessDelegatorDelegationResult>;
+  signTypedData: (payload: SignDelegationTypedDataPayload) => Promise<SignDelegationTypedDataResult>;
   shutdown: () => Promise<void>;
 };
 
@@ -108,6 +127,16 @@ export type StatelessDelegatorDelegationResult = {
     salt: Hex;
     signature: Hex;
   };
+};
+
+export type SignDelegationTypedDataPayload = {
+  typedDataJson: string;
+  from: Address;
+};
+
+export type SignDelegationTypedDataResult = {
+  signature: Hex;
+  recoveredAddress: Address;
 };
 
 type Web3AuthBridgeOptions = {
@@ -179,6 +208,12 @@ export const startWeb3AuthBridge = (
   const enqueueStatelessDelegatorDelegation = (payload: StatelessDelegatorDelegationPayload) =>
     enqueueJob<StatelessDelegatorDelegationResult>({
       type: "statelessDelegatorSignDelegation",
+      payload,
+    });
+
+  const enqueueSignDelegationTypedData = (payload: SignDelegationTypedDataPayload) =>
+    enqueueJob<SignDelegationTypedDataResult>({
+      type: "signDelegationTypedData",
       payload,
     });
 
@@ -301,16 +336,29 @@ export const startWeb3AuthBridge = (
     Promise.resolve(requestListener(req, res)).catch(handleError);
   });
 
-  server.once("error", handleError);
-  server.listen(0, async () => {
+  server.once("error", (error: NodeJS.ErrnoException) => {
+    if (WEB3AUTH_BRIDGE_PORT && error.code === "EADDRINUSE") {
+      console.error(
+        `Web3Auth bridge port ${WEB3AUTH_BRIDGE_PORT} is already in use. Close the existing process or set WEB3AUTH_BRIDGE_PORT to a free port.`,
+      );
+    }
+    handleError(error);
+  });
+
+  const bridgeHost = "localhost";
+  const requestedPort = WEB3AUTH_BRIDGE_PORT ?? 0;
+
+  server.listen(requestedPort, bridgeHost, async () => {
     const addressInfo = server?.address();
-    if (addressInfo && typeof addressInfo === "object") {
-      const url = `http://localhost:${addressInfo.port}/auth`;
-      try {
-        await onReady(url, state);
-      } catch (error) {
-        handleError(error);
-      }
+    if (!addressInfo || typeof addressInfo !== "object") {
+      handleError(new Error("Web3Auth bridge failed to bind to a port"));
+      return;
+    }
+    const url = `http://${bridgeHost}:${addressInfo.port}/auth`;
+    try {
+      await onReady(url, state);
+    } catch (error) {
+      handleError(error);
     }
   });
 
@@ -336,6 +384,7 @@ export const startWeb3AuthBridge = (
     enqueueDelegatorStatus: (payload) => enqueueStatelessDelegatorStatus(payload),
     enqueueDelegatorUpgrade: (payload) => enqueueStatelessDelegatorUpgrade(payload),
     enqueueDelegatorDelegation: (payload) => enqueueStatelessDelegatorDelegation(payload),
+    signTypedData: (payload) => enqueueSignDelegationTypedData(payload),
     shutdown,
   };
 };
@@ -493,7 +542,6 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
             const caveats = caveatList.map((caveat) => ({
               enforcer: viem.getAddress(caveat.enforcer),
               terms: caveat.terms,
-              args: caveat.args ?? "0x",
             }));
             const authority =
               delegation.authority && delegation.authority !== "0x"
@@ -512,7 +560,6 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
                 Caveat: [
                   { name: "enforcer", type: "address" },
                   { name: "terms", type: "bytes" },
-                  { name: "args", type: "bytes" },
                 ],
                 Delegation: [
                   { name: "delegate", type: "address" },
@@ -582,7 +629,7 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
                       caveats: job.payload.rootCaveats,
                       from: address,
                       to: statelessDelegator,
-                      salt: "0x0",
+                      salt: ZERO_SALT,
                     });
                     ownerDelegation.caveats = ownerDelegation.caveats ?? [];
                     const { signature: _ownerSignature, ...delegationToSign } = ownerDelegation;
@@ -623,7 +670,7 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
                       to: job.payload.sessionDelegate,
                       caveats: job.payload.caveats,
                       parentDelegation: job.payload.parentDelegation,
-                      salt: "0x0",
+                      salt: ZERO_SALT,
                     });
                     sessionDelegation.caveats = sessionDelegation.caveats ?? [];
                     const { signature: _ignored, ...delegationForSigning } = sessionDelegation;
@@ -765,7 +812,6 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
         const caveats = caveatList.map((caveat) => ({
           enforcer: viem.getAddress(caveat.enforcer),
           terms: caveat.terms,
-          args: caveat.args ?? "0x",
         }));
         const authority =
           delegation.authority && delegation.authority !== "0x"
@@ -784,7 +830,6 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
             Caveat: [
               { name: "enforcer", type: "address" },
               { name: "terms", type: "bytes" },
-              { name: "args", type: "bytes" },
             ],
             Delegation: [
               { name: "delegate", type: "address" },
@@ -871,7 +916,7 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
           to: payload.sessionDelegate,
           caveats: payload.caveats,
           parentDelegation: payload.parentDelegation,
-          salt: "0x0",
+          salt: ZERO_SALT,
         });
         const { signature: _unused, ...delegationForSigning } = sessionDelegation;
         const signature = await smartAccount.signDelegation({
@@ -953,6 +998,26 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
                   } else if (job.type === "statelessDelegatorSignDelegation") {
                     setStatus("Signing delegation...");
                     result = await handleStatelessDelegatorDelegation(provider, job.payload);
+                  } else if (job.type === "signDelegationTypedData") {
+                    const { viem } = await loadLibraries();
+                    const typedDataJson = job.payload?.typedDataJson;
+                    const from = job.payload?.from;
+                    if (typeof typedDataJson !== "string" || typeof from !== "string") {
+                      throw new Error("Missing typed data payload");
+                    }
+                    const signature = await provider.request({
+                      method: "eth_signTypedData_v4",
+                      params: [from, typedDataJson],
+                    });
+                    const typedData = JSON.parse(typedDataJson);
+                    const recoveredAddress = await viem.recoverTypedDataAddress({
+                      ...typedData,
+                      signature,
+                    });
+                    result = {
+                      signature,
+                      recoveredAddress,
+                    };
                   } else {
                     throw new Error("Unknown job type: " + job.type);
                   }

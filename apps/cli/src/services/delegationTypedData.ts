@@ -7,7 +7,6 @@ const SIGNABLE_DELEGATION_TYPED_DATA: Record<string, Array<{ name: string; type:
   Caveat: [
     { name: "enforcer", type: "address" },
     { name: "terms", type: "bytes" },
-    { name: "args", type: "bytes" },
   ],
   Delegation: [
     { name: "delegate", type: "address" },
@@ -31,7 +30,7 @@ type TypedData = {
     delegate: Address;
     delegator: Address;
     authority: string;
-    caveats: Array<{ enforcer: Address; terms: string; args: string }>;
+    caveats: Array<{ enforcer: Address; terms: string }>;
     salt: string;
   };
 };
@@ -44,7 +43,6 @@ export const buildDelegationTypedData = (
   const caveats = (delegation.caveats ?? []).map((caveat) => ({
     enforcer: getAddress(caveat.enforcer),
     terms: caveat.terms,
-    args: caveat.args ?? "0x",
   }));
 
   const authority = delegation.authority && delegation.authority !== "0x"

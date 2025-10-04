@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import open from "open";
 import ora from "ora";
+import path from "node:path";
 import { Address, Hex, http, getAddress } from "viem";
 import { sepolia } from "viem/chains";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
@@ -17,8 +18,9 @@ import type { Delegation } from "@metamask/delegation-toolkit";
 import inquirer from "inquirer";
 
 import { startWeb3AuthBridge } from "./web3authServer.js";
+import { startPrivyBridge } from "./privyBridgeServer.js";
+import { createSepoliaPublicClient, createWalletClientFromBridge } from "./web3authClients.js";
 import { buildDelegationTypedData } from "./delegationTypedData.js";
-import { createSepoliaPublicClient, createWeb3AuthWalletClient } from "./web3authClients.js";
 import { sponsorUserOperation } from "./pimlico.js";
 
 import { onboardingLogger } from "../utils/logger.js";
@@ -28,6 +30,8 @@ import {
   SEPOLIA_WETH_ADDRESS,
   SEPOLIA_UNI_ADDRESS,
   SEPOLIA_SWAP_ROUTER_ADDRESS,
+  PRIVY_APP_ID,
+  PRAGMA_IDENTITY_PROVIDER,
 } from "./config.js";
 
 export type Mode = "safe" | "normal";
@@ -37,6 +41,7 @@ const EXACT_INPUT_SINGLE_SELECTOR = "0x04e45aaf" as Hex;
 const APPROVE_SELECTOR = "0x095ea7b3" as Hex;
 export const WETH_SEPOLIA = getAddress(SEPOLIA_WETH_ADDRESS);
 export const UNI_SEPOLIA = getAddress(SEPOLIA_UNI_ADDRESS);
+export const ZERO_SALT = "0x0000000000000000000000000000000000000000000000000000000000000000" as Hex;
 
 export type DeleGatorEnv = ReturnType<typeof getDeleGatorEnvironment>;
 
@@ -66,15 +71,19 @@ interface HybridTestContext {
   deploymentInfo?: { userOpHash: Hex; transactionHash: Hex };
 }
 
+const TEST_DELEGATIONS_BASE_DIR = (process.env.PRAGMA_DELEGATION_DIR
+  ? path.join(process.env.PRAGMA_DELEGATION_DIR)
+  : path.join(process.env.HOME ?? ".", ".pragma", "test-delegations"));
+
 export const saveDelegation = async (artifact: DelegationArtifact): Promise<string> => {
   const fs = await import("node:fs/promises");
-  const path = await import("node:path");
 
-  const dir = path.join(process.env.HOME ?? ".", ".pragma");
-  await fs.mkdir(dir, { recursive: true });
-  const file = path.join(dir, `delegation-4337-${Date.now()}.json`);
+  const delegatorAddress = getAddress(artifact.delegation.delegator);
+  const delegatorDir = path.join(TEST_DELEGATIONS_BASE_DIR, delegatorAddress.toLowerCase());
+  await fs.mkdir(delegatorDir, { recursive: true });
+  const file = path.join(delegatorDir, `session-${Date.now()}.json`);
   await fs.writeFile(file, JSON.stringify(artifact, null, 2));
-  onboardingLogger.info({ file }, "Stored 4337 delegation artifact");
+  onboardingLogger.info({ file, delegator: delegatorAddress }, "Stored 4337 delegation artifact");
   return file;
 };
 
@@ -234,7 +243,10 @@ const isSmartAccountDeployed = async ({
   return !!bytecode && bytecode !== "0x";
 };
 
-export const runOnboard4337 = async (modeHint?: Mode) => {
+export const runOnboard4337 = async (
+  modeHint?: Mode,
+  identityHint?: "privy" | "web3auth",
+) => {
   onboardingLogger.debug({ chain: PIMLICO_CHAIN }, "Using Pimlico bundler & paymaster endpoints");
 
   const environment = getDeleGatorEnvironment(sepolia.id);
@@ -243,17 +255,54 @@ export const runOnboard4337 = async (modeHint?: Mode) => {
   let hybridDelegator: Address | undefined;
   let mode: Mode;
 
-  const bridge = startWeb3AuthBridge(async (url) => {
-    onboardingLogger.info({ url }, "Launching Web3Auth handoff");
-    await open(url, { wait: false });
-  });
+  const normalizedHint = identityHint;
+  const requestedIdentity = PRAGMA_IDENTITY_PROVIDER?.toLowerCase();
+  const envIdentity =
+    requestedIdentity === "web3auth"
+      ? "web3auth"
+      : requestedIdentity === "privy"
+        ? "privy"
+        : undefined;
+
+  const identityProvider: "privy" | "web3auth" = normalizedHint ?? envIdentity ?? "web3auth";
+
+  if (identityProvider === "privy" && !PRIVY_APP_ID) {
+    throw new Error(
+      "PRIVY_ID environment variable must be set to use the Privy identity provider (set PRAGMA_IDENTITY_PROVIDER=web3auth to force Web3Auth).",
+    );
+  }
+
+  onboardingLogger.info({ identityProvider, source: normalizedHint ? "cli" : envIdentity ? "env" : "auto" }, "Using wallet identity bridge");
+
+  if (identityProvider === "web3auth" && !normalizedHint && !envIdentity && !PRIVY_APP_ID) {
+    onboardingLogger.info("PRIVY_ID not configured; falling back to Web3Auth");
+  }
+
+  const bridge =
+    identityProvider === "privy"
+      ? startPrivyBridge({
+          onReady: async (url) => {
+            onboardingLogger.info({ url }, "Launching Privy handoff");
+            await open(url, { wait: false });
+          },
+        })
+      : startWeb3AuthBridge(async (url) => {
+          onboardingLogger.info({ url }, "Launching Web3Auth handoff");
+          await open(url, { wait: false });
+        });
 
   try {
     const { address: registeredAddress } = await bridge.waitForWallet();
-    const { walletClient } = await createWeb3AuthWalletClient(bridge);
-    const rootAddress = (walletClient.account?.address as Address | undefined) ?? registeredAddress;
+    const { walletClient, address: derivedAddress } = await createWalletClientFromBridge(
+      bridge,
+      registeredAddress,
+    );
+    const rootAddress = derivedAddress;
 
-    onboardingLogger.info({ root: rootAddress }, "Web3Auth wallet connected");
+    onboardingLogger.info(
+      { root: rootAddress, reported: registeredAddress, identityProvider },
+      "Identity wallet connected",
+    );
 
     const publicClient = createSepoliaPublicClient();
 
@@ -279,9 +328,43 @@ export const runOnboard4337 = async (modeHint?: Mode) => {
       publicClient,
       address: hybridDelegator,
     });
+
+    let existingOwner: Address | undefined;
+    if (alreadyDeployed) {
+      try {
+        existingOwner = (await publicClient.readContract({
+          address: hybridDelegator,
+          abi: [
+            {
+              type: "function",
+              name: "owner",
+              stateMutability: "view",
+              inputs: [],
+              outputs: [{ name: "owner", type: "address" }],
+            },
+          ] as const,
+          functionName: "owner",
+        })) as Address;
+      } catch {
+        existingOwner = undefined;
+      }
+    }
     let deploymentInfo: { userOpHash: Hex; transactionHash: Hex } | undefined;
 
     if (alreadyDeployed) {
+      if (existingOwner && existingOwner !== rootAddress) {
+        console.log(
+          chalk.red(
+            `Connected Web3Auth wallet ${rootAddress} is not the owner of HybridDelegator ${hybridDelegator}.`,
+          ),
+        );
+        console.log(
+          chalk.yellow(
+            `Reconnect with the original owner account (${existingOwner}) or update ownership before issuing a delegation.`,
+          ),
+        );
+        return;
+      }
       onboardingLogger.info({ hybridDelegator }, "HybridDelegator already deployed for user");
       const { continueWithExisting } = await inquirer.prompt<{ continueWithExisting: boolean }>([
         {
@@ -381,7 +464,7 @@ export const runOnboard4337 = async (modeHint?: Mode) => {
       from: hybridDelegator as Hex,
       to: sessionKey.address as Hex,
       caveats,
-      salt: "0x0",
+      salt: ZERO_SALT,
     });
 
     const typedData = buildDelegationTypedData(
@@ -390,14 +473,21 @@ export const runOnboard4337 = async (modeHint?: Mode) => {
       environment.DelegationManager as Address,
     );
 
-    const signature = await bridge.request<string>({
-      method: "eth_signTypedData_v4",
-      params: [rootAddress, JSON.stringify(typedData)],
+    const signResult = await bridge.signTypedData({
+      typedDataJson: JSON.stringify(typedData),
+      from: rootAddress,
     });
+
+    if (signResult.recoveredAddress && signResult.recoveredAddress.toLowerCase() !== rootAddress.toLowerCase()) {
+      throw new Error(
+        `Delegation signature produced by ${signResult.recoveredAddress}, expected owner ${rootAddress}.` +
+          " Ensure Web3Auth is connected with the original owner account.",
+      );
+    }
 
     const signedDelegation: Delegation = {
       ...delegationWithoutSignature,
-      signature: signature as Hex,
+      signature: signResult.signature as Hex,
     };
 
     await saveDelegation({
@@ -509,7 +599,7 @@ export const setupHybridDelegatorTest = async (
       from: hybridDelegator as Hex,
       to: sessionKey.address as Hex,
       caveats,
-      salt: "0x0",
+      salt: ZERO_SALT,
     });
 
     const { signature: _unusedSignature, ...delegationToSign } = delegationWithoutSignature;

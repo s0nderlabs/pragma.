@@ -43,6 +43,7 @@ export const WEB3AUTH_NETWORK = process.env.WEB3AUTH_NETWORK ?? "sapphire_devnet
 export const PRAGMA_ADMIN_TEST_PK = getEnv("PRAGMA_ADMIN_TEST_PK");
 export const SEPOLIA_WETH_ADDRESS = getEnv("SEPOLIA_WETH");
 export const SEPOLIA_UNI_ADDRESS = getEnv("SEPOLIA_UNI");
+export const SEPOLIA_USDC_ADDRESS = getEnvOptional("SEPOLIA_USDC");
 export const SEPOLIA_QUOTER_V2_ADDRESS =
   process.env.SEPOLIA_QUOTER_V2 ?? "0xEd1f6473345F45b75F8179591dd5bA1888cf2FB3";
 export const SEPOLIA_WETH_UNI_POOL_ADDRESS =

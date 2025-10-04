@@ -2,7 +2,7 @@ import chalk from "chalk";
 import open from "open";
 import ora from "ora";
 import path from "node:path";
-import { Address, Hex, http, getAddress } from "viem";
+import { Address, Hex, http, getAddress, toHex } from "viem";
 import { sepolia } from "viem/chains";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
@@ -12,6 +12,7 @@ import {
   signDelegation,
   toMetaMaskSmartAccount,
 } from "@metamask/delegation-toolkit";
+import type { Caveats } from "@metamask/delegation-toolkit";
 import { createBundlerClient } from "viem/account-abstraction";
 import { formatUserOperationRequest } from "viem/account-abstraction";
 import type { Delegation } from "@metamask/delegation-toolkit";
@@ -39,9 +40,31 @@ export type Mode = "safe" | "normal";
 export const ROUTER = getAddress(SEPOLIA_SWAP_ROUTER_ADDRESS);
 const EXACT_INPUT_SINGLE_SELECTOR = "0x04e45aaf" as Hex;
 const APPROVE_SELECTOR = "0x095ea7b3" as Hex;
+const WETH_DEPOSIT_SELECTOR = "0xd0e30db0" as Hex;
+const WETH_WITHDRAW_SELECTOR = "0x2e1a7d4d" as Hex;
+const UNWRAP_WETH9_SELECTOR = "0x49404b7c" as Hex;
+const REFUND_ETH_SELECTOR = "0x12210e8a" as Hex;
 export const WETH_SEPOLIA = getAddress(SEPOLIA_WETH_ADDRESS);
 export const UNI_SEPOLIA = getAddress(SEPOLIA_UNI_ADDRESS);
 export const ZERO_SALT = "0x0000000000000000000000000000000000000000000000000000000000000000" as Hex;
+
+export const DEFAULT_CALL_LIMITS: Record<Mode, number> = {
+  safe: 6,
+  normal: 12,
+};
+
+const NONCE_ENFORCER_ABI = [
+  {
+    type: "function",
+    name: "currentNonce",
+    stateMutability: "view",
+    inputs: [
+      { name: "delegationManager", type: "address" },
+      { name: "delegator", type: "address" },
+    ],
+    outputs: [{ name: "nonce", type: "uint256" }],
+  },
+] as const;
 
 export type DeleGatorEnv = ReturnType<typeof getDeleGatorEnvironment>;
 
@@ -51,6 +74,9 @@ export interface DelegationArtifact {
   sessionKeyAddress: Address;
   delegation: Delegation;
   expiresAt: number;
+  callLimit?: number | null;
+  callsUnlimited?: boolean;
+  sessionNonce: Hex;
 }
 
 export interface SessionDelegationInfo {
@@ -59,6 +85,9 @@ export interface SessionDelegationInfo {
   sessionKeyPrivateKey: Hex;
   expiresAt: number;
   delegation: Delegation;
+  callLimit?: number | null;
+  callsUnlimited?: boolean;
+  sessionNonce: Hex;
 }
 
 interface HybridTestContext {
@@ -218,26 +247,73 @@ const clearPersistedSessionArtifacts = async (delegator: Address) => {
 
 export const buildScope = (delegator: Address) => ({
   type: "functionCall" as const,
-  targets: [ROUTER, WETH_SEPOLIA],
-  selectors: [EXACT_INPUT_SINGLE_SELECTOR, APPROVE_SELECTOR],
+  targets: [ROUTER, WETH_SEPOLIA, UNI_SEPOLIA],
+  selectors: [
+    EXACT_INPUT_SINGLE_SELECTOR,
+    APPROVE_SELECTOR,
+    WETH_DEPOSIT_SELECTOR,
+    WETH_WITHDRAW_SELECTOR,
+    UNWRAP_WETH9_SELECTOR,
+    REFUND_ETH_SELECTOR,
+  ],
   allowedCalldata: [],
 });
+
+export const fetchDelegatorNonce = async (
+  publicClient: ReturnType<typeof createSepoliaPublicClient>,
+  environment: DeleGatorEnv,
+  delegator: Address,
+): Promise<bigint> => {
+  const nonceEnforcerAddress = environment.caveatEnforcers?.NonceEnforcer;
+  if (!nonceEnforcerAddress) {
+    throw new Error("NonceEnforcer address missing in environment configuration");
+  }
+
+  const nonce = (await publicClient.readContract({
+    address: nonceEnforcerAddress as Address,
+    abi: NONCE_ENFORCER_ABI,
+    functionName: "currentNonce",
+    args: [environment.DelegationManager as Address, delegator],
+  })) as bigint;
+
+  return nonce;
+};
+
+export interface CaveatOptions {
+  callLimit?: number | null;
+  unlimitedCalls?: boolean;
+  nonce: bigint;
+}
 
 export const buildCaveats = (
   _environment: ReturnType<typeof getDeleGatorEnvironment>,
   mode: Mode,
   expiresAt: number,
-) => [
-  {
-    type: "timestamp" as const,
-    afterThreshold: 0,
-    beforeThreshold: expiresAt,
-  },
-  {
-    type: "nonce" as const,
-    nonce: "0x0" as Hex,
-  },
-];
+  { callLimit, unlimitedCalls, nonce }: CaveatOptions,
+) => {
+  const baseCaveats = [
+    {
+      type: "timestamp" as const,
+      afterThreshold: 0,
+      beforeThreshold: expiresAt,
+    },
+    {
+      type: "nonce" as const,
+      nonce: toHex(nonce),
+    },
+  ] as const;
+
+  const limitedCaveats = !unlimitedCalls
+    ? ([
+        {
+          type: "limitedCalls" as const,
+          limit: callLimit ?? DEFAULT_CALL_LIMITS[mode],
+        },
+      ] as const)
+    : ([] as const);
+
+  return [...baseCaveats, ...limitedCaveats] as unknown as Caveats;
+};
 
 const submitHybridDelegatorDeployment = async ({
   smartAccount,
@@ -369,6 +445,8 @@ const isSmartAccountDeployed = async ({
 export interface RunOnboardOptions {
   rotateSessionKey?: boolean;
   expectedDelegator?: Address;
+  callLimitOverride?: number | null;
+  unlimitedCalls?: boolean;
 }
 
 export const runOnboard4337 = async (
@@ -619,8 +697,89 @@ export const runOnboard4337 = async (
     const before = Math.floor(Date.now() / 1000) + ttlSeconds;
     expiresAt = before;
 
+    const defaultCallLimit = DEFAULT_CALL_LIMITS[mode];
+    let callsUnlimited = options.unlimitedCalls ?? false;
+    let callLimitOverride = options.callLimitOverride ?? undefined;
+
+    if (callLimitOverride !== undefined && callLimitOverride !== null) {
+      if (Number.isNaN(callLimitOverride) || callLimitOverride <= 0) {
+        throw new Error("Call limit override must be a positive number.");
+      }
+      if (!Number.isInteger(callLimitOverride)) {
+        throw new Error("Call limit override must be an integer value.");
+      }
+    }
+
+    if (options.unlimitedCalls && callLimitOverride !== undefined) {
+      throw new Error("Cannot specify both --unlimited-calls and a numeric --calls override.");
+    }
+
+    if (!callsUnlimited && callLimitOverride === undefined) {
+      const { limitChoice } = await inquirer.prompt<{
+        limitChoice: "default" | "custom" | "unlimited";
+      }>([
+        {
+          type: "list",
+          name: "limitChoice",
+          message: "How many delegated calls should be permitted before expiry?",
+          choices: [
+            {
+              name: `Use default (${defaultCallLimit} calls)` ,
+              value: "default",
+            },
+            {
+              name: "Set custom call limit",
+              value: "custom",
+            },
+            {
+              name: "Unlimited (disables LimitedCalls enforcer)",
+              value: "unlimited",
+            },
+          ],
+          default: "default",
+        },
+      ]);
+
+      if (limitChoice === "unlimited") {
+        callsUnlimited = true;
+      } else if (limitChoice === "custom") {
+        const { customLimit } = await inquirer.prompt<{ customLimit: string }>([
+          {
+            type: "input",
+            name: "customLimit",
+            message: "Enter maximum number of delegated calls",
+            default: String(defaultCallLimit),
+            validate: (input: string) => {
+              const parsed = Number(input);
+              if (!Number.isFinite(parsed) || parsed <= 0) {
+                return "Provide a positive number.";
+              }
+              if (!Number.isInteger(parsed)) {
+                return "Call limit must be an integer.";
+              }
+              return true;
+            },
+          },
+        ]);
+        const parsedLimit = Number(customLimit);
+        callLimitOverride = parsedLimit;
+      } else {
+        callLimitOverride = defaultCallLimit;
+      }
+    }
+
+    const resolvedCallLimit = callsUnlimited
+      ? undefined
+      : callLimitOverride ?? defaultCallLimit;
+
+    const currentNonce = await fetchDelegatorNonce(publicClient, environment, normalizedDelegator);
+
     const scope = buildScope(hybridDelegator as Address);
-    const caveats = buildCaveats(environment, mode, before);
+    const caveats = buildCaveats(environment, mode, before, {
+      callLimit: resolvedCallLimit,
+      unlimitedCalls: callsUnlimited,
+      nonce: currentNonce,
+    });
 
     const delegationWithoutSignature = createDelegation({
       environment,
@@ -654,16 +813,23 @@ export const runOnboard4337 = async (
       signature: signResult.signature as Hex,
     };
 
+    const sessionNonceHex = toHex(currentNonce);
+
     await saveDelegation({
       mode,
       sessionKeyPrivateKey: sessionKey.privateKey,
       sessionKeyAddress: sessionKey.address,
       delegation: signedDelegation,
       expiresAt,
+      callLimit: callsUnlimited ? null : resolvedCallLimit ?? null,
+      callsUnlimited,
+      sessionNonce: sessionNonceHex,
     });
 
-    const limit = mode === "safe" ? 1 : 3;
     const expiryIso = new Date(expiresAt * 1000).toISOString();
+    const callAllowanceDescription = callsUnlimited
+      ? "Unlimited (LimitedCalls disabled)"
+      : `${resolvedCallLimit} delegated call${resolvedCallLimit === 1 ? "" : "s"} before expiry`;
 
     console.log(chalk.green(`Delegation stored for session key ${sessionKey.address}`));
     console.log(`  • Purpose         : swap permissions via Uniswap V3 router ${ROUTER}`);
@@ -673,8 +839,8 @@ export const runOnboard4337 = async (
       "  • Allowed selectors: approve(address,uint256), exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))",
     );
     console.log(`  • Session window  : valid until ${expiryIso}`);
-    console.log(`  • Call allowance  : ${limit} swap${limit > 1 ? "s" : ""} before expiry`);
-    console.log("  • Nonce guard      : single-use (nonce pinned at 0x0)");
+    console.log(`  • Call allowance  : ${callAllowanceDescription}`);
+    console.log(`  • Nonce guard      : ${sessionNonceHex} (NonceEnforcer)`);
     console.log(`  • Session key      : ${sessionKey.address}`);
     console.log(`  • Session secret   : ${sessionKey.privateKey}`);
     console.log(`  • Delegator        : ${signedDelegation.delegator}`);
@@ -754,8 +920,16 @@ export const setupHybridDelegatorTest = async (
     const expiresAt = Math.floor(Date.now() / 1000) + ttlSeconds;
 
     const sessionKey = generateSessionKey();
+    const callLimit = DEFAULT_CALL_LIMITS[mode];
+    const callsUnlimited = false;
+    const currentNonce = await fetchDelegatorNonce(publicClient, environment, hybridDelegator as Address);
+    const sessionNonceHex = toHex(currentNonce);
     const scope = buildScope(hybridDelegator as Address);
-    const caveats = buildCaveats(environment, mode, expiresAt);
+    const caveats = buildCaveats(environment, mode, expiresAt, {
+      callLimit,
+      unlimitedCalls: callsUnlimited,
+      nonce: currentNonce,
+    });
 
     const delegationWithoutSignature = createDelegation({
       environment,
@@ -785,6 +959,9 @@ export const setupHybridDelegatorTest = async (
       sessionKeyAddress: sessionKey.address,
       delegation: signedDelegation,
       expiresAt,
+      callLimit,
+      callsUnlimited,
+      sessionNonce: sessionNonceHex,
     });
 
     const delegationInfo: SessionDelegationInfo = {
@@ -793,11 +970,13 @@ export const setupHybridDelegatorTest = async (
       sessionKeyPrivateKey: sessionKey.privateKey,
       expiresAt,
       delegation: signedDelegation,
+      callLimit,
+      callsUnlimited,
+      sessionNonce: sessionNonceHex,
     };
     sessionDelegations.push(delegationInfo);
 
     if (logSessionSummaries) {
-      const limit = mode === "safe" ? 1 : 3;
       const expiryIso = new Date(expiresAt * 1000).toISOString();
 
       console.log(chalk.green(`[${mode}] Delegation ready for session key ${sessionKey.address}`));
@@ -808,8 +987,10 @@ export const setupHybridDelegatorTest = async (
         "  • Allowed selectors: approve(address,uint256), exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))",
       );
       console.log(`  • Session window  : valid until ${expiryIso}`);
-      console.log(`  • Call allowance  : ${limit} swap${limit > 1 ? "s" : ""} before expiry`);
-      console.log("  • Nonce guard      : single-use (nonce pinned at 0x0)");
+      console.log(
+        `  • Call allowance  : ${callLimit} delegated call${callLimit === 1 ? "" : "s"} before expiry`,
+      );
+      console.log(`  • Nonce guard      : ${sessionNonceHex} (NonceEnforcer)`);
       console.log(`  • Session key      : ${sessionKey.address}`);
       console.log(`  • Session secret   : ${sessionKey.privateKey}`);
       console.log(`  • Delegator        : ${signedDelegation.delegator}`);

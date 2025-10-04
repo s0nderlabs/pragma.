@@ -97,8 +97,9 @@ export const launchHome = async () => {
       console.log("  pragma onboard:4337         – full onboarding with Web3Auth");
       console.log("  pragma status                – show latest delegation snapshot");
       console.log("  pragma fund --watch          – monitor gas funding for delegator");
-      console.log("  pragma swap --help           – execute swaps (coming soon)");
-      console.log("  pragma revoke                – bump nonce and invalidate sessions");
+      console.log("  pragma swap --help           – delegated swaps (ETH/WETH/UNI)");
+      console.log("  pragma wrap|unwrap           – convert ETH ↔ WETH via delegation");
+      console.log("  pragma revoke                – bump nonce / optionally disable");
       console.log("  pragma dev --help            – developer playground (Sepolia)");
       console.log();
       break;

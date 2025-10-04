@@ -1,20 +1,22 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { Address, Hex } from "viem";
+import { Address, Hex, toHex } from "viem";
 import { sepolia } from "viem/chains";
 import { createDelegation, getDeleGatorEnvironment, signDelegation } from "@metamask/delegation-toolkit";
 
 import {
   buildCaveats,
   buildScope,
-  generateSessionKey,
   saveDelegation,
   Mode,
   ZERO_SALT,
+  fetchDelegatorNonce,
+  DEFAULT_CALL_LIMITS,
+  type DelegationArtifact,
 } from "../services/onboarding4337.js";
 import { loadDelegationArtifact, isDelegationExpired } from "../services/delegationArtifacts.js";
 import { createSepoliaPublicClient } from "../services/web3authClients.js";
-import { executeSwapWithSession } from "../services/swapTest.js";
+import { executeSwapWithSession, resolveSwapAsset, TEST_SWAP_INPUT } from "../services/swapTest.js";
 import { onboardingLogger } from "../utils/logger.js";
 import { SessionDelegationInfo } from "../services/onboarding4337.js";
 import { Delegation } from "@metamask/delegation-toolkit";
@@ -33,32 +35,54 @@ const buildSessionInfo = (
   sessionKeyAddress: string,
   sessionKeyPrivateKey: Hex,
   expiresAt: number,
+  callLimit: number | null,
+  callsUnlimited: boolean,
+  sessionNonce: Hex,
 ): SessionDelegationInfo => ({
   mode: artifactMode,
   sessionKeyAddress: sessionKeyAddress as Address,
   sessionKeyPrivateKey,
   expiresAt,
   delegation,
+  callLimit,
+  callsUnlimited,
+  sessionNonce,
 });
 
 const renewDelegation = async (
+  publicClient: ReturnType<typeof createSepoliaPublicClient>,
+  environment: ReturnType<typeof getDeleGatorEnvironment>,
   hybridDelegator: Address,
   mode: Mode,
+  existingArtifact: DelegationArtifact,
   rootKey: Hex,
 ): Promise<{ session: SessionDelegationInfo; artifactPath: string }> => {
-  const environment = getDeleGatorEnvironment(sepolia.id);
-  const sessionKey = generateSessionKey();
   const ttl = MODE_TTLS[mode] ?? MODE_TTLS.safe;
   const expiresAt = Math.floor(Date.now() / 1000) + ttl;
 
+  if (!existingArtifact.sessionKeyAddress || !existingArtifact.sessionKeyPrivateKey) {
+    throw new Error("Stored delegation artifact is missing session key secrets. Issue a new delegation instead.");
+  }
+
+  const callsUnlimited = existingArtifact.callsUnlimited ?? false;
+  const defaultLimit = DEFAULT_CALL_LIMITS[mode];
+  const callLimitValue = callsUnlimited ? undefined : existingArtifact.callLimit ?? defaultLimit;
+
+  const currentNonce = await fetchDelegatorNonce(publicClient, environment, hybridDelegator);
+  const sessionNonceHex = toHex(currentNonce);
+
   const scope = buildScope(hybridDelegator);
-  const caveats = buildCaveats(environment, mode, expiresAt);
+  const caveats = buildCaveats(environment, mode, expiresAt, {
+    callLimit: callLimitValue,
+    unlimitedCalls: callsUnlimited,
+    nonce: currentNonce,
+  });
 
   const unsignedDelegation = createDelegation({
     environment,
     scope,
     from: hybridDelegator as Hex,
-    to: sessionKey.address as Hex,
+    to: existingArtifact.sessionKeyAddress as Hex,
     caveats,
     salt: ZERO_SALT,
   });
@@ -78,18 +102,24 @@ const renewDelegation = async (
 
   const artifactPath = await saveDelegation({
     mode,
-    sessionKeyPrivateKey: sessionKey.privateKey,
-    sessionKeyAddress: sessionKey.address,
+    sessionKeyPrivateKey: existingArtifact.sessionKeyPrivateKey,
+    sessionKeyAddress: existingArtifact.sessionKeyAddress,
     delegation: signedDelegation,
     expiresAt,
+    callLimit: callsUnlimited ? null : callLimitValue ?? null,
+    callsUnlimited,
+    sessionNonce: sessionNonceHex,
   });
 
   const session = buildSessionInfo(
     signedDelegation,
     mode,
-    sessionKey.address,
-    sessionKey.privateKey,
+    existingArtifact.sessionKeyAddress,
+    existingArtifact.sessionKeyPrivateKey,
     expiresAt,
+    callsUnlimited ? null : callLimitValue ?? null,
+    callsUnlimited,
+    sessionNonceHex,
   );
 
   return { session, artifactPath };
@@ -113,12 +143,23 @@ export const registerSwapReuse = (program: Command) => {
         const mode = stored.mode;
         const expiresAt = stored.expiresAt;
 
+        const publicClient = createSepoliaPublicClient();
+        const environment = getDeleGatorEnvironment(sepolia.id);
+
+        const storedCallsUnlimited = stored.callsUnlimited ?? false;
+        const defaultLimit = DEFAULT_CALL_LIMITS[mode];
+        const storedCallLimit = storedCallsUnlimited ? null : stored.callLimit ?? defaultLimit;
+        const storedNonce = (stored.sessionNonce ?? "0x0") as Hex;
+
         let session: SessionDelegationInfo = buildSessionInfo(
           stored.delegation,
           mode,
           stored.sessionKeyAddress,
           stored.sessionKeyPrivateKey,
           expiresAt,
+          storedCallLimit,
+          storedCallsUnlimited,
+          storedNonce,
         );
 
         if (isDelegationExpired(stored)) {
@@ -134,8 +175,11 @@ export const registerSwapReuse = (program: Command) => {
 
           const normalizedRoot = normalizeHex(suppliedRoot);
           const { session: renewedSession, artifactPath } = await renewDelegation(
+            publicClient,
+            environment,
             hybridDelegator,
             mode,
+            stored,
             normalizedRoot,
           );
           session = renewedSession;
@@ -147,15 +191,18 @@ export const registerSwapReuse = (program: Command) => {
             ),
           );
         }
-
-        const publicClient = createSepoliaPublicClient();
-
-        const environment = getDeleGatorEnvironment(sepolia.id);
         await executeSwapWithSession({
           publicClient,
           hybridDelegator: hybridDelegator as Address,
           session,
           environment,
+          amountIn: TEST_SWAP_INPUT,
+          slippageBps: 50n,
+          intent: {
+            from: resolveSwapAsset("weth"),
+            to: resolveSwapAsset("uni"),
+          },
+          logPrefix: "[dev]",
         });
       } catch (error) {
         onboardingLogger.error({ err: error }, "swap:test:reuse failed");

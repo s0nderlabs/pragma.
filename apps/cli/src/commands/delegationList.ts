@@ -4,7 +4,7 @@ import chalk from "chalk";
 import { listDelegationArtifacts, isDelegationExpired } from "../services/delegationArtifacts.js";
 import { formatEther, formatUnits, getAddress } from "viem";
 import { createSepoliaPublicClient } from "../services/web3authClients.js";
-import { WETH_SEPOLIA } from "../services/onboarding4337.js";
+import { WETH_SEPOLIA, DEFAULT_CALL_LIMITS } from "../services/onboarding4337.js";
 
 const ERC20_BALANCE_ABI = [
   {
@@ -73,6 +73,15 @@ export const registerDelegationList = (program: Command) => {
         console.log(`  Delegator   : ${delegatorAddress}`);
         console.log(`  Session key : ${artifact.sessionKeyAddress}`);
         console.log(`  Session secret: ${artifact.sessionKeyPrivateKey}`);
+        const callsUnlimited = artifact.callsUnlimited ?? false;
+        const fallbackLimit = DEFAULT_CALL_LIMITS[artifact.mode];
+        const callLimitValue = callsUnlimited ? null : artifact.callLimit ?? fallbackLimit;
+        console.log(
+          `  Call limit  : ${
+            callsUnlimited ? "Unlimited (LimitedCalls disabled)" : `${callLimitValue} call${callLimitValue === 1 ? "" : "s"}`
+          }`,
+        );
+        console.log(`  Nonce       : ${(artifact.sessionNonce ?? "0x0").toLowerCase()}`);
         if (hasExpiry && ttl !== undefined) {
           try {
             const iso = new Date(expiryNumber * 1000).toISOString();

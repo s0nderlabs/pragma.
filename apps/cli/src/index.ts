@@ -34,6 +34,8 @@ const { registerDelegationList } = await import("./commands/delegationList.js");
 const { registerDelegationIssue } = await import("./commands/delegationIssue.js");
 const { registerDelegationRevoke } = await import("./commands/delegationRevoke.js");
 const { registerSessionReplace } = await import("./commands/replace.js");
+const { registerWrap } = await import("./commands/wrap.js");
+const { registerUnwrap } = await import("./commands/unwrap.js");
 const { registerReceipts } = await import("./commands/receipts.js");
 const { registerDev } = await import("./commands/dev.js");
 
@@ -48,6 +50,8 @@ registerDelegationList(program);
 registerDelegationIssue(program);
 registerDelegationRevoke(program);
 registerSessionReplace(program);
+registerWrap(program);
+registerUnwrap(program);
 registerReceipts(program);
 registerDev(program);
 

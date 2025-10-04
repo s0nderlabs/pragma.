@@ -4,6 +4,8 @@ import chalk from "chalk";
 import { runRevoke } from "../services/revoke.js";
 import { onboardingLogger } from "../utils/logger.js";
 
+type Mode = "safe" | "normal";
+
 export const registerDelegationRevoke = (program: Command) => {
   program
     .command("delegation:revoke")
@@ -18,7 +20,7 @@ export const registerDelegationRevoke = (program: Command) => {
 
       onboardingLogger.info({ mode: normalized }, "Nonce bump via delegation:revoke");
       try {
-        await runRevoke(normalized as "safe" | "normal");
+        await runRevoke({ mode: normalized as Mode });
         onboardingLogger.info({ mode: normalized }, "Delegations revoked");
       } catch (error) {
         onboardingLogger.error({ err: error }, "Nonce bump failed");

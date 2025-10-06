@@ -6,6 +6,7 @@ import {
   formatEther,
   formatUnits,
   parseEther,
+  parseUnits,
   getAddress,
 } from "viem";
 import { createWalletClient, http } from "viem";
@@ -17,16 +18,21 @@ import {
   PRAGMA_ADMIN_TEST_PK,
   SEPOLIA_RPC_URL,
   SEPOLIA_WETH_UNI_POOL_ADDRESS,
+  SEPOLIA_WETH_USDC_POOL_ADDRESS,
+  SEPOLIA_UNI_USDC_POOL_ADDRESS,
 } from "./config.js";
 import { createSepoliaPublicClient } from "./web3authClients.js";
 import {
   ROUTER,
   WETH_SEPOLIA,
   UNI_SEPOLIA,
+  USDC_SEPOLIA,
   setupHybridDelegatorTest,
   SessionDelegationInfo,
   Mode,
   DeleGatorEnv,
+  normalizeAllowedTokensList,
+  type AllowedToken,
 } from "./onboarding4337.js";
 import { onboardingLogger } from "../utils/logger.js";
 
@@ -118,7 +124,7 @@ export const WETH_ABI = [
   },
 ] as const;
 
-export type SwapAssetId = "eth" | "weth" | "uni";
+export type SwapAssetId = string;
 type SwapAssetKind = "native" | "erc20";
 
 export interface SwapAsset {
@@ -126,23 +132,94 @@ export interface SwapAsset {
   symbol: string;
   kind: SwapAssetKind;
   address?: Address;
+  decimals: number;
 }
 
-const NATIVE_ASSET: SwapAsset = { id: "eth", symbol: "ETH", kind: "native" };
-const WETH_ASSET: SwapAsset = { id: "weth", symbol: "WETH", kind: "erc20", address: WETH_SEPOLIA };
-const UNI_ASSET: SwapAsset = { id: "uni", symbol: "UNI", kind: "erc20", address: UNI_SEPOLIA };
+const NATIVE_ASSET: SwapAsset = { id: "eth", symbol: "ETH", kind: "native", decimals: 18 };
+const WETH_ASSET: SwapAsset = { id: "weth", symbol: "WETH", kind: "erc20", address: WETH_SEPOLIA, decimals: 18 };
+const UNI_ASSET: SwapAsset = { id: "uni", symbol: "UNI", kind: "erc20", address: UNI_SEPOLIA, decimals: 18 };
+const USDC_ASSET: SwapAsset = { id: "usdc", symbol: "USDC", kind: "erc20", address: USDC_SEPOLIA, decimals: 6 };
 
-const ASSET_MAP: Record<SwapAssetId, SwapAsset> = {
+const ASSET_MAP: Record<string, SwapAsset> = {
   eth: NATIVE_ASSET,
   weth: WETH_ASSET,
   uni: UNI_ASSET,
+  usdc: USDC_ASSET,
 };
 
-export const resolveSwapAsset = (raw: string): SwapAsset => {
-  const normalized = raw.toLowerCase();
+const optionalAddress = (value: string | undefined): Address | undefined => {
+  if (!value) return undefined;
+  try {
+    return getAddress(value);
+  } catch (error) {
+    onboardingLogger.debug({ err: error, address: value }, "Skipping invalid pool address override");
+    return undefined;
+  }
+};
+
+const KNOWN_SINGLE_HOP_POOLS: Array<{ tokens: [Address, Address]; address?: Address }> = [
+  {
+    tokens: [WETH_SEPOLIA, UNI_SEPOLIA],
+    address: getAddress(SEPOLIA_WETH_UNI_POOL_ADDRESS),
+  },
+  {
+    tokens: [WETH_SEPOLIA, USDC_SEPOLIA],
+    address: optionalAddress(SEPOLIA_WETH_USDC_POOL_ADDRESS),
+  },
+  {
+    tokens: [UNI_SEPOLIA, USDC_SEPOLIA],
+    address: optionalAddress(SEPOLIA_UNI_USDC_POOL_ADDRESS),
+  },
+];
+
+const toSwapAssetFromToken = (token: AllowedToken): SwapAsset => ({
+  id: (token.symbol ?? token.address).toLowerCase(),
+  symbol: token.symbol ?? token.address,
+  kind: "erc20",
+  address: getAddress(token.address),
+  decimals:
+    typeof token.decimals === "number" && Number.isFinite(token.decimals)
+      ? Number(token.decimals)
+      : Number(token.decimals ?? 18),
+});
+
+export const resolveSwapAsset = (raw: string, allowedTokens?: AllowedToken[]): SwapAsset => {
+  const input = raw.trim();
+  const normalized = input.toLowerCase();
   if (normalized === "eth" || normalized === "native") return NATIVE_ASSET;
-  if ((normalized as SwapAssetId) in ASSET_MAP) return ASSET_MAP[normalized as SwapAssetId];
-  throw new Error(`Unsupported asset '${raw}'. Supported assets: eth, weth, uni.`);
+  const builtIn = ASSET_MAP[normalized];
+  if (builtIn) return builtIn;
+
+  const tokens = allowedTokens ?? [];
+  const matchBySymbol = tokens.find((token) => token.symbol?.toLowerCase() === normalized);
+  if (matchBySymbol) {
+    return toSwapAssetFromToken(matchBySymbol);
+  }
+
+  try {
+    const address = getAddress(input as Address);
+    const matchByAddress = tokens.find((token) => token.address.toLowerCase() === address.toLowerCase());
+    if (matchByAddress) {
+      return toSwapAssetFromToken(matchByAddress);
+    }
+    return {
+      id: address.toLowerCase(),
+      symbol: address,
+      kind: "erc20",
+      address,
+      decimals: 18,
+    };
+  } catch (error) {
+    onboardingLogger.debug({ err: error, value: raw }, "Unable to treat asset as address");
+  }
+
+  const supported = ["eth", ...Object.keys(ASSET_MAP).filter((key) => key !== "eth")];
+  const tokenSymbols = tokens
+    .map((token) => token.symbol)
+    .filter((value): value is string => Boolean(value))
+    .map((symbol) => symbol.toLowerCase());
+  const hint = tokenSymbols.length > 0 ? `, ${tokenSymbols.join(", ")}` : "";
+  throw new Error(`Unsupported asset '${raw}'. Supported assets: ${supported.join(", ")}${hint}.`);
 };
 
 export interface SwapIntent {
@@ -183,14 +260,58 @@ const FEE_DENOMINATOR = 1_000_000n;
 
 type SepoliaClient = ReturnType<typeof createSepoliaPublicClient>;
 
-export const computeWethUniQuote = async (
+const resolveSingleHopPool = (tokenIn: Address, tokenOut: Address): Address | undefined => {
+  const lhs = tokenIn.toLowerCase();
+  const rhs = tokenOut.toLowerCase();
+
+  for (const pool of KNOWN_SINGLE_HOP_POOLS) {
+    if (!pool.address) continue;
+    const [a, b] = pool.tokens;
+    const normalized = [a.toLowerCase(), b.toLowerCase()];
+    const isMatch =
+      (normalized[0] === lhs && normalized[1] === rhs) ||
+      (normalized[0] === rhs && normalized[1] === lhs);
+    if (isMatch) return pool.address;
+  }
+
+  return undefined;
+};
+
+const resolveDefaultFee = (tokenIn: Address, tokenOut: Address): number => {
+  const lhs = tokenIn.toLowerCase();
+  const rhs = tokenOut.toLowerCase();
+  const weth = WETH_SEPOLIA.toLowerCase();
+  const uni = UNI_SEPOLIA.toLowerCase();
+  const usdc = USDC_SEPOLIA.toLowerCase();
+
+  if ((lhs === weth && rhs === uni) || (lhs === uni && rhs === weth)) {
+    return 3_000;
+  }
+
+  if ((lhs === weth && rhs === usdc) || (lhs === usdc && rhs === weth)) {
+    return 500;
+  }
+
+  if ((lhs === uni && rhs === usdc) || (lhs === usdc && rhs === uni)) {
+    return 3_000;
+  }
+
+  return 3_000;
+};
+
+export const computeSingleHopQuote = async (
   client: SepoliaClient,
   amountIn: bigint,
   tokenIn: Address,
   tokenOut: Address,
 ): Promise<{ amountOut: bigint; fee: number } | undefined> => {
+  const poolAddress = resolveSingleHopPool(tokenIn, tokenOut);
+  if (!poolAddress) {
+    onboardingLogger.debug({ tokenIn, tokenOut }, "No configured single-hop pool for token pair");
+    return undefined;
+  }
+
   try {
-    const poolAddress = getAddress(SEPOLIA_WETH_UNI_POOL_ADDRESS);
     const [slot0Raw, feeRaw, token0Address, token1Address] = await Promise.all([
       client.readContract({ address: poolAddress, abi: UNISWAP_POOL_ABI, functionName: "slot0" }),
       client.readContract({ address: poolAddress, abi: UNISWAP_POOL_ABI, functionName: "fee" }),
@@ -201,24 +322,37 @@ export const computeWethUniQuote = async (
     const token0 = getAddress(token0Address as Address);
     const token1 = getAddress(token1Address as Address);
 
-    const wethAddress = getAddress(WETH_SEPOLIA);
-    const uniAddress = getAddress(UNI_SEPOLIA);
+    const normalizedIn = getAddress(tokenIn);
+    const normalizedOut = getAddress(tokenOut);
 
-    const tokenInNormalized = getAddress(tokenIn);
-    const tokenOutNormalized = getAddress(tokenOut);
+    const tokenInIsToken0 = token0 === normalizedIn;
+    const tokenInIsToken1 = token1 === normalizedIn;
+    const tokenOutIsToken0 = token0 === normalizedOut;
+    const tokenOutIsToken1 = token1 === normalizedOut;
 
-    const isExpectedPool =
-      (token0 === wethAddress && token1 === uniAddress) || (token0 === uniAddress && token1 === wethAddress);
+    const isExpectedPool = (tokenInIsToken0 && tokenOutIsToken1) || (tokenInIsToken1 && tokenOutIsToken0);
 
     if (!isExpectedPool) {
-      throw new Error("Configured pool is not the expected WETH/UNI pair");
+      onboardingLogger.debug(
+        { token0, token1, tokenIn: normalizedIn, tokenOut: normalizedOut },
+        "Configured pool tokens do not match requested pair",
+      );
     }
 
-    const directionWethToUni = tokenInNormalized === wethAddress && tokenOutNormalized === uniAddress;
-    const directionUniToWeth = tokenInNormalized === uniAddress && tokenOutNormalized === wethAddress;
+    if (!tokenInIsToken0 && !tokenInIsToken1) {
+      onboardingLogger.debug(
+        { token0, token1, tokenIn: normalizedIn },
+        "Input token not found in configured pool",
+      );
+      return undefined;
+    }
 
-    if (!directionWethToUni && !directionUniToWeth) {
-      throw new Error("Quote helper only supports WETH↔UNI pairs");
+    if (!tokenOutIsToken0 && !tokenOutIsToken1) {
+      onboardingLogger.debug(
+        { token0, token1, tokenOut: normalizedOut },
+        "Output token not found in configured pool",
+      );
+      return undefined;
     }
 
     const [sqrtPriceX96] = slot0Raw as unknown as [bigint, number, ...unknown[]];
@@ -232,15 +366,17 @@ export const computeWethUniQuote = async (
     }
 
     let amountOut: bigint;
-    if (directionWethToUni) {
-      amountOut = (amountAfterFee * Q192) / priceX192;
-    } else {
+    if (tokenInIsToken0) {
+      // token0 → token1 uses price (token1 per token0)
       amountOut = (amountAfterFee * priceX192) / Q192;
+    } else {
+      // token1 → token0 uses the inverse price
+      amountOut = (amountAfterFee * Q192) / priceX192;
     }
 
     return { amountOut, fee: Number(feeRaw) };
   } catch (error) {
-    onboardingLogger.warn({ err: error }, "Failed to compute WETH↔UNI quote from pool state");
+    onboardingLogger.warn({ err: error, tokenIn, tokenOut }, "Failed to compute single-hop quote from pool state");
     return undefined;
   }
 };
@@ -281,6 +417,24 @@ export const executeSwapWithSession = async ({
     account: sessionAccount,
   });
 
+  const allowedTokenMap = new Map(
+    (session.allowedTokens ?? []).map((token) => [token.address.toLowerCase(), token]),
+  );
+  const getTokenDecimals = (address: Address): number => {
+    const entry = allowedTokenMap.get(address.toLowerCase());
+    if (entry) return entry.decimals ?? 18;
+    if (address.toLowerCase() === WETH_SEPOLIA.toLowerCase()) return 18;
+    if (address.toLowerCase() === UNI_SEPOLIA.toLowerCase()) return 18;
+    if (address.toLowerCase() === USDC_SEPOLIA.toLowerCase()) return 6;
+    return 18;
+  };
+  const getTokenSymbol = (address: Address, fallback: string) => {
+    const entry = allowedTokenMap.get(address.toLowerCase());
+    return entry?.symbol ?? fallback;
+  };
+  const isTokenAllowed = (address: Address) =>
+    allowedTokenMap.size === 0 || allowedTokenMap.has(address.toLowerCase());
+
   const prefix = logPrefix ? `${logPrefix} ` : "";
 
   const fromAsset = intent.from;
@@ -295,18 +449,47 @@ export const executeSwapWithSession = async ({
     throw new Error("Swap asset addresses not resolved");
   }
 
-  const wethAddress = getAddress(WETH_SEPOLIA);
-  const uniAddress = getAddress(UNI_SEPOLIA);
+  const tokenInDecimals = getTokenDecimals(swapTokenIn);
+  const tokenOutDecimals = getTokenDecimals(swapTokenOut);
+  const fromDecimals = isFromNative ? fromAsset.decimals : tokenInDecimals;
+  const toDecimals = isToNative ? toAsset.decimals : tokenOutDecimals;
+
+  if (!isTokenAllowed(swapTokenIn)) {
+    throw new Error(
+      `Delegation does not permit spending ${getTokenSymbol(swapTokenIn, fromAsset.symbol)} (${swapTokenIn}). Reissue the delegation with this token included.`,
+    );
+  }
+  if (!isTokenAllowed(swapTokenOut)) {
+    throw new Error(
+      `Delegation does not permit receiving ${getTokenSymbol(swapTokenOut, toAsset.symbol)} (${swapTokenOut}). Reissue the delegation with this token included.`,
+    );
+  }
+  if (isFromNative && !isTokenAllowed(WETH_SEPOLIA)) {
+    throw new Error(
+      "Delegation does not permit wrapping ETH → WETH. Include WETH in the token allowlist to swap native ETH.",
+    );
+  }
+  if (isToNative && !isTokenAllowed(WETH_SEPOLIA)) {
+    throw new Error(
+      "Delegation does not permit unwrapping WETH → ETH. Include WETH in the token allowlist to receive native ETH.",
+    );
+  }
+
   const tokenInNormalized = getAddress(swapTokenIn);
   const tokenOutNormalized = getAddress(swapTokenOut);
+  const tokenInLower = tokenInNormalized.toLowerCase();
+  const tokenOutLower = tokenOutNormalized.toLowerCase();
 
-  const isSupportedPair =
-    (tokenInNormalized === wethAddress && tokenOutNormalized === uniAddress) ||
-    (tokenInNormalized === uniAddress && tokenOutNormalized === wethAddress);
-
-  if (!isSupportedPair) {
-    throw new Error("Swap command currently supports WETH ↔ UNI pairs only");
+  if (session.mode === "safe") {
+    const allowedAddresses = new Set<string>(allowedTokenMap.keys());
+    if (!allowedAddresses.has(tokenInLower) || !allowedAddresses.has(tokenOutLower)) {
+      throw new Error(
+        "Safe mode delegation only authorizes swaps within the originally selected pair. Reissue in normal mode to add more tokens.",
+      );
+    }
   }
+
+  const wethAddress = getAddress(WETH_SEPOLIA);
 
   if (amountIn <= 0n) {
     throw new Error("Swap amount must be greater than zero");
@@ -336,9 +519,11 @@ export const executeSwapWithSession = async ({
     })) as bigint;
 
     if (allowance >= requiredAmount) return;
+    const tokenDecimals = getTokenDecimals(token);
+    const tokenSymbol = getTokenSymbol(token, fromAsset.symbol);
     if (!autoApprove) {
       throw new Error(
-        `Allowance for token ${token} is insufficient (${formatEther(allowance)}). Approve the router before swapping.`,
+        `Allowance for token ${token} is insufficient (${formatUnits(allowance, tokenDecimals)} ${tokenSymbol}). Approve the router before swapping.`,
       );
     }
 
@@ -364,7 +549,7 @@ export const executeSwapWithSession = async ({
     const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approveTxHash });
     console.log(
       chalk.green(
-        `${prefix}Approved router to spend ${formatEther(requiredAmount)} of token ${token} (tx: ${approveTxHash}, block: ${approveReceipt.blockNumber})`,
+        `${prefix}Approved router to spend ${formatUnits(requiredAmount, tokenDecimals)} ${tokenSymbol} (tx: ${approveTxHash}, block: ${approveReceipt.blockNumber})`,
       ),
     );
   };
@@ -376,7 +561,7 @@ export const executeSwapWithSession = async ({
     const tokenBalance = await readTokenBalance(tokenInNormalized);
     if (tokenBalance < amountIn) {
       throw new Error(
-        `HybridDelegator ${hybridDelegator} has insufficient ${fromAsset.symbol} (${formatUnits(tokenBalance, 18)}).`,
+        `HybridDelegator ${hybridDelegator} has insufficient ${fromAsset.symbol} (${formatUnits(tokenBalance, fromDecimals)}).`,
       );
     }
   }
@@ -395,12 +580,15 @@ export const executeSwapWithSession = async ({
 
   await ensureAllowance(tokenInNormalized, amountIn);
 
-  const quote = await computeWethUniQuote(publicClient, amountIn, tokenInNormalized, tokenOutNormalized);
+  const quote = await computeSingleHopQuote(publicClient, amountIn, tokenInNormalized, tokenOutNormalized);
   if (!quote) {
     console.log(chalk.yellow(`${prefix}Unable to compute pool-based quote — proceeding without slippage guard.`));
   }
 
-  const { amountOut: quotedAmountOut, fee: selectedFee } = quote ?? { amountOut: 0n, fee: 3_000 };
+  const { amountOut: quotedAmountOut, fee: selectedFee } = quote ?? {
+    amountOut: 0n,
+    fee: resolveDefaultFee(tokenInNormalized, tokenOutNormalized),
+  };
   const amountOutMinimum = quote
     ? (quotedAmountOut * (10_000n - slippageBps)) / 10_000n
     : 0n;
@@ -408,7 +596,7 @@ export const executeSwapWithSession = async ({
   if (quote) {
     console.log(
       chalk.blue(
-        `${prefix}Quoter estimates ${formatUnits(quotedAmountOut, 18)} ${toAsset.symbol} for ${formatUnits(amountIn, 18)} ${fromAsset.symbol} (fee tier ${selectedFee})`,
+        `${prefix}Quoter estimates ${formatUnits(quotedAmountOut, toDecimals)} ${toAsset.symbol} for ${formatUnits(amountIn, fromDecimals)} ${fromAsset.symbol} (fee tier ${selectedFee})`,
       ),
     );
   }
@@ -472,7 +660,7 @@ export const executeSwapWithSession = async ({
     const ethDelta = ethBalanceAfter - ethBalanceBeforeSwap;
     console.log(
       chalk.green(
-        `${prefix}Swap executed: ${formatUnits(amountIn, 18)} ${fromAsset.symbol} -> ${formatUnits(ethDelta, 18)} ${toAsset.symbol} (tx: ${swapTxHash}, block: ${swapReceipt.blockNumber})`,
+        `${prefix}Swap executed: ${formatUnits(amountIn, fromDecimals)} ${fromAsset.symbol} -> ${formatUnits(ethDelta, 18)} ${toAsset.symbol} (tx: ${swapTxHash}, block: ${swapReceipt.blockNumber})`,
       ),
     );
     return;
@@ -482,7 +670,7 @@ export const executeSwapWithSession = async ({
   const outputDelta = outputBalanceAfter - outputTokenBalanceBefore;
   console.log(
     chalk.green(
-      `${prefix}Swap executed: ${formatUnits(amountIn, 18)} ${fromAsset.symbol} -> ${formatUnits(outputDelta, 18)} ${toAsset.symbol} (tx: ${swapTxHash}, block: ${swapReceipt.blockNumber})`,
+      `${prefix}Swap executed: ${formatUnits(amountIn, fromDecimals)} ${fromAsset.symbol} -> ${formatUnits(outputDelta, toDecimals)} ${toAsset.symbol} (tx: ${swapTxHash}, block: ${swapReceipt.blockNumber})`,
     ),
   );
 };
@@ -638,32 +826,102 @@ export const runSwapTest = async (mode: Mode = DEFAULT_MODE) => {
     ),
   );
 
-  const seedWethTx = await adminWallet.writeContract({
-    address: WETH_SEPOLIA,
-    abi: ERC20_ABI,
-    functionName: "transfer",
-    args: [context.hybridDelegator, TEST_SWAP_INPUT],
-  });
-  await publicClient.waitForTransactionReceipt({ hash: seedWethTx });
-  console.log(
-    chalk.green(
-      `Seeded HybridDelegator with ${formatEther(TEST_SWAP_INPUT)} WETH (tx: ${seedWethTx})`,
-    ),
-  );
-
-  await executeSwapWithSession({
-    publicClient,
-    hybridDelegator: context.hybridDelegator,
-    session: sessionDelegation,
-    environment: context.environment,
-    amountIn: TEST_SWAP_INPUT,
-    slippageBps: 50n,
-    intent: {
-      from: resolveSwapAsset("weth"),
-      to: resolveSwapAsset("uni"),
+  const swapLegs: Array<{ description: string; intent: SwapIntent; amountIn: bigint }> = [
+    {
+      description: "Swap WETH → UNI",
+      intent: {
+        from: resolveSwapAsset("weth"),
+        to: resolveSwapAsset("uni"),
+      },
+      amountIn: TEST_SWAP_INPUT,
     },
-    logPrefix: "[dev]",
-  });
+  ];
+  if (mode === "normal") {
+    swapLegs.push(
+      {
+        description: "Swap WETH → USDC",
+        intent: {
+          from: resolveSwapAsset("weth"),
+          to: resolveSwapAsset("usdc"),
+        },
+        amountIn: TEST_SWAP_INPUT,
+      },
+      {
+        description: "Swap USDC → UNI",
+        intent: {
+          from: resolveSwapAsset("usdc"),
+          to: resolveSwapAsset("uni"),
+        },
+        amountIn: parseUnits("10", USDC_ASSET.decimals),
+      },
+      {
+        description: "Swap UNI → USDC",
+        intent: {
+          from: resolveSwapAsset("uni"),
+          to: resolveSwapAsset("usdc"),
+        },
+        amountIn: parseUnits("0.001", UNI_ASSET.decimals),
+      },
+    );
+  }
+
+  const ensureDelegatorBalance = async (asset: SwapAsset, required: bigint) => {
+    if (asset.kind === "native") {
+      const currentBalance = await publicClient.getBalance({ address: context.hybridDelegator });
+      if (currentBalance >= required) return;
+      const missing = required - currentBalance;
+      const txHash = await adminWallet.sendTransaction({ to: context.hybridDelegator, value: missing });
+      await publicClient.waitForTransactionReceipt({ hash: txHash });
+      console.log(
+        chalk.green(
+          `[dev] Seeded HybridDelegator with ${formatEther(missing)} ${asset.symbol} to cover swap input (tx: ${txHash})`,
+        ),
+      );
+      return;
+    }
+
+    if (!asset.address) {
+      throw new Error(`Swap asset ${asset.symbol} is missing an ERC-20 address`);
+    }
+
+    const tokenBalance = (await publicClient.readContract({
+      address: asset.address,
+      abi: ERC20_ABI,
+      functionName: "balanceOf",
+      args: [context.hybridDelegator],
+    })) as bigint;
+
+    if (tokenBalance >= required) return;
+
+    const missing = required - tokenBalance;
+    const txHash = await adminWallet.writeContract({
+      address: asset.address,
+      abi: ERC20_ABI,
+      functionName: "transfer",
+      args: [context.hybridDelegator, missing],
+    });
+    await publicClient.waitForTransactionReceipt({ hash: txHash });
+    console.log(
+      chalk.green(
+        `[dev] Seeded HybridDelegator with ${formatUnits(missing, asset.decimals)} ${asset.symbol} to cover swap input (tx: ${txHash})`,
+      ),
+    );
+  };
+
+  for (const [index, leg] of swapLegs.entries()) {
+    console.log(chalk.blue(`\n[dev] ${leg.description} (leg ${index + 1} of ${swapLegs.length})`));
+    await ensureDelegatorBalance(leg.intent.from, leg.amountIn);
+    await executeSwapWithSession({
+      publicClient,
+      hybridDelegator: context.hybridDelegator,
+      session: sessionDelegation,
+      environment: context.environment,
+      amountIn: leg.amountIn,
+      slippageBps: 50n,
+      intent: leg.intent,
+      logPrefix: "[dev]",
+    });
+  }
 
   console.log(chalk.green("4337 test onboarding complete"));
   console.log(`Root signer: ${context.rootAccount.address}`);

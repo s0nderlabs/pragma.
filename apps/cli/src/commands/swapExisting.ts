@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { Address, Hex, toHex } from "viem";
+import { Address, Hex, toHex, getAddress } from "viem";
 import { sepolia } from "viem/chains";
 import { createDelegation, getDeleGatorEnvironment, signDelegation } from "@metamask/delegation-toolkit";
 
@@ -13,6 +13,11 @@ import {
   fetchDelegatorNonce,
   DEFAULT_CALL_LIMITS,
   type DelegationArtifact,
+  type AllowedToken,
+  WETH_SEPOLIA,
+  UNI_SEPOLIA,
+  USDC_SEPOLIA,
+  normalizeAllowedTokensList,
 } from "../services/onboarding4337.js";
 import { loadDelegationArtifact, isDelegationExpired } from "../services/delegationArtifacts.js";
 import { createSepoliaPublicClient } from "../services/web3authClients.js";
@@ -38,6 +43,7 @@ const buildSessionInfo = (
   callLimit: number | null,
   callsUnlimited: boolean,
   sessionNonce: Hex,
+  allowedTokens: AllowedToken[],
 ): SessionDelegationInfo => ({
   mode: artifactMode,
   sessionKeyAddress: sessionKeyAddress as Address,
@@ -47,6 +53,7 @@ const buildSessionInfo = (
   callLimit,
   callsUnlimited,
   sessionNonce,
+  allowedTokens,
 });
 
 const renewDelegation = async (
@@ -68,10 +75,31 @@ const renewDelegation = async (
   const defaultLimit = DEFAULT_CALL_LIMITS[mode];
   const callLimitValue = callsUnlimited ? undefined : existingArtifact.callLimit ?? defaultLimit;
 
+  const allowedTokens: AllowedToken[] = (existingArtifact.allowedTokens ?? [])
+    .map((token) => ({
+      address: getAddress(token.address),
+      symbol: token.symbol,
+      decimals: token.decimals ?? 18,
+    }));
+  const pushIfMissing = (token: AllowedToken) => {
+    if (!allowedTokens.some((existing) => existing.address.toLowerCase() === token.address.toLowerCase())) {
+      allowedTokens.push(token);
+    }
+  };
+  if (allowedTokens.length === 0) {
+    pushIfMissing({ address: WETH_SEPOLIA, symbol: "WETH", decimals: 18 });
+    pushIfMissing({ address: UNI_SEPOLIA, symbol: "UNI", decimals: 18 });
+    if (mode === "normal") {
+      pushIfMissing({ address: USDC_SEPOLIA, symbol: "USDC", decimals: 6 });
+    }
+  }
+
   const currentNonce = await fetchDelegatorNonce(publicClient, environment, hybridDelegator);
   const sessionNonceHex = toHex(currentNonce);
 
-  const scope = buildScope(hybridDelegator);
+  const normalizedAllowedTokens = normalizeAllowedTokensList(allowedTokens);
+
+  const scope = buildScope(normalizedAllowedTokens);
   const caveats = buildCaveats(environment, mode, expiresAt, {
     callLimit: callLimitValue,
     unlimitedCalls: callsUnlimited,
@@ -109,6 +137,7 @@ const renewDelegation = async (
     callLimit: callsUnlimited ? null : callLimitValue ?? null,
     callsUnlimited,
     sessionNonce: sessionNonceHex,
+    allowedTokens: normalizedAllowedTokens,
   });
 
   const session = buildSessionInfo(
@@ -120,6 +149,7 @@ const renewDelegation = async (
     callsUnlimited ? null : callLimitValue ?? null,
     callsUnlimited,
     sessionNonceHex,
+    normalizedAllowedTokens,
   );
 
   return { session, artifactPath };
@@ -151,6 +181,19 @@ export const registerSwapReuse = (program: Command) => {
         const storedCallLimit = storedCallsUnlimited ? null : stored.callLimit ?? defaultLimit;
         const storedNonce = (stored.sessionNonce ?? "0x0") as Hex;
 
+        const baseAllowedTokens: AllowedToken[] = (stored.allowedTokens ?? []).map((token) => ({
+          address: getAddress(token.address),
+          symbol: token.symbol,
+          decimals: token.decimals ?? 18,
+        }));
+        if (baseAllowedTokens.length === 0) {
+          baseAllowedTokens.push({ address: WETH_SEPOLIA, symbol: "WETH", decimals: 18 });
+          baseAllowedTokens.push({ address: UNI_SEPOLIA, symbol: "UNI", decimals: 18 });
+          if (mode === "normal") {
+            baseAllowedTokens.push({ address: USDC_SEPOLIA, symbol: "USDC", decimals: 6 });
+          }
+        }
+
         let session: SessionDelegationInfo = buildSessionInfo(
           stored.delegation,
           mode,
@@ -160,6 +203,7 @@ export const registerSwapReuse = (program: Command) => {
           storedCallLimit,
           storedCallsUnlimited,
           storedNonce,
+          baseAllowedTokens,
         );
 
         if (isDelegationExpired(stored)) {

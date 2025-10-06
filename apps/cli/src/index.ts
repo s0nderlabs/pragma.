@@ -12,6 +12,7 @@ process.on("warning", (warning) => {
 
 const { Command } = await import("commander");
 const { default: chalk } = await import("chalk");
+const { printCommandSummary } = await import("./utils/help.js");
 
 const dotenvModule = await import("dotenv");
 dotenvModule.config({ path: new URL("../../../.env", import.meta.url) });
@@ -33,6 +34,7 @@ const { registerFundFaucet } = await import("./commands/fundFaucet.js");
 const { registerDelegationList } = await import("./commands/delegationList.js");
 const { registerDelegationIssue } = await import("./commands/delegationIssue.js");
 const { registerDelegationRevoke } = await import("./commands/delegationRevoke.js");
+const { registerDelegationUpdateTokens } = await import("./commands/delegationUpdateTokens.js");
 const { registerSessionReplace } = await import("./commands/replace.js");
 const { registerWrap } = await import("./commands/wrap.js");
 const { registerUnwrap } = await import("./commands/unwrap.js");
@@ -49,6 +51,7 @@ registerFundFaucet(program);
 registerDelegationList(program);
 registerDelegationIssue(program);
 registerDelegationRevoke(program);
+registerDelegationUpdateTokens(program);
 registerSessionReplace(program);
 registerWrap(program);
 registerUnwrap(program);
@@ -59,7 +62,12 @@ program
   .command("help")
   .description("Show all available Pragma commands")
   .action(() => {
-    program.outputHelp();
+    console.log(chalk.bold("Available commands"));
+    printCommandSummary(program.commands, "pragma");
+    console.log();
+    console.log(chalk.gray("Tip: run 'pragma dev help' for developer playground commands."));
+    console.log();
+    console.log(program.helpInformation());
   });
 
 const args = process.argv.slice(2);

@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import chalk from "chalk";
-import { Address, Hex, parseEther, getAddress } from "viem";
+import { Address, Hex, getAddress, parseUnits } from "viem";
 import { sepolia } from "viem/chains";
 import { getDeleGatorEnvironment } from "@metamask/delegation-toolkit";
 
@@ -11,41 +11,37 @@ import {
   diagnoseDelegationSignature,
 } from "../services/delegationArtifacts.js";
 import { createSepoliaPublicClient } from "../services/web3authClients.js";
-import { DeleGatorEnv, SessionDelegationInfo, DEFAULT_CALL_LIMITS } from "../services/onboarding4337.js";
-import { executeSwapWithSession, resolveSwapAsset, SwapIntent } from "../services/swapTest.js";
+import {
+  DeleGatorEnv,
+  SessionDelegationInfo,
+  DEFAULT_CALL_LIMITS,
+  WETH_SEPOLIA,
+  UNI_SEPOLIA,
+  USDC_SEPOLIA,
+  normalizeAllowedTokensList,
+  type AllowedToken,
+} from "../services/onboarding4337.js";
+import { executeSwapWithSession, resolveSwapAsset, SwapIntent, SwapAsset } from "../services/swapTest.js";
 
 const DEFAULT_SLIPPAGE_BPS = 50n; // 0.50%
 const DEFAULT_FROM = "weth";
 const DEFAULT_TO = "uni";
 
-const SUPPORTED_PAIRS: Array<[string, string]> = [
-  ["weth", "uni"],
-  ["uni", "weth"],
-  ["eth", "uni"],
-  ["uni", "eth"],
-];
-
-const normalizeAssetId = (raw: string) => raw.toLowerCase();
-
-const ensureSupportedPair = (from: string, to: string) => {
-  const normalizedFrom = normalizeAssetId(from);
-  const normalizedTo = normalizeAssetId(to);
-  const match = SUPPORTED_PAIRS.some(([lhs, rhs]) => lhs === normalizedFrom && rhs === normalizedTo);
-  if (!match) {
-    throw new Error(
-      `Unsupported asset pair ${from} -> ${to}. Supported pairs: ${SUPPORTED_PAIRS.map((pair) => pair.join("->")).join(", ")}.`,
-    );
+const parseAmountForAsset = (rawAmount: string, asset: SwapAsset): bigint => {
+  try {
+    return parseUnits(rawAmount, asset.decimals);
+  } catch (error) {
+    throw new Error(`Invalid amount '${rawAmount}' for ${asset.symbol}.`);
   }
-  return { from: normalizedFrom, to: normalizedTo };
 };
 
 export const registerSwap = (program: Command) => {
   program
     .command("swap")
-    .description("Execute a delegated swap using the stored session key (supports native ETH ↔ UNI ↔ WETH)")
+    .description("Execute a delegated swap using the stored session key (supports native ETH ↔ WETH ↔ UNI ↔ USDC)")
     .requiredOption("--amount <value>", "Amount to swap (interpreted in the source asset's decimals)")
-    .option("--from <asset>", "Source asset: eth | weth | uni", DEFAULT_FROM)
-    .option("--to <asset>", "Destination asset: eth | weth | uni", DEFAULT_TO)
+    .option("--from <asset>", "Source asset: eth | weth | uni | usdc", DEFAULT_FROM)
+    .option("--to <asset>", "Destination asset: eth | weth | uni | usdc", DEFAULT_TO)
     .option("--artifact <path>", "Path to delegation artifact (defaults to latest active)")
     .option("--delegator <address>", "Specific HybridDelegator when multiple exist")
     .option(
@@ -70,32 +66,8 @@ export const registerSwap = (program: Command) => {
         to: string;
         slippageBps: bigint;
       }) => {
-        const parsedAmount = parseEther(amount);
-        if (parsedAmount <= 0n) {
-          console.error(chalk.red("Amount must be greater than zero."));
-          process.exit(1);
-        }
         if (slippageBps <= 0n) {
           console.error(chalk.red("Slippage must be positive."));
-          process.exit(1);
-        }
-
-        let normalizedPair: { from: string; to: string };
-        try {
-          normalizedPair = ensureSupportedPair(from, to);
-        } catch (error) {
-          console.error(chalk.red((error as Error).message));
-          process.exit(1);
-        }
-
-        let intent: SwapIntent;
-        try {
-          intent = {
-            from: resolveSwapAsset(normalizedPair.from),
-            to: resolveSwapAsset(normalizedPair.to),
-          };
-        } catch (error) {
-          console.error(chalk.red((error as Error).message));
           process.exit(1);
         }
 
@@ -153,6 +125,22 @@ export const registerSwap = (program: Command) => {
         const callsUnlimited = artifact.callsUnlimited ?? false;
         const callLimit = callsUnlimited ? null : artifact.callLimit ?? DEFAULT_CALL_LIMITS[artifact.mode];
         const sessionNonce = (artifact.sessionNonce ?? "0x0") as Hex;
+        let allowedTokens: AllowedToken[] = (artifact.allowedTokens ?? []).map((token) => ({
+          address: getAddress(token.address),
+          symbol: token.symbol,
+          decimals: token.decimals ?? 18,
+        }));
+        allowedTokens = normalizeAllowedTokensList(allowedTokens);
+        if (allowedTokens.length === 0) {
+          const fallbacks: AllowedToken[] = [
+            { address: WETH_SEPOLIA, symbol: "WETH", decimals: 18 },
+            { address: UNI_SEPOLIA, symbol: "UNI", decimals: 18 },
+          ];
+          if (artifact.mode === "normal") {
+            fallbacks.push({ address: USDC_SEPOLIA, symbol: "USDC", decimals: 6 });
+          }
+          allowedTokens = normalizeAllowedTokensList(fallbacks);
+        }
 
         const session: SessionDelegationInfo = {
           mode: artifact.mode,
@@ -163,7 +151,27 @@ export const registerSwap = (program: Command) => {
           callLimit,
           callsUnlimited,
           sessionNonce,
+          allowedTokens,
         };
+
+        let intent: SwapIntent;
+        try {
+          intent = {
+            from: resolveSwapAsset(from, allowedTokens),
+            to: resolveSwapAsset(to, allowedTokens),
+          };
+        } catch (error) {
+          console.error(chalk.red((error as Error).message));
+          process.exit(1);
+        }
+
+        let parsedAmount: bigint;
+        try {
+          parsedAmount = parseAmountForAsset(amount, intent.from);
+        } catch (error) {
+          console.error(chalk.red((error as Error).message));
+          process.exit(1);
+        }
 
         try {
           await executeSwapWithSession({

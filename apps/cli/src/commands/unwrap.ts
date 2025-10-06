@@ -13,7 +13,15 @@ import {
   diagnoseDelegationSignature,
 } from "../services/delegationArtifacts.js";
 import { createSepoliaPublicClient } from "../services/web3authClients.js";
-import { DeleGatorEnv, SessionDelegationInfo, DEFAULT_CALL_LIMITS } from "../services/onboarding4337.js";
+import {
+  DeleGatorEnv,
+  SessionDelegationInfo,
+  DEFAULT_CALL_LIMITS,
+  WETH_SEPOLIA,
+  normalizeAllowedTokensList,
+  hasWethToken,
+  type AllowedToken,
+} from "../services/onboarding4337.js";
 import { unwrapNativeWithSession } from "../services/swapTest.js";
 import { SEPOLIA_RPC_URL } from "../services/config.js";
 
@@ -88,6 +96,23 @@ export const registerUnwrap = (program: Command) => {
       const callsUnlimited = artifact.callsUnlimited ?? false;
       const callLimit = callsUnlimited ? null : artifact.callLimit ?? DEFAULT_CALL_LIMITS[artifact.mode];
       const sessionNonce = (artifact.sessionNonce ?? "0x0") as Hex;
+      let allowedTokens: AllowedToken[] = (artifact.allowedTokens ?? []).map((token) => ({
+        address: getAddress(token.address),
+        symbol: token.symbol,
+        decimals: token.decimals ?? 18,
+      }));
+      allowedTokens = normalizeAllowedTokensList(allowedTokens);
+      if (allowedTokens.length === 0) {
+        allowedTokens = normalizeAllowedTokensList([{ address: WETH_SEPOLIA, symbol: "WETH", decimals: 18 }]);
+      }
+      if (!hasWethToken(allowedTokens)) {
+        console.error(
+          chalk.red(
+            "Delegation does not permit unwrapping WETH. Reissue with WETH included in the allowlist or switch to normal mode.",
+          ),
+        );
+        process.exit(1);
+      }
 
       const session: SessionDelegationInfo = {
         mode: artifact.mode,
@@ -98,6 +123,7 @@ export const registerUnwrap = (program: Command) => {
         callLimit,
         callsUnlimited,
         sessionNonce,
+        allowedTokens,
       };
 
       const sessionAccount = privateKeyToAccount(session.sessionKeyPrivateKey as Hex);

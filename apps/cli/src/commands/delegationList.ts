@@ -2,7 +2,9 @@ import { Command } from "commander";
 import chalk from "chalk";
 
 import { listDelegationArtifacts, isDelegationExpired } from "../services/delegationArtifacts.js";
-import { formatEther, formatUnits, getAddress } from "viem";
+import { formatEther, formatUnits, getAddress, Hex, Address } from "viem";
+import { sepolia } from "viem/chains";
+import { getDeleGatorEnvironment } from "@metamask/delegation-toolkit";
 import { createSepoliaPublicClient } from "../services/web3authClients.js";
 import { WETH_SEPOLIA, DEFAULT_CALL_LIMITS } from "../services/onboarding4337.js";
 
@@ -13,6 +15,50 @@ const ERC20_BALANCE_ABI = [
     stateMutability: "view",
     inputs: [{ name: "account", type: "address" }],
     outputs: [{ name: "", type: "uint256" }],
+  },
+] as const;
+
+const LIMITED_CALLS_ABI = [
+  {
+    type: "function",
+    name: "callCounts",
+    stateMutability: "view",
+    inputs: [
+      { name: "delegationManager", type: "address" },
+      { name: "delegationHash", type: "bytes32" },
+    ],
+    outputs: [{ name: "count", type: "uint256" }],
+  },
+] as const;
+
+const DELEGATION_MANAGER_ABI = [
+  {
+    type: "function",
+    name: "getDelegationHash",
+    stateMutability: "view",
+    inputs: [
+      {
+        name: "delegation",
+        type: "tuple",
+        components: [
+          { name: "delegate", type: "address" },
+          { name: "delegator", type: "address" },
+          { name: "authority", type: "bytes32" },
+          {
+            name: "caveats",
+            type: "tuple[]",
+            components: [
+              { name: "enforcer", type: "address" },
+              { name: "terms", type: "bytes" },
+              { name: "args", type: "bytes" },
+            ],
+          },
+          { name: "salt", type: "uint256" },
+          { name: "signature", type: "bytes" },
+        ],
+      },
+    ],
+    outputs: [{ name: "delegationHash", type: "bytes32" }],
   },
 ] as const;
 
@@ -31,6 +77,8 @@ export const registerDelegationList = (program: Command) => {
       }
 
       const publicClient = createSepoliaPublicClient();
+      const environment = getDeleGatorEnvironment(sepolia.id);
+      const limitedCallsAddress = environment.caveatEnforcers?.LimitedCallsEnforcer;
 
       for (const { artifact, filePath } of items) {
         const expiryNumber = Number(artifact.expiresAt);
@@ -81,6 +129,43 @@ export const registerDelegationList = (program: Command) => {
             callsUnlimited ? "Unlimited (LimitedCalls disabled)" : `${callLimitValue} call${callLimitValue === 1 ? "" : "s"}`
           }`,
         );
+        let callsRemainingDisplay = callsUnlimited ? "∞" : callLimitValue !== null ? `${callLimitValue}` : "n/a";
+        if (!callsUnlimited && callLimitValue !== null && limitedCallsAddress) {
+          try {
+            const normalizedDelegation = {
+              delegate: getAddress(artifact.delegation.delegate),
+              delegator: getAddress(artifact.delegation.delegator),
+              authority: artifact.delegation.authority as Hex,
+              caveats: (artifact.delegation.caveats ?? []).map((caveat) => ({
+                enforcer: getAddress(caveat.enforcer),
+                terms: (caveat.terms ?? "0x") as Hex,
+                args: (caveat.args ?? "0x") as Hex,
+              })),
+              salt: BigInt(artifact.delegation.salt ?? "0x0"),
+              signature: artifact.delegation.signature as Hex,
+            };
+            const delegationHash = (await publicClient.readContract({
+              address: environment.DelegationManager as Address,
+              abi: DELEGATION_MANAGER_ABI,
+              functionName: "getDelegationHash",
+              args: [normalizedDelegation],
+            })) as Hex;
+            const usedCalls = (await publicClient.readContract({
+              address: limitedCallsAddress as Address,
+              abi: LIMITED_CALLS_ABI,
+              functionName: "callCounts",
+              args: [environment.DelegationManager as Address, delegationHash],
+            })) as bigint;
+            const limitBigInt = BigInt(callLimitValue);
+            const remainingBigInt = limitBigInt > usedCalls ? limitBigInt - usedCalls : 0n;
+            callsRemainingDisplay = `${remainingBigInt.toString()} of ${limitBigInt.toString()}`;
+          } catch {
+            callsRemainingDisplay = `${callLimitValue} (usage unavailable)`;
+          }
+        }
+        if (!callsUnlimited && callLimitValue !== null) {
+          console.log(`  Calls left  : ${callsRemainingDisplay}`);
+        }
         console.log(`  Nonce       : ${(artifact.sessionNonce ?? "0x0").toLowerCase()}`);
         if (hasExpiry && ttl !== undefined) {
           try {
@@ -96,6 +181,19 @@ export const registerDelegationList = (program: Command) => {
         }
         if (ethBalance) console.log(`  ETH balance : ${ethBalance}`);
         if (wethBalance) console.log(`  WETH balance: ${wethBalance}`);
+        if ((artifact.allowedTokens ?? []).length > 0) {
+          const tokenDescriptions = (artifact.allowedTokens ?? [])
+            .map((token) => {
+              try {
+                const addr = getAddress(token.address);
+                return token.symbol ? `${token.symbol} (${addr})` : addr;
+              } catch {
+                return token.symbol ? `${token.symbol} (${token.address})` : token.address;
+              }
+            })
+            .join(", ");
+          console.log(`  Allowed tokens: ${tokenDescriptions}`);
+        }
         console.log();
       }
     });

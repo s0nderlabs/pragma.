@@ -3,7 +3,8 @@ import chalk from "chalk";
 import { getAddress } from "viem";
 
 import { onboardingLogger } from "../utils/logger.js";
-import { RunOnboardOptions, runOnboard4337 } from "../services/onboarding4337.js";
+import { RunOnboardOptions, runOnboard4337, type AllowedToken } from "../services/onboarding4337.js";
+import { loadLatestActiveDelegation } from "../services/delegationArtifacts.js";
 
 export const registerSessionReplace = (program: Command) => {
   program
@@ -16,7 +17,7 @@ export const registerSessionReplace = (program: Command) => {
     .action(async (opts: { delegator: string; mode?: string; privy?: boolean; web3auth?: boolean }) => {
       const normalizedDelegator = getAddress(opts.delegator);
 
-      const modeOption = opts.mode?.toLowerCase();
+      let modeOption = opts.mode?.toLowerCase();
       if (modeOption && !["safe", "normal"].includes(modeOption)) {
         console.error(chalk.red("Invalid mode. Use 'safe' or 'normal'."));
         process.exit(1);
@@ -29,9 +30,19 @@ export const registerSessionReplace = (program: Command) => {
 
       const identityHint = opts.privy ? "privy" : opts.web3auth ? "web3auth" : undefined;
 
+      let preservedTokens: AllowedToken[] | undefined;
+      try {
+        const { artifact } = await loadLatestActiveDelegation(normalizedDelegator);
+        modeOption = modeOption ?? artifact.mode;
+        preservedTokens = artifact.allowedTokens;
+      } catch (error) {
+        onboardingLogger.warn({ err: error }, "Unable to load existing delegation during replace flow");
+      }
+
       const runOptions: RunOnboardOptions = {
         rotateSessionKey: true,
         expectedDelegator: normalizedDelegator,
+        existingAllowedTokens: preservedTokens,
       };
 
       onboardingLogger.info(

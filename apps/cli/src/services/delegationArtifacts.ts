@@ -8,7 +8,7 @@ import { sepolia } from "viem/chains";
 import type { PublicClient } from "viem";
 import type { DeleGatorEnv } from "./onboarding4337.js";
 
-import { DelegationArtifact, DEFAULT_CALL_LIMITS, type Mode } from "./onboarding4337.js";
+import { DelegationArtifact, DEFAULT_CALL_LIMITS, normalizeAllowedTokensList, type Mode } from "./onboarding4337.js";
 import { buildDelegationTypedData } from "./delegationTypedData.js";
 
 const ARTIFACT_PREFIX = "delegation-4337-";
@@ -117,6 +117,26 @@ const readArtifact = async (filePath: string): Promise<DelegationArtifact> => {
   if (parsed.callsUnlimited === undefined) {
     parsed.callsUnlimited = false;
   }
+  if (!Array.isArray(parsed.allowedTokens)) {
+    parsed.allowedTokens = [];
+  } else {
+    parsed.allowedTokens = parsed.allowedTokens.map((token) => {
+      try {
+        return {
+          address: getAddress(token.address),
+          symbol: token.symbol,
+          decimals: typeof token.decimals === "number" ? token.decimals : Number(token.decimals ?? 18),
+        };
+      } catch {
+        return {
+          address: getAddress(token.address as string),
+          symbol: token.symbol,
+          decimals: 18,
+        };
+      }
+    });
+  }
+  parsed.allowedTokens = normalizeAllowedTokensList(parsed.allowedTokens);
   if (!parsed.expiresAt) {
     const derived = deriveExpiresAt(parsed.delegation);
     if (derived) parsed.expiresAt = derived;

@@ -100,6 +100,7 @@ export const launchHome = async () => {
       console.log("  pragma swap --help           – delegated swaps (ETH/WETH/UNI)");
       console.log("  pragma wrap|unwrap           – convert ETH ↔ WETH via delegation");
       console.log("  pragma revoke                – bump nonce / optionally disable");
+      console.log("  pragma delegation:update-tokens – reissue with additional tokens");
       console.log("  pragma dev --help            – developer playground (Sepolia)");
       console.log();
       break;

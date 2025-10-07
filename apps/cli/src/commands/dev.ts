@@ -4,6 +4,9 @@ import { Command } from "commander";
 import { registerOnboard4337Test } from "./onboard4337Test.js";
 import { registerSwapTest } from "./swapTest.js";
 import { registerSwapReuse } from "./swapExisting.js";
+import { registerTransferReuse } from "./transferReuse.js";
+import { registerTransferTest } from "./transferTest.js";
+import { registerTransferDualTest } from "./transferDualTest.js";
 import { printCommandSummary } from "../utils/help.js";
 
 export const registerDev = (program: Command) => {
@@ -14,6 +17,9 @@ export const registerDev = (program: Command) => {
   registerOnboard4337Test(dev);
   registerSwapTest(dev);
   registerSwapReuse(dev);
+  registerTransferReuse(dev);
+  registerTransferTest(dev);
+  registerTransferDualTest(dev);
 
   dev
     .command("help")

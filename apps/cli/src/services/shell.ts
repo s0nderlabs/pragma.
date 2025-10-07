@@ -12,6 +12,8 @@ import {
   loadDelegationArtifact,
   loadLatestActiveDelegation,
 } from "./delegationArtifacts.js";
+import { loadTransferSession } from "./transferArtifacts.js";
+import { transferNativeWithSession, transferTokenWithSession } from "./transferEngine.js";
 import { runOnboard4337, type Mode } from "./onboarding4337.js";
 import { loadSwapSession } from "./swapArtifacts.js";
 import {
@@ -62,7 +64,8 @@ const describeArtifact = (entry: { delegator?: string; filePath: string; artifac
       ? chalk.red("expired")
       : `${Math.floor(ttl / 3600)}h`
     : "unknown";
-  return `${entry.delegator ?? entry.artifact.delegation.delegator} · ${ttlLabel}`;
+  const kindLabel = entry.artifact.kind === "transfer" ? "native" : "swap";
+  return `${entry.delegator ?? entry.artifact.delegation.delegator} · ${kindLabel} · ${ttlLabel}`;
 };
 
 const pickDelegator = async (): Promise<{ delegator: `0x${string}`; filePath: string }> => {
@@ -74,7 +77,14 @@ const pickDelegator = async (): Promise<{ delegator: `0x${string}`; filePath: st
   const deduped = new Map<string, (typeof artifacts)[number]>();
   for (const entry of artifacts) {
     const delegator = entry.delegator ?? getAddress(entry.artifact.delegation.delegator);
-    if (!deduped.has(delegator)) {
+    const existing = deduped.get(delegator);
+    if (!existing) {
+      deduped.set(delegator, { ...entry, delegator });
+      continue;
+    }
+    const existingKind = existing.artifact.kind ?? "swap";
+    const incomingKind = entry.artifact.kind ?? "swap";
+    if (existingKind !== "swap" && incomingKind === "swap") {
       deduped.set(delegator, { ...entry, delegator });
     }
   }
@@ -159,6 +169,25 @@ const promptAmount = async (defaultAmount?: string, label = "Amount to swap") =>
   return amount;
 };
 
+const promptRecipientAddress = async (label = "Recipient address") => {
+  const { recipient } = await inquirer.prompt<{ recipient: string }>([
+    {
+      type: "input",
+      name: "recipient",
+      message: label,
+      validate: (value: string) => {
+        try {
+          getAddress(value.trim());
+          return true;
+        } catch {
+          return "Enter a valid address";
+        }
+      },
+    },
+  ]);
+  return getAddress(recipient.trim());
+};
+
 const promptSlippage = async (defaultBps?: number) => {
   const { slippage } = await inquirer.prompt<{ slippage: string }>([
     {
@@ -175,7 +204,7 @@ const promptSlippage = async (defaultBps?: number) => {
 const showStatus = async (prefs: ShellPreferences) => {
   if (prefs.defaultDelegator) {
     try {
-      const loaded = await loadLatestActiveDelegation(prefs.defaultDelegator);
+      const loaded = await loadLatestActiveDelegation(prefs.defaultDelegator, undefined, "swap");
       renderStatusSnapshot({
         delegation: {
           mode: loaded.artifact.mode,
@@ -190,6 +219,16 @@ const showStatus = async (prefs: ShellPreferences) => {
           allowedTokens: loaded.artifact.allowedTokens,
         },
       });
+      const siblingArtifacts = await listDelegationArtifacts(prefs.defaultDelegator);
+      const transferEntry = siblingArtifacts.find((entry) => (entry.artifact.kind ?? "swap") === "transfer");
+      if (transferEntry && transferEntry.artifact.transferMaxAmount) {
+        try {
+          const formatted = formatUnits(BigInt(transferEntry.artifact.transferMaxAmount), 18);
+          console.log(chalk.gray(`Native transfer cap: ${formatted} MON`));
+        } catch {
+          console.log(chalk.gray(`Native transfer cap: ${transferEntry.artifact.transferMaxAmount} wei`));
+        }
+      }
       return;
     } catch (error) {
       console.log(chalk.gray(`Status for ${prefs.defaultDelegator} unavailable: ${(error as Error).message}`));
@@ -205,34 +244,58 @@ const showDelegationList = async () => {
     console.log(chalk.yellow("No delegation artifacts found."));
     return;
   }
-  const deduped = new Map<string, (typeof artifacts)[number]>();
+  const grouped = new Map<string, (typeof artifacts)[number][]>();
   for (const entry of artifacts) {
     const delegator = entry.delegator ?? getAddress(entry.artifact.delegation.delegator);
-    if (!deduped.has(delegator)) {
-      deduped.set(delegator, { ...entry, delegator });
-    }
+    const bucket = grouped.get(delegator) ?? [];
+    bucket.push({ ...entry, delegator });
+    grouped.set(delegator, bucket);
   }
 
   console.log(chalk.bold("Delegations"));
-  for (const entry of deduped.values()) {
-    const delegator = entry.delegator ?? entry.artifact.delegation.delegator;
-    const mode = entry.artifact.mode;
-    const expiresAt = entry.artifact.expiresAt
-      ? new Date(entry.artifact.expiresAt * 1000).toISOString()
-      : "unknown";
-    console.log(`${delegator} · mode ${mode} · expires ${expiresAt}`);
-    if (entry.artifact.allowedTokens && entry.artifact.allowedTokens.length > 0) {
-      entry.artifact.allowedTokens.slice(0, 5).forEach((token) => {
-        const tags: string[] = [];
-        if (token.kind === "native") tags.push("native");
-        if (token.kind === "wrappedNative") tags.push("wrapped");
-        if (token.categories && token.categories.length > 0) tags.push(...token.categories.slice(0, 3));
-        const suffix = tags.length > 0 ? ` [${tags.join(", ")}]` : "";
-        console.log(`    - ${token.symbol ?? token.address} (${token.address})${suffix}`);
-      });
-      if (entry.artifact.allowedTokens.length > 5) {
-        console.log("    …");
+  for (const [delegator, entries] of grouped.entries()) {
+    console.log(chalk.bold(delegator));
+    const sorted = entries.sort((a, b) => {
+      const kindA = a.artifact.kind ?? "swap";
+      const kindB = b.artifact.kind ?? "swap";
+      if (kindA === kindB) {
+        return (b.artifact.expiresAt ?? 0) - (a.artifact.expiresAt ?? 0);
       }
+      return kindA === "swap" ? -1 : 1;
+    });
+    for (const entry of sorted) {
+      const kind = entry.artifact.kind ?? "swap";
+      const expiresAt = entry.artifact.expiresAt
+        ? new Date(entry.artifact.expiresAt * 1000).toISOString()
+        : "unknown";
+      console.log(
+        `  • ${kind === "transfer" ? "native transfer" : "swap"} · mode ${entry.artifact.mode} · expires ${expiresAt}`,
+      );
+      if (kind === "transfer") {
+        if (entry.artifact.transferMaxAmount) {
+          try {
+            const maxFormatted = formatUnits(BigInt(entry.artifact.transferMaxAmount), 18);
+            console.log(`      Max native transfer: ${maxFormatted} MON`);
+          } catch {
+            console.log(`      Max native transfer: ${entry.artifact.transferMaxAmount} wei`);
+          }
+        } else {
+          console.log("      Max native transfer: unlimited (no cap recorded)");
+        }
+      } else if (entry.artifact.allowedTokens && entry.artifact.allowedTokens.length > 0) {
+        entry.artifact.allowedTokens.slice(0, 5).forEach((token) => {
+          const tags: string[] = [];
+          if (token.kind === "native") tags.push("native");
+          if (token.kind === "wrappedNative") tags.push("wrapped");
+          if (token.categories && token.categories.length > 0) tags.push(...token.categories.slice(0, 3));
+          const suffix = tags.length > 0 ? ` [${tags.join(", ")}]` : "";
+          console.log(`      - ${token.symbol ?? token.address} (${token.address})${suffix}`);
+        });
+        if (entry.artifact.allowedTokens.length > 5) {
+          console.log("      …");
+        }
+      }
+      console.log(`      Artifact file: ${entry.filePath}`);
     }
   }
 };
@@ -370,9 +433,47 @@ const performUnwrap = async (prefs: ShellPreferences) => {
   });
 };
 
+const performTransferMon = async (prefs: ShellPreferences) => {
+  const { delegator } = await ensureDelegator(prefs);
+  const { session, environment, delegatorAddress } = await loadTransferSession({ delegator });
+  const amountInput = await promptAmount(undefined, "Amount of MON to transfer");
+  const recipient = await promptRecipientAddress();
+
+  await transferNativeWithSession({
+    session,
+    environment,
+    hybridDelegator: delegatorAddress,
+    recipient,
+    amountInput,
+    logPrefix: "[shell]",
+  });
+};
+
+const performTransferToken = async (prefs: ShellPreferences) => {
+  const { delegator } = await ensureDelegator(prefs);
+  const { session, environment, allowedTokens, delegatorAddress } = await loadSwapSession({ delegator });
+  if (!allowedTokens || allowedTokens.length === 0) {
+    throw new Error("Delegation allowlist is empty. Update tokens before transferring.");
+  }
+
+  const token = await chooseToken(allowedTokens, "Select token to transfer");
+  const amountInput = await promptAmount(undefined, `Amount of ${token.symbol ?? token.address} to transfer`);
+  const recipient = await promptRecipientAddress();
+
+  await transferTokenWithSession({
+    session,
+    environment,
+    hybridDelegator: delegatorAddress,
+    token,
+    recipient,
+    amountInput,
+    logPrefix: "[shell]",
+  });
+};
+
 const performPrune = async (prefs: ShellPreferences) => {
   const { delegator } = await ensureDelegator(prefs);
-  const loaded = await loadLatestActiveDelegation(delegator);
+  const loaded = await loadLatestActiveDelegation(delegator, undefined, "swap");
   if (loaded.artifact.mode === "safe") {
     console.log(chalk.yellow("Safe mode delegation cannot be pruned. Reissue in normal mode."));
     return;
@@ -420,7 +521,7 @@ const performPrune = async (prefs: ShellPreferences) => {
 
 const performUpdateTokens = async (prefs: ShellPreferences) => {
   const { delegator } = await ensureDelegator(prefs);
-  const loaded = await loadLatestActiveDelegation(delegator);
+  const loaded = await loadLatestActiveDelegation(delegator, undefined, "swap");
   const mode = loaded.artifact.mode as Mode;
   await runOnboard4337(mode, undefined, {
     expectedDelegator: delegator,
@@ -432,7 +533,7 @@ const performUpdateTokens = async (prefs: ShellPreferences) => {
 
 const performRevoke = async (prefs: ShellPreferences) => {
   const { delegator } = await ensureDelegator(prefs);
-  const loaded = await loadLatestActiveDelegation(delegator);
+  const loaded = await loadLatestActiveDelegation(delegator, undefined, "swap");
   await runRevoke({
     mode: loaded.artifact.mode as Mode,
     delegator,
@@ -480,6 +581,9 @@ export const runShell = async () => {
           { name: "Swap preview", value: "preview" },
           { name: "Wrap MON → WMON", value: "wrap" },
           { name: "Unwrap WMON → MON", value: "unwrap" },
+          { name: "Transfer MON", value: "transferMon" },
+          { name: "Transfer token", value: "transferToken" },
+          { name: "Balances", value: "balances" },
           { name: "Delegation – update tokens", value: "updateTokens" },
           { name: "Delegation – prune tokens", value: "pruneTokens" },
           { name: "Delegation – revoke", value: "revoke" },
@@ -515,6 +619,33 @@ export const runShell = async () => {
         case "unwrap":
           await performUnwrap(prefs);
           break;
+        case "transferMon":
+          await performTransferMon(prefs);
+          break;
+        case "transferToken":
+          await performTransferToken(prefs);
+          break;
+        case "balances": {
+          const { delegator } = await ensureDelegator(prefs);
+          try {
+            const entry = await loadLatestActiveDelegation(delegator, undefined, "swap");
+            const { fetchWalletBalances, normalizeBalances, fetchPortfolioValue } = await import("./monorailBalances.js");
+            const balances = normalizeBalances(await fetchWalletBalances(entry.artifact.delegation.delegator));
+            console.log(chalk.bold(`Balances for ${entry.artifact.delegation.delegator}`));
+            balances.forEach((token) => {
+              const display = token.symbol ?? token.name ?? token.address;
+              const usd = token.usdValue ? ` (~$${token.usdValue})` : "";
+              console.log(`  • ${display}: ${token.balance}${usd}`);
+            });
+            const portfolio = await fetchPortfolioValue(entry.artifact.delegation.delegator);
+            if (portfolio?.value) {
+              console.log(chalk.cyan(`Total portfolio value: $${portfolio.value}`));
+            }
+          } catch (error) {
+            console.log(chalk.red((error as Error).message));
+          }
+          break;
+        }
         case "updateTokens":
           await performUpdateTokens(prefs);
           break;

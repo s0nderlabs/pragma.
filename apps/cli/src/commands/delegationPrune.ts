@@ -24,7 +24,7 @@ export const registerDelegationPruneTokens = (program: Command) => {
     .option("--delegator <address>", "HybridDelegator to target when multiple exist")
     .action(async ({ delegator }: { delegator?: string }) => {
       try {
-        const { artifact } = await loadLatestActiveDelegation(delegator);
+        const { artifact } = await loadLatestActiveDelegation(delegator, undefined, "swap");
         if ((artifact.allowedTokens ?? []).length === 0) {
           console.log(chalk.yellow("Delegation does not have any tokens to prune."));
           return;

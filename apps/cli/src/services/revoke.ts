@@ -111,7 +111,7 @@ const selectDelegation = async (
     return { entry: loaded, delegator };
   }
 
-  const loaded = await loadLatestActiveDelegation(opts.delegator, opts.mode);
+  const loaded = await loadLatestActiveDelegation(opts.delegator, opts.mode, "swap");
   const delegator = getAddress(loaded.artifact.delegation.delegator);
   return { entry: loaded, delegator };
 };

@@ -2,7 +2,18 @@ import chalk from "chalk";
 import open from "open";
 import ora from "ora";
 import path from "node:path";
-import { Address, Hex, http, getAddress, toHex, getFunctionSelector, parseEther, formatEther } from "viem";
+import {
+  Address,
+  Hex,
+  http,
+  getAddress,
+  toHex,
+  getFunctionSelector,
+  parseEther,
+  formatEther,
+  encodeFunctionData,
+  decodeFunctionData,
+} from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   createDelegation,
@@ -405,6 +416,11 @@ export interface SessionDelegationInfo {
   allowedTokens?: AllowedToken[];
   kind?: "swap" | "transfer";
   transferMaxAmount?: bigint | null;
+}
+
+interface HybridTestOptions {
+  logSessionSummaries?: boolean;
+  allowedTokenOverrides?: AllowedToken[];
 }
 
 interface HybridTestContext {
@@ -1213,7 +1229,6 @@ export const runOnboard4337 = async (
 
     // Optional native transfer delegation
     const shouldCreateTransferDelegation = options.createTransferDelegation ?? true;
-    let transferDelegationInfo: { delegation: Delegation; maxAmount: bigint } | null = null;
     if (shouldCreateTransferDelegation) {
       let transferMax = options.transferAmountWei;
       if (transferMax === undefined) {
@@ -1323,7 +1338,6 @@ export const runOnboard4337 = async (
             `Transfer delegation stored for session key ${sessionKey.address} (max ${formatEther(transferMax)} MON)`,
           ),
         );
-        transferDelegationInfo = { delegation: signedTransferDelegation, maxAmount: transferMax };
       }
     }
 
@@ -1339,7 +1353,7 @@ export const runOnboard4337 = async (
 
 export const setupHybridDelegatorTest = async (
   modeSelection: "safe" | "normal" | "both",
-  { logSessionSummaries = true }: { logSessionSummaries?: boolean } = {},
+  { logSessionSummaries = true, allowedTokenOverrides = [] }: HybridTestOptions = {},
 ): Promise<HybridTestContext> => {
   const publicClient = createMonadPublicClient();
   const rootPrivateKey = generatePrivateKey();
@@ -1413,6 +1427,9 @@ export const setupHybridDelegatorTest = async (
     const allowedTokens: AllowedToken[] = normalizeAllowedTokensList(
       allowlistCatalog.slice(0, mode === "safe" ? 2 : Math.min(allowlistCatalog.length, 4)),
     );
+    for (const overrideToken of allowedTokenOverrides) {
+      ensureTokenSet(allowedTokens, overrideToken);
+    }
 
     const scope = buildScope(allowedTokens);
     const caveats = buildCaveats(environment, mode, expiresAt, {
@@ -1453,6 +1470,8 @@ export const setupHybridDelegatorTest = async (
       callsUnlimited,
       sessionNonce: sessionNonceHex,
       allowedTokens,
+      kind: "swap",
+      transferMaxAmount: null,
     });
 
     const delegationInfo: SessionDelegationInfo = {
@@ -1465,8 +1484,57 @@ export const setupHybridDelegatorTest = async (
       callsUnlimited,
       sessionNonce: sessionNonceHex,
       allowedTokens,
+      kind: "swap",
     };
     sessionDelegations.push(delegationInfo);
+
+    const transferScope = {
+      type: "nativeTokenTransferAmount" as const,
+      maxAmount: parseEther("1"),
+    };
+    const transferCaveats: Caveats = [
+      {
+        type: "timestamp" as const,
+        afterThreshold: 0,
+        beforeThreshold: expiresAt,
+      },
+    ];
+
+    const transferDelegationUnsigned = createDelegation({
+      environment,
+      scope: transferScope,
+      from: hybridDelegator as Hex,
+      to: sessionKey.address as Hex,
+      caveats: transferCaveats,
+      salt: ZERO_SALT,
+    });
+
+    const { signature: _unusedTransferSignature, ...transferDelegationToSign } = transferDelegationUnsigned;
+    const transferSignature = await signDelegation({
+      privateKey: rootPrivateKey,
+      delegation: transferDelegationToSign,
+      delegationManager: environment.DelegationManager as Address,
+      chainId: MONAD_CHAIN_ID,
+    });
+
+    const signedTransferDelegation: Delegation = {
+      ...transferDelegationUnsigned,
+      signature: transferSignature as Hex,
+    };
+
+    await saveDelegation({
+      mode,
+      sessionKeyPrivateKey: sessionKey.privateKey,
+      sessionKeyAddress: sessionKey.address,
+      delegation: signedTransferDelegation,
+      expiresAt,
+      callLimit: null,
+      callsUnlimited: true,
+      sessionNonce: "0x0",
+      allowedTokens: [],
+      kind: "transfer",
+      transferMaxAmount: parseEther("1").toString(),
+    });
 
     if (logSessionSummaries) {
       const expiryIso = new Date(expiresAt * 1000).toISOString();
@@ -1490,6 +1558,11 @@ export const setupHybridDelegatorTest = async (
       console.log(`  • Session secret   : ${sessionKey.privateKey}`);
       console.log(`  • Delegator        : ${signedDelegation.delegator}`);
       console.log("  • Signature        : delegation signed with root test signer\n");
+      console.log(
+        chalk.green(
+          `    Transfer delegation ready (max 1 ${MONAD_NATIVE_TOKEN_SYMBOL}) for session key ${sessionKey.address}`,
+        ),
+      );
     }
   }
 

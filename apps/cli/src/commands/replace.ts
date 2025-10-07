@@ -32,7 +32,7 @@ export const registerSessionReplace = (program: Command) => {
 
       let preservedTokens: AllowedToken[] | undefined;
       try {
-        const { artifact } = await loadLatestActiveDelegation(normalizedDelegator);
+        const { artifact } = await loadLatestActiveDelegation(normalizedDelegator, undefined, "swap");
         modeOption = modeOption ?? artifact.mode;
         preservedTokens = artifact.allowedTokens;
       } catch (error) {

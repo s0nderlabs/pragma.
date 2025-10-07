@@ -71,7 +71,7 @@ export const loadSwapSession = async ({ artifactPath, delegator }: SwapSessionOp
   const normalizedDelegator = delegator ? getAddress(delegator) : undefined;
   const entry = artifactPath
     ? await loadDelegationArtifact(artifactPath)
-    : await loadLatestActiveDelegation(normalizedDelegator);
+    : await loadLatestActiveDelegation(normalizedDelegator, undefined, "swap");
   const artifact = entry.artifact;
   const filePath = entry.filePath;
   const delegatorAddress = getAddress(artifact.delegation.delegator);
@@ -130,6 +130,7 @@ export const loadSwapSession = async ({ artifactPath, delegator }: SwapSessionOp
     callsUnlimited,
     sessionNonce: (artifact.sessionNonce ?? "0x0") as Hex,
     allowedTokens,
+    kind: artifact.kind ?? "swap",
   };
 
   return {

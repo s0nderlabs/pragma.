@@ -123,6 +123,9 @@ const readArtifact = async (filePath: string): Promise<DelegationArtifact> => {
   } else {
     parsed.transferMaxAmount = null;
   }
+  if (parsed.kind !== "transfer") {
+    parsed.kind = "swap";
+  }
   if (!Array.isArray(parsed.allowedTokens)) {
     parsed.allowedTokens = [];
   } else {
@@ -278,6 +281,7 @@ export const isDelegationExpired = (artifact: DelegationArtifact): boolean => {
 export const loadLatestActiveDelegation = async (
   delegatorFilter?: string,
   modeFilter?: Mode,
+  kindFilter: "swap" | "transfer" | undefined = "swap",
 ): Promise<LoadedDelegationArtifact> => {
   const metas = await collectArtifactFiles();
   const now = Math.floor(Date.now() / 1000);
@@ -296,6 +300,8 @@ export const loadLatestActiveDelegation = async (
     })();
     if (normalizedFilter && artifactDelegator !== normalizedFilter) continue;
     if (modeFilter && artifact.mode !== modeFilter) continue;
+    const artifactKind = artifact.kind ?? "swap";
+    if (kindFilter && artifactKind !== kindFilter) continue;
     const expiry = artifact.expiresAt ?? deriveExpiresAt(artifact.delegation);
     if (expiry && expiry <= now) continue;
     if (!artifact.sessionKeyPrivateKey) continue;
@@ -307,11 +313,15 @@ export const loadLatestActiveDelegation = async (
   }
 
   if (normalizedFilter) {
-    throw new Error(`No active delegation artifacts found for ${normalizedFilter}. Issue a new delegation before swapping.`);
+    const kindLabel = kindFilter ? `${kindFilter} ` : "";
+    throw new Error(
+      `No active ${kindLabel}delegation artifacts found for ${normalizedFilter}. Issue a new delegation before continuing.`,
+    );
   }
 
   if (candidates.length === 0) {
-    throw new Error("No active delegation artifacts found. Issue a new delegation before swapping.");
+    const kindLabel = kindFilter ? `${kindFilter} ` : "";
+    throw new Error(`No active ${kindLabel}delegation artifacts found. Issue a new delegation before continuing.`);
   }
 
   if (candidates.length > 1) {
@@ -319,7 +329,7 @@ export const loadLatestActiveDelegation = async (
       .map((entry) => entry.delegator ?? entry.artifact.delegation.delegator)
       .join(", ");
     throw new Error(
-      `Multiple active delegations detected (${addresses}). Please specify --delegator to select which HybridDelegator to use.`,
+      `Multiple active ${kindFilter ?? ""} delegations detected (${addresses}). Please specify --delegator to select which HybridDelegator to use.`,
     );
   }
 

@@ -44,7 +44,7 @@ export const registerDelegationUpdateTokens = (program: Command) => {
       let preservedTokens: AllowedToken[] | undefined;
       if (expectedDelegator) {
         try {
-          const { artifact } = await loadLatestActiveDelegation(expectedDelegator);
+          const { artifact } = await loadLatestActiveDelegation(expectedDelegator, undefined, "swap");
           normalizedMode = normalizedMode ?? artifact.mode;
           preservedTokens = artifact.allowedTokens;
         } catch (error) {

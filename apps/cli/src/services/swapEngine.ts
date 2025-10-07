@@ -127,13 +127,13 @@ export const isNativeToken = (token: AllowedToken): boolean =>
 
 const toTokenAddress = (token: AllowedToken): Address => getAddress(token.address);
 
-const createSessionWallet = (session: SessionDelegationInfo) => {
+export const createSessionWallet = (session: SessionDelegationInfo): ReturnType<typeof createWalletClient> => {
   const account = privateKeyToAccount(session.sessionKeyPrivateKey as Hex);
   return createWalletClient({
     chain: monadChain,
     transport: http(MONAD_RPC_URL),
     account,
-  });
+  }) as ReturnType<typeof createWalletClient>;
 };
 
 const readTokenBalance = async (

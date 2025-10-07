@@ -109,6 +109,7 @@ export const registerDelegationList = (program: Command) => {
 
         console.log(chalk.bold(filePath));
         console.log(`  Mode        : ${artifact.mode}`);
+        console.log(`  Kind        : ${artifact.kind ?? "swap"}`);
         console.log(`  Delegator   : ${delegatorAddress}`);
         console.log(`  Session key : ${artifact.sessionKeyAddress}`);
         console.log(`  Session secret: ${artifact.sessionKeyPrivateKey}`);
@@ -171,7 +172,18 @@ export const registerDelegationList = (program: Command) => {
           console.log("  Expires at  : unknown (no timestamp caveat detected)");
         }
         if (ethBalance) console.log(`  MON balance : ${ethBalance}`);
-        if ((artifact.allowedTokens ?? []).length > 0) {
+        if (artifact.kind === "transfer") {
+          if (artifact.transferMaxAmount) {
+            try {
+              const formatted = formatEther(BigInt(artifact.transferMaxAmount));
+              console.log(`  Native cap  : ${formatted} MON`);
+            } catch {
+              console.log(`  Native cap  : ${artifact.transferMaxAmount} wei`);
+            }
+          } else {
+            console.log("  Native cap  : unlimited (no cap recorded)");
+          }
+        } else if ((artifact.allowedTokens ?? []).length > 0) {
           console.log("  Allowed tokens:");
           for (const token of artifact.allowedTokens ?? []) {
             console.log(`    - ${formatTokenInfo(token)}`);

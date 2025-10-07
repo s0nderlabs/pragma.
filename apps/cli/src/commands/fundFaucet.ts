@@ -31,7 +31,7 @@ export const registerFundFaucet = (program: Command) => {
       const normalizedDelegator = delegator ? getAddress(delegator) : undefined;
       const entry = artifactPath
         ? await loadDelegationArtifact(artifactPath)
-        : await loadLatestActiveDelegation(normalizedDelegator);
+        : await loadLatestActiveDelegation(normalizedDelegator, undefined, "swap");
       const artifact = entry.artifact;
       const delegatorAddress = getAddress(artifact.delegation.delegator);
 

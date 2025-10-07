@@ -9,7 +9,7 @@ export const getEnv = (name: string): string => {
 const getEnvOptional = (name: string): string | undefined => process.env[name];
 
 export const PIMLICO_API_KEY = getEnv("PIMLICO_API_KEY");
-export const PIMLICO_CHAIN = getEnvOptional("PIMLICO_CHAIN") ?? "sepolia";
+export const PIMLICO_CHAIN = getEnvOptional("PIMLICO_CHAIN") ?? "monad-testnet";
 const buildPimlicoUrl = (overrideVar: string | undefined) => {
   if (overrideVar) return overrideVar;
   const url = `https://api.pimlico.io/v2/${PIMLICO_CHAIN}/rpc?apikey=${PIMLICO_API_KEY}`;
@@ -19,7 +19,13 @@ const buildPimlicoUrl = (overrideVar: string | undefined) => {
 export const PIMLICO_BUNDLER_URL = buildPimlicoUrl(getEnvOptional("PIMLICO_BUNDLER_URL"));
 export const PIMLICO_PAYMASTER_URL = buildPimlicoUrl(getEnvOptional("PIMLICO_PAYMASTER_URL"));
 export const PIMLICO_SPONSORSHIP_POLICY_ID = getEnvOptional("PIMLICO_SPONSORSHIP_POLICY_ID");
-export const SEPOLIA_RPC_URL = getEnv("SEPOLIA_RPC_URL");
+
+const DEFAULT_MONAD_RPC_URL = "https://testnet-rpc.monad.xyz";
+const DEFAULT_MONAD_READ_RPC_URL = "https://monad-testnet.rpc.hypersync.xyz";
+export const MONAD_CHAIN_ID = 10_143;
+export const MONAD_RPC_URL = getEnvOptional("MONAD_RPC_URL") ?? DEFAULT_MONAD_RPC_URL;
+export const MONAD_READ_RPC_URL =
+  getEnvOptional("MONAD_ENVIO_READ_RPC_URL") ?? DEFAULT_MONAD_READ_RPC_URL;
 const getEnvFallback = (primary: string, alternative: string) => {
   const primaryValue = process.env[primary];
   if (primaryValue) {
@@ -41,21 +47,25 @@ export const WEB3AUTH_CLIENT_SECRET = getEnvFallback(
 );
 export const WEB3AUTH_NETWORK = process.env.WEB3AUTH_NETWORK ?? "sapphire_devnet";
 export const PRAGMA_ADMIN_TEST_PK = getEnv("PRAGMA_ADMIN_TEST_PK");
-export const SEPOLIA_WETH_ADDRESS = getEnv("SEPOLIA_WETH");
-export const SEPOLIA_UNI_ADDRESS = getEnv("SEPOLIA_UNI");
-export const SEPOLIA_USDC_ADDRESS = getEnvOptional("SEPOLIA_USDC");
-export const SEPOLIA_QUOTER_V2_ADDRESS =
-  process.env.SEPOLIA_QUOTER_V2 ?? "0xEd1f6473345F45b75F8179591dd5bA1888cf2FB3";
-export const SEPOLIA_WETH_UNI_POOL_ADDRESS =
-  process.env.SEPOLIA_WETH_UNI_POOL ?? "0x287B0e934ed0439E2a7b1d5F0FC25eA2c24b64f7";
-export const SEPOLIA_SWAP_ROUTER_ADDRESS =
-  process.env.SEPOLIA_SWAP_ROUTER ?? "0x3bFA4769FB09eefC5a80d6E87c3B9C650f7Ae48E";
-export const SEPOLIA_WETH_USDC_POOL_ADDRESS = process.env.SEPOLIA_WETH_USDC_POOL;
-export const SEPOLIA_UNI_USDC_POOL_ADDRESS = process.env.SEPOLIA_UNI_USDC_POOL;
 
 export const PRIVY_APP_ID = getEnvOptional("PRIVY_ID");
 export const PRIVY_APP_SECRET = getEnvOptional("PRIVY_SECRET");
 export const PRAGMA_IDENTITY_PROVIDER = getEnvOptional("PRAGMA_IDENTITY_PROVIDER");
+
+export const MONORAIL_PATHFINDER_URL =
+  process.env.MONORAIL_PATHFINDER_URL ?? "https://testnet-pathfinder.monorail.xyz/v4";
+export const MONORAIL_DATA_API_URL =
+  process.env.MONORAIL_DATA_API_URL ?? "https://testnet-api.monorail.xyz/v1";
+export const MONORAIL_APP_ID = getEnvOptional("MONORAIL_APP_ID");
+export const MONORAIL_API_KEY = getEnvOptional("MONORAIL_API_KEY");
+export const MONORAIL_AGGREGATOR_ADDRESS =
+  getEnvOptional("MONORAIL_AGGREGATOR_ADDRESS") ?? "0x525B929fCd6a64AfF834f4eeCc6E860486cED700";
+
+export const MONAD_NATIVE_TOKEN_SYMBOL = "MON";
+export const MONAD_NATIVE_TOKEN_ADDRESS = "0x0000000000000000000000000000000000000000";
+export const MONAD_WRAPPED_TOKEN_SYMBOL = "WMON";
+export const MONAD_WMON_ADDRESS =
+  getEnvOptional("MONAD_WMON_ADDRESS") ?? "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701";
 
 const parsePort = (value: string | undefined): number | undefined => {
   if (!value) return undefined;

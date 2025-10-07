@@ -2,8 +2,8 @@ import chalk from "chalk";
 import { Address, formatEther, formatUnits } from "viem";
 
 import { loadDelegationArtifact } from "./delegationArtifacts.js";
-import { createSepoliaPublicClient } from "./web3authClients.js";
-import { WETH_SEPOLIA } from "./onboarding4337.js";
+import { createMonadPublicClient } from "./web3authClients.js";
+import type { AllowedToken } from "./monorailTokens.js";
 import { onboardingLogger } from "../utils/logger.js";
 
 const ERC20_BALANCE_ABI = [
@@ -24,33 +24,40 @@ export interface DelegationStatus {
   filePath: string;
   isExpired: boolean;
   ethBalanceWei?: bigint;
-  wethBalanceWei?: bigint;
+  wrappedBalanceWei?: bigint;
+  wrappedToken?: Pick<AllowedToken, "address" | "symbol" | "decimals">;
+  allowedTokens?: AllowedToken[];
 }
 
 export interface StatusSnapshot {
   delegation?: DelegationStatus;
 }
 
-const fetchBalances = async (delegator: Address): Promise<{ eth?: bigint; weth?: bigint }> => {
-  const publicClient = createSepoliaPublicClient();
-  const balances: { eth?: bigint; weth?: bigint } = {};
+const fetchBalances = async (
+  delegator: Address,
+  wrappedToken?: Pick<AllowedToken, "address" | "decimals" | "symbol">,
+): Promise<{ eth?: bigint; wrapped?: bigint }> => {
+  const publicClient = createMonadPublicClient();
+  const balances: { eth?: bigint; wrapped?: bigint } = {};
 
   try {
     balances.eth = await publicClient.getBalance({ address: delegator });
   } catch (error) {
-    onboardingLogger.debug({ err: error }, "Failed to fetch ETH balance for status snapshot");
+    onboardingLogger.debug({ err: error }, "Failed to fetch MON balance for status snapshot");
   }
 
-  try {
-    const amount = (await publicClient.readContract({
-      address: WETH_SEPOLIA,
-      abi: ERC20_BALANCE_ABI,
-      functionName: "balanceOf",
-      args: [delegator],
-    })) as bigint;
-    balances.weth = amount;
-  } catch (error) {
-    onboardingLogger.debug({ err: error }, "Failed to fetch WETH balance for status snapshot");
+  if (wrappedToken) {
+    try {
+      const amount = (await publicClient.readContract({
+        address: wrappedToken.address,
+        abi: ERC20_BALANCE_ABI,
+        functionName: "balanceOf",
+        args: [delegator],
+      })) as bigint;
+      balances.wrapped = amount;
+    } catch (error) {
+      onboardingLogger.debug({ err: error }, "Failed to fetch wrapped balance for status snapshot");
+    }
   }
 
   return balances;
@@ -59,7 +66,13 @@ const fetchBalances = async (delegator: Address): Promise<{ eth?: bigint; weth?:
 export const getStatusSnapshot = async (): Promise<StatusSnapshot> => {
   try {
     const { artifact, filePath } = await loadDelegationArtifact();
-    const balances = await fetchBalances(artifact.delegation.delegator as Address);
+    const wrappedToken = (artifact.allowedTokens ?? []).find(
+      (token) => token.kind === "wrappedNative",
+    );
+    const balances = await fetchBalances(
+      artifact.delegation.delegator as Address,
+      wrappedToken,
+    );
     const now = Math.floor(Date.now() / 1000);
     const expiresAt = artifact.expiresAt;
 
@@ -72,7 +85,9 @@ export const getStatusSnapshot = async (): Promise<StatusSnapshot> => {
         filePath,
         isExpired: expiresAt <= now,
         ethBalanceWei: balances.eth,
-        wethBalanceWei: balances.weth,
+        wrappedBalanceWei: balances.wrapped,
+        wrappedToken,
+        allowedTokens: artifact.allowedTokens,
       },
     };
   } catch (error) {
@@ -87,7 +102,7 @@ export const getStatusSnapshot = async (): Promise<StatusSnapshot> => {
 
 export const renderStatusSnapshot = (snapshot: StatusSnapshot) => {
   console.log(chalk.bold("Pragma CLI Status"));
-  console.log(chalk.gray("Sepolia · ERC-4337 HybridDelegator"));
+  console.log(chalk.gray("Monad Testnet · ERC-4337 HybridDelegator"));
   console.log();
 
   if (!snapshot.delegation) {
@@ -112,10 +127,29 @@ export const renderStatusSnapshot = (snapshot: StatusSnapshot) => {
   console.log(`  Artifact    : ${delegation.filePath}`);
 
   if (delegation.ethBalanceWei !== undefined) {
-    console.log(`  ETH balance : ${formatEther(delegation.ethBalanceWei)} ETH`);
+    console.log(`  MON balance : ${formatEther(delegation.ethBalanceWei)} MON`);
   }
-  if (delegation.wethBalanceWei !== undefined) {
-    console.log(`  WETH balance: ${formatUnits(delegation.wethBalanceWei, 18)} WETH`);
+  if (delegation.wrappedBalanceWei !== undefined && delegation.wrappedToken) {
+    const symbol = delegation.wrappedToken.symbol ?? "WMON";
+    const decimals = delegation.wrappedToken.decimals ?? 18;
+    console.log(`  ${symbol} balance: ${formatUnits(delegation.wrappedBalanceWei, decimals)} ${symbol}`);
+  }
+  if (delegation.allowedTokens && delegation.allowedTokens.length > 0) {
+    console.log("  Allowed tokens:");
+    delegation.allowedTokens.forEach((token) => {
+      const tags: string[] = [];
+      if (token.kind === "native") tags.push("native");
+      if (token.kind === "wrappedNative") tags.push("wrapped");
+      if (token.categories && token.categories.length > 0) {
+        tags.push(...token.categories.slice(0, 3));
+      } else {
+        tags.push("legacy");
+      }
+      const tagSuffix = tags.length > 0 ? ` [${tags.join(", ")}]` : "";
+      console.log(
+        `    - ${token.symbol ?? token.address} (${token.address})${tagSuffix}`,
+      );
+    });
   }
 };
 

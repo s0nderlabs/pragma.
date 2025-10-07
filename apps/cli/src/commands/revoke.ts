@@ -10,7 +10,7 @@ export const registerRevoke = (program: Command) => {
   program
     .command("revoke")
     .description("Revoke delegations by bumping NonceEnforcer and optionally disabling")
-    .option("--mode <mode>", "safe | normal", "safe")
+    .option("--mode <mode>", "safe | normal")
     .option("--delegator <address>", "Specify HybridDelegator address")
     .option("--artifact <path>", "Path to delegation artifact")
     .option("--disable-only", "Disable the target delegation without bumping nonce")
@@ -35,10 +35,14 @@ export const registerRevoke = (program: Command) => {
         privy?: boolean;
         web3auth?: boolean;
       }) => {
-        const normalizedMode = mode.toLowerCase();
-        if (!["safe", "normal"].includes(normalizedMode)) {
-          console.error(chalk.red("Invalid mode. Use 'safe' or 'normal'."));
-          process.exit(1);
+        let normalizedMode: Mode | undefined;
+        if (mode) {
+          const lower = mode.toLowerCase();
+          if (!["safe", "normal"].includes(lower)) {
+            console.error(chalk.red("Invalid mode. Use 'safe' or 'normal'."));
+            process.exit(1);
+          }
+          normalizedMode = lower as Mode;
         }
 
         if (privy && web3auth) {
@@ -51,18 +55,18 @@ export const registerRevoke = (program: Command) => {
           process.exit(1);
         }
 
-        onboardingLogger.info({ mode: normalizedMode, disableOnly, alsoDisable }, "Revoking delegations");
+        onboardingLogger.info({ mode: normalizedMode ?? "auto", disableOnly, alsoDisable }, "Revoking delegations");
 
         try {
           await runRevoke({
-            mode: normalizedMode as Mode,
+            mode: normalizedMode,
             delegator,
             artifactPath: artifact,
             disableOnly: Boolean(disableOnly),
             alsoDisable: Boolean(alsoDisable),
             identityHint: privy ? "privy" : web3auth ? "web3auth" : undefined,
           });
-          onboardingLogger.info({ mode: normalizedMode }, "Delegations revoked");
+          onboardingLogger.info({ mode: normalizedMode ?? "auto" }, "Delegations revoked");
         } catch (error) {
           onboardingLogger.error({ err: error }, "Revoke flow failed");
           console.error(chalk.red((error as Error).message));

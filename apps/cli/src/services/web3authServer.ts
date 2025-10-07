@@ -7,7 +7,7 @@ const ZERO_SALT = "0x00000000000000000000000000000000000000000000000000000000000
 import {
   WEB3AUTH_CLIENT_ID,
   WEB3AUTH_NETWORK,
-  SEPOLIA_RPC_URL,
+  MONAD_RPC_URL,
   WEB3AUTH_BRIDGE_PORT,
 } from "./config.js";
 
@@ -46,12 +46,26 @@ type SignTypedDataBridgeJob = {
   payload: SignDelegationTypedDataPayload;
 };
 
+type CloseBridgeJob = {
+  id: string;
+  type: "close";
+};
+
 type ProviderJob =
   | ProviderBridgeJob
   | StatusBridgeJob
   | UpgradeBridgeJob
   | DelegationBridgeJob
-  | SignTypedDataBridgeJob;
+  | SignTypedDataBridgeJob
+  | CloseBridgeJob;
+
+type ProviderJobRequest =
+  | Omit<ProviderBridgeJob, "id">
+  | Omit<StatusBridgeJob, "id">
+  | Omit<UpgradeBridgeJob, "id">
+  | Omit<DelegationBridgeJob, "id">
+  | Omit<SignTypedDataBridgeJob, "id">
+  | Omit<CloseBridgeJob, "id">;
 
 type PendingJob = {
   resolve: (value: unknown) => void;
@@ -182,7 +196,7 @@ export const startWeb3AuthBridge = (
     }
   };
 
-  const enqueueJob = <T,>(job: Omit<ProviderJob, "id">): Promise<T> => {
+  const enqueueJob = <T,>(job: ProviderJobRequest): Promise<T> => {
     const jobId = randomBytes(16).toString("hex");
     return new Promise<T>((resolve, reject) => {
       pendingJobs.set(jobId, {
@@ -365,6 +379,14 @@ export const startWeb3AuthBridge = (
   const shutdown = async () => {
     if (shuttingDown) return;
     shuttingDown = true;
+
+    if (walletAddress) {
+      try {
+        await enqueueJob({ type: "close" });
+      } catch (error) {
+        // Ignore errors here; shutdown will proceed regardless.
+      }
+    }
     failAllJobs(new Error("Web3Auth bridge shut down"));
     if (!walletAddress) {
       walletReject?.(new Error("Web3Auth bridge shut down"));
@@ -412,8 +434,8 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
     </div>
     <script>
       const state = ${JSON.stringify(state)};
-      const defaultRpcUrl = ${JSON.stringify(SEPOLIA_RPC_URL)};
-      const desiredChainId = "0xaa36a7";
+      const defaultRpcUrl = ${JSON.stringify(MONAD_RPC_URL)};
+      const desiredChainId = "0x279f";
 
       const setStatus = (text, isError = false) => {
         const message = document.getElementById("message");
@@ -421,7 +443,7 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
         message.style.color = isError ? "red" : "inherit";
       };
 
-      const ensureSepolia = async (provider) => {
+      const ensureTargetChain = async (provider) => {
         const chainId = await provider.request({ method: "eth_chainId" });
         if (chainId === desiredChainId) return;
 
@@ -436,10 +458,10 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
               method: "wallet_addEthereumChain",
               params: [{
                 chainId: desiredChainId,
-                chainName: "Sepolia",
+                chainName: "Monad Testnet",
                 rpcUrls: [defaultRpcUrl],
-                nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
-                blockExplorerUrls: ["https://sepolia.etherscan.io"],
+                nativeCurrency: { name: "Monad", symbol: "MON", decimals: 18 },
+                blockExplorerUrls: ["https://testnet-explorer.monad.xyz"],
               }],
             });
             await provider.request({
@@ -467,7 +489,7 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
         id: chainId,
         name: "chain-" + chainId,
         network: "chain-" + chainId,
-        nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+        nativeCurrency: { name: "Monad", symbol: "MON", decimals: 18 },
         rpcUrls: { default: { http: [rpcUrl] } },
       });
 
@@ -483,7 +505,7 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
           }
 
           await provider.request({ method: "eth_requestAccounts" });
-          await ensureSepolia(provider);
+          await ensureTargetChain(provider);
 
           const accounts = await provider.request({ method: "eth_accounts" });
           const address = accounts?.[0];
@@ -601,7 +623,15 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
                 let result;
                 let error;
                 try {
-                  if (job.type === "provider") {
+                  if (job.type === "close") {
+                    await fetch("/task-result", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ state, jobId: job.id, result: { acknowledged: true } }),
+                    });
+                    setTimeout(() => window.close(), 100);
+                    return;
+                  } else if (job.type === "provider") {
                     result = await provider.request(job.payload);
                   } else if (job.type === "statelessDelegatorStatus") {
                     setStatus("Checking 7702 upgrade status...");
@@ -748,8 +778,8 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
       const clientId = ${JSON.stringify(WEB3AUTH_CLIENT_ID)};
       const web3AuthNetwork = ${JSON.stringify(WEB3AUTH_NETWORK)};
 
-      const desiredChainId = "0xaa36a7";
-      const defaultRpcUrl = ${JSON.stringify(SEPOLIA_RPC_URL)};
+      const desiredChainId = "0x279f";
+      const defaultRpcUrl = ${JSON.stringify(MONAD_RPC_URL)};
 
       const setStatus = (text, isError = false) => {
         const message = document.getElementById("message");
@@ -757,7 +787,7 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
         message.style.color = isError ? "red" : "inherit";
       };
 
-      const ensureSepolia = async (provider) => {
+      const ensureTargetChain = async (provider) => {
         const chainId = await provider.request({ method: "eth_chainId" });
         if (chainId === desiredChainId) return;
 
@@ -772,10 +802,10 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
               method: "wallet_addEthereumChain",
               params: [{
                 chainId: desiredChainId,
-                chainName: "Sepolia",
+                chainName: "Monad Testnet",
                 rpcUrls: [defaultRpcUrl],
-                nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
-                blockExplorerUrls: ["https://sepolia.etherscan.io"],
+                nativeCurrency: { name: "Monad", symbol: "MON", decimals: 18 },
+                blockExplorerUrls: ["https://testnet-explorer.monad.xyz"],
               }],
             });
             await provider.request({
@@ -803,7 +833,7 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
         id: chainId,
         name: "chain-" + chainId,
         network: "chain-" + chainId,
-        nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+        nativeCurrency: { name: "Monad", symbol: "MON", decimals: 18 },
         rpcUrls: { default: { http: [rpcUrl] } },
       });
 
@@ -955,7 +985,7 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
           await web3auth.init();
           const provider = await web3auth.connect();
 
-          await ensureSepolia(provider);
+          await ensureTargetChain(provider);
 
           const accounts = await provider.request({ method: "eth_accounts" });
           const address = accounts?.[0];
@@ -990,7 +1020,15 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
                 let result;
                 let error;
                 try {
-                  if (job.type === "provider") {
+                  if (job.type === "close") {
+                    await fetch("/task-result", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ state, jobId: job.id, result: { acknowledged: true } }),
+                    });
+                    setTimeout(() => window.close(), 100);
+                    return;
+                  } else if (job.type === "provider") {
                     result = await provider.request(job.payload);
                   } else if (job.type === "statelessDelegatorUpgrade") {
                     setStatus("Authorizing 7702 upgrade...");

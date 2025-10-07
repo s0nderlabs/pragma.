@@ -1,8 +1,30 @@
-import { custom, createPublicClient, createWalletClient, http } from "viem";
-import { sepolia } from "viem/chains";
+import { custom, createPublicClient, createWalletClient, http, type Chain } from "viem";
 
 import type { Web3AuthBridge } from "./web3authServer.js";
-import { SEPOLIA_RPC_URL } from "./config.js";
+import {
+  MONAD_RPC_URL,
+  MONAD_READ_RPC_URL,
+  MONAD_CHAIN_ID,
+  MONAD_NATIVE_TOKEN_SYMBOL,
+} from "./config.js";
+
+const monadTestnet: Chain = {
+  id: MONAD_CHAIN_ID,
+  name: "Monad Testnet",
+  nativeCurrency: { name: "Monad", symbol: MONAD_NATIVE_TOKEN_SYMBOL, decimals: 18 },
+  rpcUrls: {
+    default: { http: [MONAD_RPC_URL] },
+    public: { http: [MONAD_RPC_URL] },
+  },
+  blockExplorers: {
+    default: {
+      name: "Monad Explorer",
+      url: "https://testnet-explorer.monad.xyz",
+    },
+  },
+};
+
+export const monadChain = monadTestnet;
 
 export type ConnectedWallet = {
   address: `0x${string}`;
@@ -27,7 +49,7 @@ export const createWalletClientFromBridge = async (
   });
 
   const baseClient = createWalletClient({
-    chain: sepolia,
+    chain: monadTestnet,
     transport,
   });
 
@@ -72,7 +94,7 @@ export const createWalletClientFromBridge = async (
   }
 
   const walletClient = createWalletClient({
-    chain: sepolia,
+    chain: monadTestnet,
     transport,
     account: address,
   });
@@ -83,10 +105,10 @@ export const createWalletClientFromBridge = async (
   };
 };
 
-export const createSepoliaPublicClient = () =>
+export const createMonadPublicClient = () =>
   createPublicClient({
-    chain: sepolia,
-    transport: http(SEPOLIA_RPC_URL),
+    chain: monadTestnet,
+    transport: http(MONAD_RPC_URL),
   });
 
 export const createWeb3AuthWalletClient = (bridge: Web3AuthBridge) =>

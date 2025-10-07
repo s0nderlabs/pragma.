@@ -2,22 +2,22 @@ import { Command } from "commander";
 import chalk from "chalk";
 import { createWalletClient, http, formatEther, formatUnits, parseEther, getAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { sepolia } from "viem/chains";
 
 import { loadDelegationArtifact, loadLatestActiveDelegation } from "../services/delegationArtifacts.js";
-import { createSepoliaPublicClient } from "../services/web3authClients.js";
-import { WETH_SEPOLIA } from "../services/onboarding4337.js";
-import { ERC20_ABI } from "../services/swapTest.js";
+import { createMonadPublicClient, monadChain } from "../services/web3authClients.js";
+import { loadAllowedTokens } from "../services/monorailTokens.js";
+import { ERC20_ABI } from "../services/swapEngine.js";
+import { MONAD_RPC_URL } from "../services/config.js";
 
 export const registerFundFaucet = (program: Command) => {
   program
     .command("fund:faucet")
-    .description("[dev] Send faucet ETH/WETH from PRAGMA_ADMIN_TEST_PK to latest HybridDelegator")
+    .description("[dev] Send faucet MON/WMON from PRAGMA_ADMIN_TEST_PK to latest HybridDelegator")
     .option("--artifact <path>", "Path to delegation artifact (defaults to latest active)")
     .option("--delegator <address>", "Specific HybridDelegator when multiple exist")
-    .option("--eth <amount>", "ETH amount to send", "0.01")
-    .option("--weth <amount>", "WETH amount to transfer", "0.01")
-    .action(async ({ artifact: artifactPath, delegator, eth, weth }: { artifact?: string; delegator?: string; eth?: string; weth?: string }) => {
+    .option("--mon <amount>", "MON amount to send", "0.01")
+    .option("--wmon <amount>", "WMON amount to transfer", "0.01")
+    .action(async ({ artifact: artifactPath, delegator, mon, wmon }: { artifact?: string; delegator?: string; mon?: string; wmon?: string }) => {
       const adminPk = process.env.PRAGMA_ADMIN_TEST_PK;
       if (!adminPk) {
         console.error(
@@ -40,14 +40,14 @@ export const registerFundFaucet = (program: Command) => {
         process.exit(1);
       }
 
-      const ethAmount = parseEther(eth ?? "0.01");
-      const wethAmount = parseEther(weth ?? "0.01");
+      const monAmount = parseEther(mon ?? "0.01");
+      const wmonAmount = parseEther(wmon ?? "0.01");
 
       const adminAccount = privateKeyToAccount(adminPk as `0x${string}`);
-      const publicClient = createSepoliaPublicClient();
+      const publicClient = createMonadPublicClient();
       const wallet = createWalletClient({
-        chain: sepolia,
-        transport: http(process.env.SEPOLIA_RPC_URL),
+        chain: monadChain,
+        transport: http(MONAD_RPC_URL),
         account: adminAccount,
       });
 
@@ -56,34 +56,49 @@ export const registerFundFaucet = (program: Command) => {
       console.log(`  Recipient     : ${delegatorAddress}`);
       console.log();
 
-      if (ethAmount > 0n) {
-        const tx = await wallet.sendTransaction({ to: delegatorAddress, value: ethAmount });
+      if (monAmount > 0n) {
+        const tx = await wallet.sendTransaction({ to: delegatorAddress, value: monAmount });
         await publicClient.waitForTransactionReceipt({ hash: tx });
-        console.log(chalk.green(`Sent ${formatEther(ethAmount)} ETH (tx: ${tx})`));
+        console.log(chalk.green(`Sent ${formatEther(monAmount)} MON (tx: ${tx})`));
       }
 
-      if (wethAmount > 0n) {
+      const allowlist = await loadAllowedTokens();
+      const wrappedToken = allowlist.find((token) => token.kind === "wrappedNative");
+
+      if (wmonAmount > 0n && wrappedToken) {
         const tx = await wallet.writeContract({
-          address: WETH_SEPOLIA,
+          address: wrappedToken.address,
           abi: ERC20_ABI,
           functionName: "transfer",
-          args: [delegatorAddress, wethAmount],
+          args: [delegatorAddress, wmonAmount],
         });
         await publicClient.waitForTransactionReceipt({ hash: tx });
-        console.log(chalk.green(`Transferred ${formatEther(wethAmount)} WETH (tx: ${tx})`));
+        console.log(
+          chalk.green(
+            `Transferred ${formatUnits(wmonAmount, wrappedToken.decimals ?? 18)} ${
+              wrappedToken.symbol ?? "WMON"
+            } (tx: ${tx})`,
+          ),
+        );
       }
 
-      const ethBalance = await publicClient.getBalance({ address: delegatorAddress });
-      const wethBalance = (await publicClient.readContract({
-        address: WETH_SEPOLIA,
-        abi: ERC20_ABI,
-        functionName: "balanceOf",
-        args: [delegatorAddress],
-      })) as bigint;
+      const monBalance = await publicClient.getBalance({ address: delegatorAddress });
+      const wrappedBalance = wrappedToken
+        ? ((await publicClient.readContract({
+            address: wrappedToken.address,
+            abi: ERC20_ABI,
+            functionName: "balanceOf",
+            args: [delegatorAddress],
+          })) as bigint)
+        : 0n;
 
       console.log();
       console.log(chalk.bold("Updated balances"));
-      console.log(`  ETH : ${formatEther(ethBalance)}`);
-      console.log(`  WETH: ${formatUnits(wethBalance, 18)}`);
+      console.log(`  MON : ${formatEther(monBalance)}`);
+      if (wrappedToken) {
+        console.log(
+          `  ${wrappedToken.symbol ?? "WMON"}: ${formatUnits(wrappedBalance, wrappedToken.decimals ?? 18)}`,
+        );
+      }
     });
 };

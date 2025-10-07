@@ -6,9 +6,8 @@ import { fileURLToPath } from "node:url";
 
 import { buildSync } from "esbuild";
 import type { Address } from "viem";
-import { sepolia } from "viem/chains";
 
-import { PRIVY_APP_ID } from "./config.js";
+import { PRIVY_APP_ID, MONAD_CHAIN_ID } from "./config.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -125,7 +124,7 @@ const renderAuthPage = ({ state, appId }: { state: string; appId: string }) => `
         state: ${JSON.stringify(state)},
         appId: ${JSON.stringify(appId)},
         apiBaseUrl: window.location.origin,
-        chainId: ${JSON.stringify(sepolia.id)},
+        chainId: ${JSON.stringify(MONAD_CHAIN_ID)},
       };
     </script>
     <script>${BUNDLE_CODE}</script>

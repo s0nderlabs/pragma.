@@ -4,11 +4,12 @@ import os from "node:os";
 
 import { Delegation } from "@metamask/delegation-toolkit";
 import { Address, Hex, concatHex, getAddress, keccak256, recoverTypedDataAddress } from "viem";
-import { sepolia } from "viem/chains";
 import type { PublicClient } from "viem";
 import type { DeleGatorEnv } from "./onboarding4337.js";
 
-import { DelegationArtifact, DEFAULT_CALL_LIMITS, normalizeAllowedTokensList, type Mode } from "./onboarding4337.js";
+import { DelegationArtifact, DEFAULT_CALL_LIMITS, type Mode } from "./onboarding4337.js";
+import { normalizeAllowedTokensList } from "./monorailTokens.js";
+import { MONAD_CHAIN_ID } from "./config.js";
 import { buildDelegationTypedData } from "./delegationTypedData.js";
 
 const ARTIFACT_PREFIX = "delegation-4337-";
@@ -117,6 +118,11 @@ const readArtifact = async (filePath: string): Promise<DelegationArtifact> => {
   if (parsed.callsUnlimited === undefined) {
     parsed.callsUnlimited = false;
   }
+  if (parsed.transferMaxAmount !== null && parsed.transferMaxAmount !== undefined) {
+    parsed.transferMaxAmount = String(parsed.transferMaxAmount);
+  } else {
+    parsed.transferMaxAmount = null;
+  }
   if (!Array.isArray(parsed.allowedTokens)) {
     parsed.allowedTokens = [];
   } else {
@@ -126,12 +132,16 @@ const readArtifact = async (filePath: string): Promise<DelegationArtifact> => {
           address: getAddress(token.address),
           symbol: token.symbol,
           decimals: typeof token.decimals === "number" ? token.decimals : Number(token.decimals ?? 18),
+          kind: token.kind,
+          categories: Array.isArray(token.categories) ? [...token.categories] : undefined,
         };
       } catch {
         return {
           address: getAddress(token.address as string),
           symbol: token.symbol,
           decimals: 18,
+          kind: token.kind,
+          categories: Array.isArray(token.categories) ? [...token.categories] : undefined,
         };
       }
     });
@@ -390,7 +400,7 @@ export const diagnoseDelegationSignature = async (
       return { valid: true };
     }
 
-    const chainId = publicClient.chain?.id ?? sepolia.id;
+    const chainId = publicClient.chain?.id ?? MONAD_CHAIN_ID;
     const verifyingContract = environment.DelegationManager as Address;
     let recovered: Address | undefined;
     try {

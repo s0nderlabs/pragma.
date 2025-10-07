@@ -2,7 +2,6 @@ import chalk from "chalk";
 import open from "open";
 import ora from "ora";
 import { Address, Hex, encodeFunctionData, getAddress, toHex, http } from "viem";
-import { sepolia } from "viem/chains";
 import { createBundlerClient } from "viem/account-abstraction";
 import { getDeleGatorEnvironment, Implementation, toMetaMaskSmartAccount } from "@metamask/delegation-toolkit";
 
@@ -11,12 +10,12 @@ import {
   loadLatestActiveDelegation,
   type LoadedDelegationArtifact,
 } from "./delegationArtifacts.js";
-import { createSepoliaPublicClient, createWalletClientFromBridge } from "./web3authClients.js";
+import { createMonadPublicClient, createWalletClientFromBridge, monadChain } from "./web3authClients.js";
 import { fetchDelegatorNonce, type Mode } from "./onboarding4337.js";
 import { startWeb3AuthBridge } from "./web3authServer.js";
 import { startPrivyBridge } from "./privyBridgeServer.js";
 import { onboardingLogger } from "../utils/logger.js";
-import { PRIVY_APP_ID, PRAGMA_IDENTITY_PROVIDER, PIMLICO_BUNDLER_URL } from "./config.js";
+import { PRIVY_APP_ID, PRAGMA_IDENTITY_PROVIDER, PIMLICO_BUNDLER_URL, MONAD_CHAIN_ID } from "./config.js";
 
 const OWNER_ABI = [
   {
@@ -80,7 +79,7 @@ const DELEGATION_MANAGER_DISABLE_ABI = [
 ] as const;
 
 export interface RunRevokeOptions {
-  mode: Mode;
+  mode?: Mode;
   delegator?: string;
   artifactPath?: string;
   disableOnly?: boolean;
@@ -119,7 +118,7 @@ const selectDelegation = async (
 
 const verifyOwner = async (
   delegator: Address,
-  publicClient: ReturnType<typeof createSepoliaPublicClient>,
+  publicClient: ReturnType<typeof createMonadPublicClient>,
 ): Promise<Address | undefined> => {
   try {
     return (await publicClient.readContract({
@@ -134,9 +133,9 @@ const verifyOwner = async (
 
 export const runRevoke = async (options: RunRevokeOptions) => {
   const { mode, disableOnly = false, alsoDisable = false, identityHint } = options;
-  onboardingLogger.info({ mode, disableOnly, alsoDisable }, "Starting delegation revoke");
+  onboardingLogger.info({ mode: mode ?? "auto", disableOnly, alsoDisable }, "Starting delegation revoke");
 
-  const environment = getDeleGatorEnvironment(sepolia.id);
+  const environment = getDeleGatorEnvironment(MONAD_CHAIN_ID);
   const nonceEnforcerAddress = environment.caveatEnforcers?.NonceEnforcer;
   if (!nonceEnforcerAddress) {
     throw new Error("NonceEnforcer address missing from environment; cannot revoke delegations.");
@@ -146,7 +145,7 @@ export const runRevoke = async (options: RunRevokeOptions) => {
   const artifact = entry.artifact;
   const artifactPath = entry.filePath;
 
-  const publicClient = createSepoliaPublicClient();
+  const publicClient = createMonadPublicClient();
   const currentOwner = await verifyOwner(delegator, publicClient);
 
   const envIdentity = (() => {
@@ -202,12 +201,12 @@ export const runRevoke = async (options: RunRevokeOptions) => {
       environment,
     });
 
-    const bundlerClient = createBundlerClient({
-      chain: sepolia,
-      transport: http(PIMLICO_BUNDLER_URL),
-      client: publicClient,
-      account: smartAccount,
-    } as any);
+  const bundlerClient = createBundlerClient({
+    chain: monadChain,
+    transport: http(PIMLICO_BUNDLER_URL),
+    client: publicClient,
+    account: smartAccount,
+  } as any);
 
     const calls: { to: Address; data: Hex; value?: bigint }[] = [];
 

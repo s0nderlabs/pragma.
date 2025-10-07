@@ -9,7 +9,7 @@ import { printCommandSummary } from "../utils/help.js";
 export const registerDev = (program: Command) => {
   const dev = program
     .command("dev")
-    .description("[dev] Developer playground commands (Sepolia fixtures)");
+    .description("[dev] Developer playground commands for Monad testnet experimentation");
 
   registerOnboard4337Test(dev);
   registerSwapTest(dev);

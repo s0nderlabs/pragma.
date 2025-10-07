@@ -12,7 +12,7 @@ import {
 import type { Address, Hex } from "viem";
 import { hashTypedData, recoverTypedDataAddress } from "viem";
 
-const SEPOLIA_CHAIN_ID_HEX = "0xaa36a7";
+const MONAD_CHAIN_ID_HEX = "0x279f"; // 10143
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -117,14 +117,14 @@ const usePrivyBridge = ({ config }: { config: BridgeConfig }) => {
         const provider = (await embedded.getEthereumProvider()) as EIP1193Provider;
         const address = embedded.address as Address;
 
-        // Ensure Sepolia is selected; ignore errors if already on the correct chain.
+        // Ensure Monad testnet is selected; ignore errors if already on the correct chain.
         try {
           await provider.request?.({
             method: "wallet_switchEthereumChain",
-            params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }],
+            params: [{ chainId: MONAD_CHAIN_ID_HEX }],
           });
         } catch (switchError) {
-          // If the wallet already targets Sepolia, MetaMask-compatible providers
+          // If the wallet already targets Monad testnet, MetaMask-compatible providers
           // throw an error. We can safely ignore it.
         }
 

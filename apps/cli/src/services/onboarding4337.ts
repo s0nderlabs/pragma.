@@ -2,8 +2,7 @@ import chalk from "chalk";
 import open from "open";
 import ora from "ora";
 import path from "node:path";
-import { Address, Hex, http, getAddress, toHex } from "viem";
-import { sepolia } from "viem/chains";
+import { Address, Hex, http, getAddress, toHex, getFunctionSelector, parseEther, formatEther } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   createDelegation,
@@ -20,7 +19,7 @@ import inquirer from "inquirer";
 
 import { startWeb3AuthBridge } from "./web3authServer.js";
 import { startPrivyBridge } from "./privyBridgeServer.js";
-import { createSepoliaPublicClient, createWalletClientFromBridge } from "./web3authClients.js";
+import { createMonadPublicClient, createWalletClientFromBridge, monadChain } from "./web3authClients.js";
 import { buildDelegationTypedData } from "./delegationTypedData.js";
 import { sponsorUserOperation } from "./pimlico.js";
 
@@ -28,29 +27,91 @@ import { onboardingLogger } from "../utils/logger.js";
 import {
   PIMLICO_BUNDLER_URL,
   PIMLICO_CHAIN,
-  SEPOLIA_WETH_ADDRESS,
-  SEPOLIA_UNI_ADDRESS,
-  SEPOLIA_USDC_ADDRESS,
-  SEPOLIA_SWAP_ROUTER_ADDRESS,
+  MONORAIL_AGGREGATOR_ADDRESS,
   PRIVY_APP_ID,
   PRAGMA_IDENTITY_PROVIDER,
+  MONAD_CHAIN_ID,
+  MONAD_NATIVE_TOKEN_SYMBOL,
+  MONAD_WRAPPED_TOKEN_SYMBOL,
+  MONAD_NATIVE_TOKEN_ADDRESS,
 } from "./config.js";
+import {
+  loadAllowedTokens,
+  normalizeAllowedTokensList,
+  hasWrappedNativeToken,
+  resolveTokenFromAllowlist,
+  formatTokenLabel,
+  ensureTokenSet,
+} from "./monorailTokens.js";
+import type { AllowedToken, TokenKind } from "./monorailTokens.js";
+export { normalizeAllowedTokensList, type AllowedToken, type TokenKind } from "./monorailTokens.js";
 
 export type Mode = "safe" | "normal";
 
-export const ROUTER = getAddress(SEPOLIA_SWAP_ROUTER_ADDRESS);
-const EXACT_INPUT_SINGLE_SELECTOR = "0x04e45aaf" as Hex;
-const APPROVE_SELECTOR = "0x095ea7b3" as Hex;
-const WETH_DEPOSIT_SELECTOR = "0xd0e30db0" as Hex;
-const WETH_WITHDRAW_SELECTOR = "0x2e1a7d4d" as Hex;
-const UNWRAP_WETH9_SELECTOR = "0x49404b7c" as Hex;
-const REFUND_ETH_SELECTOR = "0x12210e8a" as Hex;
-export const WETH_SEPOLIA = getAddress(SEPOLIA_WETH_ADDRESS);
-export const UNI_SEPOLIA = getAddress(SEPOLIA_UNI_ADDRESS);
-if (!SEPOLIA_USDC_ADDRESS) {
-  throw new Error("SEPOLIA_USDC environment variable must be set to enable USDC allowlisting.");
-}
-export const USDC_SEPOLIA = getAddress(SEPOLIA_USDC_ADDRESS);
+export const ROUTER = getAddress(MONORAIL_AGGREGATOR_ADDRESS);
+const AGGREGATE_SELECTOR = getFunctionSelector({
+  type: "function",
+  name: "aggregate",
+  stateMutability: "payable",
+  inputs: [
+    { name: "tokenIn", type: "address" },
+    { name: "tokenOut", type: "address" },
+    { name: "amountIn", type: "uint256" },
+    { name: "minAmountOut", type: "uint256" },
+    { name: "destination", type: "address" },
+    { name: "deadline", type: "uint256" },
+    { name: "referrer", type: "uint64" },
+    { name: "quoteId", type: "uint64" },
+    {
+      name: "trades",
+      type: "tuple[]",
+      components: [
+        { name: "minAmountOut", type: "uint256" },
+        { name: "weight", type: "uint32" },
+        { name: "routerType", type: "uint8" },
+        { name: "router", type: "address" },
+        { name: "tokenIn", type: "address" },
+        { name: "tokenOut", type: "address" },
+        { name: "params", type: "bytes" },
+      ],
+    },
+  ],
+  outputs: [],
+}) as Hex;
+const APPROVE_SELECTOR = getFunctionSelector({
+  type: "function",
+  name: "approve",
+  stateMutability: "nonpayable",
+  inputs: [
+    { name: "spender", type: "address" },
+    { name: "amount", type: "uint256" },
+  ],
+  outputs: [{ name: "", type: "bool" }],
+}) as Hex;
+const WRAPPED_DEPOSIT_SELECTOR = getFunctionSelector({
+  type: "function",
+  name: "deposit",
+  stateMutability: "payable",
+  inputs: [],
+  outputs: [],
+}) as Hex;
+const WRAPPED_WITHDRAW_SELECTOR = getFunctionSelector({
+  type: "function",
+  name: "withdraw",
+  stateMutability: "nonpayable",
+  inputs: [{ name: "wad", type: "uint256" }],
+  outputs: [],
+}) as Hex;
+const ERC20_TRANSFER_SELECTOR = getFunctionSelector({
+  type: "function",
+  name: "transfer",
+  stateMutability: "nonpayable",
+  inputs: [
+    { name: "to", type: "address" },
+    { name: "value", type: "uint256" },
+  ],
+  outputs: [{ name: "", type: "bool" }],
+}) as Hex;
 export const ZERO_SALT = "0x0000000000000000000000000000000000000000000000000000000000000000" as Hex;
 
 export const DEFAULT_CALL_LIMITS: Record<Mode, number> = {
@@ -58,265 +119,30 @@ export const DEFAULT_CALL_LIMITS: Record<Mode, number> = {
   normal: 12,
 };
 
-export type TokenKind = "native" | "erc20";
-
-export interface TokenDefinition {
-  id: string;
-  symbol: string;
-  address?: Address;
-  decimals: number;
-  kind: TokenKind;
-}
-
-const TOKEN_REGISTRY: Record<string, TokenDefinition> = {
-  eth: { id: "eth", symbol: "ETH", kind: "native", decimals: 18 },
-  weth: { id: "weth", symbol: "WETH", kind: "erc20", address: WETH_SEPOLIA, decimals: 18 },
-  uni: { id: "uni", symbol: "UNI", kind: "erc20", address: UNI_SEPOLIA, decimals: 18 },
-  usdc: { id: "usdc", symbol: "USDC", kind: "erc20", address: USDC_SEPOLIA, decimals: 6 },
-};
-
-interface SafePairOption {
-  id: string;
-  label: string;
-  tokens: TokenDefinition[];
-  includeEth: boolean;
-}
-
-const SAFE_PAIR_OPTIONS: SafePairOption[] = [
-  {
-    id: "eth-uni",
-    label: "ETH ↔ UNI",
-    tokens: [TOKEN_REGISTRY.uni],
-    includeEth: true,
-  },
-  {
-    id: "eth-usdc",
-    label: "ETH ↔ USDC",
-    tokens: [TOKEN_REGISTRY.usdc],
-    includeEth: true,
-  },
-  {
-    id: "weth-uni",
-    label: "WETH ↔ UNI",
-    tokens: [TOKEN_REGISTRY.weth, TOKEN_REGISTRY.uni],
-    includeEth: false,
-  },
-  {
-    id: "weth-usdc",
-    label: "WETH ↔ USDC",
-    tokens: [TOKEN_REGISTRY.weth, TOKEN_REGISTRY.usdc],
-    includeEth: false,
-  },
-  {
-    id: "uni-usdc",
-    label: "UNI ↔ USDC",
-    tokens: [TOKEN_REGISTRY.uni, TOKEN_REGISTRY.usdc],
-    includeEth: false,
-  },
-];
-
-export interface AllowedToken {
-  address: Address;
-  symbol?: string;
-  decimals: number;
-}
-
-const ERC20_METADATA_ABI = [
-  {
-    type: "function",
-    name: "decimals",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint8" }],
-  },
-  {
-    type: "function",
-    name: "symbol",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "string" }],
-  },
-] as const;
-
-const toAllowedToken = (token: TokenDefinition): AllowedToken | undefined => {
-  if (!token.address) return undefined;
-  return {
-    address: getAddress(token.address),
-    symbol: token.symbol,
-    decimals: token.decimals,
-  };
-};
-
-const ensureTokenSet = (tokens: AllowedToken[], token: AllowedToken) => {
-  if (tokens.some((existing) => existing.address.toLowerCase() === token.address.toLowerCase())) {
-    return;
-  }
-  tokens.push(token);
-};
-
-export const normalizeAllowedTokensList = (tokens: AllowedToken[] = []): AllowedToken[] => {
-  const normalized: AllowedToken[] = [];
-  const seen = new Set<string>();
-
-  for (const token of tokens) {
-    try {
-      const address = getAddress(token.address);
-      const key = address.toLowerCase();
-      if (seen.has(key)) continue;
-
-      normalized.push({
-        address,
-        symbol: token.symbol,
-        decimals:
-          typeof token.decimals === "number" && Number.isFinite(token.decimals)
-            ? token.decimals
-            : Number(token.decimals ?? 18),
-      });
-      seen.add(key);
-    } catch (error) {
-      onboardingLogger.debug({ err: error, address: token.address }, "Skipping invalid allowed token address");
-    }
+const selectSafePairTokens = async (allowlist: AllowedToken[]): Promise<AllowedToken[]> => {
+  if (allowlist.length === 0) {
+    throw new Error("Monorail allowlist returned no tokens; cannot issue safe delegation.");
   }
 
-  return normalized;
-};
+  const choices = allowlist.map((token) => ({
+    name: formatTokenLabel(token),
+    value: token.address,
+  }));
 
-export const hasWethToken = (tokens: AllowedToken[]): boolean =>
-  tokens.some((token) => token.address.toLowerCase() === WETH_SEPOLIA.toLowerCase());
+  const { selectedAddresses } = await inquirer.prompt<{ selectedAddresses: Address[] }>({
+    type: "checkbox",
+    name: "selectedAddresses",
+    message: "Select exactly two tokens for this delegation",
+    choices,
+    pageSize: Math.min(choices.length, 15),
+    validate: (input: unknown) => (Array.isArray(input) && input.length === 2 ? true : "Select exactly two tokens."),
+  });
 
-const fetchErc20Metadata = async (
-  publicClient: ReturnType<typeof createSepoliaPublicClient>,
-  address: Address,
-): Promise<AllowedToken> => {
-  let decimals = 18;
-  let symbol: string | undefined;
+  const selectedTokens = selectedAddresses
+    .map((address) => allowlist.find((token) => token.address === address))
+    .filter((token): token is AllowedToken => Boolean(token));
 
-  try {
-    const result = (await publicClient.readContract({
-      address,
-      abi: ERC20_METADATA_ABI,
-      functionName: "decimals",
-    })) as number;
-    if (Number.isFinite(result)) {
-      decimals = Number(result);
-    }
-  } catch {
-    decimals = 18;
-  }
-
-  try {
-    const fetchedSymbol = (await publicClient.readContract({
-      address,
-      abi: ERC20_METADATA_ABI,
-      functionName: "symbol",
-    })) as string;
-    if (typeof fetchedSymbol === "string" && fetchedSymbol.length > 0) {
-      symbol = fetchedSymbol;
-    }
-  } catch {
-    symbol = undefined;
-  }
-
-  return {
-    address,
-    symbol,
-    decimals,
-  };
-};
-
-const promptAdditionalTokens = async (
-  publicClient: ReturnType<typeof createSepoliaPublicClient>,
-  baseTokens: AllowedToken[],
-): Promise<AllowedToken[]> => {
-  const tokens = [...baseTokens];
-  // Always ensure WETH is present when dealing with native flows
-  const wethToken = toAllowedToken(TOKEN_REGISTRY.weth);
-  if (wethToken) {
-    ensureTokenSet(tokens, wethToken);
-  }
-
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const { addMore } = await inquirer.prompt<{ addMore: boolean }>([
-      {
-        type: "confirm",
-        name: "addMore",
-        message: "Add another ERC-20 token to this delegation?",
-        default: false,
-      },
-    ]);
-
-    if (!addMore) break;
-
-    const { tokenAddress } = await inquirer.prompt<{ tokenAddress: string }>([
-      {
-        type: "input",
-        name: "tokenAddress",
-        message: "Enter ERC-20 address (Sepolia):",
-        validate: (value: string) => {
-          try {
-            getAddress(value);
-            return true;
-          } catch (error) {
-            return (error as Error).message;
-          }
-        },
-      },
-    ]);
-
-    const normalizedAddress = getAddress(tokenAddress);
-    if (tokens.some((token) => token.address.toLowerCase() === normalizedAddress.toLowerCase())) {
-      console.log(chalk.yellow("Token already included. Skipping."));
-      continue;
-    }
-
-    let metadata: AllowedToken;
-    try {
-      metadata = await fetchErc20Metadata(publicClient, normalizedAddress);
-    } catch {
-      metadata = {
-        address: normalizedAddress,
-        decimals: 18,
-      };
-    }
-
-    ensureTokenSet(tokens, metadata);
-    const symbolLabel = metadata.symbol ? `${metadata.symbol} ` : "";
-    console.log(chalk.green(`Added ${symbolLabel}token ${normalizedAddress} (decimals ${metadata.decimals}).`));
-  }
-
-  return normalizeAllowedTokensList(tokens);
-};
-
-const selectSafePairTokens = async (
-  publicClient: ReturnType<typeof createSepoliaPublicClient>,
-): Promise<AllowedToken[]> => {
-  const { pairId } = await inquirer.prompt<{ pairId: string }>([
-    {
-      type: "list",
-      name: "pairId",
-      message: "Select the token pair for this delegation",
-      choices: SAFE_PAIR_OPTIONS.map((option) => ({ name: option.label, value: option.id })),
-      default: SAFE_PAIR_OPTIONS[0]?.id,
-    },
-  ]);
-
-  const option = SAFE_PAIR_OPTIONS.find((item) => item.id === pairId) ?? SAFE_PAIR_OPTIONS[0];
-  const tokens: AllowedToken[] = [];
-
-  for (const tokenDef of option.tokens) {
-    const allowedToken = toAllowedToken(tokenDef);
-    if (allowedToken) {
-      ensureTokenSet(tokens, allowedToken);
-    }
-  }
-
-  if (option.includeEth) {
-    const wethToken = toAllowedToken(TOKEN_REGISTRY.weth);
-    if (wethToken) ensureTokenSet(tokens, wethToken);
-  }
-
-  const normalized = normalizeAllowedTokensList(tokens);
+  const normalized = normalizeAllowedTokensList(selectedTokens);
   console.log(
     chalk.cyan(
       "Safe mode delegations are restricted to the selected pair. Reissue in normal mode if you need to add more tokens.",
@@ -325,26 +151,217 @@ const selectSafePairTokens = async (
   return normalized;
 };
 
-const generateDefaultNormalTokens = (): AllowedToken[] => {
-  const tokens: AllowedToken[] = [];
-  const defaults = [TOKEN_REGISTRY.weth, TOKEN_REGISTRY.uni, TOKEN_REGISTRY.usdc];
-  for (const token of defaults) {
-    const allowed = toAllowedToken(token);
-    if (allowed) ensureTokenSet(tokens, allowed);
+const promptAllowlistTokens = async (
+  baseTokens: AllowedToken[],
+  allowlist: AllowedToken[],
+): Promise<AllowedToken[]> => {
+  const tokens = normalizeAllowedTokensList(baseTokens);
+  const remaining = allowlist.filter(
+    (token) => !tokens.some((existing) => existing.address.toLowerCase() === token.address.toLowerCase()),
+  );
+
+  if (remaining.length === 0) {
+    return tokens;
   }
-  return tokens;
+
+  const { addAllowlist } = await inquirer.prompt<{ addAllowlist: boolean }>([
+    {
+      type: "confirm",
+      name: "addAllowlist",
+      message: "Add additional Monorail allowlist tokens?",
+      default: false,
+    },
+  ]);
+
+  if (!addAllowlist) {
+    return tokens;
+  }
+
+  const choices = remaining.map((token) => ({
+    name: formatTokenLabel(token),
+    value: token.address,
+  }));
+
+  const { selected } = await inquirer.prompt<{ selected: Address[] }>([
+    {
+      type: "checkbox",
+      name: "selected",
+      message: "Select additional allowlist tokens",
+      choices,
+      pageSize: Math.min(choices.length, 15),
+      validate: (input: unknown) => (Array.isArray(input) ? true : "Select at least one token or cancel."),
+    },
+  ]);
+
+  for (const address of selected) {
+    const token = allowlist.find((item) => item.address === address);
+    if (token) {
+      ensureTokenSet(tokens, token);
+    }
+  }
+
+  return normalizeAllowedTokensList(tokens);
 };
+
+const promptCustomTokens = async (baseTokens: AllowedToken[]): Promise<AllowedToken[]> => {
+  const tokens = normalizeAllowedTokensList(baseTokens);
+  const publicClient = createMonadPublicClient();
+
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { addCustom } = await inquirer.prompt<{ addCustom: boolean }>([
+      {
+        type: "confirm",
+        name: "addCustom",
+        message: "Add a custom token (outside Monorail allowlist)?",
+        default: false,
+      },
+    ]);
+
+    if (!addCustom) break;
+
+    const { tokenAddress } = await inquirer.prompt<{ tokenAddress: string }>([
+      {
+        type: "input",
+        name: "tokenAddress",
+        message: "Enter ERC-20 token address:",
+      },
+    ]);
+
+    let normalizedAddress: Address;
+    try {
+      normalizedAddress = getAddress(tokenAddress as Address);
+    } catch {
+      console.log(chalk.red("Invalid address. Try again."));
+      continue;
+    }
+
+    if (tokens.some((token) => token.address.toLowerCase() === normalizedAddress.toLowerCase())) {
+      console.log(chalk.yellow("Token already included in delegation scope."));
+      continue;
+    }
+
+    try {
+      const bytecode = await publicClient.getBytecode({ address: normalizedAddress });
+      if (!bytecode || bytecode === "0x") {
+        console.log(
+          chalk.red("No contract code found at that address. Provide a deployed ERC-20 contract."),
+        );
+        continue;
+      }
+    } catch (error) {
+      onboardingLogger.debug({ err: error, address: normalizedAddress }, "Bytecode lookup failed");
+    }
+
+    let detectedSymbol: string | undefined;
+    let detectedDecimals: number | undefined;
+    try {
+      const [symbolRaw, decimalsRaw] = await Promise.all([
+        publicClient.readContract({
+          address: normalizedAddress,
+          abi: [
+            {
+              type: "function",
+              name: "symbol",
+              stateMutability: "view",
+              inputs: [],
+              outputs: [{ name: "", type: "string" }],
+            },
+          ] as const,
+          functionName: "symbol",
+        }) as Promise<string>,
+        publicClient.readContract({
+          address: normalizedAddress,
+          abi: [
+            {
+              type: "function",
+              name: "decimals",
+              stateMutability: "view",
+              inputs: [],
+              outputs: [{ name: "", type: "uint8" }],
+            },
+          ] as const,
+          functionName: "decimals",
+        }) as Promise<number>,
+      ]);
+      detectedSymbol = symbolRaw.trim() || undefined;
+      detectedDecimals = Number(decimalsRaw);
+    } catch (error) {
+      onboardingLogger.debug({ err: error, address: normalizedAddress }, "Failed to auto-detect token metadata");
+    }
+
+    let finalSymbol = detectedSymbol;
+    if (!finalSymbol) {
+      const { symbol } = await inquirer.prompt<{ symbol: string }>([
+        {
+          type: "input",
+          name: "symbol",
+          message: "Token symbol (optional):",
+        },
+      ]);
+      finalSymbol = symbol.trim() ? symbol.trim() : undefined;
+    }
+
+    let finalDecimals = detectedDecimals;
+    if (finalDecimals === undefined || Number.isNaN(finalDecimals)) {
+      const { decimalsInput } = await inquirer.prompt<{ decimalsInput: string }>([
+        {
+          type: "input",
+          name: "decimalsInput",
+          message: "Token decimals (default 18):",
+          default: "18",
+        },
+      ]);
+      const decimalsValue = Number(decimalsInput);
+      if (!Number.isInteger(decimalsValue) || decimalsValue < 0 || decimalsValue > 36) {
+        console.log(chalk.red("Decimals must be an integer between 0 and 36."));
+        continue;
+      }
+      finalDecimals = decimalsValue;
+    }
+
+    const customToken: AllowedToken = {
+      address: normalizedAddress,
+      symbol: finalSymbol,
+      decimals: finalDecimals,
+      kind: "erc20",
+      categories: ["custom"],
+    };
+
+    ensureTokenSet(tokens, customToken);
+    console.log(
+      chalk.green(
+        `Added custom token ${customToken.symbol ?? normalizedAddress} (${normalizedAddress}) with ${finalDecimals} decimals.`,
+      ),
+    );
+  }
+
+  return normalizeAllowedTokensList(tokens);
+};
+
+const generateDefaultNormalTokens = (allowlist: AllowedToken[]): AllowedToken[] =>
+  normalizeAllowedTokensList(allowlist);
 
 const determineAllowedTokens = async (
   mode: Mode,
-  publicClient: ReturnType<typeof createSepoliaPublicClient>,
+  allowlist: AllowedToken[],
+  preservedTokens: AllowedToken[],
 ): Promise<AllowedToken[]> => {
   if (mode === "safe") {
-    return selectSafePairTokens(publicClient);
+    return selectSafePairTokens(allowlist);
   }
 
-  const defaults = generateDefaultNormalTokens();
-  return promptAdditionalTokens(publicClient, defaults);
+  const allowedAddresses = new Set(allowlist.map((token) => token.address.toLowerCase()));
+  const filteredPreserved = preservedTokens.filter((token) => {
+    if (token.categories && token.categories.includes("custom")) return true;
+    return allowedAddresses.has(token.address.toLowerCase());
+  });
+
+  const baseTokens = filteredPreserved.length > 0
+    ? normalizeAllowedTokensList(filteredPreserved)
+    : generateDefaultNormalTokens(allowlist);
+  const withAllowlist = await promptAllowlistTokens(baseTokens, allowlist);
+  return promptCustomTokens(withAllowlist);
 };
 
 const NONCE_ENFORCER_ABI = [
@@ -372,6 +389,8 @@ export interface DelegationArtifact {
   callsUnlimited?: boolean;
   sessionNonce: Hex;
   allowedTokens?: AllowedToken[];
+  kind?: "swap" | "transfer";
+  transferMaxAmount?: string | null;
 }
 
 export interface SessionDelegationInfo {
@@ -384,6 +403,8 @@ export interface SessionDelegationInfo {
   callsUnlimited?: boolean;
   sessionNonce: Hex;
   allowedTokens?: AllowedToken[];
+  kind?: "swap" | "transfer";
+  transferMaxAmount?: bigint | null;
 }
 
 interface HybridTestContext {
@@ -391,7 +412,7 @@ interface HybridTestContext {
   rootAccount: ReturnType<typeof privateKeyToAccount>;
   hybridDelegator: Address;
   environment: ReturnType<typeof getDeleGatorEnvironment>;
-  publicClient: ReturnType<typeof createSepoliaPublicClient>;
+  publicClient: ReturnType<typeof createMonadPublicClient>;
   sessionDelegations: SessionDelegationInfo[];
   deploymentInfo?: { userOpHash: Hex; transactionHash: Hex };
 }
@@ -438,6 +459,7 @@ export const saveDelegation = async (artifact: DelegationArtifact): Promise<stri
   const normalizedArtifact: DelegationArtifact = {
     ...artifact,
     allowedTokens: normalizeAllowedTokensList(artifact.allowedTokens ?? []),
+    transferMaxAmount: artifact.transferMaxAmount ?? null,
   };
   await fs.writeFile(file, JSON.stringify(normalizedArtifact, null, 2));
   onboardingLogger.info({ file, delegator: delegatorAddress }, "Stored 4337 delegation artifact");
@@ -545,20 +567,23 @@ const clearPersistedSessionArtifacts = async (delegator: Address) => {
   }
 };
 
-export const buildScope = (allowedTokens: AllowedToken[]) => {
+const NATIVE_TRANSFER_SELECTOR = "0x" as Hex; // placeholder to track native transfer in selectors set
+
+export const buildScope = (allowedTokens: AllowedToken[], delegator?: Address) => {
   const targetSet = new Set<Address>();
   targetSet.add(ROUTER);
   for (const token of allowedTokens) {
     targetSet.add(getAddress(token.address));
   }
+  if (delegator) {
+    targetSet.add(getAddress(delegator));
+  }
 
-  const selectors = new Set<Hex>([EXACT_INPUT_SINGLE_SELECTOR, APPROVE_SELECTOR]);
-  const hasWeth = allowedTokens.some((token) => token.address.toLowerCase() === WETH_SEPOLIA.toLowerCase());
-  if (hasWeth) {
-    selectors.add(WETH_DEPOSIT_SELECTOR);
-    selectors.add(WETH_WITHDRAW_SELECTOR);
-    selectors.add(UNWRAP_WETH9_SELECTOR);
-    selectors.add(REFUND_ETH_SELECTOR);
+  const selectors = new Set<Hex>([AGGREGATE_SELECTOR, APPROVE_SELECTOR, ERC20_TRANSFER_SELECTOR]);
+  const hasWrapped = allowedTokens.some((token) => token.kind === "wrappedNative");
+  if (hasWrapped) {
+    selectors.add(WRAPPED_DEPOSIT_SELECTOR);
+    selectors.add(WRAPPED_WITHDRAW_SELECTOR);
   }
 
   return {
@@ -570,7 +595,7 @@ export const buildScope = (allowedTokens: AllowedToken[]) => {
 };
 
 export const fetchDelegatorNonce = async (
-  publicClient: ReturnType<typeof createSepoliaPublicClient>,
+  publicClient: ReturnType<typeof createMonadPublicClient>,
   environment: DeleGatorEnv,
   delegator: Address,
 ): Promise<bigint> => {
@@ -634,7 +659,7 @@ const submitHybridDelegatorDeployment = async ({
   smartAccount: Awaited<ReturnType<typeof toMetaMaskSmartAccount>>;
   bundlerClient: ReturnType<typeof createBundlerClient>;
   chainId: number;
-  publicClient: ReturnType<typeof createSepoliaPublicClient>;
+  publicClient: ReturnType<typeof createMonadPublicClient>;
 }): Promise<{ userOpHash: Hex; transactionHash: Hex }> => {
   const sender = await smartAccount.getAddress();
   const nonce = (await smartAccount.getNonce?.()) ?? 0n;
@@ -736,7 +761,7 @@ const isSmartAccountDeployed = async ({
   address,
 }: {
   smartAccount: Awaited<ReturnType<typeof toMetaMaskSmartAccount>>;
-  publicClient: ReturnType<typeof createSepoliaPublicClient>;
+  publicClient: ReturnType<typeof createMonadPublicClient>;
   address: Address;
 }): Promise<boolean> => {
   try {
@@ -758,6 +783,9 @@ export interface RunOnboardOptions {
   callLimitOverride?: number | null;
   unlimitedCalls?: boolean;
   existingAllowedTokens?: AllowedToken[];
+  overrideAllowedTokens?: AllowedToken[];
+  createTransferDelegation?: boolean;
+  transferAmountWei?: bigint;
 }
 
 export const runOnboard4337 = async (
@@ -767,7 +795,7 @@ export const runOnboard4337 = async (
 ) => {
   onboardingLogger.debug({ chain: PIMLICO_CHAIN }, "Using Pimlico bundler & paymaster endpoints");
 
-  const environment = getDeleGatorEnvironment(sepolia.id);
+    const environment = getDeleGatorEnvironment(MONAD_CHAIN_ID);
   let sessionKey!: SessionKeyRecord;
   let expiresAt = 0;
   let hybridDelegator: Address | undefined;
@@ -826,7 +854,7 @@ export const runOnboard4337 = async (
       "Identity wallet connected",
     );
 
-    const publicClient = createSepoliaPublicClient();
+    const publicClient = createMonadPublicClient();
 
     const smartAccount = await toMetaMaskSmartAccount({
       client: publicClient,
@@ -837,7 +865,7 @@ export const runOnboard4337 = async (
     });
 
     const bundlerClient = createBundlerClient({
-      chain: sepolia,
+      chain: monadChain,
       transport: http(PIMLICO_BUNDLER_URL),
       client: publicClient,
       account: smartAccount,
@@ -923,7 +951,7 @@ export const runOnboard4337 = async (
         const { userOpHash, transactionHash } = await submitHybridDelegatorDeployment({
           smartAccount,
           bundlerClient,
-          chainId: sepolia.id,
+          chainId: MONAD_CHAIN_ID,
           publicClient,
         });
         onboardingLogger.info({ userOpHash, transactionHash }, "HybridDelegator deployment submitted");
@@ -1009,6 +1037,11 @@ export const runOnboard4337 = async (
     const before = Math.floor(Date.now() / 1000) + ttlSeconds;
     expiresAt = before;
 
+    const allowlistCatalog = await loadAllowedTokens();
+    if (allowlistCatalog.length === 0) {
+      throw new Error("Monorail token allowlist is empty. Retry after the data API is reachable.");
+    }
+
     const defaultCallLimit = DEFAULT_CALL_LIMITS[mode];
     let callsUnlimited = options.unlimitedCalls ?? false;
     let callLimitOverride = options.callLimitOverride ?? undefined;
@@ -1086,13 +1119,15 @@ export const runOnboard4337 = async (
 
     const currentNonce = await fetchDelegatorNonce(publicClient, environment, normalizedDelegator);
 
-    let allowedTokens = await determineAllowedTokens(mode, publicClient);
-    if (mode === "normal" && preservedTokens.length > 0) {
-      allowedTokens = normalizeAllowedTokensList([...allowedTokens, ...preservedTokens]);
-    }
+    const overrideAllowedTokens = options.overrideAllowedTokens
+      ? normalizeAllowedTokensList(options.overrideAllowedTokens)
+      : undefined;
+
+    let allowedTokens = overrideAllowedTokens
+      ? overrideAllowedTokens
+      : await determineAllowedTokens(mode, allowlistCatalog, preservedTokens);
     if (allowedTokens.length === 0) {
-      const fallback = toAllowedToken(TOKEN_REGISTRY.weth);
-      if (fallback) ensureTokenSet(allowedTokens, fallback);
+      ensureTokenSet(allowedTokens, allowlistCatalog[0]);
     }
 
     const scope = buildScope(allowedTokens);
@@ -1113,7 +1148,7 @@ export const runOnboard4337 = async (
 
     const typedData = buildDelegationTypedData(
       delegationWithoutSignature,
-      sepolia.id,
+      MONAD_CHAIN_ID,
       environment.DelegationManager as Address,
     );
 
@@ -1146,6 +1181,8 @@ export const runOnboard4337 = async (
       callsUnlimited,
       sessionNonce: sessionNonceHex,
       allowedTokens,
+      kind: "swap",
+      transferMaxAmount: null,
     });
 
     const expiryIso = new Date(expiresAt * 1000).toISOString();
@@ -1154,11 +1191,12 @@ export const runOnboard4337 = async (
       : `${resolvedCallLimit} delegated call${resolvedCallLimit === 1 ? "" : "s"} before expiry`;
 
     console.log(chalk.green(`Delegation stored for session key ${sessionKey.address}`));
-    console.log(`  • Purpose         : swap permissions via Uniswap V3 router ${ROUTER}`);
-    console.log(`  • Selector        : exactInputSingle (${EXACT_INPUT_SINGLE_SELECTOR})`);
-    console.log(
-      "  • Allowed selectors: approve(address,uint256), exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))",
-    );
+    const selectorSummary = hasWrappedNativeToken(allowedTokens)
+      ? "aggregate(...), approve(address,uint256), deposit(), withdraw(uint256)"
+      : "aggregate(...), approve(address,uint256)";
+
+    console.log(`  • Purpose         : swap permissions via Monorail aggregator ${ROUTER}`);
+    console.log(`  • Allowed selectors: ${selectorSummary}`);
     console.log(`  • Session window  : valid until ${expiryIso}`);
     console.log(`  • Call allowance  : ${callAllowanceDescription}`);
     console.log(`  • Nonce guard      : ${sessionNonceHex} (NonceEnforcer)`);
@@ -1167,14 +1205,127 @@ export const runOnboard4337 = async (
         .map((token) => (token.symbol ? `${token.symbol} (${token.address})` : token.address))
         .join(", ");
       console.log(`  • Allowed tokens  : ${labelledTokens}`);
-      console.log(
-        "  • Allowed selectors: approve(address,uint256), exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))",
-      );
     }
     console.log(`  • Session key      : ${sessionKey.address}`);
     console.log(`  • Session secret   : ${sessionKey.privateKey}`);
     console.log(`  • Delegator        : ${signedDelegation.delegator}`);
     console.log("  • Signature        : delegation signed via Web3Auth wallet session\n");
+
+    // Optional native transfer delegation
+    const shouldCreateTransferDelegation = options.createTransferDelegation ?? true;
+    let transferDelegationInfo: { delegation: Delegation; maxAmount: bigint } | null = null;
+    if (shouldCreateTransferDelegation) {
+      let transferMax = options.transferAmountWei;
+      if (transferMax === undefined) {
+        const { transferChoice } = await inquirer.prompt<{ transferChoice: "default" | "custom" | "skip" }>([
+          {
+            type: "list",
+            name: "transferChoice",
+            message: "Configure native MON transfer allowance",
+            choices: [
+              { name: "Default (1 MON)", value: "default" },
+              { name: "Custom amount", value: "custom" },
+              { name: "Skip native transfer delegation", value: "skip" },
+            ],
+            default: "default",
+          },
+        ]);
+
+        if (transferChoice === "default") {
+          transferMax = parseEther("1");
+        } else if (transferChoice === "custom") {
+          const { customAmount } = await inquirer.prompt<{ customAmount: string }>([
+            {
+              type: "input",
+              name: "customAmount",
+              message: "Enter maximum native MON transferable (e.g. 0.5)",
+              validate: (input: string) => {
+                try {
+                  const parsed = parseEther(input.trim());
+                  return parsed > 0n ? true : "Amount must be greater than zero";
+                } catch {
+                  return "Enter a valid decimal amount";
+                }
+              },
+            },
+          ]);
+          transferMax = parseEther(customAmount.trim());
+        }
+
+        if (transferChoice === "skip") {
+          transferMax = undefined;
+        }
+      }
+
+      if (transferMax !== undefined && transferMax > 0n) {
+        const transferScope = {
+          type: "nativeTokenTransferAmount" as const,
+          maxAmount: transferMax,
+        };
+        const transferCaveats: Caveats = [
+          {
+            type: "timestamp" as const,
+            afterThreshold: 0,
+            beforeThreshold: expiresAt,
+          },
+        ];
+
+        const transferDelegationUnsigned = createDelegation({
+          environment,
+          scope: transferScope,
+          from: hybridDelegator as Hex,
+          to: sessionKey.address as Hex,
+          caveats: transferCaveats,
+          salt: ZERO_SALT,
+        });
+
+        const transferTypedData = buildDelegationTypedData(
+          transferDelegationUnsigned,
+          MONAD_CHAIN_ID,
+          environment.DelegationManager as Address,
+        );
+
+        const transferSignature = await bridge.signTypedData({
+          typedDataJson: JSON.stringify(transferTypedData),
+          from: rootAddress,
+        });
+
+        if (
+          transferSignature.recoveredAddress &&
+          transferSignature.recoveredAddress.toLowerCase() !== rootAddress.toLowerCase()
+        ) {
+          throw new Error(
+            `Transfer delegation signature produced by ${transferSignature.recoveredAddress}, expected owner ${rootAddress}.`,
+          );
+        }
+
+        const signedTransferDelegation: Delegation = {
+          ...transferDelegationUnsigned,
+          signature: transferSignature.signature as Hex,
+        };
+
+        await saveDelegation({
+          mode,
+          sessionKeyPrivateKey: sessionKey.privateKey,
+          sessionKeyAddress: sessionKey.address,
+          delegation: signedTransferDelegation,
+          expiresAt,
+          callLimit: null,
+          callsUnlimited: true,
+          sessionNonce: "0x0",
+          allowedTokens: [],
+          kind: "transfer",
+          transferMaxAmount: transferMax.toString(),
+        });
+
+        console.log(
+          chalk.green(
+            `Transfer delegation stored for session key ${sessionKey.address} (max ${formatEther(transferMax)} MON)`,
+          ),
+        );
+        transferDelegationInfo = { delegation: signedTransferDelegation, maxAmount: transferMax };
+      }
+    }
 
     console.log(chalk.green("4337 onboarding flow complete"));
     console.log(`Root wallet: ${rootAddress}`);
@@ -1190,7 +1341,7 @@ export const setupHybridDelegatorTest = async (
   modeSelection: "safe" | "normal" | "both",
   { logSessionSummaries = true }: { logSessionSummaries?: boolean } = {},
 ): Promise<HybridTestContext> => {
-  const publicClient = createSepoliaPublicClient();
+  const publicClient = createMonadPublicClient();
   const rootPrivateKey = generatePrivateKey();
   const rootAccount = privateKeyToAccount(rootPrivateKey);
 
@@ -1203,7 +1354,7 @@ export const setupHybridDelegatorTest = async (
   });
 
   const bundlerClient = createBundlerClient({
-    chain: sepolia,
+    chain: monadChain,
     transport: http(PIMLICO_BUNDLER_URL),
     client: publicClient,
     account: smartAccount,
@@ -1211,7 +1362,7 @@ export const setupHybridDelegatorTest = async (
 
   const hybridDelegator = await smartAccount.getAddress();
 
-  const spinner = ora("Deploying HybridDelegator on Sepolia (test)").start();
+  const spinner = ora("Deploying HybridDelegator on Monad testnet (test)").start();
   let deploymentInfo: { userOpHash: Hex; transactionHash: Hex } | undefined;
   try {
     const deployed = await isSmartAccountDeployed({
@@ -1223,7 +1374,7 @@ export const setupHybridDelegatorTest = async (
       const { userOpHash, transactionHash } = await submitHybridDelegatorDeployment({
         smartAccount,
         bundlerClient,
-        chainId: sepolia.id,
+        chainId: MONAD_CHAIN_ID,
         publicClient,
       });
       onboardingLogger.info({ userOpHash, transactionHash }, "Test deployment submitted");
@@ -1239,7 +1390,11 @@ export const setupHybridDelegatorTest = async (
     throw error;
   }
 
-  const environment = getDeleGatorEnvironment(sepolia.id);
+  const environment = getDeleGatorEnvironment(MONAD_CHAIN_ID);
+  const allowlistCatalog = await loadAllowedTokens();
+  if (allowlistCatalog.length === 0) {
+    throw new Error("Monorail allowlist is empty; test setup cannot proceed.");
+  }
   const modes =
     modeSelection === "both" ? (["safe", "normal"] as const) : ([modeSelection] as const);
 
@@ -1255,14 +1410,9 @@ export const setupHybridDelegatorTest = async (
     const currentNonce = await fetchDelegatorNonce(publicClient, environment, hybridDelegator as Address);
     const sessionNonceHex = toHex(currentNonce);
 
-    const baseTokenDefs = mode === "safe"
-      ? [TOKEN_REGISTRY.weth, TOKEN_REGISTRY.uni]
-      : [TOKEN_REGISTRY.weth, TOKEN_REGISTRY.uni, TOKEN_REGISTRY.usdc];
-    const allowedTokens: AllowedToken[] = [];
-    for (const tokenDef of baseTokenDefs) {
-      const allowedToken = toAllowedToken(tokenDef);
-      if (allowedToken) ensureTokenSet(allowedTokens, allowedToken);
-    }
+    const allowedTokens: AllowedToken[] = normalizeAllowedTokensList(
+      allowlistCatalog.slice(0, mode === "safe" ? 2 : Math.min(allowlistCatalog.length, 4)),
+    );
 
     const scope = buildScope(allowedTokens);
     const caveats = buildCaveats(environment, mode, expiresAt, {
@@ -1285,7 +1435,7 @@ export const setupHybridDelegatorTest = async (
       privateKey: rootPrivateKey,
       delegation: delegationToSign,
       delegationManager: environment.DelegationManager as Address,
-      chainId: sepolia.id,
+      chainId: MONAD_CHAIN_ID,
     });
 
     const signedDelegation: Delegation = {
@@ -1322,8 +1472,11 @@ export const setupHybridDelegatorTest = async (
       const expiryIso = new Date(expiresAt * 1000).toISOString();
 
       console.log(chalk.green(`[${mode}] Delegation ready for session key ${sessionKey.address}`));
-      console.log(`  • Purpose         : swap permissions via Uniswap V3 router ${ROUTER}`);
-      console.log(`  • Selector        : exactInputSingle (${EXACT_INPUT_SINGLE_SELECTOR})`);
+      const selectorSummary = hasWrappedNativeToken(allowedTokens)
+        ? "aggregate(...), approve(address,uint256), deposit(), withdraw(uint256)"
+        : "aggregate(...), approve(address,uint256)";
+      console.log(`  • Purpose         : swap permissions via Monorail aggregator ${ROUTER}`);
+      console.log(`  • Allowed selectors: ${selectorSummary}`);
       const labelledTokens = allowedTokens
         .map((token) => (token.symbol ? `${token.symbol} (${token.address})` : token.address))
         .join(", ");

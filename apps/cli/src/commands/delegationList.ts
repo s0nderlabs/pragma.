@@ -2,22 +2,25 @@ import { Command } from "commander";
 import chalk from "chalk";
 
 import { listDelegationArtifacts, isDelegationExpired } from "../services/delegationArtifacts.js";
-import { formatEther, formatUnits, getAddress, Hex, Address } from "viem";
-import { sepolia } from "viem/chains";
+import { formatEther, getAddress, Hex, Address } from "viem";
 import { getDeleGatorEnvironment } from "@metamask/delegation-toolkit";
-import { createSepoliaPublicClient } from "../services/web3authClients.js";
-import { WETH_SEPOLIA, DEFAULT_CALL_LIMITS } from "../services/onboarding4337.js";
+import { createMonadPublicClient } from "../services/web3authClients.js";
+import { DEFAULT_CALL_LIMITS } from "../services/onboarding4337.js";
+import type { AllowedToken } from "../services/monorailTokens.js";
+import { MONAD_CHAIN_ID } from "../services/config.js";
 
-const ERC20_BALANCE_ABI = [
-  {
-    type: "function",
-    name: "balanceOf",
-    stateMutability: "view",
-    inputs: [{ name: "account", type: "address" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-] as const;
-
+const formatTokenInfo = (token: AllowedToken): string => {
+  const tags: string[] = [];
+  if (token.kind === "native") tags.push("native");
+  if (token.kind === "wrappedNative") tags.push("wrapped");
+  if (token.categories && token.categories.length > 0) {
+    tags.push(...token.categories.slice(0, 3));
+  } else {
+    tags.push("legacy");
+  }
+  const tagSuffix = tags.length > 0 ? ` [${tags.join(", ")}]` : "";
+  return `${token.symbol ?? token.address} (${token.address})${tagSuffix}`;
+};
 const LIMITED_CALLS_ABI = [
   {
     type: "function",
@@ -76,8 +79,8 @@ export const registerDelegationList = (program: Command) => {
         return;
       }
 
-      const publicClient = createSepoliaPublicClient();
-      const environment = getDeleGatorEnvironment(sepolia.id);
+      const publicClient = createMonadPublicClient();
+      const environment = getDeleGatorEnvironment(MONAD_CHAIN_ID);
       const limitedCallsAddress = environment.caveatEnforcers?.LimitedCallsEnforcer;
 
       for (const { artifact, filePath } of items) {
@@ -87,21 +90,9 @@ export const registerDelegationList = (program: Command) => {
         const expired = hasExpiry ? isDelegationExpired(artifact) : false;
 
         let ethBalance: string | undefined;
-        let wethBalance: string | undefined;
         try {
           const balance = await publicClient.getBalance({ address: artifact.delegation.delegator });
-          ethBalance = `${formatEther(balance)} ETH`;
-        } catch {}
-        try {
-          const amount = (await publicClient.readContract({
-            address: WETH_SEPOLIA,
-            abi: ERC20_BALANCE_ABI,
-            functionName: "balanceOf",
-            args: [artifact.delegation.delegator],
-          })) as bigint;
-          if (amount > 0n) {
-            wethBalance = `${formatUnits(amount, 18)} WETH`;
-          }
+          ethBalance = `${formatEther(balance)} MON`;
         } catch {}
 
         const delegatorAddress = (() => {
@@ -179,20 +170,12 @@ export const registerDelegationList = (program: Command) => {
         } else {
           console.log("  Expires at  : unknown (no timestamp caveat detected)");
         }
-        if (ethBalance) console.log(`  ETH balance : ${ethBalance}`);
-        if (wethBalance) console.log(`  WETH balance: ${wethBalance}`);
+        if (ethBalance) console.log(`  MON balance : ${ethBalance}`);
         if ((artifact.allowedTokens ?? []).length > 0) {
-          const tokenDescriptions = (artifact.allowedTokens ?? [])
-            .map((token) => {
-              try {
-                const addr = getAddress(token.address);
-                return token.symbol ? `${token.symbol} (${addr})` : addr;
-              } catch {
-                return token.symbol ? `${token.symbol} (${token.address})` : token.address;
-              }
-            })
-            .join(", ");
-          console.log(`  Allowed tokens: ${tokenDescriptions}`);
+          console.log("  Allowed tokens:");
+          for (const token of artifact.allowedTokens ?? []) {
+            console.log(`    - ${formatTokenInfo(token)}`);
+          }
         }
         console.log();
       }

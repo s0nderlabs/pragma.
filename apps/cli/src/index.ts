@@ -26,6 +26,7 @@ program
 
 const { registerOnboard4337 } = await import("./commands/onboard4337.js");
 const { registerSwap } = await import("./commands/swap.js");
+const { registerSwapPreview } = await import("./commands/swapPreview.js");
 const { registerOnboard7702 } = await import("./commands/onboard7702.js");
 const { registerRevoke } = await import("./commands/revoke.js");
 const { registerStatus } = await import("./commands/status.js");
@@ -35,14 +36,17 @@ const { registerDelegationList } = await import("./commands/delegationList.js");
 const { registerDelegationIssue } = await import("./commands/delegationIssue.js");
 const { registerDelegationRevoke } = await import("./commands/delegationRevoke.js");
 const { registerDelegationUpdateTokens } = await import("./commands/delegationUpdateTokens.js");
+const { registerDelegationPruneTokens } = await import("./commands/delegationPrune.js");
 const { registerSessionReplace } = await import("./commands/replace.js");
 const { registerWrap } = await import("./commands/wrap.js");
 const { registerUnwrap } = await import("./commands/unwrap.js");
 const { registerReceipts } = await import("./commands/receipts.js");
 const { registerDev } = await import("./commands/dev.js");
+const { registerShell } = await import("./commands/shell.js");
 
 registerOnboard4337(program);
 registerSwap(program);
+registerSwapPreview(program);
 registerOnboard7702(program);
 registerRevoke(program);
 registerStatus(program);
@@ -52,11 +56,13 @@ registerDelegationList(program);
 registerDelegationIssue(program);
 registerDelegationRevoke(program);
 registerDelegationUpdateTokens(program);
+registerDelegationPruneTokens(program);
 registerSessionReplace(program);
 registerWrap(program);
 registerUnwrap(program);
 registerReceipts(program);
 registerDev(program);
+registerShell(program);
 
 program
   .command("help")

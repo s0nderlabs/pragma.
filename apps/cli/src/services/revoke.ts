@@ -17,6 +17,8 @@ import { startPrivyBridge } from "./privyBridgeServer.js";
 import { onboardingLogger } from "../utils/logger.js";
 import { PRIVY_APP_ID, PRAGMA_IDENTITY_PROVIDER, PIMLICO_BUNDLER_URL, MONAD_CHAIN_ID } from "./config.js";
 
+const createBundlerClientUnsafe = (...args: any[]) => (createBundlerClient as any)(...args);
+
 const OWNER_ABI = [
   {
     type: "function",
@@ -145,7 +147,7 @@ export const runRevoke = async (options: RunRevokeOptions) => {
   const artifact = entry.artifact;
   const artifactPath = entry.filePath;
 
-  const publicClient = createMonadPublicClient();
+  const publicClient: any = createMonadPublicClient();
   const currentOwner = await verifyOwner(delegator, publicClient);
 
   const envIdentity = (() => {
@@ -193,20 +195,23 @@ export const runRevoke = async (options: RunRevokeOptions) => {
 
     const nonceBefore = await fetchDelegatorNonce(publicClient, environment, delegator);
 
-    const smartAccount = await toMetaMaskSmartAccount({
+    const smartAccount = (await toMetaMaskSmartAccount({
       client: publicClient,
       implementation: Implementation.Hybrid,
       signer: { walletClient: walletClient as any },
       address: delegator,
       environment,
-    });
+    })) as any;
 
-  const bundlerClient = createBundlerClient({
+  // @ts-ignore - viem types currently expect 'account' to be undefined literal.
+  // @ts-ignore -- upstream viem typings expect stricter generics; runtime invocation is valid.
+  const bundlerConfig: any = {
     chain: monadChain,
     transport: http(PIMLICO_BUNDLER_URL),
     client: publicClient,
-    account: smartAccount,
-  } as any);
+  };
+  // @ts-ignore -- upstream viem typings expect stricter generics; runtime invocation is valid.
+  const bundlerClient = createBundlerClientUnsafe(bundlerConfig);
 
     const calls: { to: Address; data: Hex; value?: bigint }[] = [];
 

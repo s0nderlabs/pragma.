@@ -13,6 +13,7 @@ import { MONAD_CHAIN_ID, MONAD_NATIVE_TOKEN_ADDRESS } from "./config.js";
 import type { AllowedToken } from "./monorailTokens.js";
 import type { SessionDelegationInfo } from "./onboarding4337.js";
 import { DEFAULT_CALL_LIMITS } from "./onboarding4337.js";
+import { isFixtureMode } from "../testing/fixtureRuntime.js";
 
 export interface SwapSessionOptions {
   artifactPath?: string;
@@ -101,20 +102,21 @@ export const loadSwapSession = async ({ artifactPath, delegator }: SwapSessionOp
     );
   }
 
-  const publicClient = createMonadPublicClient();
+  const publicClient = isFixtureMode() ? undefined : createMonadPublicClient();
   const environment = getDeleGatorEnvironment(MONAD_CHAIN_ID);
-
-  const signatureCheck = await diagnoseDelegationSignature(publicClient, environment, artifact);
-  if (!signatureCheck.valid) {
-    const expected = signatureCheck.expectedSigner
-      ? ` (expected owner ${signatureCheck.expectedSigner})`
-      : "";
-    const recovered = signatureCheck.recoveredSigner
-      ? ` Signature was produced by ${signatureCheck.recoveredSigner}.`
-      : "";
-    throw new Error(
-      `Stored delegation for ${delegatorAddress} failed validation${expected}.${recovered} Reissue the delegation before swapping.`,
-    );
+  if (!isFixtureMode() && publicClient) {
+    const signatureCheck = await diagnoseDelegationSignature(publicClient, environment, artifact);
+    if (!signatureCheck.valid) {
+      const expected = signatureCheck.expectedSigner
+        ? ` (expected owner ${signatureCheck.expectedSigner})`
+        : "";
+      const recovered = signatureCheck.recoveredSigner
+        ? ` Signature was produced by ${signatureCheck.recoveredSigner}.`
+        : "";
+      throw new Error(
+        `Stored delegation for ${delegatorAddress} failed validation${expected}.${recovered} Reissue the delegation before swapping.`,
+      );
+    }
   }
 
   const callsUnlimited = artifact.callsUnlimited ?? false;

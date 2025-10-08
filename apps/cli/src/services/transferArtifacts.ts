@@ -11,6 +11,7 @@ import {
 import type { DeleGatorEnv, SessionDelegationInfo } from "./onboarding4337.js";
 import { createMonadPublicClient } from "./web3authClients.js";
 import { MONAD_CHAIN_ID } from "./config.js";
+import { isFixtureMode } from "../testing/fixtureRuntime.js";
 
 export interface TransferSessionOptions {
   artifactPath?: string;
@@ -58,16 +59,18 @@ export const loadTransferSession = async (
   }
 
   const environment = getDeleGatorEnvironment(MONAD_CHAIN_ID);
-  const publicClient = createMonadPublicClient();
+  const publicClient = isFixtureMode() ? undefined : createMonadPublicClient();
 
-  const signatureCheck = await diagnoseDelegationSignature(publicClient, environment, artifact);
-  if (!signatureCheck.valid) {
-    const recovered = signatureCheck.recoveredSigner
-      ? ` (signed by ${signatureCheck.recoveredSigner})`
-      : "";
-    throw new Error(
-      `Stored transfer delegation for ${delegatorAddress} failed validation${recovered}. Reissue before transferring native MON.`,
-    );
+  if (!isFixtureMode() && publicClient) {
+    const signatureCheck = await diagnoseDelegationSignature(publicClient, environment, artifact);
+    if (!signatureCheck.valid) {
+      const recovered = signatureCheck.recoveredSigner
+        ? ` (signed by ${signatureCheck.recoveredSigner})`
+        : "";
+      throw new Error(
+        `Stored transfer delegation for ${delegatorAddress} failed validation${recovered}. Reissue before transferring native MON.`,
+      );
+    }
   }
 
   const transferMax = artifact.transferMaxAmount ? BigInt(artifact.transferMaxAmount) : null;

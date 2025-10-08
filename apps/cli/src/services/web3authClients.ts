@@ -1,4 +1,4 @@
-import { custom, createPublicClient, createWalletClient, http, type Chain } from "viem";
+import { custom, createPublicClient, createWalletClient, http, type Chain, type Address } from "viem";
 
 import type { Web3AuthBridge } from "./web3authServer.js";
 import {
@@ -7,6 +7,7 @@ import {
   MONAD_CHAIN_ID,
   MONAD_NATIVE_TOKEN_SYMBOL,
 } from "./config.js";
+import { isFixtureMode, loadFixtureInsights } from "../testing/fixtureRuntime.js";
 
 const monadTestnet: Chain = {
   id: MONAD_CHAIN_ID,
@@ -105,11 +106,66 @@ export const createWalletClientFromBridge = async (
   };
 };
 
-export const createMonadPublicClient = () =>
-  createPublicClient({
+interface FixtureTokenBalance {
+  address?: string;
+  balance?: string;
+}
+
+interface FixtureInsightsData {
+  walletBalances?: Record<string, FixtureTokenBalance[]>;
+}
+
+const parseBalance = (value: string | undefined): bigint => {
+  if (!value) return 0n;
+  try {
+    return BigInt(value);
+  } catch {
+    return 0n;
+  }
+};
+
+const findTokenBalance = (
+  data: FixtureInsightsData | undefined,
+  owner: Address,
+  token: Address,
+): bigint => {
+  const ownerKey = owner.toLowerCase();
+  const tokenKey = token.toLowerCase();
+  const balances = data?.walletBalances?.[ownerKey] ?? [];
+  const entry = balances.find((balance) => (balance.address ?? "").toLowerCase() === tokenKey);
+  return parseBalance(entry?.balance);
+};
+
+const createFixturePublicClient = () => {
+  return {
     chain: monadTestnet,
-    transport: http(MONAD_RPC_URL),
-  });
+    getBalance: async ({ address }: { address: Address }) => {
+      const data = await loadFixtureInsights<FixtureInsightsData>();
+      return findTokenBalance(data, address, "0x0000000000000000000000000000000000000000");
+    },
+    readContract: async ({ address, functionName, args }: { address: Address; functionName: string; args?: unknown[] }) => {
+      if (functionName === "balanceOf" && args && args[0]) {
+        const owner = args[0] as Address;
+        const data = await loadFixtureInsights<FixtureInsightsData>();
+        return findTokenBalance(data, owner, address);
+      }
+      if (functionName === "allowance") {
+        return (1n << 128n) - 1n;
+      }
+      return 0n;
+    },
+    waitForTransactionReceipt: async () => ({ blockNumber: 0n, status: "success" as const }),
+    getBytecode: async () => "0x6000",
+  } as any;
+};
+
+export const createMonadPublicClient = (): any =>
+  isFixtureMode()
+    ? createFixturePublicClient()
+    : (createPublicClient({
+        chain: monadTestnet,
+        transport: http(MONAD_RPC_URL),
+      }) as any);
 
 export const createWeb3AuthWalletClient = (bridge: Web3AuthBridge) =>
   createWalletClientFromBridge(bridge);

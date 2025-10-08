@@ -17,7 +17,7 @@
     "build": "tsc -b",
     "clean": "tsc -b --clean",
     "start": "node dist/index.js",
-    "test": "echo \"No tests yet\" && exit 0"
+    "test": "node --test --loader tsx ./test/agentTelemetry.test.ts"
   },
   "keywords": [
     "pragma",
@@ -45,7 +45,8 @@
     "pino": "^9.5.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "viem": "^2.19.4"
+    "viem": "^2.19.4",
+    "@pragma/core": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^19.1.15",

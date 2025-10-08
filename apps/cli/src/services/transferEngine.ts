@@ -1,164 +1,109 @@
 import chalk from "chalk";
+import { getAddress, parseUnits } from "viem";
+
 import {
-  Address,
-  Hex,
-  encodeFunctionData,
-  formatEther,
-  formatUnits,
-  getAddress,
-  parseEther,
-  parseUnits,
-} from "viem";
-import { createExecution, ExecutionMode, redeemDelegations } from "@metamask/delegation-toolkit";
+  transferNativeWithSession as transferNativeWithSessionCore,
+  transferTokenWithSession as transferTokenWithSessionCore,
+  type NativeTransferConfig as CoreNativeTransferConfig,
+  type TokenTransferConfig as CoreTokenTransferConfig,
+  type NativeTransferDependencies,
+  type TokenTransferDependencies,
+  type ExecutionLogger,
+  createSessionWallet as createSessionWalletCore,
+  type SessionDelegationInfo,
+} from "@pragma/core";
 
-import type { SessionDelegationInfo, DeleGatorEnv } from "./onboarding4337.js";
-import { createMonadPublicClient } from "./web3authClients.js";
-import { createSessionWallet, ERC20_ABI, isNativeToken } from "./swapEngine.js";
-import { MONAD_NATIVE_TOKEN_SYMBOL } from "./config.js";
-import type { AllowedToken } from "./monorailTokens.js";
+import { createMonadPublicClient, monadChain } from "./web3authClients.js";
+import {
+  MONAD_NATIVE_TOKEN_ADDRESS,
+  MONAD_NATIVE_TOKEN_SYMBOL,
+  MONAD_RPC_URL,
+} from "./config.js";
+import { isFixtureMode, recordFixtureTransfer } from "../testing/fixtureRuntime.js";
 
-export interface NativeTransferConfig {
-  session: SessionDelegationInfo;
-  environment: DeleGatorEnv;
-  hybridDelegator: Address;
-  recipient: Address;
-  amountInput: string;
+const ZERO_TX_HASH = `0x${"0".repeat(64)}` as `0x${string}`;
+
+const NATIVE_TOKEN_ADDRESS = getAddress(MONAD_NATIVE_TOKEN_ADDRESS);
+
+const createLogger = (prefix?: string): ExecutionLogger => {
+  const label = prefix ? `${prefix} ` : "";
+  return {
+    success: (message) => console.log(chalk.green(`${label}${message}`)),
+    info: (message) => console.log(chalk.cyan(`${label}${message}`)),
+    warn: (message) => console.log(chalk.yellow(`${label}${message}`)),
+  };
+};
+
+const createSessionWalletFactory = () => (session: SessionDelegationInfo) =>
+  createSessionWalletCore(session, {
+    chain: monadChain,
+    rpcUrl: MONAD_RPC_URL,
+  });
+
+const buildNativeDependencies = (logPrefix?: string): NativeTransferDependencies => ({
+  publicClient: createMonadPublicClient(),
+  sessionWalletFactory: createSessionWalletFactory(),
+  nativeTokenSymbol: MONAD_NATIVE_TOKEN_SYMBOL,
+  logger: createLogger(logPrefix),
+});
+
+const buildTokenDependencies = (logPrefix?: string): TokenTransferDependencies => ({
+  ...buildNativeDependencies(logPrefix),
+  nativeTokenAddress: NATIVE_TOKEN_ADDRESS,
+});
+
+export interface NativeTransferConfig extends CoreNativeTransferConfig {
   logPrefix?: string;
 }
 
-export interface TokenTransferConfig {
-  session: SessionDelegationInfo;
-  environment: DeleGatorEnv;
-  hybridDelegator: Address;
-  token: AllowedToken;
-  recipient: Address;
-  amountInput: string;
+export interface TokenTransferConfig extends CoreTokenTransferConfig {
   logPrefix?: string;
 }
 
-const ensureSessionActive = (session: SessionDelegationInfo) => {
-  const now = Math.floor(Date.now() / 1000);
-  if (session.expiresAt <= now) {
-    throw new Error(
-      `Delegation expired at ${new Date(session.expiresAt * 1000).toISOString()} — reissue before executing transfers.`,
+export const transferNativeWithSession = async (
+  config: NativeTransferConfig,
+) => {
+  if (isFixtureMode()) {
+    const amount = parseUnits(config.amountInput, 18);
+    const txHash =
+      recordFixtureTransfer({
+        token: MONAD_NATIVE_TOKEN_SYMBOL,
+        amount,
+        recipient: config.recipient,
+        txHashLabel: "mon",
+      }) ?? ZERO_TX_HASH;
+    const label = config.logPrefix ? `${config.logPrefix} ` : "";
+    console.log(
+      chalk.green(
+        `${label}Transferred ${config.amountInput} ${MONAD_NATIVE_TOKEN_SYMBOL} to ${config.recipient} (fixture)`,
+      ),
     );
+    return { txHash, amount };
   }
-  if (!session.sessionKeyPrivateKey) {
-    throw new Error("Session delegation is missing the private key secret; reissue onboarding before transferring.");
-  }
+  return transferNativeWithSessionCore(config, buildNativeDependencies(config.logPrefix));
 };
 
-export const transferNativeWithSession = async ({
-  session,
-  environment,
-  hybridDelegator,
-  recipient,
-  amountInput,
-  logPrefix,
-}: NativeTransferConfig) => {
-  ensureSessionActive(session);
-  const amount = parseEther(amountInput);
-  if (amount <= 0n) {
-    throw new Error("Native transfer amount must be greater than zero.");
-  }
-  if (session.transferMaxAmount && amount > session.transferMaxAmount) {
-    throw new Error(
-      `Requested amount ${formatEther(amount)} exceeds native transfer cap of ${formatEther(session.transferMaxAmount)} MON.`,
+export const transferTokenWithSession = async (
+  config: TokenTransferConfig,
+) => {
+  if (isFixtureMode()) {
+    const decimals = Number(config.token.decimals ?? 18);
+    const amount = parseUnits(config.amountInput, decimals);
+    const symbol = config.token.symbol ?? config.token.address;
+    const txHash =
+      recordFixtureTransfer({
+        token: symbol,
+        amount,
+        recipient: config.recipient,
+        txHashLabel: symbol,
+      }) ?? ZERO_TX_HASH;
+    const label = config.logPrefix ? `${config.logPrefix} ` : "";
+    console.log(
+      chalk.green(
+        `${label}Transferred ${config.amountInput} ${symbol} to ${config.recipient} (fixture)`,
+      ),
     );
+    return { txHash, amount };
   }
-
-  const sessionWallet = createSessionWallet(session);
-  const publicClient = createMonadPublicClient();
-
-  const execution = createExecution({
-    target: getAddress(recipient),
-    value: amount,
-    callData: "0x" as Hex,
-  });
-
-  const txHash = await redeemDelegations(sessionWallet, publicClient, environment.DelegationManager as Address, [
-    { permissionContext: [session.delegation], executions: [execution], mode: ExecutionMode.SingleDefault },
-  ]);
-
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
-  const prefix = logPrefix ? `${logPrefix} ` : "";
-  console.log(
-    chalk.green(
-      `${prefix}Transferred ${formatEther(amount)} ${MONAD_NATIVE_TOKEN_SYMBOL ?? "MON"} to ${recipient} (tx: ${txHash}, block: ${receipt.blockNumber})`,
-    ),
-  );
-  return { txHash, amount };
-};
-
-export const transferTokenWithSession = async ({
-  session,
-  environment,
-  hybridDelegator,
-  token,
-  recipient,
-  amountInput,
-  logPrefix,
-}: TokenTransferConfig) => {
-  ensureSessionActive(session);
-  if (!session.allowedTokens || session.allowedTokens.length === 0) {
-    throw new Error("Session delegation is missing allowed token metadata; reissue onboarding before transferring tokens.");
-  }
-
-  const tokenAddress = getAddress(token.address);
-  const normalizedAllowed = session.allowedTokens.some(
-    (entry) => entry.address.toLowerCase() === tokenAddress.toLowerCase(),
-  );
-  if (!normalizedAllowed) {
-    throw new Error(
-      `Token ${token.symbol ?? tokenAddress} is not included in this delegation scope. Update delegation tokens before transferring.`,
-    );
-  }
-
-  if (isNativeToken(token)) {
-    throw new Error("Wrapped/native MON should use the dedicated native transfer command.");
-  }
-
-  const decimals = typeof token.decimals === "number" ? token.decimals : Number(token.decimals ?? 18);
-  const amount = parseUnits(amountInput, decimals);
-  if (amount <= 0n) {
-    throw new Error("Token transfer amount must be greater than zero.");
-  }
-
-  const sessionWallet = createSessionWallet(session);
-  const publicClient = createMonadPublicClient();
-
-  const balance = (await publicClient.readContract({
-    address: tokenAddress,
-    abi: ERC20_ABI,
-    functionName: "balanceOf",
-    args: [hybridDelegator],
-  })) as bigint;
-
-  if (balance < amount) {
-    throw new Error(
-      `HybridDelegator ${hybridDelegator} has insufficient balance (${formatUnits(balance, decimals)} available).`,
-    );
-  }
-
-  const callData = encodeFunctionData({
-    abi: ERC20_ABI,
-    functionName: "transfer",
-    args: [getAddress(recipient), amount],
-  });
-
-  const execution = createExecution({ target: tokenAddress, value: 0n, callData });
-
-  const txHash = await redeemDelegations(sessionWallet, publicClient, environment.DelegationManager as Address, [
-    { permissionContext: [session.delegation], executions: [execution], mode: ExecutionMode.SingleDefault },
-  ]);
-
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
-  const prefix = logPrefix ? `${logPrefix} ` : "";
-  const symbol = token.symbol ?? token.address.slice(0, 6);
-  console.log(
-    chalk.green(
-      `${prefix}Transferred ${formatUnits(amount, decimals)} ${symbol} to ${recipient} (tx: ${txHash}, block: ${receipt.blockNumber})`,
-    ),
-  );
-  return { txHash, amount };
+  return transferTokenWithSessionCore(config, buildTokenDependencies(config.logPrefix));
 };

@@ -6,7 +6,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { loadDelegationArtifact, loadLatestActiveDelegation } from "../services/delegationArtifacts.js";
 import { createMonadPublicClient, monadChain } from "../services/web3authClients.js";
 import { loadAllowedTokens } from "../services/monorailTokens.js";
-import { ERC20_ABI } from "../services/swapEngine.js";
+import { ERC20_ABI } from "@pragma/core";
 import { MONAD_RPC_URL } from "../services/config.js";
 
 export const registerFundFaucet = (program: Command) => {

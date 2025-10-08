@@ -85,14 +85,13 @@ program
 const args = process.argv.slice(2);
 
 if (args.length === 0) {
-  const { launchHome } = await import("./services/home.js");
+  const { runPragmaAgentRepl } = await import("./services/agentLoop.js");
   try {
-    await launchHome();
+    await runPragmaAgentRepl();
   } catch (error) {
     console.error(chalk.red((error as Error).message));
-    process.exit(1);
+    process.exitCode = 1;
   }
-  process.exit(0);
+} else {
+  program.parseAsync(process.argv);
 }
-
-program.parseAsync(process.argv);

@@ -17,9 +17,14 @@
     "clean:ts": "tsc -b tsconfig.json --clean",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
-    "prepare": "pnpm run build:cli"
+    "prepare": "pnpm run build:cli",
+    "repl:fixtures": "node scripts/repl-fixtures.mjs",
+    "test:repl-e2e": "node scripts/repl-smoke.mjs"
   },
   "devDependencies": {
     "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "@openai/agents": "^0.1.9"
   }
 }

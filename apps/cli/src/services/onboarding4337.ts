@@ -2,18 +2,7 @@ import chalk from "chalk";
 import open from "open";
 import ora from "ora";
 import path from "node:path";
-import {
-  Address,
-  Hex,
-  http,
-  getAddress,
-  toHex,
-  getFunctionSelector,
-  parseEther,
-  formatEther,
-  encodeFunctionData,
-  decodeFunctionData,
-} from "viem";
+import { Address, Hex, http, getAddress, toHex, parseEther, formatEther } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   createDelegation,
@@ -47,88 +36,47 @@ import {
   MONAD_NATIVE_TOKEN_ADDRESS,
 } from "./config.js";
 import {
+  AGGREGATE_SELECTOR,
+  APPROVE_SELECTOR,
+  ERC20_TRANSFER_SELECTOR,
+  WRAPPED_DEPOSIT_SELECTOR,
+  WRAPPED_WITHDRAW_SELECTOR,
+  ZERO_SALT,
+  buildHybridScope,
+  buildHybridCaveats,
+  DEFAULT_CALL_LIMITS,
+  fetchDelegatorNonce,
+  generateSessionKey as generateSessionKeyCore,
+  type Mode,
+  type SessionDelegationInfo,
+  type DelegationArtifact,
+  type DeleGatorEnv,
+} from "@pragma/core";
+
+export {
+  DEFAULT_CALL_LIMITS,
+  ZERO_SALT,
+  fetchDelegatorNonce,
+} from "@pragma/core";
+
+export type { Mode, SessionDelegationInfo, DelegationArtifact, DeleGatorEnv } from "@pragma/core";
+
+const createBundlerClientUnsafe = (...args: any[]) => (createBundlerClient as any)(...args);
+
+import {
   loadAllowedTokens,
   normalizeAllowedTokensList,
   hasWrappedNativeToken,
   resolveTokenFromAllowlist,
   formatTokenLabel,
   ensureTokenSet,
+  type AllowedToken,
+  type TokenKind,
 } from "./monorailTokens.js";
-import type { AllowedToken, TokenKind } from "./monorailTokens.js";
+import { listDelegationArtifacts, isDelegationExpired } from "./delegationArtifacts.js";
 export { normalizeAllowedTokensList, type AllowedToken, type TokenKind } from "./monorailTokens.js";
 
-export type Mode = "safe" | "normal";
-
 export const ROUTER = getAddress(MONORAIL_AGGREGATOR_ADDRESS);
-const AGGREGATE_SELECTOR = getFunctionSelector({
-  type: "function",
-  name: "aggregate",
-  stateMutability: "payable",
-  inputs: [
-    { name: "tokenIn", type: "address" },
-    { name: "tokenOut", type: "address" },
-    { name: "amountIn", type: "uint256" },
-    { name: "minAmountOut", type: "uint256" },
-    { name: "destination", type: "address" },
-    { name: "deadline", type: "uint256" },
-    { name: "referrer", type: "uint64" },
-    { name: "quoteId", type: "uint64" },
-    {
-      name: "trades",
-      type: "tuple[]",
-      components: [
-        { name: "minAmountOut", type: "uint256" },
-        { name: "weight", type: "uint32" },
-        { name: "routerType", type: "uint8" },
-        { name: "router", type: "address" },
-        { name: "tokenIn", type: "address" },
-        { name: "tokenOut", type: "address" },
-        { name: "params", type: "bytes" },
-      ],
-    },
-  ],
-  outputs: [],
-}) as Hex;
-const APPROVE_SELECTOR = getFunctionSelector({
-  type: "function",
-  name: "approve",
-  stateMutability: "nonpayable",
-  inputs: [
-    { name: "spender", type: "address" },
-    { name: "amount", type: "uint256" },
-  ],
-  outputs: [{ name: "", type: "bool" }],
-}) as Hex;
-const WRAPPED_DEPOSIT_SELECTOR = getFunctionSelector({
-  type: "function",
-  name: "deposit",
-  stateMutability: "payable",
-  inputs: [],
-  outputs: [],
-}) as Hex;
-const WRAPPED_WITHDRAW_SELECTOR = getFunctionSelector({
-  type: "function",
-  name: "withdraw",
-  stateMutability: "nonpayable",
-  inputs: [{ name: "wad", type: "uint256" }],
-  outputs: [],
-}) as Hex;
-const ERC20_TRANSFER_SELECTOR = getFunctionSelector({
-  type: "function",
-  name: "transfer",
-  stateMutability: "nonpayable",
-  inputs: [
-    { name: "to", type: "address" },
-    { name: "value", type: "uint256" },
-  ],
-  outputs: [{ name: "", type: "bool" }],
-}) as Hex;
-export const ZERO_SALT = "0x0000000000000000000000000000000000000000000000000000000000000000" as Hex;
-
-export const DEFAULT_CALL_LIMITS: Record<Mode, number> = {
-  safe: 6,
-  normal: 12,
-};
 
 const selectSafePairTokens = async (allowlist: AllowedToken[]): Promise<AllowedToken[]> => {
   if (allowlist.length === 0) {
@@ -375,49 +323,6 @@ const determineAllowedTokens = async (
   return promptCustomTokens(withAllowlist);
 };
 
-const NONCE_ENFORCER_ABI = [
-  {
-    type: "function",
-    name: "currentNonce",
-    stateMutability: "view",
-    inputs: [
-      { name: "delegationManager", type: "address" },
-      { name: "delegator", type: "address" },
-    ],
-    outputs: [{ name: "nonce", type: "uint256" }],
-  },
-] as const;
-
-export type DeleGatorEnv = ReturnType<typeof getDeleGatorEnvironment>;
-
-export interface DelegationArtifact {
-  mode: Mode;
-  sessionKeyPrivateKey: Hex;
-  sessionKeyAddress: Address;
-  delegation: Delegation;
-  expiresAt: number;
-  callLimit?: number | null;
-  callsUnlimited?: boolean;
-  sessionNonce: Hex;
-  allowedTokens?: AllowedToken[];
-  kind?: "swap" | "transfer";
-  transferMaxAmount?: string | null;
-}
-
-export interface SessionDelegationInfo {
-  mode: Mode;
-  sessionKeyAddress: Address;
-  sessionKeyPrivateKey: Hex;
-  expiresAt: number;
-  delegation: Delegation;
-  callLimit?: number | null;
-  callsUnlimited?: boolean;
-  sessionNonce: Hex;
-  allowedTokens?: AllowedToken[];
-  kind?: "swap" | "transfer";
-  transferMaxAmount?: bigint | null;
-}
-
 interface HybridTestOptions {
   logSessionSummaries?: boolean;
   allowedTokenOverrides?: AllowedToken[];
@@ -482,11 +387,7 @@ export const saveDelegation = async (artifact: DelegationArtifact): Promise<stri
   return file;
 };
 
-export const generateSessionKey = (): { privateKey: Hex; address: Address } => {
-  const privateKey = generatePrivateKey();
-  const account = privateKeyToAccount(privateKey);
-  return { privateKey, address: account.address };
-};
+export const generateSessionKey = generateSessionKeyCore;
 
 export interface SessionKeyRecord {
   address: Address;
@@ -585,95 +486,14 @@ const clearPersistedSessionArtifacts = async (delegator: Address) => {
 
 const NATIVE_TRANSFER_SELECTOR = "0x" as Hex; // placeholder to track native transfer in selectors set
 
-export const buildScope = (allowedTokens: AllowedToken[], delegator?: Address) => {
-  const targetSet = new Set<Address>();
-  targetSet.add(ROUTER);
-  for (const token of allowedTokens) {
-    targetSet.add(getAddress(token.address));
-  }
-  if (delegator) {
-    targetSet.add(getAddress(delegator));
-  }
-
-  const selectors = new Set<Hex>([AGGREGATE_SELECTOR, APPROVE_SELECTOR, ERC20_TRANSFER_SELECTOR]);
-  const hasWrapped = allowedTokens.some((token) => token.kind === "wrappedNative");
-  if (hasWrapped) {
-    selectors.add(WRAPPED_DEPOSIT_SELECTOR);
-    selectors.add(WRAPPED_WITHDRAW_SELECTOR);
-  }
-
-  return {
-    type: "functionCall" as const,
-    targets: Array.from(targetSet),
-    selectors: Array.from(selectors),
-    allowedCalldata: [],
-  };
-};
-
-export const fetchDelegatorNonce = async (
-  publicClient: ReturnType<typeof createMonadPublicClient>,
-  environment: DeleGatorEnv,
-  delegator: Address,
-): Promise<bigint> => {
-  const nonceEnforcerAddress = environment.caveatEnforcers?.NonceEnforcer;
-  if (!nonceEnforcerAddress) {
-    throw new Error("NonceEnforcer address missing in environment configuration");
-  }
-
-  const nonce = (await publicClient.readContract({
-    address: nonceEnforcerAddress as Address,
-    abi: NONCE_ENFORCER_ABI,
-    functionName: "currentNonce",
-    args: [environment.DelegationManager as Address, delegator],
-  })) as bigint;
-
-  return nonce;
-};
-
-export interface CaveatOptions {
-  callLimit?: number | null;
-  unlimitedCalls?: boolean;
-  nonce: bigint;
-}
-
-export const buildCaveats = (
-  _environment: ReturnType<typeof getDeleGatorEnvironment>,
-  mode: Mode,
-  expiresAt: number,
-  { callLimit, unlimitedCalls, nonce }: CaveatOptions,
-) => {
-  const baseCaveats = [
-    {
-      type: "timestamp" as const,
-      afterThreshold: 0,
-      beforeThreshold: expiresAt,
-    },
-    {
-      type: "nonce" as const,
-      nonce: toHex(nonce),
-    },
-  ] as const;
-
-  const limitedCaveats = !unlimitedCalls
-    ? ([
-        {
-          type: "limitedCalls" as const,
-          limit: callLimit ?? DEFAULT_CALL_LIMITS[mode],
-        },
-      ] as const)
-    : ([] as const);
-
-  return [...baseCaveats, ...limitedCaveats] as unknown as Caveats;
-};
-
 const submitHybridDelegatorDeployment = async ({
   smartAccount,
   bundlerClient,
   chainId,
   publicClient,
 }: {
-  smartAccount: Awaited<ReturnType<typeof toMetaMaskSmartAccount>>;
-  bundlerClient: ReturnType<typeof createBundlerClient>;
+  smartAccount: any;
+  bundlerClient: any;
   chainId: number;
   publicClient: ReturnType<typeof createMonadPublicClient>;
 }): Promise<{ userOpHash: Hex; transactionHash: Hex }> => {
@@ -776,7 +596,7 @@ const isSmartAccountDeployed = async ({
   publicClient,
   address,
 }: {
-  smartAccount: Awaited<ReturnType<typeof toMetaMaskSmartAccount>>;
+  smartAccount: any;
   publicClient: ReturnType<typeof createMonadPublicClient>;
   address: Address;
 }): Promise<boolean> => {
@@ -804,11 +624,16 @@ export interface RunOnboardOptions {
   transferAmountWei?: bigint;
 }
 
+export interface Onboard4337Result {
+  delegator?: Address;
+  sessionKey?: Address;
+}
+
 export const runOnboard4337 = async (
   modeHint?: Mode,
   identityHint?: "privy" | "web3auth",
   options: RunOnboardOptions = {},
-) => {
+): Promise<Onboard4337Result | undefined> => {
   onboardingLogger.debug({ chain: PIMLICO_CHAIN }, "Using Pimlico bundler & paymaster endpoints");
 
     const environment = getDeleGatorEnvironment(MONAD_CHAIN_ID);
@@ -870,24 +695,32 @@ export const runOnboard4337 = async (
       "Identity wallet connected",
     );
 
-    const publicClient = createMonadPublicClient();
+    const publicClient: any = createMonadPublicClient();
 
-    const smartAccount = await toMetaMaskSmartAccount({
+    // @ts-ignore -- upstream DTK typings for walletClient vs viem wallet mismatch slightly; runtime invocation is valid.
+    const smartAccount = (await toMetaMaskSmartAccount({
       client: publicClient,
       implementation: Implementation.Hybrid,
       signer: { walletClient: walletClient as any },
       deployParams: [rootAddress, [], [], []],
       deploySalt: "0x",
-    });
+    })) as any;
 
-    const bundlerClient = createBundlerClient({
+    // @ts-ignore - viem types currently expect 'account' to be undefined literal.
+    // @ts-ignore -- upstream viem typings expect stricter generics; runtime invocation is valid.
+    const bundlerConfig: any = {
       chain: monadChain,
       transport: http(PIMLICO_BUNDLER_URL),
-      client: publicClient,
-      account: smartAccount,
-    } as any);
+      client: publicClient as any,
+    };
+    // @ts-ignore -- upstream viem typings expect stricter generics; runtime invocation is valid.
+    const bundlerClient = createBundlerClientUnsafe(bundlerConfig);
 
-    hybridDelegator = await smartAccount.getAddress();
+    const maybeDelegatorAddress = await smartAccount.getAddress();
+    if (!maybeDelegatorAddress) {
+      throw new Error("HybridDelegator address not available from smart account.");
+    }
+    hybridDelegator = getAddress(maybeDelegatorAddress);
 
     const alreadyDeployed = await isSmartAccountDeployed({
       smartAccount,
@@ -929,7 +762,7 @@ export const runOnboard4337 = async (
             `Reconnect with the original owner account (${existingOwner}) or update ownership before issuing a delegation.`,
           ),
         );
-        return;
+        return undefined;
       }
       onboardingLogger.info({ hybridDelegator }, "HybridDelegator already deployed for user");
       const { continueWithExisting } = await inquirer.prompt<{ continueWithExisting: boolean }>([
@@ -943,10 +776,44 @@ export const runOnboard4337 = async (
 
       if (!continueWithExisting) {
         console.log(chalk.yellow("Onboarding cancelled — retaining existing HybridDelegator."));
-        return;
+        return undefined;
       }
 
       console.log(chalk.green("Reusing previously deployed HybridDelegator."));
+
+      if (!rotateSessionKey) {
+        const existingArtifacts = await listDelegationArtifacts(hybridDelegator);
+        const activeSwapDelegations = existingArtifacts.filter((entry) => {
+          const kind = entry.artifact.kind ?? "swap";
+          if (kind !== "swap") return false;
+          return !isDelegationExpired(entry.artifact);
+        });
+
+        if (activeSwapDelegations.length > 0) {
+          const { reissueDelegation } = await inquirer.prompt<{ reissueDelegation: boolean }>([
+            {
+              type: "confirm",
+              name: "reissueDelegation",
+              message:
+                "An active delegation already exists for this account. Do you want to issue a new delegation now?",
+              default: false,
+            },
+          ]);
+
+          if (!reissueDelegation) {
+            const sessionKeyAddress = activeSwapDelegations[0].artifact.sessionKeyAddress;
+            console.log(
+              chalk.green(
+                "Keeping existing delegation. You can reissue later with 'update tokens' or 'replace session'.",
+              ),
+            );
+            return {
+              delegator: getAddress(hybridDelegator as Address),
+              sessionKey: sessionKeyAddress ? getAddress(sessionKeyAddress) : undefined,
+            };
+          }
+        }
+      }
     } else {
       const { confirmDeployment } = await inquirer.prompt<{ confirmDeployment: boolean }>([
         {
@@ -959,7 +826,7 @@ export const runOnboard4337 = async (
 
       if (!confirmDeployment) {
         console.log(chalk.yellow("Deployment aborted by user."));
-        return;
+        return undefined;
       }
 
       const ensureDeployedSpinner = ora("Deploying HybridDelegator (Pimlico sponsored)").start();
@@ -993,7 +860,7 @@ export const runOnboard4337 = async (
           `Connected HybridDelegator ${normalizedDelegator} does not match expected delegator ${expectedDelegator}. Aborting.`,
         ),
       );
-      return;
+      return undefined;
     }
 
     if (rotateSessionKey) {
@@ -1146,8 +1013,8 @@ export const runOnboard4337 = async (
       ensureTokenSet(allowedTokens, allowlistCatalog[0]);
     }
 
-    const scope = buildScope(allowedTokens);
-    const caveats = buildCaveats(environment, mode, before, {
+    const scope = buildHybridScope({ allowedTokens, router: ROUTER });
+    const caveats = buildHybridCaveats(mode, before, {
       callLimit: resolvedCallLimit,
       unlimitedCalls: callsUnlimited,
       nonce: currentNonce,
@@ -1346,6 +1213,11 @@ export const runOnboard4337 = async (
     console.log(`HybridDelegator: ${hybridDelegator ?? "unknown"}`);
     console.log(`Session key: ${sessionKey.address}`);
     console.log(`Delegation TTL target: ${expiryIso}`);
+
+    return {
+      delegator: hybridDelegator ? getAddress(hybridDelegator) : undefined,
+      sessionKey: getAddress(sessionKey.address),
+    };
   } finally {
     await bridge.shutdown();
   }
@@ -1355,26 +1227,34 @@ export const setupHybridDelegatorTest = async (
   modeSelection: "safe" | "normal" | "both",
   { logSessionSummaries = true, allowedTokenOverrides = [] }: HybridTestOptions = {},
 ): Promise<HybridTestContext> => {
-  const publicClient = createMonadPublicClient();
+  const publicClient: any = createMonadPublicClient();
   const rootPrivateKey = generatePrivateKey();
   const rootAccount = privateKeyToAccount(rootPrivateKey);
 
-  const smartAccount = await toMetaMaskSmartAccount({
+  // @ts-ignore -- upstream DTK typings for walletClient vs viem wallet mismatch slightly; runtime invocation is valid.
+  const smartAccount = (await toMetaMaskSmartAccount({
     client: publicClient,
     implementation: Implementation.Hybrid,
     signer: { account: rootAccount },
     deployParams: [rootAccount.address, [], [], []],
     deploySalt: "0x",
-  });
+  })) as any;
 
-  const bundlerClient = createBundlerClient({
+  // @ts-ignore - viem types currently expect 'account' to be undefined literal.
+  // @ts-ignore -- upstream viem typings expect stricter generics; runtime invocation is valid.
+  const bundlerConfig: any = {
     chain: monadChain,
     transport: http(PIMLICO_BUNDLER_URL),
-    client: publicClient,
-    account: smartAccount,
-  } as any);
+    client: publicClient as any,
+  };
+  // @ts-ignore -- upstream viem typings expect stricter generics; runtime invocation is valid.
+  const bundlerClient = createBundlerClientUnsafe(bundlerConfig);
 
-  const hybridDelegator = await smartAccount.getAddress();
+  const maybeTestDelegator = await smartAccount.getAddress();
+  if (!maybeTestDelegator) {
+    throw new Error("HybridDelegator address not available during test setup.");
+  }
+  const hybridDelegator = getAddress(maybeTestDelegator);
 
   const spinner = ora("Deploying HybridDelegator on Monad testnet (test)").start();
   let deploymentInfo: { userOpHash: Hex; transactionHash: Hex } | undefined;
@@ -1431,8 +1311,8 @@ export const setupHybridDelegatorTest = async (
       ensureTokenSet(allowedTokens, overrideToken);
     }
 
-    const scope = buildScope(allowedTokens);
-    const caveats = buildCaveats(environment, mode, expiresAt, {
+    const scope = buildHybridScope({ allowedTokens, router: ROUTER });
+    const caveats = buildHybridCaveats(mode, expiresAt, {
       callLimit,
       unlimitedCalls: callsUnlimited,
       nonce: currentNonce,

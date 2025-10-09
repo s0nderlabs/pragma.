@@ -3,6 +3,7 @@ import { Command } from "commander";
 
 import { registerOnboard4337Test } from "./onboard4337Test.js";
 import { registerSwapTest } from "./swapTest.js";
+import { registerSwapApprovalBenchmark } from "./swapApprovalBenchmark.js";
 import { registerSwapReuse } from "./swapExisting.js";
 import { registerTransferReuse } from "./transferReuse.js";
 import { registerTransferTest } from "./transferTest.js";
@@ -16,6 +17,7 @@ export const registerDev = (program: Command) => {
 
   registerOnboard4337Test(dev);
   registerSwapTest(dev);
+  registerSwapApprovalBenchmark(dev);
   registerSwapReuse(dev);
   registerTransferReuse(dev);
   registerTransferTest(dev);

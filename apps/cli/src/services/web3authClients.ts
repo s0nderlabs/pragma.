@@ -1,4 +1,5 @@
-import { custom, createPublicClient, createWalletClient, http, type Chain, type Address } from "viem";
+import { custom, createWalletClient, type Chain, type Address } from "viem";
+import { createReadOnlyPublicClient } from "@pragma/core";
 
 import type { Web3AuthBridge } from "./web3authServer.js";
 import {
@@ -162,9 +163,19 @@ const createFixturePublicClient = () => {
 export const createMonadPublicClient = (): any =>
   isFixtureMode()
     ? createFixturePublicClient()
-    : (createPublicClient({
+    : (createReadOnlyPublicClient({
         chain: monadTestnet,
-        transport: http(MONAD_RPC_URL),
+        readUrl: MONAD_READ_RPC_URL,
+        fallbackUrl: MONAD_RPC_URL,
+      }) as any);
+
+export const createMonadExecutionClient = (): any =>
+  isFixtureMode()
+    ? createFixturePublicClient()
+    : (createReadOnlyPublicClient({
+        chain: monadTestnet,
+        readUrl: MONAD_RPC_URL,
+        fallbackUrl: MONAD_RPC_URL,
       }) as any);
 
 export const createWeb3AuthWalletClient = (bridge: Web3AuthBridge) =>

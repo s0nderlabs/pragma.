@@ -17,6 +17,8 @@ import {
   MONORAIL_API_KEY,
   MONORAIL_DATA_API_URL,
 } from "./config.js";
+import { createMonadPublicClient } from "./web3authClients.js";
+import type { AllowedToken } from "./monorailTokens.js";
 import { isFixtureMode, loadFixtureJson } from "../testing/fixtureRuntime.js";
 
 interface FixtureInsightDataset {
@@ -81,6 +83,7 @@ export interface BalanceInsightRequest {
   delegator: `0x${string}`;
   sessionKey?: `0x${string}`;
   mode?: string;
+  allowedTokens?: AllowedToken[];
 }
 
 export const fetchBalancesInsight = async (
@@ -97,9 +100,11 @@ export const fetchBalancesInsight = async (
       dataApiUrl: MONORAIL_DATA_API_URL,
       apiKey: MONORAIL_API_KEY,
       fetch: buildFixtureFetch(dataset),
+      allowedTokens: request.allowedTokens,
     });
   }
 
+  const publicClient = createMonadPublicClient();
   return buildBalancesInsight({
     delegator: getAddress(request.delegator),
     sessionKey: request.sessionKey ? getAddress(request.sessionKey) : undefined,
@@ -108,6 +113,8 @@ export const fetchBalancesInsight = async (
     nativeTokenSymbol: MONAD_NATIVE_TOKEN_SYMBOL,
     dataApiUrl: MONORAIL_DATA_API_URL,
     apiKey: MONORAIL_API_KEY,
+    allowedTokens: request.allowedTokens,
+    publicClient,
   });
 };
 

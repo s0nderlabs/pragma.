@@ -39,6 +39,7 @@ export interface DelegationArtifact {
   allowedTokens?: AllowedToken[];
   kind?: DelegationKind;
   transferMaxAmount?: string | null;
+  revokedAt?: number | null;
 }
 
 export type DeleGatorEnv = ReturnType<typeof getDeleGatorEnvironment>;

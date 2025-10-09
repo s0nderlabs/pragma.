@@ -123,6 +123,12 @@ const readArtifact = async (filePath: string): Promise<DelegationArtifact> => {
   } else {
     parsed.transferMaxAmount = null;
   }
+  if (parsed.revokedAt !== undefined && parsed.revokedAt !== null) {
+    const coerced = Number(parsed.revokedAt);
+    parsed.revokedAt = Number.isFinite(coerced) ? coerced : undefined;
+  } else {
+    parsed.revokedAt = undefined;
+  }
   if (parsed.kind !== "transfer") {
     parsed.kind = "swap";
   }
@@ -246,6 +252,7 @@ export const listDelegationArtifacts = async (delegatorFilter?: string): Promise
       delegator = undefined;
     }
     if (normalizedFilter && delegator && delegator !== normalizedFilter) continue;
+    if (artifact.revokedAt) continue;
     results.push({ artifact, filePath, delegator });
   }
   return results;
@@ -302,6 +309,7 @@ export const loadLatestActiveDelegation = async (
     if (modeFilter && artifact.mode !== modeFilter) continue;
     const artifactKind = artifact.kind ?? "swap";
     if (kindFilter && artifactKind !== kindFilter) continue;
+    if (artifact.revokedAt) continue;
     const expiry = artifact.expiresAt ?? deriveExpiresAt(artifact.delegation);
     if (expiry && expiry <= now) continue;
     if (!artifact.sessionKeyPrivateKey) continue;
@@ -334,6 +342,34 @@ export const loadLatestActiveDelegation = async (
   }
 
   return candidates[0];
+};
+
+export const markDelegationsRevoked = async (delegator: Address, revokedAt = Math.floor(Date.now() / 1000)) => {
+  const normalizedDelegator = getAddress(delegator).toLowerCase();
+  const delegatorDir = path.join(TEST_DELEGATIONS_BASE_DIR, normalizedDelegator);
+
+  try {
+    const entries = await fs.readdir(delegatorDir, { withFileTypes: true });
+    await Promise.all(
+      entries
+        .filter((entry) => entry.isFile() && /^session-\d+\.json$/.test(entry.name))
+        .map(async (entry) => {
+          const filePath = path.join(delegatorDir, entry.name);
+          try {
+            const raw = await fs.readFile(filePath, "utf8");
+            const parsed = JSON.parse(raw) as Record<string, unknown>;
+            parsed.revokedAt = revokedAt;
+            await fs.writeFile(filePath, JSON.stringify(parsed, null, 2), "utf8");
+          } catch {
+            /* ignore individual artifact failures */
+          }
+        }),
+    );
+  } catch (error: any) {
+    if (error?.code !== "ENOENT") {
+      throw error;
+    }
+  }
 };
 
 const OWNER_ABI = [

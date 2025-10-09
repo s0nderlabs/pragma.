@@ -20,6 +20,34 @@ const FROM_TOKENS = new Set(["from"]);
 const RECIPIENT_HINTS = new Set(["to", "into", "for"]);
 const MAX_KEYWORDS = new Set(["max", "everything", "all"]);
 const STOP_WORDS = new Set(["my", "the", "a", "an", "some", "any"]);
+const DELEGATION_KEYWORDS = new Set([
+  "delegation",
+  "delegations",
+  "session",
+  "sessions",
+  "allowlist",
+  "permissions",
+  "scope",
+  "scopes",
+]);
+const DELEGATION_VERBS = new Set([
+  "issue",
+  "reissue",
+  "create",
+  "mint",
+  "renew",
+  "refresh",
+  "rotate",
+  "reset",
+  "new",
+  "update",
+  "regenerate",
+  "generate",
+  "setup",
+  "set",
+  "recreate",
+  "redo",
+]);
 const FRACTION_KEYWORDS = new Map<string, number>([
   ["half", 1 / 2],
   ["quarter", 1 / 4],
@@ -172,6 +200,8 @@ const parseSlots = (utterance: NormalizedUtterance): ParsedSlots => {
   let candidateRecipient: string | undefined;
   let amount: AmountSpecification | undefined;
   let amountAssignedFromNumber = false;
+  let sawDelegationKeyword = false;
+  let sawDelegationVerb = false;
 
   const tokens = utterance.tokens;
   for (let i = 0; i < tokens.length; i += 1) {
@@ -191,6 +221,21 @@ const parseSlots = (utterance: NormalizedUtterance): ParsedSlots => {
 
     if ((token === "swap" || token === "wrap" || token === "unwrap" || token === "transfer") && !result.action) {
       result.action = token as IntentAction;
+      continue;
+    }
+
+    if ((token === "safe" || token === "normal") && !result.mode) {
+      result.mode = token === "safe" ? "safe" : "normal";
+      continue;
+    }
+
+    if (DELEGATION_KEYWORDS.has(token)) {
+      sawDelegationKeyword = true;
+      continue;
+    }
+
+    if (DELEGATION_VERBS.has(token)) {
+      sawDelegationVerb = true;
       continue;
     }
 
@@ -288,6 +333,14 @@ const parseSlots = (utterance: NormalizedUtterance): ParsedSlots => {
   }
   if (candidateRecipient && !result.recipient) {
     result.recipient = candidateRecipient;
+  }
+
+  if (!result.action && sawDelegationKeyword && sawDelegationVerb) {
+    result.action = "delegation_issue";
+  }
+
+  if (result.mode && result.mode !== "safe" && result.mode !== "normal") {
+    delete result.mode;
   }
 
   return result;
@@ -477,6 +530,16 @@ const resolveTransferIntent = (slots: ParsedSlots, context: DelegationContext, w
   );
 };
 
+const resolveDelegationIssueIntent = (slots: ParsedSlots, warnings: string[]): IntentParseOutcome => {
+  return buildSuccess(
+    {
+      action: "delegation_issue",
+      mode: slots.mode,
+    },
+    warnings,
+  );
+};
+
 export const parseIntent = (input: string, context: DelegationContext): IntentParseOutcome => {
   const utterance = normalizeUtterance(input);
   const slots = parseSlots(utterance);
@@ -494,6 +557,8 @@ export const parseIntent = (input: string, context: DelegationContext): IntentPa
       return resolveWrapIntent(slots, context, warnings, slots.action);
     case "transfer":
       return resolveTransferIntent(slots, context, warnings);
+    case "delegation_issue":
+      return resolveDelegationIssueIntent(slots, warnings);
     default:
       return buildError([
         { code: "ACTION_UNSUPPORTED", message: `Action ${slots.action} is not supported`, field: "action" },

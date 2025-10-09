@@ -8,9 +8,15 @@ import { getDeleGatorEnvironment, Implementation, toMetaMaskSmartAccount } from 
 import {
   loadDelegationArtifact,
   loadLatestActiveDelegation,
+  markDelegationsRevoked,
   type LoadedDelegationArtifact,
 } from "./delegationArtifacts.js";
-import { createMonadPublicClient, createWalletClientFromBridge, monadChain } from "./web3authClients.js";
+import {
+  createMonadExecutionClient,
+  createMonadPublicClient,
+  createWalletClientFromBridge,
+  monadChain,
+} from "./web3authClients.js";
 import { fetchDelegatorNonce, type Mode } from "./onboarding4337.js";
 import { startWeb3AuthBridge } from "./web3authServer.js";
 import { startPrivyBridge } from "./privyBridgeServer.js";
@@ -147,7 +153,7 @@ export const runRevoke = async (options: RunRevokeOptions) => {
   const artifact = entry.artifact;
   const artifactPath = entry.filePath;
 
-  const publicClient: any = createMonadPublicClient();
+  const publicClient: any = createMonadExecutionClient();
   const currentOwner = await verifyOwner(delegator, publicClient);
 
   const envIdentity = (() => {
@@ -203,15 +209,13 @@ export const runRevoke = async (options: RunRevokeOptions) => {
       environment,
     })) as any;
 
-  // @ts-ignore - viem types currently expect 'account' to be undefined literal.
-  // @ts-ignore -- upstream viem typings expect stricter generics; runtime invocation is valid.
-  const bundlerConfig: any = {
+  // @ts-ignore - viem types are slightly behind; runtime arguments are correct.
+  const bundlerClient = createBundlerClientUnsafe({
     chain: monadChain,
     transport: http(PIMLICO_BUNDLER_URL),
     client: publicClient,
-  };
-  // @ts-ignore -- upstream viem typings expect stricter generics; runtime invocation is valid.
-  const bundlerClient = createBundlerClientUnsafe(bundlerConfig);
+    account: smartAccount,
+  });
 
     const calls: { to: Address; data: Hex; value?: bigint }[] = [];
 
@@ -250,8 +254,9 @@ export const runRevoke = async (options: RunRevokeOptions) => {
     let userOpHash: Hex;
     try {
       userOpHash = await bundlerClient.sendUserOperation({
-        calls,
+        account: smartAccount,
         entryPointAddress: environment.EntryPoint as Address,
+        calls,
       });
       spinner.text = `UserOperation submitted (${userOpHash})`;
       const receipt = await bundlerClient.waitForUserOperationReceipt({ hash: userOpHash });
@@ -263,6 +268,8 @@ export const runRevoke = async (options: RunRevokeOptions) => {
     }
 
     const nonceAfter = await fetchDelegatorNonce(publicClient, environment, delegator);
+
+    await markDelegationsRevoked(delegator);
 
     console.log("\n" + chalk.green("Delegation revoke complete"));
     console.log(`  Delegator       : ${delegator}`);

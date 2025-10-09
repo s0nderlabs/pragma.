@@ -19,7 +19,8 @@
     "test": "pnpm -r test",
     "prepare": "pnpm run build:cli",
     "repl:fixtures": "node scripts/repl-fixtures.mjs",
-    "test:repl-e2e": "node scripts/repl-smoke.mjs"
+    "test:repl-e2e": "node scripts/repl-smoke.mjs",
+    "build:cli-and-core": "pnpm --filter @pragma/core build && pnpm --filter @pragma/utils build && pnpm --filter @pragma/cli build"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

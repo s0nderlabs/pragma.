@@ -381,6 +381,7 @@ export const saveDelegation = async (artifact: DelegationArtifact): Promise<stri
     ...artifact,
     allowedTokens: normalizeAllowedTokensList(artifact.allowedTokens ?? []),
     transferMaxAmount: artifact.transferMaxAmount ?? null,
+    revokedAt: null,
   };
   await fs.writeFile(file, JSON.stringify(normalizedArtifact, null, 2));
   onboardingLogger.info({ file, delegator: delegatorAddress }, "Stored 4337 delegation artifact");

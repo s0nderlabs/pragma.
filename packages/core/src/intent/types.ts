@@ -3,7 +3,7 @@ import type { Address } from "viem";
 import type { AllowedToken } from "../monorail/tokens.js";
 import type { Mode } from "../delegations/types.js";
 
-export type IntentAction = "swap" | "wrap" | "unwrap" | "transfer";
+export type IntentAction = "swap" | "wrap" | "unwrap" | "transfer" | "delegation_issue";
 
 export type AmountKind = "exact" | "max" | "fraction";
 
@@ -47,7 +47,16 @@ export interface TransferIntentFields {
   recipient?: Address;
 }
 
-export type CanonicalIntent = SwapIntentFields | WrapIntentFields | TransferIntentFields;
+export interface DelegationIssueIntentFields {
+  action: "delegation_issue";
+  mode?: Mode;
+}
+
+export type CanonicalIntent =
+  | SwapIntentFields
+  | WrapIntentFields
+  | TransferIntentFields
+  | DelegationIssueIntentFields;
 
 export interface NormalizedUtterance {
   raw: string;
@@ -64,6 +73,7 @@ export interface ParsedSlots {
   recipient?: string;
   slippageBps?: number;
   deadlineMinutes?: number;
+  mode?: Mode;
   warnings: string[];
 }
 

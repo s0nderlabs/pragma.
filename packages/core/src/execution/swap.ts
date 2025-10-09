@@ -115,6 +115,8 @@ export interface SwapEngineDependencies {
   logger?: ExecutionLogger;
 }
 
+export type ApprovalStrategy = "wait" | "fire-and-forget";
+
 export interface SwapExecutionConfig {
   session: SessionDelegationInfo;
   environment: DeleGatorEnv;
@@ -122,6 +124,7 @@ export interface SwapExecutionConfig {
   intent: SwapIntent;
   amountInput: string;
   slippageBps: number;
+  approvalStrategy?: ApprovalStrategy;
 }
 
 const toTokenAddress = (token: AllowedToken): Address => getAddress(token.address);
@@ -153,6 +156,7 @@ const ensureAllowance = async (
   dependencies: SwapEngineDependencies,
   environment: DeleGatorEnv,
   hybridDelegator: Address,
+  strategy: ApprovalStrategy,
 ) => {
   if (isNativeToken(token, dependencies.nativeTokenAddress)) return;
 
@@ -193,13 +197,46 @@ const ensureAllowance = async (
     ],
   );
 
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
   const symbol = token.symbol ?? token.address.slice(0, 6);
   emit(
     logger,
-    "success",
-    `Approved aggregator to spend ${formatUnits(requiredAmount, token.decimals)} ${symbol} (tx: ${txHash}, block: ${receipt.blockNumber})`,
+    "info",
+    `Approving aggregator to spend ${formatUnits(requiredAmount, token.decimals)} ${symbol} (tx: ${txHash})`,
   );
+
+  if (strategy === "wait") {
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+    emit(
+      logger,
+      "success",
+      `Approval confirmed (tx: ${txHash}, block: ${receipt.blockNumber})`,
+    );
+  } else {
+    void publicClient
+      .waitForTransactionReceipt({ hash: txHash })
+      .then((receipt) => {
+        emit(
+          logger,
+          "success",
+          `Approval confirmed (tx: ${txHash}, block: ${receipt.blockNumber})`,
+        );
+      })
+      .catch((error) => {
+        emit(
+          logger,
+          "warn",
+          `Approval transaction ${txHash} failed to confirm: ${(error as Error).message}`,
+        );
+      });
+  }
+};
+
+const resolveApprovalStrategy = (config: SwapExecutionConfig): ApprovalStrategy => {
+  if (config.approvalStrategy) return config.approvalStrategy;
+  const env = process.env.PRAGMA_SWAP_APPROVAL_STRATEGY?.toLowerCase();
+  if (env === "wait") return "wait";
+  if (env === "fire-and-forget") return "fire-and-forget";
+  return "fire-and-forget";
 };
 
 export const executeSwapWithSession = async (
@@ -247,7 +284,9 @@ export const executeSwapWithSession = async (
     );
   }
 
-  await ensureAllowance(intent.from, amountIn, session, dependencies, environment, hybridDelegator);
+  const approvalStrategy = resolveApprovalStrategy(config);
+
+  await ensureAllowance(intent.from, amountIn, session, dependencies, environment, hybridDelegator, approvalStrategy);
 
   const amountDecimal = formatUnits(amountIn, intent.from.decimals);
   const destination = getAddress(hybridDelegator);

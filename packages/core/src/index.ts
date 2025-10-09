@@ -13,3 +13,6 @@ export * from "./agent/types.js";
 export * from "./agent/pragmaAgent.js";
 export * from "./agent/tools.js";
 export * from "./agent/openai.js";
+export * from "./clients/publicClient.js";
+export * from "./observability/hypersync.js";
+export * from "./observability/subscriptions.js";

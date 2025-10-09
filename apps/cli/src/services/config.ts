@@ -22,10 +22,13 @@ export const PIMLICO_SPONSORSHIP_POLICY_ID = getEnvOptional("PIMLICO_SPONSORSHIP
 
 const DEFAULT_MONAD_RPC_URL = "https://testnet-rpc.monad.xyz";
 const DEFAULT_MONAD_READ_RPC_URL = "https://monad-testnet.rpc.hypersync.xyz";
+const DEFAULT_HYPERSYNC_URL = "https://monad-testnet.hypersync.xyz";
 export const MONAD_CHAIN_ID = 10_143;
 export const MONAD_RPC_URL = getEnvOptional("MONAD_RPC_URL") ?? DEFAULT_MONAD_RPC_URL;
 export const MONAD_READ_RPC_URL =
   getEnvOptional("MONAD_ENVIO_READ_RPC_URL") ?? DEFAULT_MONAD_READ_RPC_URL;
+export const MONAD_HYPERSYNC_URL = getEnvOptional("MONAD_HYPERSYNC_URL") ?? DEFAULT_HYPERSYNC_URL;
+export const ENVIO_TOKEN_API = getEnvOptional("ENVIO_TOKEN_API");
 const getEnvFallback = (primary: string, alternative: string) => {
   const primaryValue = process.env[primary];
   if (primaryValue) {

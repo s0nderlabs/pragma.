@@ -49,6 +49,7 @@ import { runRevoke } from "./revoke.js";
 import { runOnboard4337 } from "./onboarding4337.js";
 import { loadSessionState, saveDelegatorSession, markRequireOnboarding } from "./sessionStore.js";
 import { listDelegationArtifacts, isDelegationExpired } from "./delegationArtifacts.js";
+import { startLiveObservers } from "./liveObservers.js";
 
 const EXIT_COMMANDS = new Set(["exit", "quit", "q", ":q", "bye"]);
 
@@ -123,6 +124,9 @@ const detectQuickAction = (raw: string): QuickAction | undefined => {
   }
 
   if (contains(["delegation", "allowlist", "scope", "limits", "call limit", "ttl", "session" ])) {
+    if (contains(["issue", "reissue", "create", "new", "renew", "refresh", "rotate", "reset", "update", "generate", "setup", "set up", "recreate", "redo"])) {
+      return undefined;
+    }
     return { type: "delegation" };
   }
 
@@ -420,6 +424,7 @@ const handleQuickAction = async (
           delegator: agentCtx.delegator,
           sessionKey: agentCtx.swapSession.session.sessionKeyAddress,
           mode: agentCtx.delegationContext.mode,
+          allowedTokens: agentCtx.delegationContext.allowedTokens,
         });
         printInsight(insight);
         logAgentResponse({
@@ -468,6 +473,7 @@ const handleQuickAction = async (
           delegator: agentCtx.delegator,
           sessionKey: agentCtx.swapSession.session.sessionKeyAddress,
           mode: agentCtx.delegationContext.mode,
+          allowedTokens: agentCtx.delegationContext.allowedTokens,
         });
         printInsight(balanceInsight);
       } catch (error) {
@@ -531,6 +537,7 @@ const handleQuickAction = async (
       }
       try {
         await runRevoke({ delegator: agentCtx.delegator });
+        await markRequireOnboarding();
         logAgentResponse({ delegator: agentCtx.delegator, type: "quick_revoke" });
       } catch (error) {
         logAgentError({ delegator: agentCtx.delegator, error, phase: "revoke" });
@@ -604,7 +611,7 @@ const handleMetaCommand = async (
   line: string,
   state: {
     agentContext: LoadedAgentContext;
-    setAgentContext: (ctx: LoadedAgentContext) => void;
+    setAgentContext: (ctx: LoadedAgentContext) => Promise<void> | void;
     transferSessionCache: { current?: Awaited<ReturnType<typeof loadTransferSession>> };
   },
 ): Promise<"continue" | "exit"> => {
@@ -689,25 +696,44 @@ const handleIntent = async (
   agentCtx: LoadedAgentContext,
   publicClient: ReturnType<typeof createMonadPublicClient>,
   transferSessionCache: { current?: Awaited<ReturnType<typeof loadTransferSession>> },
-) => {
+): Promise<LoadedAgentContext | undefined> => {
   switch (intent.action) {
     case "swap":
       await handleSwapIntent(intent, agentCtx, publicClient);
-      break;
+      return undefined;
     case "wrap":
       await handleWrapIntent(intent, agentCtx, publicClient);
-      break;
+      return undefined;
     case "unwrap":
       await handleUnwrapIntent(intent, agentCtx, publicClient);
-      break;
+      return undefined;
     case "transfer":
       await handleTransferIntent(intent, agentCtx, publicClient, transferSessionCache);
-      break;
-    default: {
-      const action = (intent as any).action ?? "unknown";
-      console.log(chalk.gray(`Intent ${action} is not executable yet.`));
-      break;
+      return undefined;
+    case "delegation_issue": {
+      console.log(chalk.green("Issuing a fresh delegation…"));
+      try {
+        const result = await runOnboard4337(intent.mode);
+        if (!result || !result.delegator) {
+          console.log(chalk.gray("Delegation issuance cancelled."));
+          return undefined;
+        }
+        const refreshedContext = await loadAgentContext(result.delegator);
+        await saveDelegatorSession(refreshedContext.delegator);
+        console.log(
+          chalk.green(
+            `Delegation updated for ${refreshedContext.delegator} (mode: ${refreshedContext.delegationContext.mode}).`,
+          ),
+        );
+        return refreshedContext;
+      } catch (error) {
+        console.log(chalk.red((error as Error).message));
+        throw error;
+      }
     }
+    default:
+      console.log(chalk.gray(`Intent ${(intent as any).action ?? "unknown"} is not executable yet.`));
+      return undefined;
   }
 };
 
@@ -737,6 +763,69 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
   const agent = createConfiguredAgent();
   const publicClient = createMonadPublicClient();
   const transferSessionCache: { current?: Awaited<ReturnType<typeof loadTransferSession>> } = {};
+
+  const liveObserverState: {
+    timeout?: NodeJS.Timeout;
+    promise?: Promise<void>;
+    handle?: Awaited<ReturnType<typeof startLiveObservers>>;
+  } = {};
+
+  const startObserversForContext = (ctx: LoadedAgentContext) => {
+    const delegationManagerAddress = getAddress(
+      ctx.swapSession.environment.DelegationManager,
+    ) as `0x${string}`;
+
+    const kickoff = async () => {
+      try {
+        liveObserverState.handle = await startLiveObservers({
+          delegator: ctx.delegator,
+          sessionKey: ctx.swapSession.session.sessionKeyAddress,
+          delegationManager: delegationManagerAddress,
+          allowedTokens: ctx.delegationContext.allowedTokens,
+          publicClient,
+        });
+      } catch (error) {
+        console.log(
+          chalk.red(
+            `[observer] Unable to initialise live monitoring: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          ),
+        );
+      }
+    };
+
+    const schedule = () => {
+      liveObserverState.timeout = undefined;
+      liveObserverState.promise = kickoff();
+    };
+
+    if (liveObserverState.timeout) {
+      clearTimeout(liveObserverState.timeout);
+    }
+    liveObserverState.timeout = setTimeout(schedule, 0);
+  };
+
+  const stopObservers = async () => {
+    if (liveObserverState.timeout) {
+      clearTimeout(liveObserverState.timeout);
+      liveObserverState.timeout = undefined;
+    }
+    if (liveObserverState.promise) {
+      try {
+        await liveObserverState.promise;
+      } catch {
+        // ignore start failures
+      }
+    }
+    if (liveObserverState.handle) {
+      await liveObserverState.handle.stop();
+      liveObserverState.handle = undefined;
+    }
+    liveObserverState.promise = undefined;
+  };
+
+  startObserversForContext(agentContext);
 
   console.log(chalk.bold(`Pragma Agent — connected to ${agentContext.delegator}`));
   console.log(chalk.gray("Type 'exit' to leave the chat."));
@@ -776,9 +865,11 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
       if (isMeta) {
         const metaResult = await handleMetaCommand(line, {
           agentContext,
-          setAgentContext: (ctx: LoadedAgentContext) => {
+          setAgentContext: async (ctx: LoadedAgentContext) => {
             agentContext = ctx;
             transferSessionCache.current = undefined;
+            await stopObservers();
+            startObserversForContext(agentContext);
           },
           transferSessionCache,
         });
@@ -794,7 +885,7 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
         break;
       }
 
-      try {
+  try {
         const response = await agent.respond(line, {
           delegation: agentContext.delegationContext,
           metadata: {
@@ -806,7 +897,20 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
 
         switch (response.type) {
           case "intent":
-            await handleIntent(response.intent, agentContext, publicClient, transferSessionCache);
+            {
+              const updatedContext = await handleIntent(
+                response.intent,
+                agentContext,
+                publicClient,
+                transferSessionCache,
+              );
+              if (updatedContext) {
+                agentContext = updatedContext;
+                transferSessionCache.current = undefined;
+                await stopObservers();
+                startObserversForContext(agentContext);
+              }
+            }
             if (response.warnings.length > 0) {
               console.log(chalk.gray(`Notes: ${response.warnings.join(", ")}`));
             }
@@ -878,6 +982,6 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
       }
     }
   } finally {
-    // nothing to clean up; promptLine handles readline lifecycle
+    await stopObservers();
   }
 };

@@ -2,7 +2,7 @@ import chalk from "chalk";
 import open from "open";
 import ora from "ora";
 import path from "node:path";
-import { Address, Hex, http, getAddress, toHex, parseEther, formatEther } from "viem";
+import { Address, Hex, http, getAddress, toHex, parseEther, formatEther, parseUnits, formatUnits } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   createDelegation,
@@ -323,6 +323,155 @@ const determineAllowedTokens = async (
   return promptCustomTokens(withAllowlist);
 };
 
+const promptNormalModeOptOut = async (tokens: AllowedToken[]): Promise<AllowedToken[]> => {
+  if (tokens.length === 0) return tokens;
+
+  const { wantsOptOut } = await inquirer.prompt<{ wantsOptOut: boolean }>([
+    {
+      type: "confirm",
+      name: "wantsOptOut",
+      message: "Remove tokens from this delegation's allowlist?",
+      default: false,
+    },
+  ]);
+
+  if (!wantsOptOut) {
+    return tokens;
+  }
+
+  const choices = tokens.map((token) => ({
+    name: formatTokenLabel(token),
+    value: token.address,
+    checked: true,
+  }));
+
+  const { selected } = await inquirer.prompt<{ selected: Address[] }>([
+    {
+      type: "checkbox",
+      name: "selected",
+      message: "Select tokens to keep in this delegation",
+      choices,
+      pageSize: Math.min(choices.length, 15),
+      validate: (input: unknown) =>
+        Array.isArray(input) && input.length > 0 ? true : "At least one token must remain in the delegation.",
+    },
+  ]);
+
+  const keepSet = new Set(selected.map((address) => getAddress(address)));
+  return tokens.filter((token) => keepSet.has(getAddress(token.address)));
+};
+
+const SKIP_CAP_VALUES = new Set(["", "skip", "none", "unlimited"]);
+
+const promptTokenCaps = async (
+  mode: Mode,
+  tokens: AllowedToken[],
+): Promise<{ tokenCaps: Map<Address, bigint>; nativeTokenCap?: bigint }> => {
+  const tokenCaps = new Map<Address, bigint>();
+  let nativeTokenCap: bigint | undefined;
+
+  if (tokens.length === 0) {
+    return { tokenCaps, nativeTokenCap };
+  }
+
+  let tokensToConfigure: AllowedToken[] = [];
+
+  if (mode === "normal") {
+    console.log(
+      chalk.gray(
+        "Per-token caps are unlimited by default. Select any tokens that should have explicit limits.",
+      ),
+    );
+    const { selected } = await inquirer.prompt<{ selected: Address[] }>([
+      {
+        type: "checkbox",
+        name: "selected",
+        message: "Choose tokens to set a max amount for (leave empty to keep all unlimited)",
+        choices: tokens.map((token) => ({
+          name: formatTokenLabel(token),
+          value: getAddress(token.address),
+        })),
+        pageSize: Math.min(tokens.length, 15),
+      },
+    ]);
+
+    if (!selected || selected.length === 0) {
+      return { tokenCaps, nativeTokenCap };
+    }
+
+    const selectedSet = new Set(selected.map((address) => getAddress(address)));
+    tokensToConfigure = tokens.filter((token) => selectedSet.has(getAddress(token.address)));
+  } else {
+    const { enableCaps } = await inquirer.prompt<{ enableCaps: boolean }>([
+      {
+        type: "confirm",
+        name: "enableCaps",
+        message: "Set per-token maximum swap amount for this pair?",
+        default: false,
+      },
+    ]);
+
+    if (!enableCaps) {
+      return { tokenCaps, nativeTokenCap };
+    }
+
+    tokensToConfigure = tokens;
+  }
+
+  for (const token of tokensToConfigure) {
+    const label = formatTokenLabel(token);
+    const decimals = typeof token.decimals === "number" && Number.isFinite(token.decimals)
+      ? token.decimals
+      : 18;
+
+    const { rawCap } = await inquirer.prompt<{ rawCap: string }>([
+      {
+        type: "input",
+        name: "rawCap",
+        message: `Max per-transaction amount for ${label} (press enter for unlimited):`,
+        validate: (input: string) => {
+          const trimmed = input.trim();
+          if (SKIP_CAP_VALUES.has(trimmed.toLowerCase())) return true;
+          try {
+            const parsed = parseUnits(trimmed, decimals);
+            if (parsed <= 0n) {
+              return "Enter an amount greater than zero or leave blank for unlimited.";
+            }
+            return true;
+          } catch (error) {
+            return `Unable to parse '${input}'. Enter a numeric amount.`;
+          }
+        },
+      },
+    ]);
+
+    const trimmed = rawCap.trim();
+    if (SKIP_CAP_VALUES.has(trimmed.toLowerCase())) {
+      continue;
+    }
+
+    try {
+      const parsed = parseUnits(trimmed, decimals);
+      if (parsed <= 0n) {
+        console.log(chalk.yellow(`Skipping ${label}: amount must be greater than zero.`));
+        continue;
+      }
+      const normalizedAddress = getAddress(token.address);
+      tokenCaps.set(normalizedAddress, parsed);
+      if (
+        token.kind === "native" ||
+        normalizedAddress.toLowerCase() === MONAD_NATIVE_TOKEN_ADDRESS.toLowerCase()
+      ) {
+        nativeTokenCap = parsed;
+      }
+    } catch (error) {
+      console.log(chalk.yellow(`Skipping cap for ${label}: ${(error as Error).message}`));
+    }
+  }
+
+  return { tokenCaps, nativeTokenCap };
+};
+
 interface HybridTestOptions {
   logSessionSummaries?: boolean;
   allowedTokenOverrides?: AllowedToken[];
@@ -382,6 +531,21 @@ export const saveDelegation = async (artifact: DelegationArtifact): Promise<stri
     allowedTokens: normalizeAllowedTokensList(artifact.allowedTokens ?? []),
     transferMaxAmount: artifact.transferMaxAmount ?? null,
     revokedAt: null,
+    pairAddresses: Array.isArray(artifact.pairAddresses)
+      ? artifact.pairAddresses.map((address) => getAddress(address))
+      : undefined,
+    perTokenCapsWei: artifact.perTokenCapsWei
+      ? Object.fromEntries(
+          Object.entries(artifact.perTokenCapsWei).map(([address, amount]) => [
+            getAddress(address as Address),
+            String(amount),
+          ]),
+        )
+      : undefined,
+    nativeTokenCapWei:
+      artifact.nativeTokenCapWei !== undefined && artifact.nativeTokenCapWei !== null
+        ? String(artifact.nativeTokenCapWei)
+        : null,
   };
   await fs.writeFile(file, JSON.stringify(normalizedArtifact, null, 2));
   onboardingLogger.info({ file, delegator: delegatorAddress }, "Stored 4337 delegation artifact");
@@ -1014,11 +1178,38 @@ export const runOnboard4337 = async (
       ensureTokenSet(allowedTokens, allowlistCatalog[0]);
     }
 
+    if (mode === "normal" && !overrideAllowedTokens) {
+      const filtered = await promptNormalModeOptOut(allowedTokens);
+      if (filtered.length > 0) {
+        allowedTokens = normalizeAllowedTokensList(filtered);
+      }
+      if (allowedTokens.length === 0) {
+        ensureTokenSet(allowedTokens, allowlistCatalog[0]);
+      }
+    }
+
+    const { tokenCaps, nativeTokenCap } = await promptTokenCaps(mode, allowedTokens);
+    const tokenCapsRecord =
+      tokenCaps.size > 0
+        ? Object.fromEntries(Array.from(tokenCaps.entries(), ([address, amount]) => [getAddress(address), amount]))
+        : undefined;
+    const tokenCapsStrings =
+      tokenCaps.size > 0
+        ? Object.fromEntries(Array.from(tokenCaps.entries(), ([address, amount]) => [getAddress(address), amount.toString()]))
+        : undefined;
+
+    const pairAddresses =
+      mode === "safe"
+        ? allowedTokens.slice(0, 2).map((token) => getAddress(token.address))
+        : undefined;
+
     const scope = buildHybridScope({ allowedTokens, router: ROUTER });
     const caveats = buildHybridCaveats(mode, before, {
       callLimit: resolvedCallLimit,
       unlimitedCalls: callsUnlimited,
       nonce: currentNonce,
+      tokenCaps: tokenCapsRecord,
+      nativeTokenCap,
     });
 
     const delegationWithoutSignature = createDelegation({
@@ -1067,6 +1258,9 @@ export const runOnboard4337 = async (
       allowedTokens,
       kind: "swap",
       transferMaxAmount: null,
+      pairAddresses,
+      perTokenCapsWei: tokenCapsStrings,
+      nativeTokenCapWei: nativeTokenCap ? nativeTokenCap.toString() : null,
     });
 
     const expiryIso = new Date(expiresAt * 1000).toISOString();
@@ -1090,6 +1284,17 @@ export const runOnboard4337 = async (
         .join(", ");
       console.log(`  • Allowed tokens  : ${labelledTokens}`);
     }
+    const capSummary = tokenCaps.size
+      ? Array.from(tokenCaps.entries())
+          .map(([address, amount]) => {
+            const token = allowedTokens.find((entry) => getAddress(entry.address) === getAddress(address));
+            const decimals = token && typeof token.decimals === "number" ? token.decimals : 18;
+            const symbol = token?.symbol ?? address.slice(0, 6);
+            return `${symbol} ≤ ${formatUnits(amount, decimals)}`;
+          })
+          .join(", ")
+      : "unlimited";
+    console.log(`  • Token caps      : ${capSummary}`);
     console.log(`  • Session key      : ${sessionKey.address}`);
     console.log(`  • Session secret   : ${sessionKey.privateKey}`);
     console.log(`  • Delegator        : ${signedDelegation.delegator}`);
@@ -1312,6 +1517,11 @@ export const setupHybridDelegatorTest = async (
       ensureTokenSet(allowedTokens, overrideToken);
     }
 
+    const pairAddresses =
+      mode === "safe"
+        ? allowedTokens.slice(0, 2).map((token) => getAddress(token.address))
+        : undefined;
+
     const scope = buildHybridScope({ allowedTokens, router: ROUTER });
     const caveats = buildHybridCaveats(mode, expiresAt, {
       callLimit,
@@ -1353,6 +1563,7 @@ export const setupHybridDelegatorTest = async (
       allowedTokens,
       kind: "swap",
       transferMaxAmount: null,
+      pairAddresses,
     });
 
     const delegationInfo: SessionDelegationInfo = {
@@ -1366,6 +1577,7 @@ export const setupHybridDelegatorTest = async (
       sessionNonce: sessionNonceHex,
       allowedTokens,
       kind: "swap",
+      pairAddresses,
     };
     sessionDelegations.push(delegationInfo);
 

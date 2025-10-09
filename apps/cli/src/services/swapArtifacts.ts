@@ -133,6 +133,21 @@ export const loadSwapSession = async ({ artifactPath, delegator }: SwapSessionOp
     sessionNonce: (artifact.sessionNonce ?? "0x0") as Hex,
     allowedTokens,
     kind: artifact.kind ?? "swap",
+    pairAddresses: artifact.pairAddresses
+      ? artifact.pairAddresses.map((address) => getAddress(address))
+      : undefined,
+    perTokenCapsWei: artifact.perTokenCapsWei
+      ? Object.fromEntries(
+          Object.entries(artifact.perTokenCapsWei).map(([address, amount]) => [
+            getAddress(address as Address).toLowerCase(),
+            BigInt(amount),
+          ]),
+        )
+      : undefined,
+    nativeTokenCapWei:
+      artifact.nativeTokenCapWei !== undefined && artifact.nativeTokenCapWei !== null
+        ? BigInt(artifact.nativeTokenCapWei)
+        : undefined,
   };
 
   return {
@@ -142,4 +157,37 @@ export const loadSwapSession = async ({ artifactPath, delegator }: SwapSessionOp
     allowedTokens,
     artifactPath: filePath,
   };
+};
+
+export const persistSwapSessionCaps = async (
+  artifactPath: string,
+  session: SessionDelegationInfo,
+): Promise<void> => {
+  const fs = await import("node:fs/promises");
+  const raw = await fs.readFile(artifactPath, "utf8");
+  const data = JSON.parse(raw) as Record<string, unknown>;
+
+  if (session.perTokenCapsWei && Object.keys(session.perTokenCapsWei).length > 0) {
+    const stringified = Object.fromEntries(
+      Object.entries(session.perTokenCapsWei).map(([address, amount]) => [
+        getAddress(address as Address),
+        amount.toString(),
+      ]),
+    );
+    data.perTokenCapsWei = stringified;
+  } else {
+    delete data.perTokenCapsWei;
+  }
+
+  if (session.nativeTokenCapWei !== undefined) {
+    if (session.nativeTokenCapWei > 0n) {
+      data.nativeTokenCapWei = session.nativeTokenCapWei.toString();
+    } else {
+      delete data.nativeTokenCapWei;
+    }
+  } else {
+    delete data.nativeTokenCapWei;
+  }
+
+  await fs.writeFile(artifactPath, JSON.stringify(data, null, 2));
 };

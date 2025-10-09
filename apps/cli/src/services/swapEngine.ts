@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { Address, getAddress, parseUnits } from "viem";
+import { Address, getAddress, parseUnits, formatUnits } from "viem";
 
 import {
   executeSwapWithSession as executeSwapWithSessionCore,
@@ -28,6 +28,7 @@ import {
   MONORAIL_AGGREGATOR_ADDRESS,
 } from "./config.js";
 import { setupHybridDelegatorTest } from "./onboarding4337.js";
+import { persistSwapSessionCaps } from "./swapArtifacts.js";
 import {
   isFixtureMode,
   recordFixtureSwap,
@@ -68,30 +69,83 @@ const buildSwapDependencies = (logPrefix?: string): SwapEngineDependencies => ({
 
 export interface SwapExecutionConfig extends CoreSwapExecutionConfig {
   logPrefix?: string;
+  artifactPath?: string;
 }
+
+const getTokenDecimals = (token: AllowedToken & { decimals?: number }): number =>
+  typeof token.decimals === "number" && Number.isFinite(token.decimals)
+    ? token.decimals
+    : Number(token.decimals ?? 18);
+
+const verifyTokenCaps = (config: SwapExecutionConfig, amountInWei: bigint) => {
+  const { session, intent } = config;
+  const fromAddress = getAddress(intent.from.address).toLowerCase();
+  const decimals = getTokenDecimals(intent.from);
+  const perTokenCaps = session.perTokenCapsWei;
+
+  if (perTokenCaps && Object.prototype.hasOwnProperty.call(perTokenCaps, fromAddress)) {
+    const cap = perTokenCaps[fromAddress];
+    if (cap !== undefined && amountInWei > cap) {
+      const remaining = formatUnits(cap, decimals);
+      throw new Error(
+        `Swap amount exceeds remaining allowance for ${intent.from.symbol ?? intent.from.address}. Remaining cap: ${remaining}.`,
+      );
+    }
+  }
+
+  if (session.nativeTokenCapWei !== undefined && isNativeToken(intent.from)) {
+    if (amountInWei > session.nativeTokenCapWei) {
+      const remaining = formatUnits(session.nativeTokenCapWei, decimals);
+      throw new Error(
+        `Swap amount exceeds native token allowance. Remaining cap: ${remaining}.`,
+      );
+    }
+  }
+};
+
+const consumeTokenCaps = (config: SwapExecutionConfig, amountIn: bigint) => {
+  const { session, intent } = config;
+  const perTokenCaps = session.perTokenCapsWei;
+  const fromAddress = getAddress(intent.from.address).toLowerCase();
+
+  if (perTokenCaps && Object.prototype.hasOwnProperty.call(perTokenCaps, fromAddress)) {
+    const current = perTokenCaps[fromAddress];
+    if (current !== undefined) {
+      const remaining = current > amountIn ? current - amountIn : 0n;
+      perTokenCaps[fromAddress] = remaining;
+    }
+  }
+
+  if (session.nativeTokenCapWei !== undefined && isNativeToken(intent.from)) {
+    session.nativeTokenCapWei = session.nativeTokenCapWei > amountIn ? session.nativeTokenCapWei - amountIn : 0n;
+  }
+};
 
 export const executeSwapWithSession = async (
   config: SwapExecutionConfig,
 ): Promise<SwapResult> => {
+  const decimalsIn = getTokenDecimals(config.intent.from);
+  const amountInWei = parseUnits(config.amountInput, decimalsIn);
+
+  verifyTokenCaps(config, amountInWei);
+
   if (isFixtureMode()) {
-    const decimalsIn = Number(config.intent.from.decimals ?? 18);
-    const decimalsOut = Number(config.intent.to.decimals ?? 18);
-    const amountIn = parseUnits(config.amountInput, decimalsIn);
+    const decimalsOut = getTokenDecimals(config.intent.to);
     const amountOut = parseUnits(config.amountInput, decimalsOut);
     const minAmountOut = amountOut - (amountOut * BigInt(config.slippageBps)) / 10_000n;
     const txHash =
       recordFixtureSwap({
-        amountIn,
+        amountIn: amountInWei,
         amountOut,
-        fromToken: config.intent.from.symbol ?? config.intent.from.address,
-        toToken: config.intent.to.symbol ?? config.intent.to.address,
+        fromToken: config.intent.from.symbol ?? config.intent.from.address.slice(0, 6),
+        toToken: config.intent.to.symbol ?? config.intent.to.address.slice(0, 6),
         note: `slippage ${config.slippageBps / 100}%`,
         txHashLabel: config.intent.from.symbol ?? "swap",
       }) ?? ZERO_TX_HASH;
     const quoteId = `fixture-${Date.now()}`;
-    return {
+    const result = {
       txHash,
-      amountIn,
+      amountIn: amountInWei,
       amountOut,
       minAmountOut,
       quoteId,
@@ -101,13 +155,27 @@ export const executeSwapWithSession = async (
         transactionData: "0x",
         transactionValue: 0n,
         aggregator: ROUTER_ADDRESS,
-        rawInput: amountIn,
+        rawInput: amountInWei,
         rawOutput: amountOut,
         rawMinOutput: minAmountOut,
       },
     } satisfies SwapResult;
+
+    consumeTokenCaps(config, amountInWei);
+    return result;
   }
-  return executeSwapWithSessionCore(config, buildSwapDependencies(config.logPrefix));
+  const result = await executeSwapWithSessionCore(config, buildSwapDependencies(config.logPrefix));
+  consumeTokenCaps(config, result.amountIn);
+
+  if (!isFixtureMode() && config.artifactPath) {
+    try {
+      await persistSwapSessionCaps(config.artifactPath, config.session);
+    } catch (error) {
+      console.warn("Failed to persist cap updates", error);
+    }
+  }
+
+  return result;
 };
 
 const buildWrapDependencies = (logPrefix?: string): WrapDependencies => ({

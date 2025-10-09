@@ -1,12 +1,14 @@
 import type { Address } from "viem";
-import { isAddress } from "viem";
+import { formatUnits, isAddress, parseUnits } from "viem";
 
 import { normalizeUtterance } from "./normalization.js";
 import {
   AmountSpecification,
+  ExactAmount,
   ClarificationQuestion,
   ClarificationRequest,
   DelegationContext,
+  IntentMeta,
   IntentParseOutcome,
   NormalizedUtterance,
   ParsedSlots,
@@ -19,7 +21,7 @@ const CONNECTOR_TOKENS = new Set(["to", "into", "for"]);
 const FROM_TOKENS = new Set(["from"]);
 const RECIPIENT_HINTS = new Set(["to", "into", "for"]);
 const MAX_KEYWORDS = new Set(["max", "everything", "all"]);
-const STOP_WORDS = new Set(["my", "the", "a", "an", "some", "any"]);
+const STOP_WORDS = new Set(["my", "the", "a", "an", "some", "any", "me", "myself", "your", "of"]);
 const DELEGATION_KEYWORDS = new Set([
   "delegation",
   "delegations",
@@ -67,10 +69,230 @@ const FRACTION_KEYWORDS = new Map<string, number>([
   ["quarters", 1 / 4],
 ]);
 
+const SKIP_FOR_CONTEXT = new Set([...STOP_WORDS, ...CONNECTOR_TOKENS, ...FROM_TOKENS, "of"]);
+
+const AMOUNT_PRIORITY = {
+  none: 0,
+  max: 1,
+  fraction: 2,
+  exact: 3,
+} as const;
+
+const TOKEN_ROLE_LABEL: Record<"tokenIn" | "tokenOut" | "token", string> = {
+  tokenIn: "source token",
+  tokenOut: "destination token",
+  token: "token",
+};
+
+interface TokenResolutionOutcome {
+  token?: AllowedToken;
+  clarification?: ClarificationQuestion;
+  violation?: PolicyViolation;
+}
+
+const toLower = (value?: string) => value?.toLowerCase();
+
+const getTokenDecimals = (token: AllowedToken): number => {
+  const decimalsCandidate = typeof token.decimals === "number" ? token.decimals : Number(token.decimals ?? 18);
+  return Number.isFinite(decimalsCandidate) ? decimalsCandidate : 18;
+};
+
+const isNativeToken = (token: AllowedToken, nativeTokenAddress?: Address): boolean => {
+  if (token.kind === "native") return true;
+  if (!nativeTokenAddress) return false;
+  return token.address.toLowerCase() === nativeTokenAddress.toLowerCase();
+};
+
+const addMatch = (map: Map<string, AllowedToken>, token: AllowedToken) => {
+  map.set(token.address.toLowerCase(), token);
+};
+
+const findTokenMatches = (
+  identifier: string,
+  context: DelegationContext,
+): AllowedToken[] => {
+  const normalized = identifier.toLowerCase();
+  const matches = new Map<string, AllowedToken>();
+  const nativeSymbolLc = toLower(context.nativeTokenSymbol);
+  const wrappedSymbolLc = toLower(context.wrappedNativeSymbol);
+  const nativeAddressLc = context.nativeTokenAddress?.toLowerCase();
+
+  for (const token of context.allowedTokens) {
+    const symbolLc = toLower(token.symbol);
+    const nameLc = toLower(token.name);
+    const addressLc = token.address.toLowerCase();
+    if (addressLc === normalized) {
+      addMatch(matches, token);
+      continue;
+    }
+    if (symbolLc && symbolLc === normalized) {
+      addMatch(matches, token);
+      continue;
+    }
+    if (nameLc && nameLc === normalized) {
+      addMatch(matches, token);
+      continue;
+    }
+  }
+
+  if (nativeSymbolLc && normalized === nativeSymbolLc) {
+    for (const token of context.allowedTokens) {
+      if (toLower(token.symbol) === nativeSymbolLc || isNativeToken(token, context.nativeTokenAddress)) {
+        addMatch(matches, token);
+      }
+    }
+  }
+
+  if (normalized === "native" || normalized === toLower(context.nativeTokenSymbol) || normalized === toLower("mon")) {
+    for (const token of context.allowedTokens) {
+      if (isNativeToken(token, context.nativeTokenAddress)) {
+        addMatch(matches, token);
+      }
+    }
+  }
+
+  if (wrappedSymbolLc && normalized === wrappedSymbolLc) {
+    for (const token of context.allowedTokens) {
+      if (token.kind === "wrappedNative" || toLower(token.symbol) === wrappedSymbolLc) {
+        addMatch(matches, token);
+      }
+    }
+  }
+
+  if (nativeAddressLc && normalized === nativeAddressLc) {
+    for (const token of context.allowedTokens) {
+      if (isNativeToken(token, context.nativeTokenAddress)) {
+        addMatch(matches, token);
+      }
+    }
+  }
+
+  return Array.from(matches.values());
+};
+
+const resolveTokenCandidate = (
+  identifier: string,
+  role: "tokenIn" | "tokenOut" | "token",
+  context: DelegationContext,
+): TokenResolutionOutcome => {
+  const matches = findTokenMatches(identifier, context);
+
+  if (matches.length === 0) {
+    const code =
+      role === "tokenIn"
+        ? "TOKEN_IN_NOT_ALLOWED"
+        : role === "tokenOut"
+        ? "TOKEN_OUT_NOT_ALLOWED"
+        : "TOKEN_NOT_ALLOWED";
+    return {
+      violation: {
+        code,
+        message: `Token ${identifier} is not delegated`,
+        field: role,
+      },
+    };
+  }
+
+  if (matches.length > 1) {
+    const formatted = matches
+      .map((token) => `${token.symbol ?? token.address.slice(0, 6)} (${token.address})`)
+      .join(", ");
+    return {
+      clarification: {
+        id: role,
+        prompt: `Multiple tokens match “${identifier}” for the ${TOKEN_ROLE_LABEL[role]}. Specify one of: ${formatted}, or provide the exact address.`,
+      },
+    };
+  }
+
+  return { token: matches[0] };
+};
+
+const describeAmountForWarnings = (amount: AmountSpecification): string => {
+  switch (amount.kind) {
+    case "max":
+      return "maximum balance";
+    case "fraction": {
+      const pct = (amount.numerator * 100) / amount.denominator;
+      const pctStr = Number.isFinite(pct) ? pct.toFixed(2).replace(/\.00$/, "") : "fraction";
+      return `${pctStr}% of balance`;
+    }
+    case "exact":
+    default:
+      return amount.kind === "exact" ? amount.value : "specified amount";
+  }
+};
+
+const resolveExactAmountWei = (
+  amount: ExactAmount,
+  decimals: number,
+  warnings: string[],
+): string | undefined => {
+  try {
+    const wei = parseUnits(amount.value, decimals);
+    amount.valueWei = wei.toString();
+    return amount.valueWei;
+  } catch (error) {
+    warnings.push(`Could not parse amount ${amount.value} with ${decimals} decimals: ${(error as Error).message}`);
+    return undefined;
+  }
+};
+
+const getCapForToken = (token: AllowedToken, context: DelegationContext): bigint | undefined => {
+  const perTokenCaps = context.perTokenCapsWei;
+  if (perTokenCaps) {
+    const cap = perTokenCaps[token.address.toLowerCase()];
+    if (cap !== undefined) return cap;
+  }
+  if (isNativeToken(token, context.nativeTokenAddress)) {
+    return context.nativeTokenCapWei;
+  }
+  return undefined;
+};
+
+const enforcePerTxCap = (
+  amount: AmountSpecification,
+  token: AllowedToken,
+  context: DelegationContext,
+  warnings: string[],
+  violations: PolicyViolation[],
+) => {
+  const cap = getCapForToken(token, context);
+  if (cap === undefined) return;
+
+  const decimals = getTokenDecimals(token);
+  const tokenLabel = token.symbol ?? token.address.slice(0, 6);
+
+  if (amount.kind === "exact") {
+    try {
+      const amountWei = parseUnits(amount.value, decimals);
+      if (amountWei > cap) {
+        const capFormatted = formatUnits(cap, decimals);
+        violations.push({
+          code: "AMOUNT_EXCEEDS_CAP",
+          message: `Requested amount ${amount.value} ${tokenLabel} exceeds per-tx cap of ${capFormatted} ${tokenLabel}.`,
+          field: "amount",
+        });
+      }
+      return;
+    } catch (error) {
+      warnings.push(
+        `Unable to parse amount ${amount.value} ${tokenLabel} for cap comparison: ${(error as Error).message}. Cap will be enforced during execution.`,
+      );
+      return;
+    }
+  }
+
+  const capFormatted = formatUnits(cap, decimals);
+  warnings.push(
+    `Requested ${describeAmountForWarnings(amount)} of ${tokenLabel} will be checked against the ${capFormatted} ${tokenLabel} per-tx cap at execution time.`,
+  );
+};
+
 const nextMeaningfulToken = (tokens: string[], startIndex: number): string | undefined => {
   for (let i = startIndex; i < tokens.length; i += 1) {
     const candidate = tokens[i];
-    if (!STOP_WORDS.has(candidate)) {
+    if (!SKIP_FOR_CONTEXT.has(candidate)) {
       return candidate;
     }
   }
@@ -80,7 +302,7 @@ const nextMeaningfulToken = (tokens: string[], startIndex: number): string | und
 const previousMeaningfulToken = (tokens: string[], startIndex: number): string | undefined => {
   for (let i = startIndex; i >= 0; i -= 1) {
     const candidate = tokens[i];
-    if (!STOP_WORDS.has(candidate)) {
+    if (!SKIP_FOR_CONTEXT.has(candidate)) {
       return candidate;
     }
   }
@@ -91,6 +313,8 @@ const DEFAULT_SLIPPAGE_SAFE_BPS = 50;
 const DEFAULT_SLIPPAGE_NORMAL_BPS = 100;
 const DEFAULT_DEADLINE_SAFE_MIN = 15;
 const DEFAULT_DEADLINE_NORMAL_MIN = 30;
+const MIN_DEADLINE_SAFE_MIN = 1;
+const MIN_DEADLINE_NORMAL_MIN = 1;
 const MAX_SLIPPAGE_SAFE_BPS = 250; // 2.5%
 const MAX_SLIPPAGE_NORMAL_BPS = 500; // 5%
 const MAX_DEADLINE_SAFE_MIN = 60;
@@ -199,7 +423,27 @@ const parseSlots = (utterance: NormalizedUtterance): ParsedSlots => {
   let candidateToken: string | undefined;
   let candidateRecipient: string | undefined;
   let amount: AmountSpecification | undefined;
-  let amountAssignedFromNumber = false;
+  let amountPriority: number = AMOUNT_PRIORITY.none;
+  let amountSource: string | undefined;
+
+  const adoptAmount = (spec: AmountSpecification | undefined, priority: number, source?: string) => {
+    if (!spec) return;
+    if (priority > amountPriority) {
+      if (amount && amountSource && source && source !== amountSource) {
+        result.warnings.push(`Using ${source} amount and ignoring previous ${amountSource} instruction.`);
+      }
+      amount = spec;
+      amountPriority = priority;
+      amountSource = source;
+      return;
+    }
+    if (priority === amountPriority && amount && amountSource && source && source !== amountSource) {
+      result.warnings.push(`Ignoring additional ${source} amount; already using ${amountSource}.`);
+    }
+    if (priority < amountPriority && source && amountSource && source !== amountSource) {
+      result.warnings.push(`Ignoring ${source} amount because a more specific amount is already provided.`);
+    }
+  };
   let sawDelegationKeyword = false;
   let sawDelegationVerb = false;
 
@@ -239,36 +483,43 @@ const parseSlots = (utterance: NormalizedUtterance): ParsedSlots => {
       continue;
     }
 
-    if (!amount && MAX_KEYWORDS.has(token)) {
-      amount = { kind: "max" };
+    if (MAX_KEYWORDS.has(token)) {
+      adoptAmount({ kind: "max" }, AMOUNT_PRIORITY.max, "max amount");
       continue;
     }
 
-    if (!amount && FRACTION_KEYWORDS.has(token)) {
+    if (FRACTION_KEYWORDS.has(token)) {
       const fraction = FRACTION_KEYWORDS.get(token)!;
       const amountToken = next ?? candidateToken ?? candidateTokenIn;
       if (!amountToken) {
-        amount = {
-          kind: "fraction",
-          numerator: Math.round(fraction * 1000),
-          denominator: 1000,
-        };
+        adoptAmount(
+          {
+            kind: "fraction",
+            numerator: Math.round(fraction * 1000),
+            denominator: 1000,
+          },
+          AMOUNT_PRIORITY.fraction,
+          "fraction amount",
+        );
         continue;
       }
       const denominator = 1_000_000;
       const numerator = Math.round(fraction * denominator);
-      amount = {
-        kind: "fraction",
-        numerator,
-        denominator,
-      };
+      adoptAmount(
+        {
+          kind: "fraction",
+          numerator,
+          denominator,
+        },
+        AMOUNT_PRIORITY.fraction,
+        "fraction amount",
+      );
       candidateToken ??= amountToken;
       continue;
     }
 
-    if (!amount && NUMBER_REGEX.test(token)) {
-      amount = { kind: "exact", value: token };
-      amountAssignedFromNumber = true;
+    if (NUMBER_REGEX.test(token)) {
+      adoptAmount({ kind: "exact", value: token }, AMOUNT_PRIORITY.exact, "explicit amount");
       continue;
     }
 
@@ -302,10 +553,10 @@ const parseSlots = (utterance: NormalizedUtterance): ParsedSlots => {
     }
   }
 
-  if (!amount && !amountAssignedFromNumber) {
+  if (!amount) {
     const numeric = numericMatches.find((match) => !Number.isNaN(Number.parseFloat(match.value)));
     if (numeric) {
-      amount = { kind: "exact", value: numeric.value };
+      adoptAmount({ kind: "exact", value: numeric.value }, AMOUNT_PRIORITY.exact, "explicit amount");
     }
   }
 
@@ -346,30 +597,6 @@ const parseSlots = (utterance: NormalizedUtterance): ParsedSlots => {
   return result;
 };
 
-const findTokenMatch = (
-  identifier: string,
-  allowedTokens: AllowedToken[],
-  nativeSymbol?: string,
-  wrappedNativeSymbol?: string,
-): AllowedToken | undefined => {
-  const normalized = identifier.toLowerCase();
-  for (const token of allowedTokens) {
-    if (token.symbol && token.symbol.toLowerCase() === normalized) return token;
-    if (token.name && token.name.toLowerCase() === normalized) return token;
-    if (token.address.toLowerCase() === normalized) return token;
-  }
-  if (nativeSymbol && normalized === nativeSymbol.toLowerCase()) {
-    return allowedTokens.find((token) => token.symbol?.toLowerCase() === nativeSymbol.toLowerCase());
-  }
-  if (normalized === "native" || normalized === "mon") {
-    return allowedTokens.find((token) => token.symbol?.toLowerCase() === nativeSymbol?.toLowerCase());
-  }
-  if (wrappedNativeSymbol && normalized === wrappedNativeSymbol.toLowerCase()) {
-    return allowedTokens.find((token) => token.symbol?.toLowerCase() === wrappedNativeSymbol.toLowerCase());
-  }
-  return undefined;
-};
-
 const ensureAmount = (slots: ParsedSlots, questions: ClarificationQuestion[]): AmountSpecification | undefined => {
   if (slots.amount) return slots.amount;
   questions.push({ id: "amount", prompt: "How much would you like to move?" });
@@ -382,11 +609,14 @@ const clampPolicyValues = (
   context: DelegationContext,
   slots: ParsedSlots,
   violations: PolicyViolation[],
-): { slippageBps: number; deadlineSeconds: number } => {
+  warnings: string[],
+): { slippageBps: number; deadlineSeconds: number; defaultsApplied: string[] } => {
   const safeMode = context.mode === "safe";
   const defaultSlippage = context.defaultSlippageBps ?? (safeMode ? DEFAULT_SLIPPAGE_SAFE_BPS : DEFAULT_SLIPPAGE_NORMAL_BPS);
   const defaultDeadline =
     context.defaultDeadlineMinutes ?? (safeMode ? DEFAULT_DEADLINE_SAFE_MIN : DEFAULT_DEADLINE_NORMAL_MIN);
+
+  const minDeadlineMinutes = safeMode ? MIN_DEADLINE_SAFE_MIN : MIN_DEADLINE_NORMAL_MIN;
 
   const maxSlippage = safeMode
     ? context.maxSlippageBpsSafe ?? MAX_SLIPPAGE_SAFE_BPS
@@ -395,12 +625,24 @@ const clampPolicyValues = (
     ? context.maxDeadlineMinutesSafe ?? MAX_DEADLINE_SAFE_MIN
     : context.maxDeadlineMinutesNormal ?? MAX_DEADLINE_NORMAL_MIN;
 
-  const slippage = slots.slippageBps ?? defaultSlippage;
+  const defaultsApplied: string[] = [];
+
+  let slippage = slots.slippageBps ?? defaultSlippage;
+  if (slots.slippageBps === undefined) {
+    defaultsApplied.push("slippage");
+  }
   if (slippage > maxSlippage) {
     violations.push({ code: "SLIPPAGE_TOO_HIGH", message: `Slippage ${slippage / 100}% exceeds limit`, field: "slippage" });
   }
+  if (slippage < 0) {
+    warnings.push("Slippage cannot be negative. Using 0 bps.");
+    slippage = 0;
+  }
 
-  const deadlineMinutes = slots.deadlineMinutes ?? defaultDeadline;
+  let deadlineMinutes = slots.deadlineMinutes ?? defaultDeadline;
+  if (slots.deadlineMinutes === undefined) {
+    defaultsApplied.push("deadline");
+  }
   if (deadlineMinutes > maxDeadline) {
     violations.push({
       code: "DEADLINE_TOO_LONG",
@@ -409,7 +651,21 @@ const clampPolicyValues = (
     });
   }
 
-  return { slippageBps: Math.min(slippage, maxSlippage), deadlineSeconds: toDeadlineSeconds(Math.min(deadlineMinutes, maxDeadline)) };
+  if (deadlineMinutes < minDeadlineMinutes) {
+    warnings.push(
+      `Deadline ${deadlineMinutes} minutes is below the minimum allowed (${minDeadlineMinutes} minutes). Using ${minDeadlineMinutes} minutes.`,
+    );
+    deadlineMinutes = minDeadlineMinutes;
+    if (!defaultsApplied.includes("deadline")) {
+      defaultsApplied.push("deadline_min_clamp");
+    }
+  }
+
+  const clampedDeadlineMinutes = Math.min(Math.max(deadlineMinutes, minDeadlineMinutes), maxDeadline);
+
+  const deadlineSeconds = toDeadlineSeconds(clampedDeadlineMinutes);
+
+  return { slippageBps: Math.min(slippage, maxSlippage), deadlineSeconds, defaultsApplied };
 };
 
 const buildClarification = (slots: ParsedSlots, questions: ClarificationQuestion[], warnings: string[]): IntentParseOutcome => ({
@@ -427,16 +683,19 @@ const buildError = (violations: PolicyViolation[], warnings: string[]): IntentPa
   warnings,
 });
 
-const buildSuccess = (intent: CanonicalIntent, warnings: string[]): IntentParseOutcome => ({
+const buildSuccess = (intent: CanonicalIntent, warnings: string[], meta?: IntentMeta): IntentParseOutcome => ({
   type: "success",
   intent,
   warnings,
+  meta,
 });
 
 const resolveSwapIntent = (
   slots: ParsedSlots,
   context: DelegationContext,
   warnings: string[],
+  baseMeta: IntentMeta,
+  nowSeconds: number,
 ): IntentParseOutcome => {
   const questions: ClarificationQuestion[] = [];
   const violations: PolicyViolation[] = [];
@@ -451,16 +710,46 @@ const resolveSwapIntent = (
     return buildClarification(slots, questions, warnings);
   }
 
-  const tokenIn = findTokenMatch(slots.tokenIn, context.allowedTokens, context.nativeTokenSymbol, context.wrappedNativeSymbol);
-  const tokenOut = findTokenMatch(slots.tokenOut, context.allowedTokens, context.nativeTokenSymbol, context.wrappedNativeSymbol);
+  const tokenInResolution = resolveTokenCandidate(slots.tokenIn, "tokenIn", context);
+  const tokenOutResolution = resolveTokenCandidate(slots.tokenOut, "tokenOut", context);
 
-  if (!tokenIn) {
-    violations.push({ code: "TOKEN_IN_NOT_ALLOWED", message: `Token ${slots.tokenIn} is not delegated`, field: "tokenIn" });
+  if (tokenInResolution.clarification) {
+    questions.push(tokenInResolution.clarification);
   }
-  if (!tokenOut) {
-    violations.push({ code: "TOKEN_OUT_NOT_ALLOWED", message: `Token ${slots.tokenOut} is not delegated`, field: "tokenOut" });
+  if (tokenOutResolution.clarification) {
+    questions.push(tokenOutResolution.clarification);
+  }
+  if (questions.length > 0) {
+    return buildClarification(slots, questions, warnings);
+  }
+
+  if (tokenInResolution.violation) {
+    violations.push(tokenInResolution.violation);
+  }
+  if (tokenOutResolution.violation) {
+    violations.push(tokenOutResolution.violation);
   }
   if (violations.length > 0) return buildError(violations, warnings);
+
+  const tokenIn = tokenInResolution.token!;
+  const tokenOut = tokenOutResolution.token!;
+
+  if (context.mode === "safe" && context.pairAddresses && context.pairAddresses.length > 0) {
+    const pairSet = new Set(context.pairAddresses.map((address) => address.toLowerCase()));
+    const requested = [tokenIn.address.toLowerCase(), tokenOut.address.toLowerCase()];
+    const requestedSet = new Set(requested);
+
+    const allPresent = requested.every((address) => pairSet.has(address));
+
+    if (!allPresent || (pairSet.size >= 2 && requestedSet.size !== 2)) {
+      violations.push({
+        code: "SAFE_PAIR_MISMATCH",
+        message: "Safe mode delegation only permits swaps within the issued token pair.",
+        field: "tokenIn",
+      });
+      return buildError(violations, warnings);
+    }
+  }
 
   if (tokenIn!.address.toLowerCase() === tokenOut!.address.toLowerCase()) {
     violations.push({ code: "TOKENS_IDENTICAL", message: "Source and destination token must differ", field: "tokenOut" });
@@ -470,8 +759,38 @@ const resolveSwapIntent = (
   const amount = ensureAmount(slots, questions);
   if (!amount) return buildClarification(slots, questions, warnings);
 
-  const { slippageBps, deadlineSeconds } = clampPolicyValues(context, slots, violations);
+  let amountWei: string | undefined;
+  if (amount.kind === "exact") {
+    amountWei = resolveExactAmountWei(amount, getTokenDecimals(tokenIn), warnings);
+  }
+
+  enforcePerTxCap(amount, tokenIn, context, warnings, violations);
   if (violations.length > 0) return buildError(violations, warnings);
+
+  const { slippageBps, deadlineSeconds, defaultsApplied } = clampPolicyValues(context, slots, violations, warnings);
+  if (violations.length > 0) return buildError(violations, warnings);
+
+  const deadlineTimestamp = nowSeconds + deadlineSeconds;
+
+  const symbolResolutions: Record<string, Address> = {};
+  if (slots.tokenIn) {
+    symbolResolutions[slots.tokenIn] = tokenIn!.address;
+  }
+  if (slots.tokenOut) {
+    symbolResolutions[slots.tokenOut] = tokenOut!.address;
+  }
+
+  const mergedDefaults = Array.from(new Set([...(baseMeta.defaultsApplied ?? []), ...defaultsApplied]));
+  const mergedSymbolResolutions = {
+    ...(baseMeta.symbolResolutions ?? {}),
+    ...symbolResolutions,
+  };
+  const meta: IntentMeta = {
+    ...baseMeta,
+    defaultsApplied: mergedDefaults,
+    symbolResolutions: mergedSymbolResolutions,
+    amountExactWei: amountWei ?? baseMeta.amountExactWei,
+  };
 
   return buildSuccess(
     {
@@ -481,19 +800,48 @@ const resolveSwapIntent = (
       amount,
       slippageBps,
       deadlineSeconds,
+      deadlineTimestamp,
+      chainId: context.chainId,
+      sessionKeyId: context.sessionKeyId,
+      nonce: context.nonce,
+      feeBps: context.feeBps,
+      feeRecipient: context.feeRecipient,
+      defaultsApplied,
+      symbolResolutions,
+      amountWei,
     },
     warnings,
+    meta,
   );
 };
 
-const resolveWrapIntent = (slots: ParsedSlots, context: DelegationContext, warnings: string[], action: "wrap" | "unwrap") => {
+const resolveWrapIntent = (
+  slots: ParsedSlots,
+  context: DelegationContext,
+  warnings: string[],
+  action: "wrap" | "unwrap",
+  baseMeta: IntentMeta,
+): IntentParseOutcome => {
   const questions: ClarificationQuestion[] = [];
   const amount = ensureAmount(slots, questions);
   if (!amount) return buildClarification(slots, questions, warnings);
-  return buildSuccess({ action, amount }, warnings);
+  let amountWei: string | undefined;
+  if (amount.kind === "exact") {
+    amountWei = resolveExactAmountWei(amount, 18, warnings);
+  }
+  const meta: IntentMeta = {
+    ...baseMeta,
+    amountExactWei: amountWei ?? baseMeta.amountExactWei,
+  };
+  return buildSuccess({ action, amount, amountWei }, warnings, meta);
 };
 
-const resolveTransferIntent = (slots: ParsedSlots, context: DelegationContext, warnings: string[]): IntentParseOutcome => {
+const resolveTransferIntent = (
+  slots: ParsedSlots,
+  context: DelegationContext,
+  warnings: string[],
+  baseMeta: IntentMeta,
+): IntentParseOutcome => {
   const questions: ClarificationQuestion[] = [];
   const violations: PolicyViolation[] = [];
 
@@ -511,13 +859,37 @@ const resolveTransferIntent = (slots: ParsedSlots, context: DelegationContext, w
   }
 
   let token: AllowedToken | undefined;
+  const symbolResolutions: Record<string, Address> = {};
   if (slots.token) {
-    token = findTokenMatch(slots.token, context.allowedTokens, context.nativeTokenSymbol);
-    if (!token) {
-      violations.push({ code: "TOKEN_NOT_ALLOWED", message: `Token ${slots.token} is not delegated`, field: "token" });
+    const tokenResolution = resolveTokenCandidate(slots.token, "token", context);
+    if (tokenResolution.clarification) {
+      questions.push(tokenResolution.clarification);
+      return buildClarification(slots, questions, warnings);
+    }
+    if (tokenResolution.violation) {
+      violations.push(tokenResolution.violation);
       return buildError(violations, warnings);
     }
+    token = tokenResolution.token;
+    if (token) {
+      symbolResolutions[slots.token] = token.address;
+    }
   }
+
+  let amountWei: string | undefined;
+  if (amount.kind === "exact") {
+    const decimals = token ? getTokenDecimals(token) : 18;
+    amountWei = resolveExactAmountWei(amount, decimals, warnings);
+  }
+
+  const meta: IntentMeta = {
+    ...baseMeta,
+    symbolResolutions: {
+      ...(baseMeta.symbolResolutions ?? {}),
+      ...symbolResolutions,
+    },
+    amountExactWei: amountWei ?? baseMeta.amountExactWei,
+  };
 
   return buildSuccess(
     {
@@ -525,18 +897,21 @@ const resolveTransferIntent = (slots: ParsedSlots, context: DelegationContext, w
       token,
       amount,
       recipient: slots.recipient as Address,
+      amountWei,
     },
     warnings,
+    meta,
   );
 };
 
-const resolveDelegationIssueIntent = (slots: ParsedSlots, warnings: string[]): IntentParseOutcome => {
+const resolveDelegationIssueIntent = (slots: ParsedSlots, warnings: string[], baseMeta: IntentMeta): IntentParseOutcome => {
   return buildSuccess(
     {
       action: "delegation_issue",
       mode: slots.mode,
     },
     warnings,
+    baseMeta,
   );
 };
 
@@ -545,20 +920,31 @@ export const parseIntent = (input: string, context: DelegationContext): IntentPa
   const slots = parseSlots(utterance);
   const warnings = [...slots.warnings];
 
+  const nowSeconds = context.nowSeconds ?? Math.floor(Date.now() / 1000);
+  const baseMeta: IntentMeta = {
+    sourceText: utterance.raw,
+    sessionKeyId: context.sessionKeyId,
+    nonce: context.nonce,
+    chainId: context.chainId,
+    feeBps: context.feeBps,
+    feeRecipient: context.feeRecipient,
+    policySnapshotId: context.policySnapshotId,
+  };
+
   if (!slots.action) {
     return buildClarification(slots, [{ id: "action", prompt: "What would you like to do? (swap, wrap, unwrap, transfer)" }], warnings);
   }
 
   switch (slots.action) {
     case "swap":
-      return resolveSwapIntent(slots, context, warnings);
+      return resolveSwapIntent(slots, context, warnings, baseMeta, nowSeconds);
     case "wrap":
     case "unwrap":
-      return resolveWrapIntent(slots, context, warnings, slots.action);
+      return resolveWrapIntent(slots, context, warnings, slots.action, baseMeta);
     case "transfer":
-      return resolveTransferIntent(slots, context, warnings);
+      return resolveTransferIntent(slots, context, warnings, baseMeta);
     case "delegation_issue":
-      return resolveDelegationIssueIntent(slots, warnings);
+      return resolveDelegationIssueIntent(slots, warnings, baseMeta);
     default:
       return buildError([
         { code: "ACTION_UNSUPPORTED", message: `Action ${slots.action} is not supported`, field: "action" },

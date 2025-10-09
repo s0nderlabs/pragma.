@@ -244,7 +244,20 @@ const handleSwapIntent = async (
     amountInput,
     slippageBps: intent.slippageBps,
     logPrefix: "[agent]",
+    artifactPath: swapSession.artifactPath,
   });
+
+  if (swapSession.session.perTokenCapsWei && Object.keys(swapSession.session.perTokenCapsWei).length > 0) {
+    agentCtx.delegationContext.perTokenCapsWei = { ...swapSession.session.perTokenCapsWei };
+  } else {
+    delete agentCtx.delegationContext.perTokenCapsWei;
+  }
+
+  if (swapSession.session.nativeTokenCapWei !== undefined) {
+    agentCtx.delegationContext.nativeTokenCapWei = swapSession.session.nativeTokenCapWei;
+  } else {
+    delete agentCtx.delegationContext.nativeTokenCapWei;
+  }
 
   const amountOutDisplay = formatUnits(result.amountOut, toToken.decimals);
   console.log(
@@ -913,6 +926,9 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
             }
             if (response.warnings.length > 0) {
               console.log(chalk.gray(`Notes: ${response.warnings.join(", ")}`));
+            }
+            if (response.meta?.defaultsApplied && response.meta.defaultsApplied.length > 0) {
+              console.log(chalk.gray(`Defaults applied: ${response.meta.defaultsApplied.join(", ")}`));
             }
             logAgentResponse({
               delegator: agentContext.delegator,

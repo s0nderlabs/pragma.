@@ -1,4 +1,4 @@
-import { Address, Hex, getAddress, getFunctionSelector, toHex } from "viem";
+import { Address, Hex, getAddress, getFunctionSelector, padHex, toHex } from "viem";
 import type { Caveats } from "@metamask/delegation-toolkit";
 
 import type { AllowedToken } from "../monorail/tokens.js";
@@ -78,6 +78,7 @@ export interface ScopeOptions {
   allowedTokens: AllowedToken[];
   router: Address;
   delegator?: Address;
+  pairAddresses?: Address[];
 }
 
 export const buildHybridScope = ({ allowedTokens, router, delegator }: ScopeOptions) => {
@@ -111,12 +112,14 @@ export interface CaveatOptions {
   callLimit?: number | null;
   unlimitedCalls?: boolean;
   nonce: bigint;
+  tokenCaps?: Record<string, bigint>;
+  nativeTokenCap?: bigint;
 }
 
 export const buildHybridCaveats = (
   mode: Mode,
   expiresAt: number,
-  { callLimit, unlimitedCalls, nonce }: CaveatOptions,
+  { callLimit, unlimitedCalls, nonce, tokenCaps, nativeTokenCap }: CaveatOptions,
 ): Caveats => {
   const baseCaveats = [
     {
@@ -138,6 +141,13 @@ export const buildHybridCaveats = (
         },
       ]
     : [];
+
+  // `tokenCaps` and `nativeTokenCap` are persisted for off-chain enforcement (intent engine clamps).
+  // Swap delegations call the Monorail aggregator, which is incompatible with ERC20TransferAmount / native transfer enforcers.
+  // We therefore record the limits in artifacts but do not inject additional on-chain caveats here.
+
+  void tokenCaps;
+  void nativeTokenCap;
 
   return [...baseCaveats, ...limitedCaveats] as unknown as Caveats;
 };

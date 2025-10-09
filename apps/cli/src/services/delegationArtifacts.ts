@@ -155,6 +155,26 @@ const readArtifact = async (filePath: string): Promise<DelegationArtifact> => {
       }
     });
   }
+  if (Array.isArray(parsed.pairAddresses)) {
+    parsed.pairAddresses = parsed.pairAddresses.map((entry) => getAddress(entry as string));
+  } else {
+    parsed.pairAddresses = undefined;
+  }
+  if (parsed.perTokenCapsWei && typeof parsed.perTokenCapsWei === "object") {
+    parsed.perTokenCapsWei = Object.fromEntries(
+      Object.entries(parsed.perTokenCapsWei as Record<string, string | number | bigint>).map(([address, amount]) => [
+        getAddress(address as string),
+        String(amount),
+      ]),
+    );
+  } else {
+    parsed.perTokenCapsWei = undefined;
+  }
+  if (parsed.nativeTokenCapWei !== undefined && parsed.nativeTokenCapWei !== null) {
+    parsed.nativeTokenCapWei = String(parsed.nativeTokenCapWei);
+  } else {
+    parsed.nativeTokenCapWei = null;
+  }
   parsed.allowedTokens = normalizeAllowedTokensList(parsed.allowedTokens);
   if (!parsed.expiresAt) {
     const derived = deriveExpiresAt(parsed.delegation);

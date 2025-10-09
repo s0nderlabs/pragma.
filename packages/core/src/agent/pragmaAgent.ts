@@ -12,6 +12,7 @@ export class PragmaAgent {
         type: "intent",
         intent: outcome.intent,
         warnings: outcome.warnings,
+        meta: outcome.meta,
       };
     }
 

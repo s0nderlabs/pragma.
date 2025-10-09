@@ -11,6 +11,8 @@ export interface ExactAmount {
   kind: "exact";
   /** Decimal string representation supplied by the user (not yet converted to wei). */
   value: string;
+  /** Optional resolved wei amount (as a decimal string) once decimals are known. */
+  valueWei?: string;
 }
 
 export interface FractionAmount {
@@ -32,11 +34,21 @@ export interface SwapIntentFields {
   amount: AmountSpecification;
   slippageBps: number;
   deadlineSeconds: number;
+  deadlineTimestamp: number;
+  chainId?: number;
+  sessionKeyId?: string;
+  nonce?: number;
+  feeBps?: number;
+  feeRecipient?: Address;
+  defaultsApplied?: string[];
+  symbolResolutions?: Record<string, Address>;
+  amountWei?: string;
 }
 
 export interface WrapIntentFields {
   action: "wrap" | "unwrap";
   amount: AmountSpecification;
+  amountWei?: string;
 }
 
 export interface TransferIntentFields {
@@ -45,11 +57,25 @@ export interface TransferIntentFields {
   token?: AllowedToken;
   amount: AmountSpecification;
   recipient?: Address;
+  amountWei?: string;
 }
 
 export interface DelegationIssueIntentFields {
   action: "delegation_issue";
   mode?: Mode;
+}
+
+export interface IntentMeta {
+  sourceText?: string;
+  defaultsApplied?: string[];
+  symbolResolutions?: Record<string, Address>;
+  policySnapshotId?: string;
+  sessionKeyId?: string;
+  nonce?: number;
+  chainId?: number;
+  feeBps?: number;
+  feeRecipient?: Address;
+  amountExactWei?: string;
 }
 
 export type CanonicalIntent =
@@ -91,6 +117,19 @@ export interface DelegationContext {
   nativeTokenAddress?: Address;
   wrappedNativeSymbol?: string;
   wrappedNativeAddress?: Address;
+  chainId?: number;
+  sessionKeyId?: string;
+  nonce?: number;
+  feeBps?: number;
+  feeRecipient?: Address;
+  policySnapshotId?: string;
+  nowSeconds?: number;
+  /** Optional per-token caps (wei) keyed by lowercased token address. */
+  perTokenCapsWei?: Record<string, bigint>;
+  /** Optional native token cap (wei). */
+  nativeTokenCapWei?: bigint;
+  /** Optional pair restriction for safe-mode delegations. */
+  pairAddresses?: Address[];
 }
 
 export interface PolicyViolation {
@@ -114,6 +153,7 @@ export type IntentParseOutcome =
       type: "success";
       intent: CanonicalIntent;
       warnings: string[];
+      meta?: IntentMeta;
     }
   | {
       type: "clarification";

@@ -17,7 +17,7 @@
     "build": "tsc -b",
     "clean": "tsc -b --clean",
     "start": "node dist/index.js",
-    "test": "node --test --loader tsx ./test/agentTelemetry.test.ts"
+    "test": "node --test --loader tsx ./test/*.test.ts"
   },
   "keywords": [
     "pragma",

@@ -302,7 +302,7 @@ const showDelegationList = async () => {
 
 const performSwap = async (prefs: ShellPreferences) => {
   const { delegator } = await ensureDelegator(prefs);
-  const { session, environment, allowedTokens } = await loadSwapSession({ delegator });
+  const { session, environment, allowedTokens, artifactPath } = await loadSwapSession({ delegator });
   if (allowedTokens.length < 2) {
     throw new Error("Delegation allowlist must include at least two tokens before swapping.");
   }
@@ -326,6 +326,7 @@ const performSwap = async (prefs: ShellPreferences) => {
     amountInput: amount,
     slippageBps: slippage,
     logPrefix: "[shell]",
+    artifactPath,
   });
 
   const { quote } = result;

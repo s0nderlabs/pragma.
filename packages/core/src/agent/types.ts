@@ -1,4 +1,4 @@
-import type { DelegationContext, ClarificationRequest, PolicyViolation, CanonicalIntent } from "../intent/types.js";
+import type { DelegationContext, ClarificationRequest, PolicyViolation, CanonicalIntent, IntentMeta } from "../intent/types.js";
 
 export interface AgentContext {
   delegation: DelegationContext;
@@ -9,6 +9,7 @@ export interface AgentIntentResult {
   type: "intent";
   intent: CanonicalIntent;
   warnings: string[];
+  meta?: IntentMeta;
 }
 
 export interface AgentClarificationResult {

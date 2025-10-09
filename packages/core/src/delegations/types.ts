@@ -25,6 +25,9 @@ export interface SessionDelegationInfo {
   allowedTokens?: AllowedToken[];
   kind?: DelegationKind;
   transferMaxAmount?: bigint | null;
+  pairAddresses?: Address[];
+  perTokenCapsWei?: Record<string, bigint>;
+  nativeTokenCapWei?: bigint;
 }
 
 export interface DelegationArtifact {
@@ -40,6 +43,9 @@ export interface DelegationArtifact {
   kind?: DelegationKind;
   transferMaxAmount?: string | null;
   revokedAt?: number | null;
+  pairAddresses?: Address[];
+  perTokenCapsWei?: Record<string, string>;
+  nativeTokenCapWei?: string | null;
 }
 
 export type DeleGatorEnv = ReturnType<typeof getDeleGatorEnvironment>;

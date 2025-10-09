@@ -123,6 +123,7 @@ const runMeasurement = async (
     slippageBps,
     approvalStrategy: strategy,
     logPrefix: `[${strategy}]`,
+    artifactPath: sessionCtx.artifactPath,
   });
   const elapsed = performance.now() - start;
 

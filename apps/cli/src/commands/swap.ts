@@ -50,7 +50,13 @@ export const registerSwap = (program: Command) => {
             throw new Error("Slippage must be a positive integer (basis points).");
           }
 
-          const { session, environment, delegatorAddress, allowedTokens } = await loadSwapSession({
+          const {
+            session,
+            environment,
+            delegatorAddress,
+            allowedTokens,
+            artifactPath: resolvedArtifactPath,
+          } = await loadSwapSession({
             artifactPath,
             delegator,
           });
@@ -93,6 +99,7 @@ export const registerSwap = (program: Command) => {
             amountInput: amount,
             slippageBps: slippage,
             logPrefix,
+            artifactPath: resolvedArtifactPath,
           });
 
           const { quote } = result;

@@ -1,0 +1,116 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+const { parseIntent } = await import("../dist/intent/parser.js");
+
+const nativeToken = {
+  address: "0x0000000000000000000000000000000000000000",
+  symbol: "MON",
+  name: "Monad",
+  decimals: 18,
+  kind: "native",
+};
+
+const wmonToken = {
+  address: "0x0000000000000000000000000000000000000001",
+  symbol: "WMON",
+  name: "Wrapped Monad",
+  decimals: 18,
+};
+
+const usdcToken = {
+  address: "0x0000000000000000000000000000000000000002",
+  symbol: "USDC",
+  name: "USD Coin",
+  decimals: 6,
+};
+
+const usdcTokenAlt = {
+  address: "0x0000000000000000000000000000000000000003",
+  symbol: "USDC",
+  name: "USD Coin (Alt)",
+  decimals: 6,
+};
+
+const NOW_SECONDS = 1_700_000_000;
+
+const delegationContext = {
+  mode: "normal",
+  allowedTokens: [nativeToken, wmonToken, usdcToken],
+  nativeTokenSymbol: "MON",
+  nativeTokenAddress: nativeToken.address,
+  wrappedNativeSymbol: "WMON",
+  wrappedNativeAddress: wmonToken.address,
+  defaultSlippageBps: 100,
+  defaultDeadlineMinutes: 30,
+  nowSeconds: NOW_SECONDS,
+};
+
+test("parses fraction phrasing without treating 'of' as a token", () => {
+  const outcome = parseIntent("swap half of my mon into usdc", delegationContext);
+  assert.equal(outcome.type, "success");
+  assert.equal(outcome.intent.action, "swap");
+  assert.equal(outcome.intent.tokenIn.address, nativeToken.address);
+  assert.equal(outcome.intent.tokenOut.address, usdcToken.address);
+  assert.equal(outcome.intent.amount.kind, "fraction");
+  assert.equal(outcome.intent.deadlineTimestamp, NOW_SECONDS + outcome.intent.deadlineSeconds);
+  assert.equal(outcome.meta?.sourceText, "swap half of my mon into usdc");
+  assert.equal(outcome.intent.amountWei, undefined);
+});
+
+test("understands swap all phrasing", () => {
+  const outcome = parseIntent("swap all of usdc to mon", delegationContext);
+  assert.equal(outcome.type, "success");
+  assert.equal(outcome.intent.action, "swap");
+  assert.equal(outcome.intent.tokenIn.address, usdcToken.address);
+  assert.equal(outcome.intent.tokenOut.address, nativeToken.address);
+  assert.equal(outcome.intent.amount.kind, "max");
+  assert.equal(outcome.intent.deadlineTimestamp, NOW_SECONDS + outcome.intent.deadlineSeconds);
+  assert.equal(outcome.intent.amountWei, undefined);
+});
+
+test("chooses explicit amount over max", () => {
+  const outcome = parseIntent("swap max 0.75 mon to usdc", delegationContext);
+  assert.equal(outcome.type, "success");
+  assert.equal(outcome.intent.amount.kind, "exact");
+  assert.equal(outcome.intent.amount.value, "0.75");
+  assert.equal(outcome.meta?.defaultsApplied?.includes("slippage"), true);
+  assert.equal(outcome.intent.amountWei, BigInt("750000000000000000").toString());
+  assert.equal(outcome.intent.amount.valueWei, outcome.intent.amountWei);
+});
+
+test("prompts clarification when token symbol is ambiguous", () => {
+  const ambiguousContext = {
+    ...delegationContext,
+    allowedTokens: [nativeToken, wmonToken, usdcToken, usdcTokenAlt],
+  };
+  const outcome = parseIntent("swap usdc to mon", ambiguousContext);
+  assert.equal(outcome.type, "clarification");
+  assert.ok(outcome.clarification.questions.some((q) => q.id === "tokenIn"));
+});
+
+test("rejects exact amount above per-tx cap", () => {
+  const contextWithCap = {
+    ...delegationContext,
+    perTokenCapsWei: {
+      [usdcToken.address.toLowerCase()]: 50n * 10n ** 6n,
+    },
+  };
+  const outcome = parseIntent("swap 100 usdc to mon", contextWithCap);
+  assert.equal(outcome.type, "error");
+  assert.equal(outcome.violations[0]?.code, "AMOUNT_EXCEEDS_CAP");
+});
+
+test("enforces safe pair scope", () => {
+  const safeContext = {
+    ...delegationContext,
+    mode: "safe",
+    allowedTokens: [nativeToken, usdcToken, wmonToken],
+    pairAddresses: [nativeToken.address, usdcToken.address],
+  };
+  const okOutcome = parseIntent("swap 0.1 mon to usdc", safeContext);
+  assert.equal(okOutcome.type, "success");
+  const badOutcome = parseIntent("swap 0.1 wmon to mon", safeContext);
+  assert.equal(badOutcome.type, "error");
+  assert.equal(badOutcome.violations[0]?.code, "SAFE_PAIR_MISMATCH");
+});

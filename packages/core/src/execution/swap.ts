@@ -84,6 +84,8 @@ export interface SwapResult {
   txHash: Hex;
   amountIn: bigint;
   amountOut: bigint;
+  amountOutDelegator?: bigint;
+  amountOutSession?: bigint;
   minAmountOut: bigint;
   quoteId: string;
   slippageToleranceBps: number;
@@ -292,7 +294,18 @@ export const executeSwapWithSession = async (
   const destination = getAddress(hybridDelegator);
   const sender = destination;
 
-  const outputBalanceBefore = await readTokenBalance(intent.to, hybridDelegator, publicClient, nativeTokenAddress);
+  const outputBalanceBeforeDelegator = await readTokenBalance(
+    intent.to,
+    hybridDelegator,
+    publicClient,
+    nativeTokenAddress,
+  );
+  const outputBalanceBeforeSession = await readTokenBalance(
+    intent.to,
+    session.sessionKeyAddress,
+    publicClient,
+    nativeTokenAddress,
+  );
 
   const quote = await quoteFetcher({
     fromToken: toTokenAddress(intent.from),
@@ -362,8 +375,17 @@ export const executeSwapWithSession = async (
 
   const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
 
-  const outputAfter = await readTokenBalance(intent.to, hybridDelegator, publicClient, nativeTokenAddress);
-  const amountOut = outputAfter > outputBalanceBefore ? outputAfter - outputBalanceBefore : 0n;
+  const outputAfterDelegator = await readTokenBalance(intent.to, hybridDelegator, publicClient, nativeTokenAddress);
+  const outputAfterSession = await readTokenBalance(
+    intent.to,
+    session.sessionKeyAddress,
+    publicClient,
+    nativeTokenAddress,
+  );
+
+  const deltaDelegator = outputAfterDelegator - outputBalanceBeforeDelegator;
+  const deltaSession = outputAfterSession - outputBalanceBeforeSession;
+  const amountOut = (deltaDelegator > 0n ? deltaDelegator : 0n) + (deltaSession > 0n ? deltaSession : 0n);
 
   const fromLabel = intent.from.symbol ?? nativeTokenSymbol ?? "token";
   const toLabel = intent.to.symbol ?? wrappedNativeSymbol ?? "token";
@@ -373,6 +395,19 @@ export const executeSwapWithSession = async (
     "success",
     `Swap executed: ${formatUnits(amountIn, intent.from.decimals)} ${fromLabel} -> ${formatUnits(amountOut, intent.to.decimals)} ${toLabel} (tx: ${txHash}, block: ${receipt.blockNumber})`,
   );
+  if (deltaDelegator > 0n && deltaSession <= 0n) {
+    emit(
+      logger,
+      "info",
+      `Destination ${destination} received ${formatUnits(deltaDelegator, intent.to.decimals)} ${toLabel}.`,
+    );
+  } else if (deltaSession > 0n && deltaDelegator <= 0n) {
+    emit(
+      logger,
+      "info",
+      `Session key ${session.sessionKeyAddress} received ${formatUnits(deltaSession, intent.to.decimals)} ${toLabel}.`,
+    );
+  }
   emit(
     logger,
     "info",
@@ -383,6 +418,8 @@ export const executeSwapWithSession = async (
     txHash,
     amountIn,
     amountOut,
+    amountOutDelegator: deltaDelegator > 0n ? deltaDelegator : 0n,
+    amountOutSession: deltaSession > 0n ? deltaSession : 0n,
     minAmountOut: quote.rawMinOutput,
     quoteId: quote.quoteId,
     slippageToleranceBps: slippageBps,

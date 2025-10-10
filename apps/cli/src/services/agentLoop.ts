@@ -14,8 +14,6 @@ import {
   type PolicyEnforcement,
   ERC20_ABI,
   computeSwapPlanHash,
-  isPragmaError,
-  toPlainError,
 } from "@pragma/core";
 
 import { loadAgentContext, type LoadedAgentContext } from "./agentContext.js";
@@ -1784,6 +1782,80 @@ export const runPragmaAgentRepl = async (
               },
             });
             break;
+
+          case "insight_stream": {
+            console.log(chalk.blue(response.title));
+            let streamedBody = "";
+            let buffer = "";
+            let lastChunkTime = Date.now();
+            const immediateThreshold = Number(process.env.PRAGMA_STREAM_IMMEDIATE_MS ?? "80");
+            const autoFlushInterval = Number(process.env.PRAGMA_STREAM_AUTO_FLUSH_MS ?? "300");
+            let flushTimer: NodeJS.Timeout | undefined;
+
+            const scheduleFlush = () => {
+              if (flushTimer) return;
+              flushTimer = setTimeout(() => {
+                flushTimer = undefined;
+                flushBuffer(true);
+              }, autoFlushInterval);
+            };
+
+            const flushBuffer = (force = false) => {
+              if (!buffer) return;
+              const now = Date.now();
+              if (!force && now - lastChunkTime < immediateThreshold) {
+                scheduleFlush();
+                return;
+              }
+              process.stdout.write(buffer);
+              streamedBody += buffer;
+              buffer = "";
+              lastChunkTime = now;
+            };
+
+            try {
+              for await (const chunk of response.stream) {
+                const now = Date.now();
+                if (now - lastChunkTime >= immediateThreshold && buffer.length === 0) {
+                  process.stdout.write(chunk);
+                  streamedBody += chunk;
+                  lastChunkTime = now;
+                  continue;
+                }
+
+                buffer += chunk;
+                flushBuffer();
+              }
+              flushBuffer(true);
+              if (flushTimer) {
+                clearTimeout(flushTimer);
+              }
+            } catch (streamError) {
+              process.stdout.write("\n");
+              logPragmaError(streamError, { prefix: "Insight stream failed:" });
+              logAgentError({
+                delegator: agentContext.delegator,
+                error: streamError,
+                phase: "insight_stream",
+              });
+              break;
+            }
+
+            if (!streamedBody.endsWith("\n")) {
+              process.stdout.write("\n");
+            }
+
+            logAgentResponse({
+              delegator: agentContext.delegator,
+              type: "insight",
+              extra: {
+                streaming: true,
+                title: response.title,
+                body: streamedBody ? streamedBody.slice(0, 512) : undefined,
+              },
+            });
+            break;
+          }
 
           default:
             console.log(chalk.gray("Unhandled response."));

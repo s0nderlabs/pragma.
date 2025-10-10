@@ -27,6 +27,7 @@
   "dependencies": {
     "@envio-dev/hypersync-client": "^0.6.6",
     "@metamask/delegation-toolkit": "^0.13.0",
+    "openai": "^4.68.4",
     "viem": "^2.37.9"
   }
 }

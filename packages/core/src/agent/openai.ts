@@ -1,13 +1,24 @@
 import { Agent, run } from "@openai/agents";
+import OpenAI from "openai";
 
-import type { AgentContext, AgentInsightResult, AgentResponse, PragmaAgentConfig } from "./types.js";
+import type {
+  AgentContext,
+  AgentInsightResult,
+  AgentResponse,
+  AgentStreamingInsightResult,
+  PragmaAgentConfig,
+} from "./types.js";
 import type { ClarificationQuestion } from "../intent/types.js";
-import { buildTrendingTokensInsight, type TrendingTokensConfig } from "./tools.js";
+import {
+  buildTrendingTokensInsight,
+  type TrendingTokensConfig,
+} from "./tools.js";
 
 const DEFAULT_PRIMARY_MODEL = "gpt-5-mini";
 const DEFAULT_FALLBACK_MODEL = "gpt-5-nano";
 
-const sanitizeText = (value: string): string => value.replace(/\s+$/u, "").trim();
+const sanitizeText = (value: string): string =>
+  value.replace(/\s+$/u, "").trim();
 
 const extractTextOutput = (result: unknown): string => {
   const finalOutput = (result as { finalOutput?: unknown }).finalOutput;
@@ -17,7 +28,10 @@ const extractTextOutput = (result: unknown): string => {
   return "";
 };
 
-const runWithFallback = async (prompt: string, agents: Agent[]): Promise<string> => {
+const runWithFallback = async (
+  prompt: string,
+  agents: Agent[]
+): Promise<string> => {
   let lastError: unknown;
   for (const agent of agents) {
     try {
@@ -31,7 +45,7 @@ const runWithFallback = async (prompt: string, agents: Agent[]): Promise<string>
     }
   }
 
-  throw (lastError instanceof Error ? lastError : new Error("LLM run failed"));
+  throw lastError instanceof Error ? lastError : new Error("LLM run failed");
 };
 
 const formatQuestions = (questions: ClarificationQuestion[]): string =>
@@ -55,10 +69,10 @@ export interface OpenAiClarifierOptions {
   instructions?: string;
 }
 
-const MASTER_INSTRUCTION = `You are the Pragma AI Agent. You power every Pragma surface (CLI, web, future integrations) where users speak in natural language only. Users control HybridDelegator smart accounts on the Monad testnet that rely on Delegation Toolkit (DTK) delegations (Safe or Normal mode) and Monorail infrastructure (aggregator, data API, pathfinder) for swaps, transfers, token data, and balances. Your responses must always:
+const MASTER_INSTRUCTION = `You are the Pragma Agent. You power every Pragma surface (CLI, web, future integrations) where users speak in natural language only. Users control HybridDelegator smart accounts on the Monad testnet that rely on Delegation Toolkit (DTK) delegations (Safe or Normal mode) and Monorail infrastructure (aggregator, data API, pathfinder) for swaps, transfers, token data, and balances. Your responses must always:
 - Honour delegation scope, call limits (Safe default 6/hour, Normal 12/day), TTL (Safe ≈1h, Normal ≈24h), and token allowlists. Never suggest actions outside the permitted set.
 - Prefer deterministic execution paths: delegated swaps via Monorail aggregate, wrap/unwrap via WMON helpers, native transfers via DTK native scopes. If prerequisites (balances, approvals, quotes, delegation) are missing, explain the gap and the next step.
-- Encourage safety: highlight low balances, pending expiries, or high slippage, and remind users MON liquidity on testnet is scarce.
+- Encourage safety: highlight low balances, pending expiries, or high slippage.
 - Produce concise, accurate insight drawn from Pragma docs (./docs), Monorail data, and other reputable crypto/web3 sources. You may browse those sources when needed but must never fabricate information.
 - Keep replies ≤180 words with short paragraphs or bullet lists, and use exact token symbols/addresses from the allowlist.
 - Make it clear when information is unavailable or speculative.
@@ -74,7 +88,7 @@ Clarification focus:
 - Keep the entire clarification ≤130 words.`;
 
 export const createOpenAiClarifier = (
-  options: OpenAiClarifierOptions = {},
+  options: OpenAiClarifierOptions = {}
 ): PragmaAgentConfig["llmClarifier"] => {
   const primaryAgent = new Agent({
     name: "Pragma Clarifier",
@@ -83,15 +97,18 @@ export const createOpenAiClarifier = (
   });
 
   const fallbackModel = options.fallbackModel ?? DEFAULT_FALLBACK_MODEL;
-  const fallbackAgent = fallbackModel === primaryAgent.model
-    ? undefined
-    : new Agent({
-        name: "Pragma Clarifier (fallback)",
-        model: fallbackModel,
-        instructions: options.instructions ?? DEFAULT_CLARIFIER_INSTRUCTIONS,
-      });
+  const fallbackAgent =
+    fallbackModel === primaryAgent.model
+      ? undefined
+      : new Agent({
+          name: "Pragma Clarifier (fallback)",
+          model: fallbackModel,
+          instructions: options.instructions ?? DEFAULT_CLARIFIER_INSTRUCTIONS,
+        });
 
-  const usableAgents = [primaryAgent, fallbackAgent].filter((agent): agent is Agent => Boolean(agent));
+  const usableAgents = [primaryAgent, fallbackAgent].filter(
+    (agent): agent is Agent => Boolean(agent)
+  );
 
   return async (input, context, partial): Promise<AgentResponse> => {
     if (usableAgents.length === 0) {
@@ -99,7 +116,11 @@ export const createOpenAiClarifier = (
     }
 
     const questions = formatQuestions(partial.clarification.questions);
-    const prompt = `User input:\n${input}\n\nDelegation mode: ${context.delegation.mode}\nAllowed tokens: ${formatAllowedTokens(context)}\nMissing information:\n${questions || "Not specified"}\n\nCompose the response in plain text.`;
+    const prompt = `User input:\n${input}\n\nDelegation mode: ${
+      context.delegation.mode
+    }\nAllowed tokens: ${formatAllowedTokens(context)}\nMissing information:\n${
+      questions || "Not specified"
+    }\n\nCompose the response in plain text.`;
 
     try {
       const text = await runWithFallback(prompt, usableAgents);
@@ -133,8 +154,37 @@ Insight focus:
 - Where relevant, reference the authoritative docs section or data source you relied on.
 - Maintain a neutral, professional tone and avoid speculation beyond documented behaviour.`;
 
+const buildInsightPrompt = async (
+  input: string,
+  context: AgentContext,
+  options: OpenAiInsightOptions
+): Promise<string> => {
+  let trendingBlock = "";
+  if (options.trendingConfig) {
+    try {
+      const insight = await buildTrendingTokensInsight(options.trendingConfig);
+      trendingBlock = `Trending tokens according to Monorail data:\n${insight.body}`;
+    } catch {
+      trendingBlock = "Trending tokens unavailable (Monorail data API error).";
+    }
+  }
+
+  const allowedTokens = formatAllowedTokens(context);
+  const nativeInfo = `${
+    context.delegation.nativeTokenSymbol ?? "MON"
+  } (wrapped: ${context.delegation.wrappedNativeSymbol ?? "WMON"})`;
+
+  return `User message:\n${input}\n\nDelegator: ${
+    context.metadata?.delegator ?? "unknown"
+  }\nMode: ${
+    context.delegation.mode
+  }\nAllowed tokens: ${allowedTokens}\nNative token info: ${nativeInfo}\n${
+    trendingBlock ? `\n${trendingBlock}\n` : ""
+  }`;
+};
+
 export const createOpenAiInsight = (
-  options: OpenAiInsightOptions = {},
+  options: OpenAiInsightOptions = {}
 ): PragmaAgentConfig["llmInsight"] => {
   const primaryAgent = new Agent({
     name: "Pragma Insight",
@@ -143,33 +193,23 @@ export const createOpenAiInsight = (
   });
 
   const fallbackModel = options.fallbackModel ?? DEFAULT_FALLBACK_MODEL;
-  const fallbackAgent = fallbackModel === primaryAgent.model
-    ? undefined
-    : new Agent({
-        name: "Pragma Insight (fallback)",
-        model: fallbackModel,
-        instructions: options.instructions ?? DEFAULT_INSIGHT_INSTRUCTIONS,
-      });
+  const fallbackAgent =
+    fallbackModel === primaryAgent.model
+      ? undefined
+      : new Agent({
+          name: "Pragma Insight (fallback)",
+          model: fallbackModel,
+          instructions: options.instructions ?? DEFAULT_INSIGHT_INSTRUCTIONS,
+        });
 
-  const usableAgents = [primaryAgent, fallbackAgent].filter((agent): agent is Agent => Boolean(agent));
+  const usableAgents = [primaryAgent, fallbackAgent].filter(
+    (agent): agent is Agent => Boolean(agent)
+  );
 
   return async (input, context) => {
     if (usableAgents.length === 0) return undefined;
 
-    let trendingBlock = "";
-    if (options.trendingConfig) {
-      try {
-        const insight = await buildTrendingTokensInsight(options.trendingConfig);
-        trendingBlock = `Trending tokens according to Monorail data:\n${insight.body}`;
-      } catch {
-        trendingBlock = "Trending tokens unavailable (Monorail data API error).";
-      }
-    }
-
-    const allowedTokens = formatAllowedTokens(context);
-    const nativeInfo = `${context.delegation.nativeTokenSymbol ?? "MON"} (wrapped: ${context.delegation.wrappedNativeSymbol ?? "WMON"})`;
-
-    const prompt = `User message:\n${input}\n\nDelegator: ${context.metadata?.delegator ?? "unknown"}\nMode: ${context.delegation.mode}\nAllowed tokens: ${allowedTokens}\nNative token info: ${nativeInfo}\n${trendingBlock ? `\n${trendingBlock}\n` : ""}`;
+    const prompt = await buildInsightPrompt(input, context, options);
 
     try {
       const text = await runWithFallback(prompt, usableAgents);
@@ -178,11 +218,103 @@ export const createOpenAiInsight = (
       }
       return {
         type: "insight",
-        title: "Assistant insight",
+        title: "pragma insight",
         body: text,
       } satisfies AgentInsightResult;
     } catch {
       return undefined;
     }
+  };
+};
+
+export const createOpenAiInsightStreamer = (
+  options: OpenAiInsightOptions = {}
+): PragmaAgentConfig["llmInsightStream"] => {
+  if (!process.env.OPENAI_API_KEY) {
+    return async () => undefined;
+  }
+
+  const client = new OpenAI();
+  const primaryModel = options.primaryModel ?? DEFAULT_PRIMARY_MODEL;
+  const fallbackModel = options.fallbackModel ?? DEFAULT_FALLBACK_MODEL;
+  const firstChunkTimeoutMs = Number(
+    process.env.PRAGMA_AGENT_STREAM_TIMEOUT_MS ?? 1200
+  );
+
+  const attemptStream = async (
+    model: string,
+    input: string,
+    context: AgentContext
+  ): Promise<AgentStreamingInsightResult | undefined> => {
+    const prompt = await buildInsightPrompt(input, context, options);
+    const stream = await client.responses.stream({
+      model,
+      input: prompt,
+    });
+
+    const chunks: string[] = [];
+    let streamError: unknown;
+
+    const generator = (async function* () {
+      try {
+        for await (const event of stream) {
+          if (event.type === "response.output_text.delta") {
+            const delta = event.delta ?? "";
+            if (!delta) continue;
+            chunks.push(delta);
+            yield delta;
+          }
+        }
+      } catch (error) {
+        streamError = error;
+        if (!chunks.length) {
+          throw error;
+        }
+      }
+    })();
+
+    return {
+      type: "insight_stream",
+      title: "pragma insight",
+      stream: generator,
+      collect: async () => {
+        try {
+          await stream.finalResponse();
+        } catch (error) {
+          if (!chunks.length) {
+            throw error;
+          }
+          if (!streamError) {
+            streamError = error;
+          }
+        }
+
+        if (chunks.length > 0) {
+          return chunks.join("");
+        }
+
+        if (streamError) {
+          throw streamError;
+        }
+
+        throw new Error("Insight stream completed with no content");
+      },
+    } satisfies AgentStreamingInsightResult;
+  };
+
+  return async (input, context) => {
+    const primaryResult = await attemptStream(primaryModel, input, context);
+    if (primaryResult) {
+      return primaryResult;
+    }
+
+    if (fallbackModel && fallbackModel !== primaryModel) {
+      const fallbackResult = await attemptStream(fallbackModel, input, context);
+      if (fallbackResult) {
+        return fallbackResult;
+      }
+    }
+
+    return undefined;
   };
 };

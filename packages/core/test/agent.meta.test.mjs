@@ -44,3 +44,49 @@ test("agent respond attaches meta for defaults", async () => {
   assert.equal(result.intent.amountWei, BigInt("100000000000000000").toString());
   assert.equal(result.meta?.amountExactWei, result.intent.amountWei);
 });
+
+test("agent prefers streaming insight when available", async () => {
+  const chunks = ["Hello", " world", "! "];
+  const agent = new PragmaAgent({
+    llmInsightStream: async () => ({
+      type: "insight_stream",
+      title: "Streamed",
+      stream: (async function* () {
+        for (const chunk of chunks) {
+          yield chunk;
+        }
+      })(),
+      collect: async () => chunks.join(""),
+    }),
+    llmInsight: async () => ({
+      type: "insight",
+      title: "Fallback",
+      body: "Should not be used",
+    }),
+  });
+
+  const response = await agent.respond("what is Monad?", { delegation: delegationContext });
+  assert.equal(response.type, "insight_stream");
+  let collected = "";
+  for await (const chunk of response.stream) {
+    collected += chunk;
+  }
+  assert.equal(collected, chunks.join(""));
+  const finalBody = await response.collect();
+  assert.equal(finalBody, chunks.join(""));
+});
+
+test("agent falls back to non-streaming insight when streamer returns undefined", async () => {
+  const agent = new PragmaAgent({
+    llmInsightStream: async () => undefined,
+    llmInsight: async () => ({
+      type: "insight",
+      title: "Fallback",
+      body: "Hello",
+    }),
+  });
+
+  const response = await agent.respond("tell me about pragma", { delegation: delegationContext });
+  assert.equal(response.type, "insight");
+  assert.equal(response.body, "Hello");
+});

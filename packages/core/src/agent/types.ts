@@ -30,7 +30,19 @@ export interface AgentInsightResult {
   body: string;
 }
 
-export type AgentResponse = AgentIntentResult | AgentClarificationResult | AgentErrorResult | AgentInsightResult;
+export interface AgentStreamingInsightResult {
+  type: "insight_stream";
+  title: string;
+  stream: AsyncIterable<string>;
+  collect: () => Promise<string>;
+}
+
+export type AgentResponse =
+  | AgentIntentResult
+  | AgentClarificationResult
+  | AgentErrorResult
+  | AgentInsightResult
+  | AgentStreamingInsightResult;
 
 export interface PragmaAgentConfig {
   llmClarifier?: (
@@ -39,4 +51,8 @@ export interface PragmaAgentConfig {
     partial: AgentClarificationResult,
   ) => Promise<AgentResponse | undefined>;
   llmInsight?: (input: string, context: AgentContext) => Promise<AgentInsightResult | undefined>;
+  llmInsightStream?: (
+    input: string,
+    context: AgentContext,
+  ) => Promise<AgentStreamingInsightResult | undefined>;
 }

@@ -1,5 +1,11 @@
 import { parseIntent } from "../intent/parser.js";
-import type { AgentContext, AgentResponse, PragmaAgentConfig, AgentClarificationResult, AgentInsightResult } from "./types.js";
+import type {
+  AgentContext,
+  AgentResponse,
+  PragmaAgentConfig,
+  AgentClarificationResult,
+  AgentInsightResult,
+} from "./types.js";
 
 export class PragmaAgent {
   constructor(private readonly config: PragmaAgentConfig = {}) {}
@@ -17,10 +23,16 @@ export class PragmaAgent {
     }
 
     if (outcome.type === "clarification") {
-      if (!outcome.clarification.partialIntent.action && this.config.llmInsight) {
-        const insight = await this.config.llmInsight(message, context);
-        if (insight) {
-          return insight;
+      if (!outcome.clarification.partialIntent.action) {
+        if (this.config.llmInsightStream) {
+          const streamed = await this.config.llmInsightStream(message, context);
+          if (streamed) return streamed;
+        }
+        if (this.config.llmInsight) {
+          const insight = await this.config.llmInsight(message, context);
+          if (insight) {
+            return insight;
+          }
         }
       }
       const clarification: AgentClarificationResult = {
@@ -45,6 +57,10 @@ export class PragmaAgent {
       };
     }
 
+    if (this.config.llmInsightStream) {
+      const streamed = await this.config.llmInsightStream(message, context);
+      if (streamed) return streamed;
+    }
     if (this.config.llmInsight) {
       const insight = await this.config.llmInsight(message, context);
       if (insight) return insight;

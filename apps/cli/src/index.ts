@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 process.on("warning", (warning) => {
+  const warningWithCode = warning as NodeJS.ErrnoException & { code?: string };
   if (
     warning.name === "ExperimentalWarning" &&
     warning.message.includes("Importing JSON modules")
@@ -7,7 +8,18 @@ process.on("warning", (warning) => {
     return;
   }
 
+  if (warningWithCode.code === "DEP0040" && warning.message.includes("punycode")) {
+    return;
+  }
+
   console.warn(warning);
+});
+
+process.on("unhandledRejection", (reason) => {
+  if (reason instanceof Error && reason.name === "APIUserAbortError") {
+    return;
+  }
+  console.error(reason);
 });
 
 const { Command } = await import("commander");

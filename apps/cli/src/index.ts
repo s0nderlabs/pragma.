@@ -21,7 +21,7 @@ const program = new Command();
 
 program
   .name("pragma")
-  .description("Pragma CLI — onboarding, swap, simulate, receipts")
+  .description("Pragma CLI - onboarding, swap, simulate, receipts")
   .version("1.0.0");
 
 const { registerOnboard4337 } = await import("./commands/onboard4337.js");

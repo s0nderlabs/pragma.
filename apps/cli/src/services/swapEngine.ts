@@ -11,7 +11,7 @@ import {
   type SwapResult,
   type ExecutionLogger,
   type SwapEngineDependencies,
-  createError,
+  createErrorFromCode,
   type SwapPreviewResult,
   type SwapPreviewPlan,
   type WrapConfig as CoreWrapConfig,
@@ -98,13 +98,8 @@ export const verifyTokenCaps = (config: SwapExecutionConfig, amountInWei: bigint
     const cap = perTokenCaps[fromAddress];
     if (cap !== undefined && amountInWei > cap) {
       const remaining = formatUnits(cap, decimals);
-      throw createError({
-        code: "SIM_POLICY_CAP_EXCEEDED",
-        class: "Policy",
-        module: "Execution",
+      throw createErrorFromCode("SIM_POLICY_CAP_EXCEEDED", {
         message: `Swap amount exceeds remaining allowance for ${intent.from.symbol ?? intent.from.address}.`,
-        retriable: false,
-        severity: "error",
         context: {
           token: intent.from.address,
           remaining,
@@ -116,13 +111,8 @@ export const verifyTokenCaps = (config: SwapExecutionConfig, amountInWei: bigint
   if (session.nativeTokenCapWei !== undefined && isNativeToken(intent.from)) {
     if (amountInWei > session.nativeTokenCapWei) {
       const remaining = formatUnits(session.nativeTokenCapWei, decimals);
-      throw createError({
-        code: "SIM_POLICY_CAP_EXCEEDED",
-        class: "Policy",
-        module: "Execution",
+      throw createErrorFromCode("SIM_POLICY_CAP_EXCEEDED", {
         message: "Swap amount exceeds native token allowance.",
-        retriable: false,
-        severity: "error",
         context: {
           remaining,
         },

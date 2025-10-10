@@ -54,15 +54,30 @@ import {
 } from "./agentTelemetry.js";
 import { runRevoke } from "./revoke.js";
 import { runOnboard4337 } from "./onboarding4337.js";
-import { loadSessionState, saveDelegatorSession, markRequireOnboarding } from "./sessionStore.js";
-import { listDelegationArtifacts, isDelegationExpired } from "./delegationArtifacts.js";
+import {
+  loadSessionState,
+  saveDelegatorSession,
+  markRequireOnboarding,
+} from "./sessionStore.js";
+import {
+  listDelegationArtifacts,
+  isDelegationExpired,
+} from "./delegationArtifacts.js";
 import { startLiveObservers } from "./liveObservers.js";
 import { storeReceipt, type SwapReceiptRecord } from "./receiptStore.js";
+import {
+  formatPragmaError,
+  logPragmaError,
+  normalizePragmaError,
+  serializePragmaError,
+} from "../utils/errors.js";
 
 const EXIT_COMMANDS = new Set(["exit", "quit", "q", ":q", "/q", "bye"]);
 
 const isNativeToken = (token?: AllowedToken) =>
-  !token || token.kind === "native" || token.address.toLowerCase() === MONAD_NATIVE_TOKEN_ADDRESS.toLowerCase();
+  !token ||
+  token.kind === "native" ||
+  token.address.toLowerCase() === MONAD_NATIVE_TOKEN_ADDRESS.toLowerCase();
 
 const listTokenSymbols = (tokens?: AllowedToken[]): string[] =>
   (tokens ?? []).map((token) => token.symbol ?? token.address.slice(0, 6));
@@ -78,7 +93,8 @@ const describeAmount = (amount: AmountSpecification): string => {
       const ratio = amount.numerator / amount.denominator;
       if (Math.abs(ratio - 0.5) < 0.01) return "half of your balance";
       if (Math.abs(ratio - 0.25) < 0.01) return "a quarter of your balance";
-      if (Math.abs(ratio - 0.75) < 0.01) return "three quarters of your balance";
+      if (Math.abs(ratio - 0.75) < 0.01)
+        return "three quarters of your balance";
       if (Math.abs(ratio - 0.3333) < 0.01) return "a third of your balance";
       if (Math.abs(ratio - 0.6666) < 0.01) return "two thirds of your balance";
       const percent = (ratio * 100).toFixed(2).replace(/\.00$/, "");
@@ -89,24 +105,39 @@ const describeAmount = (amount: AmountSpecification): string => {
   }
 };
 
-const formatPercent = (bps: number): string => `${Number((bps / 100).toFixed(4))}%`;
+const formatPercent = (bps: number): string =>
+  `${Number((bps / 100).toFixed(4))}%`;
 
-const formatMinutes = (seconds: number): string => `${Number((seconds / 60).toFixed(2)).toString().replace(/\.0+$/, "")} min`;
+const formatMinutes = (seconds: number): string =>
+  `${Number((seconds / 60).toFixed(2))
+    .toString()
+    .replace(/\.0+$/, "")} min`;
 
 const describePolicyEnforcement = (enforcement: PolicyEnforcement): string => {
   const label = enforcement.key === "slippageBps" ? "Slippage" : "Deadline";
-  const formatValue = enforcement.unit === "bps" ? formatPercent : formatMinutes;
+  const formatValue =
+    enforcement.unit === "bps" ? formatPercent : formatMinutes;
   const applied = formatValue(enforcement.applied);
-  const requested = enforcement.requested !== undefined ? formatValue(enforcement.requested) : undefined;
-  const limit = enforcement.limit !== undefined ? formatValue(enforcement.limit) : undefined;
+  const requested =
+    enforcement.requested !== undefined
+      ? formatValue(enforcement.requested)
+      : undefined;
+  const limit =
+    enforcement.limit !== undefined
+      ? formatValue(enforcement.limit)
+      : undefined;
 
   switch (enforcement.reason) {
     case "default":
       return `${label}: default applied (${applied}).`;
     case "clamped_max":
-      return `${label}: requested ${requested ?? applied}${limit ? ` exceeds max ${limit}` : " exceeds policy limit"}; clamped to ${applied}.`;
+      return `${label}: requested ${requested ?? applied}${
+        limit ? ` exceeds max ${limit}` : " exceeds policy limit"
+      }; clamped to ${applied}.`;
     case "clamped_min":
-      return `${label}: requested ${requested ?? applied}${limit ? ` below min ${limit}` : " below policy minimum"}; raised to ${applied}.`;
+      return `${label}: requested ${requested ?? applied}${
+        limit ? ` below min ${limit}` : " below policy minimum"
+      }; raised to ${applied}.`;
     case "normalized_negative":
       return `${label}: negative value normalised to ${applied}.`;
     default:
@@ -160,20 +191,50 @@ const detectQuickAction = (raw: string): QuickAction | undefined => {
   const normalized = raw.trim().toLowerCase();
   if (!normalized) return undefined;
 
-  const contains = (keywords: string[]): boolean => keywords.some((keyword) => normalized.includes(keyword));
+  const contains = (keywords: string[]): boolean =>
+    keywords.some((keyword) => normalized.includes(keyword));
 
   if (contains(["balance", "portfolio", "net worth"])) {
     return { type: "balances" };
   }
 
-  if (contains(["delegation", "allowlist", "scope", "limits", "call limit", "ttl", "session" ])) {
-    if (contains(["issue", "reissue", "create", "new", "renew", "refresh", "rotate", "reset", "update", "generate", "setup", "set up", "recreate", "redo"])) {
+  if (
+    contains([
+      "delegation",
+      "allowlist",
+      "scope",
+      "limits",
+      "call limit",
+      "ttl",
+      "session",
+    ])
+  ) {
+    if (
+      contains([
+        "issue",
+        "reissue",
+        "create",
+        "new",
+        "renew",
+        "refresh",
+        "rotate",
+        "reset",
+        "update",
+        "generate",
+        "setup",
+        "set up",
+        "recreate",
+        "redo",
+      ])
+    ) {
       return undefined;
     }
     return { type: "delegation" };
   }
 
-  if (contains(["trending", "popular", "hot token", "top token", "top project"])) {
+  if (
+    contains(["trending", "popular", "hot token", "top token", "top project"])
+  ) {
     return { type: "trending" };
   }
 
@@ -181,7 +242,15 @@ const detectQuickAction = (raw: string): QuickAction | undefined => {
     return { type: "status" };
   }
 
-  if (contains(["help", "what can you do", "abilities", "capabilities", "how do you work"])) {
+  if (
+    contains([
+      "help",
+      "what can you do",
+      "abilities",
+      "capabilities",
+      "how do you work",
+    ])
+  ) {
     return { type: "help" };
   }
 
@@ -193,7 +262,14 @@ const detectQuickAction = (raw: string): QuickAction | undefined => {
     return { type: "builders" };
   }
 
-  if (contains(["revoke", "remove delegation", "invalidate delegation", "cancel delegation"])) {
+  if (
+    contains([
+      "revoke",
+      "remove delegation",
+      "invalidate delegation",
+      "cancel delegation",
+    ])
+  ) {
     return { type: "revoke" };
   }
 
@@ -207,7 +283,7 @@ const detectQuickAction = (raw: string): QuickAction | undefined => {
 const resolveAmountInput = async (
   amount: AmountSpecification,
   tokenDecimals: number,
-  fetchBalance: () => Promise<bigint>,
+  fetchBalance: () => Promise<bigint>
 ): Promise<{ amountInput: string; resolvedDisplay?: string }> => {
   if (amount.kind === "exact") {
     return { amountInput: amount.value };
@@ -217,15 +293,20 @@ const resolveAmountInput = async (
 
   if (amount.kind === "max") {
     if (balance === 0n) {
-      throw new Error("HybridDelegator balance is zero; cannot use max amount.");
+      throw new Error(
+        "HybridDelegator balance is zero; cannot use max amount."
+      );
     }
     const decimal = formatUnits(balance, tokenDecimals);
     return { amountInput: decimal, resolvedDisplay: decimal };
   }
 
-  const fraction = (balance * BigInt(amount.numerator)) / BigInt(amount.denominator);
+  const fraction =
+    (balance * BigInt(amount.numerator)) / BigInt(amount.denominator);
   if (fraction === 0n) {
-    throw new Error("Computed fraction results in zero amount. Adjust the fraction or fund the account.");
+    throw new Error(
+      "Computed fraction results in zero amount. Adjust the fraction or fund the account."
+    );
   }
   const decimal = formatUnits(fraction, tokenDecimals);
   return { amountInput: decimal, resolvedDisplay: decimal };
@@ -233,19 +314,23 @@ const resolveAmountInput = async (
 
 const toSwapToken = (token: AllowedToken) => ({
   ...token,
-  decimals: typeof token.decimals === "number" ? token.decimals : Number(token.decimals ?? 18),
+  decimals:
+    typeof token.decimals === "number"
+      ? token.decimals
+      : Number(token.decimals ?? 18),
 });
 
 const handleSwapIntent = async (
   intent: SwapIntentFields,
   agentCtx: LoadedAgentContext,
   publicClient: ReturnType<typeof createMonadPublicClient>,
-  quickMode: boolean,
+  quickMode: boolean
 ) => {
   const { swapSession } = agentCtx;
   const fromToken = toSwapToken(intent.tokenIn);
   const toToken = toSwapToken(intent.tokenOut);
-  const decimals = typeof fromToken.decimals === "number" ? fromToken.decimals : 18;
+  const decimals =
+    typeof fromToken.decimals === "number" ? fromToken.decimals : 18;
   const { delegatorAddress } = swapSession;
 
   const fetchBalance = async () => {
@@ -260,18 +345,27 @@ const handleSwapIntent = async (
     })) as bigint;
   };
 
-  const { amountInput, resolvedDisplay } = await resolveAmountInput(intent.amount, decimals, fetchBalance);
+  const { amountInput, resolvedDisplay } = await resolveAmountInput(
+    intent.amount,
+    decimals,
+    fetchBalance
+  );
 
   const amountLabel = describeAmount(intent.amount);
   const resolvedLabel = resolvedDisplay ?? amountInput;
-  const displayLabel = amountLabel && amountLabel !== resolvedLabel ? `${amountLabel} (~${resolvedLabel})` : resolvedLabel;
+  const displayLabel =
+    amountLabel && amountLabel !== resolvedLabel
+      ? `${amountLabel} (~${resolvedLabel})`
+      : resolvedLabel;
 
   console.log(
     chalk.green(
-      `Swap request: ${displayLabel} ${fromToken.symbol ?? fromToken.address.slice(0, 6)} → ${
-        toToken.symbol ?? toToken.address.slice(0, 6)
-      } (slippage ${intent.slippageBps / 100}%)`,
-    ),
+      `Swap request: ${displayLabel} ${
+        fromToken.symbol ?? fromToken.address.slice(0, 6)
+      } → ${toToken.symbol ?? toToken.address.slice(0, 6)} (slippage ${
+        intent.slippageBps / 100
+      }%)`
+    )
   );
 
   const amountInWei = parseUnits(amountInput, decimals);
@@ -291,16 +385,18 @@ const handleSwapIntent = async (
   verifyTokenCaps(executionConfigBase, amountInWei);
 
   if (quickMode) {
-    console.log(chalk.yellow("Quick mode enabled – executing swap immediately (no preview)."));
+    console.log(
+      chalk.yellow(
+        "Quick mode enabled – executing swap immediately (no preview)."
+      )
+    );
     const startedAt = Date.now();
     let result;
     try {
       result = await executeSwapWithSession(executionConfigBase);
     } catch (error) {
-      const message = isPragmaError(error)
-        ? `${error.code}: ${(error as Error).message}`
-        : (error as Error).message;
-      console.log(chalk.red(`Swap failed: ${message}`));
+      const normalizedError = normalizePragmaError(error);
+      logPragmaError(normalizedError, { prefix: "Swap failed:" });
       const failureReceipt: SwapReceiptRecord = {
         type: "swap",
         status: "failed",
@@ -324,8 +420,8 @@ const handleSwapIntent = async (
         deadlineSeconds: intent.deadlineSeconds,
         createdAt: Date.now(),
         executedAt: startedAt,
-        summary: `Swap failed: ${message}`,
-        error: toPlainError(error),
+        summary: `Swap failed: ${formatPragmaError(normalizedError)}`,
+        error: serializePragmaError(normalizedError),
       };
       try {
         await storeReceipt(failureReceipt);
@@ -335,14 +431,20 @@ const handleSwapIntent = async (
       return;
     }
 
-    if (swapSession.session.perTokenCapsWei && Object.keys(swapSession.session.perTokenCapsWei).length > 0) {
-      agentCtx.delegationContext.perTokenCapsWei = { ...swapSession.session.perTokenCapsWei };
+    if (
+      swapSession.session.perTokenCapsWei &&
+      Object.keys(swapSession.session.perTokenCapsWei).length > 0
+    ) {
+      agentCtx.delegationContext.perTokenCapsWei = {
+        ...swapSession.session.perTokenCapsWei,
+      };
     } else {
       delete agentCtx.delegationContext.perTokenCapsWei;
     }
 
     if (swapSession.session.nativeTokenCapWei !== undefined) {
-      agentCtx.delegationContext.nativeTokenCapWei = swapSession.session.nativeTokenCapWei;
+      agentCtx.delegationContext.nativeTokenCapWei =
+        swapSession.session.nativeTokenCapWei;
     } else {
       delete agentCtx.delegationContext.nativeTokenCapWei;
     }
@@ -350,10 +452,12 @@ const handleSwapIntent = async (
     const amountOutDisplay = formatUnits(result.amountOut, toToken.decimals);
     console.log(
       chalk.green(
-        `Swap complete: ${resolvedDisplay ?? amountInput} ${fromToken.symbol ?? "TOKEN"} → ${amountOutDisplay} ${
-          toToken.symbol ?? "TOKEN"
-        } (tx: ${result.txHash}).`,
-      ),
+        `Swap complete: ${resolvedDisplay ?? amountInput} ${
+          fromToken.symbol ?? "TOKEN"
+        } → ${amountOutDisplay} ${toToken.symbol ?? "TOKEN"} (tx: ${
+          result.txHash
+        }).`
+      )
     );
 
     const planHash = computeSwapPlanHash({
@@ -396,9 +500,9 @@ const handleSwapIntent = async (
       gasUsedWei: result.gasUsed.toString(),
       createdAt: Date.now(),
       executedAt: Date.now(),
-      summary: `Swap ${resolvedDisplay ?? amountInput} ${fromToken.symbol ?? fromToken.address.slice(0, 6)} → ${amountOutDisplay} ${
-        toToken.symbol ?? toToken.address.slice(0, 6)
-      }`,
+      summary: `Swap ${resolvedDisplay ?? amountInput} ${
+        fromToken.symbol ?? fromToken.address.slice(0, 6)
+      } → ${amountOutDisplay} ${toToken.symbol ?? toToken.address.slice(0, 6)}`,
     };
     try {
       const receiptPath = await storeReceipt(successReceipt);
@@ -410,9 +514,11 @@ const handleSwapIntent = async (
       chalk.gray(
         `Quote ${result.quote.quoteId}: minimum out ${formatUnits(
           result.minAmountOut,
-          toToken.decimals,
-        )} ${toToken.symbol ?? toToken.address.slice(0, 6)}, slippage tolerance ${intent.slippageBps / 100}%`,
-      ),
+          toToken.decimals
+        )} ${
+          toToken.symbol ?? toToken.address.slice(0, 6)
+        }, slippage tolerance ${intent.slippageBps / 100}%`
+      )
     );
     return;
   }
@@ -422,10 +528,8 @@ const handleSwapIntent = async (
   try {
     preview = await previewSwapWithSession(executionConfigBase);
   } catch (error) {
-    const message = isPragmaError(error)
-      ? `${error.code}: ${(error as Error).message}`
-      : (error as Error).message;
-    console.log(chalk.red(`Swap preview failed: ${message}`));
+    const normalizedError = normalizePragmaError(error);
+    logPragmaError(normalizedError, { prefix: "Swap preview failed:" });
     const failureReceipt: SwapReceiptRecord = {
       type: "swap",
       status: "failed",
@@ -449,8 +553,8 @@ const handleSwapIntent = async (
       deadlineSeconds: intent.deadlineSeconds,
       createdAt: Date.now(),
       previewedAt,
-      summary: `Swap preview failed: ${message}`,
-      error: toPlainError(error),
+      summary: `Swap preview failed: ${formatPragmaError(normalizedError)}`,
+      error: serializePragmaError(normalizedError),
     };
     try {
       await storeReceipt(failureReceipt);
@@ -460,10 +564,22 @@ const handleSwapIntent = async (
     return;
   }
 
-  const expectedOutDisplay = formatUnits(preview.plan.expectedAmountOut, toToken.decimals);
-  const minOutDisplay = formatUnits(preview.plan.minAmountOut, toToken.decimals);
-  const sessionBalanceDisplay = formatUnits(preview.context.sessionKeyBalance, 18);
-  const delegatorBalanceDisplay = formatUnits(preview.context.fromTokenBalance, decimals);
+  const expectedOutDisplay = formatUnits(
+    preview.plan.expectedAmountOut,
+    toToken.decimals
+  );
+  const minOutDisplay = formatUnits(
+    preview.plan.minAmountOut,
+    toToken.decimals
+  );
+  const sessionBalanceDisplay = formatUnits(
+    preview.context.sessionKeyBalance,
+    18
+  );
+  const delegatorBalanceDisplay = formatUnits(
+    preview.context.fromTokenBalance,
+    decimals
+  );
 
   const planHash = computeSwapPlanHash({
     chainId,
@@ -478,7 +594,10 @@ const handleSwapIntent = async (
 
   preview.plan.planHash = planHash;
 
-  const baseReceipt: Omit<SwapReceiptRecord, "status" | "summary" | "createdAt"> = {
+  const baseReceipt: Omit<
+    SwapReceiptRecord,
+    "status" | "summary" | "createdAt"
+  > = {
     type: "swap",
     mode: swapSession.session.mode,
     delegator: agentCtx.delegator,
@@ -505,25 +624,35 @@ const handleSwapIntent = async (
 
   console.log(
     chalk.cyan(
-      `[Preview] Expected ≈ ${expectedOutDisplay} ${toToken.symbol ?? toToken.address.slice(0, 6)} | Minimum ${minOutDisplay} ${
+      `[Preview] Expected ≈ ${expectedOutDisplay} ${
         toToken.symbol ?? toToken.address.slice(0, 6)
-      }`,
-    ),
+      } | Minimum ${minOutDisplay} ${
+        toToken.symbol ?? toToken.address.slice(0, 6)
+      }`
+    )
   );
   if (preview.plan.gasEstimate !== undefined) {
-    console.log(chalk.cyan(`[Preview] Estimated gas ${preview.plan.gasEstimate.toString()} units`));
+    console.log(
+      chalk.cyan(
+        `[Preview] Estimated gas ${preview.plan.gasEstimate.toString()} units`
+      )
+    );
   } else {
     console.log(chalk.cyan(`[Preview] Estimated gas unavailable`));
   }
   console.log(
     chalk.cyan(
-      `[Preview] Quote ${preview.plan.quote.quoteId} | Delegator balance ${delegatorBalanceDisplay} ${
+      `[Preview] Quote ${
+        preview.plan.quote.quoteId
+      } | Delegator balance ${delegatorBalanceDisplay} ${
         fromToken.symbol ?? fromToken.address.slice(0, 6)
-      } | Session key balance ${sessionBalanceDisplay} MON`,
-    ),
+      } | Session key balance ${sessionBalanceDisplay} MON`
+    )
   );
   if (preview.plan.warnings.length > 0) {
-    preview.plan.warnings.forEach((warning) => console.log(chalk.yellow(`[Preview warning] ${warning}`)));
+    preview.plan.warnings.forEach((warning) =>
+      console.log(chalk.yellow(`[Preview warning] ${warning}`))
+    );
   }
   console.log(chalk.gray(`[Preview] Plan hash ${planHash}`));
 
@@ -540,16 +669,14 @@ const handleSwapIntent = async (
       preparedPlan: preview.plan,
     });
   } catch (error) {
-    const message = isPragmaError(error)
-      ? `${error.code}: ${(error as Error).message}`
-      : (error as Error).message;
-    console.log(chalk.red(`Swap failed: ${message}`));
+    const normalizedError = normalizePragmaError(error);
+    logPragmaError(normalizedError, { prefix: "Swap failed:" });
     const failureReceipt: SwapReceiptRecord = {
       ...baseReceipt,
       status: "failed",
-      summary: `Swap failed: ${message}`,
+      summary: `Swap failed: ${formatPragmaError(normalizedError)}`,
       createdAt: Date.now(),
-      error: toPlainError(error),
+      error: serializePragmaError(normalizedError),
     };
     try {
       await storeReceipt(failureReceipt);
@@ -559,14 +686,20 @@ const handleSwapIntent = async (
     return;
   }
 
-  if (swapSession.session.perTokenCapsWei && Object.keys(swapSession.session.perTokenCapsWei).length > 0) {
-    agentCtx.delegationContext.perTokenCapsWei = { ...swapSession.session.perTokenCapsWei };
+  if (
+    swapSession.session.perTokenCapsWei &&
+    Object.keys(swapSession.session.perTokenCapsWei).length > 0
+  ) {
+    agentCtx.delegationContext.perTokenCapsWei = {
+      ...swapSession.session.perTokenCapsWei,
+    };
   } else {
     delete agentCtx.delegationContext.perTokenCapsWei;
   }
 
   if (swapSession.session.nativeTokenCapWei !== undefined) {
-    agentCtx.delegationContext.nativeTokenCapWei = swapSession.session.nativeTokenCapWei;
+    agentCtx.delegationContext.nativeTokenCapWei =
+      swapSession.session.nativeTokenCapWei;
   } else {
     delete agentCtx.delegationContext.nativeTokenCapWei;
   }
@@ -574,10 +707,12 @@ const handleSwapIntent = async (
   const amountOutDisplay = formatUnits(result.amountOut, toToken.decimals);
   console.log(
     chalk.green(
-      `Swap complete: ${resolvedDisplay ?? amountInput} ${fromToken.symbol ?? "TOKEN"} → ${amountOutDisplay} ${
-        toToken.symbol ?? "TOKEN"
-      } (tx: ${result.txHash}).`,
-    ),
+      `Swap complete: ${resolvedDisplay ?? amountInput} ${
+        fromToken.symbol ?? "TOKEN"
+      } → ${amountOutDisplay} ${toToken.symbol ?? "TOKEN"} (tx: ${
+        result.txHash
+      }).`
+    )
   );
 
   const successReceipt: SwapReceiptRecord = {
@@ -589,9 +724,9 @@ const handleSwapIntent = async (
     gasUsedWei: result.gasUsed.toString(),
     executedAt: Date.now(),
     createdAt: Date.now(),
-    summary: `Swap ${resolvedDisplay ?? amountInput} ${fromToken.symbol ?? fromToken.address.slice(0, 6)} → ${amountOutDisplay} ${
-      toToken.symbol ?? toToken.address.slice(0, 6)
-    }`,
+    summary: `Swap ${resolvedDisplay ?? amountInput} ${
+      fromToken.symbol ?? fromToken.address.slice(0, 6)
+    } → ${amountOutDisplay} ${toToken.symbol ?? toToken.address.slice(0, 6)}`,
   };
   try {
     const receiptPath = await storeReceipt(successReceipt);
@@ -604,7 +739,7 @@ const handleSwapIntent = async (
 const handleWrapIntent = async (
   intent: WrapIntentFields,
   agentCtx: LoadedAgentContext,
-  publicClient: ReturnType<typeof createMonadPublicClient>,
+  publicClient: ReturnType<typeof createMonadPublicClient>
 ) => {
   const { swapSession } = agentCtx;
   const amountLabel = describeAmount(intent.amount);
@@ -618,8 +753,10 @@ const handleWrapIntent = async (
 
   const { delegatorAddress } = swapSession;
 
-  const { amountInput, resolvedDisplay } = await resolveAmountInput(intent.amount, 18, () =>
-    publicClient.getBalance({ address: delegatorAddress }),
+  const { amountInput, resolvedDisplay } = await resolveAmountInput(
+    intent.amount,
+    18,
+    () => publicClient.getBalance({ address: delegatorAddress })
   );
 
   const result = await wrapNativeWithSession({
@@ -631,14 +768,18 @@ const handleWrapIntent = async (
   });
 
   console.log(
-    chalk.green(`Wrapped ${resolvedDisplay ?? amountInput} MON into WMON (tx: ${result.txHash}).`),
+    chalk.green(
+      `Wrapped ${resolvedDisplay ?? amountInput} MON into WMON (tx: ${
+        result.txHash
+      }).`
+    )
   );
 };
 
 const handleUnwrapIntent = async (
   intent: WrapIntentFields,
   agentCtx: LoadedAgentContext,
-  publicClient: ReturnType<typeof createMonadPublicClient>,
+  publicClient: ReturnType<typeof createMonadPublicClient>
 ) => {
   const { swapSession } = agentCtx;
   const amountLabel = describeAmount(intent.amount);
@@ -652,14 +793,18 @@ const handleUnwrapIntent = async (
 
   const { delegatorAddress } = swapSession;
 
-  const { amountInput, resolvedDisplay } = await resolveAmountInput(intent.amount, 18, async () => {
-    return (await publicClient.readContract({
-      address: getAddress(MONAD_WMON_ADDRESS),
-      abi: ERC20_ABI,
-      functionName: "balanceOf",
-      args: [delegatorAddress],
-    })) as bigint;
-  });
+  const { amountInput, resolvedDisplay } = await resolveAmountInput(
+    intent.amount,
+    18,
+    async () => {
+      return (await publicClient.readContract({
+        address: getAddress(MONAD_WMON_ADDRESS),
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [delegatorAddress],
+      })) as bigint;
+    }
+  );
 
   const result = await unwrapNativeWithSession({
     session: swapSession.session,
@@ -670,7 +815,11 @@ const handleUnwrapIntent = async (
   });
 
   console.log(
-    chalk.green(`Unwrapped ${resolvedDisplay ?? amountInput} WMON into MON (tx: ${result.txHash}).`),
+    chalk.green(
+      `Unwrapped ${resolvedDisplay ?? amountInput} WMON into MON (tx: ${
+        result.txHash
+      }).`
+    )
   );
 };
 
@@ -678,13 +827,18 @@ const handleTransferIntent = async (
   intent: TransferIntentFields,
   agentCtx: LoadedAgentContext,
   publicClient: ReturnType<typeof createMonadPublicClient>,
-  transferSessionCache: { current?: Awaited<ReturnType<typeof loadTransferSession>> },
+  transferSessionCache: {
+    current?: Awaited<ReturnType<typeof loadTransferSession>>;
+  }
 ) => {
-  const tokenLabel = intent.token?.symbol ?? (isNativeToken(intent.token) ? "MON" : "token");
+  const tokenLabel =
+    intent.token?.symbol ?? (isNativeToken(intent.token) ? "MON" : "token");
   const amountLabel = describeAmount(intent.amount);
   const recipient = intent.recipient;
 
-  console.log(chalk.green(`Transfer request: ${amountLabel} ${tokenLabel} → ${recipient}`));
+  console.log(
+    chalk.green(`Transfer request: ${amountLabel} ${tokenLabel} → ${recipient}`)
+  );
   const confirm = await promptConfirm("Execute this transfer?");
   if (!confirm) {
     console.log(chalk.gray("Transfer cancelled."));
@@ -697,13 +851,17 @@ const handleTransferIntent = async (
 
   if (isNativeToken(intent.token)) {
     if (!transferSessionCache.current) {
-      transferSessionCache.current = await loadTransferSession({ delegator: agentCtx.delegator });
+      transferSessionCache.current = await loadTransferSession({
+        delegator: agentCtx.delegator,
+      });
     }
     const transferSession = transferSessionCache.current;
     const { delegatorAddress } = transferSession;
 
-    const { amountInput, resolvedDisplay } = await resolveAmountInput(intent.amount, 18, () =>
-      publicClient.getBalance({ address: delegatorAddress }),
+    const { amountInput, resolvedDisplay } = await resolveAmountInput(
+      intent.amount,
+      18,
+      () => publicClient.getBalance({ address: delegatorAddress })
     );
 
     await transferNativeWithSession({
@@ -716,21 +874,27 @@ const handleTransferIntent = async (
     });
 
     console.log(
-      chalk.green(`Transferred ${resolvedDisplay ?? amountInput} MON to ${recipient}.`),
+      chalk.green(
+        `Transferred ${resolvedDisplay ?? amountInput} MON to ${recipient}.`
+      )
     );
   } else if (intent.token) {
     const token = toSwapToken(intent.token);
     const decimals = token.decimals ?? 18;
     const { swapSession } = agentCtx;
 
-    const { amountInput, resolvedDisplay } = await resolveAmountInput(intent.amount, decimals, async () => {
-      return (await publicClient.readContract({
-        address: getAddress(token.address),
-        abi: ERC20_ABI,
-        functionName: "balanceOf",
-        args: [swapSession.delegatorAddress],
-      })) as bigint;
-    });
+    const { amountInput, resolvedDisplay } = await resolveAmountInput(
+      intent.amount,
+      decimals,
+      async () => {
+        return (await publicClient.readContract({
+          address: getAddress(token.address),
+          abi: ERC20_ABI,
+          functionName: "balanceOf",
+          args: [swapSession.delegatorAddress],
+        })) as bigint;
+      }
+    );
 
     await transferTokenWithSession({
       session: swapSession.session,
@@ -743,11 +907,14 @@ const handleTransferIntent = async (
     });
 
     console.log(
-      chalk.green(`Transferred ${resolvedDisplay ?? amountInput} ${token.symbol ?? token.address} to ${recipient}.`),
+      chalk.green(
+        `Transferred ${resolvedDisplay ?? amountInput} ${
+          token.symbol ?? token.address
+        } to ${recipient}.`
+      )
     );
   }
 };
-
 
 const HELP_MESSAGE = `I can help you:
 - Swap tokens that are authorised in your delegation.
@@ -760,7 +927,7 @@ Let me know what you’d like to do in plain language.`;
 
 const handleQuickAction = async (
   action: QuickAction,
-  agentCtx: LoadedAgentContext,
+  agentCtx: LoadedAgentContext
 ): Promise<"continue" | "exit"> => {
   switch (action.type) {
     case "balances": {
@@ -777,7 +944,11 @@ const handleQuickAction = async (
           type: "quick_balances",
         });
       } catch (error) {
-        logAgentError({ delegator: agentCtx.delegator, error, phase: "balances" });
+        logAgentError({
+          delegator: agentCtx.delegator,
+          error,
+          phase: "balances",
+        });
         throw error;
       }
       return "continue";
@@ -807,7 +978,11 @@ const handleQuickAction = async (
           type: "quick_trending",
         });
       } catch (error) {
-        logAgentError({ delegator: agentCtx.delegator, error, phase: "trending" });
+        logAgentError({
+          delegator: agentCtx.delegator,
+          error,
+          phase: "trending",
+        });
         throw error;
       }
       return "continue";
@@ -822,7 +997,11 @@ const handleQuickAction = async (
         });
         printInsight(balanceInsight);
       } catch (error) {
-        logAgentError({ delegator: agentCtx.delegator, error, phase: "balances" });
+        logAgentError({
+          delegator: agentCtx.delegator,
+          error,
+          phase: "balances",
+        });
         throw error;
       }
       const delegationInsight = fetchDelegationInsight({
@@ -852,9 +1031,11 @@ const handleQuickAction = async (
     case "about": {
       console.log(chalk.blue("What is Pragma"));
       console.log(
-        "Pragma is Sonderlabs’ agent-first trading stack on the Monad testnet. It gives you a HybridDelegator smart account, session-key delegations, and pre-built tooling so swaps, wraps, unwraps, transfers, and future intents can be issued safely in natural language. Think of it as your autopilot for Monad DeFi—deterministic execution, human-readable guidance, and intent-aware guardrails baked in.",
+        "pragma is an AI-powered execution layer that understands your intent and turns it into on-chain actions — powered by MetaMask DTK, Monorail, and Envio, all running through verified contracts on Monad."
       );
-      console.log("If you’d like a deeper dive into the system design or roadmap, just ask.");
+      console.log(
+        "If you’d like a deeper dive into the system design or roadmap, just ask."
+      );
       logAgentResponse({
         delegator: agentCtx.delegator,
         type: "quick_about",
@@ -864,7 +1045,7 @@ const handleQuickAction = async (
     case "builders": {
       console.log(chalk.blue("Who built Pragma"));
       console.log(
-        "Pragma is built by Sonderlabs, led by founder elpabl0.eth. You can learn more about the team and projects at https://s0nderlabs.xyz.",
+        "pragma is built by s0nderlabs, led by founder elpabl0.eth. You can learn more about the team and projects at https://s0nderlabs.xyz."
       );
       logAgentResponse({
         delegator: agentCtx.delegator,
@@ -874,7 +1055,7 @@ const handleQuickAction = async (
     }
     case "revoke": {
       const confirm = await promptConfirm(
-        "Revoking will bump the NonceEnforcer and invalidate existing delegations. Proceed now?",
+        "Revoking will bump the NonceEnforcer and invalidate existing delegations. Proceed now?"
       );
       if (!confirm) {
         console.log(chalk.gray("Revocation cancelled."));
@@ -883,9 +1064,16 @@ const handleQuickAction = async (
       try {
         await runRevoke({ delegator: agentCtx.delegator });
         await markRequireOnboarding();
-        logAgentResponse({ delegator: agentCtx.delegator, type: "quick_revoke" });
+        logAgentResponse({
+          delegator: agentCtx.delegator,
+          type: "quick_revoke",
+        });
       } catch (error) {
-        logAgentError({ delegator: agentCtx.delegator, error, phase: "revoke" });
+        logAgentError({
+          delegator: agentCtx.delegator,
+          error,
+          phase: "revoke",
+        });
         throw error;
       }
       return "continue";
@@ -894,7 +1082,11 @@ const handleQuickAction = async (
       console.log(chalk.gray("Logging out…"));
       await markRequireOnboarding();
       logAgentResponse({ delegator: agentCtx.delegator, type: "quick_logout" });
-      console.log(chalk.gray("Session closed. Run 'pragma' again and complete onboarding to reconnect."));
+      console.log(
+        chalk.gray(
+          "Session closed. Run 'pragma' again and complete onboarding to reconnect."
+        )
+      );
       return "exit";
     }
     default:
@@ -925,7 +1117,10 @@ const ensureAgentContext = async (): Promise<LoadedAgentContext> => {
     const activeEntry = artifacts.find((entry) => {
       const kind = entry.artifact.kind ?? "swap";
       if (kind !== "swap") return false;
-      return !isDelegationExpired(entry.artifact) && Boolean(entry.artifact.sessionKeyPrivateKey);
+      return (
+        !isDelegationExpired(entry.artifact) &&
+        Boolean(entry.artifact.sessionKeyPrivateKey)
+      );
     });
 
     if (activeEntry?.delegator) {
@@ -939,11 +1134,15 @@ const ensureAgentContext = async (): Promise<LoadedAgentContext> => {
 
   if (skipAutoOnboard) {
     throw new Error(
-      "No active delegation found in session store and auto-onboarding is disabled (PRAGMA_AGENT_SKIP_ONBOARD=1).",
+      "No active delegation found in session store and auto-onboarding is disabled (PRAGMA_AGENT_SKIP_ONBOARD=1)."
     );
   }
 
-  console.log(chalk.gray("No active delegation detected or fresh login requested. Starting onboarding…"));
+  console.log(
+    chalk.gray(
+      "No active delegation detected or fresh login requested. Starting onboarding…"
+    )
+  );
   const result = await runOnboard4337();
   if (!result || !result.delegator) {
     throw new Error("Onboarding cancelled or failed. No delegator connected.");
@@ -957,10 +1156,12 @@ const handleMetaCommand = async (
   state: {
     agentContext: LoadedAgentContext;
     setAgentContext: (ctx: LoadedAgentContext) => Promise<void> | void;
-    transferSessionCache: { current?: Awaited<ReturnType<typeof loadTransferSession>> };
+    transferSessionCache: {
+      current?: Awaited<ReturnType<typeof loadTransferSession>>;
+    };
     quickMode: boolean;
     setQuickMode: (value: boolean) => void;
-  },
+  }
 ): Promise<"continue" | "exit"> => {
   const [commandRaw, ...rest] = line.slice(1).split(/\s+/);
   const command = commandRaw.toLowerCase();
@@ -980,7 +1181,7 @@ const handleMetaCommand = async (
         });
         printInsight(insight);
       } catch (error) {
-        console.log(chalk.red(`Unable to fetch balances: ${(error as Error).message}`));
+        logPragmaError(error, { prefix: "Unable to fetch balances:" });
         logAgentError({
           delegator: state.agentContext.delegator,
           error,
@@ -1001,19 +1202,35 @@ const handleMetaCommand = async (
         state.setQuickMode(target);
         if (target) {
           console.log(
-            chalk.yellow("Quick mode enabled – swaps will execute immediately without preview or confirmation."),
+            chalk.yellow(
+              "Quick mode enabled – swaps will execute immediately without preview or confirmation."
+            )
           );
-          logAgentResponse({ delegator: state.agentContext.delegator, type: "meta_quick_on" });
+          logAgentResponse({
+            delegator: state.agentContext.delegator,
+            type: "meta_quick_on",
+          });
         } else {
-          console.log(chalk.gray("Quick mode disabled – swap previews and confirmations restored."));
-          logAgentResponse({ delegator: state.agentContext.delegator, type: "meta_quick_off" });
+          console.log(
+            chalk.gray(
+              "Quick mode disabled – swap previews and confirmations restored."
+            )
+          );
+          logAgentResponse({
+            delegator: state.agentContext.delegator,
+            type: "meta_quick_off",
+          });
         }
         return "continue";
       }
 
       if (statusValues.has(arg)) {
         console.log(
-          chalk.gray(`Quick mode is currently ${state.quickMode ? "enabled" : "disabled"}.`),
+          chalk.gray(
+            `Quick mode is currently ${
+              state.quickMode ? "enabled" : "disabled"
+            }.`
+          )
         );
         return "continue";
       }
@@ -1024,9 +1241,14 @@ const handleMetaCommand = async (
         } else {
           state.setQuickMode(true);
           console.log(
-            chalk.yellow("Quick mode enabled – swaps will execute immediately without preview or confirmation."),
+            chalk.yellow(
+              "Quick mode enabled – swaps will execute immediately without preview or confirmation."
+            )
           );
-          logAgentResponse({ delegator: state.agentContext.delegator, type: "meta_quick_on" });
+          logAgentResponse({
+            delegator: state.agentContext.delegator,
+            type: "meta_quick_on",
+          });
         }
         return "continue";
       }
@@ -1036,13 +1258,24 @@ const handleMetaCommand = async (
           console.log(chalk.gray("Quick mode already disabled."));
         } else {
           state.setQuickMode(false);
-          console.log(chalk.gray("Quick mode disabled – swap previews and confirmations restored."));
-          logAgentResponse({ delegator: state.agentContext.delegator, type: "meta_quick_off" });
+          console.log(
+            chalk.gray(
+              "Quick mode disabled – swap previews and confirmations restored."
+            )
+          );
+          logAgentResponse({
+            delegator: state.agentContext.delegator,
+            type: "meta_quick_off",
+          });
         }
         return "continue";
       }
 
-      console.log(chalk.red("Unknown quick mode option. Usage: /quick, /quick status, /quick on, /quick off"));
+      console.log(
+        chalk.red(
+          "Unknown quick mode option. Usage: /quick, /quick status, /quick on, /quick off"
+        )
+      );
       return "continue";
     }
     case "delegation": {
@@ -1062,7 +1295,7 @@ const handleMetaCommand = async (
         const insight = await fetchTrendingTokensInsight();
         printInsight(insight);
       } catch (error) {
-        console.log(chalk.red(`Unable to fetch trending tokens: ${(error as Error).message}`));
+        logPragmaError(error, { prefix: "Unable to fetch trending tokens:" });
         logAgentError({
           delegator: state.agentContext.delegator,
           error,
@@ -1084,8 +1317,15 @@ const handleMetaCommand = async (
     case "logout":
       console.log(chalk.gray("Logging out…"));
       await markRequireOnboarding();
-      logAgentResponse({ delegator: state.agentContext.delegator, type: "meta_logout" });
-      console.log(chalk.gray("Session closed. Run 'pragma' again to reconnect via onboarding."));
+      logAgentResponse({
+        delegator: state.agentContext.delegator,
+        type: "meta_logout",
+      });
+      console.log(
+        chalk.gray(
+          "Session closed. Run 'pragma' again to reconnect via onboarding."
+        )
+      );
       return "exit";
     case "exit":
       return "exit";
@@ -1099,8 +1339,10 @@ const handleIntent = async (
   intent: CanonicalIntent,
   agentCtx: LoadedAgentContext,
   publicClient: ReturnType<typeof createMonadPublicClient>,
-  transferSessionCache: { current?: Awaited<ReturnType<typeof loadTransferSession>> },
-  quickMode: boolean,
+  transferSessionCache: {
+    current?: Awaited<ReturnType<typeof loadTransferSession>>;
+  },
+  quickMode: boolean
 ): Promise<LoadedAgentContext | undefined> => {
   switch (intent.action) {
     case "swap":
@@ -1113,7 +1355,12 @@ const handleIntent = async (
       await handleUnwrapIntent(intent, agentCtx, publicClient);
       return undefined;
     case "transfer":
-      await handleTransferIntent(intent, agentCtx, publicClient, transferSessionCache);
+      await handleTransferIntent(
+        intent,
+        agentCtx,
+        publicClient,
+        transferSessionCache
+      );
       return undefined;
     case "delegation_issue": {
       console.log(chalk.green("Issuing a fresh delegation…"));
@@ -1127,32 +1374,39 @@ const handleIntent = async (
         await saveDelegatorSession(refreshedContext.delegator);
         console.log(
           chalk.green(
-            `Delegation updated for ${refreshedContext.delegator} (mode: ${refreshedContext.delegationContext.mode}).`,
-          ),
+            `Delegation updated for ${refreshedContext.delegator} (mode: ${refreshedContext.delegationContext.mode}).`
+          )
         );
         return refreshedContext;
       } catch (error) {
-        console.log(chalk.red((error as Error).message));
+        logPragmaError(error, { prefix: "Delegation issuance failed:" });
         throw error;
       }
     }
     default:
-      console.log(chalk.gray(`Intent ${(intent as any).action ?? "unknown"} is not executable yet.`));
+      console.log(
+        chalk.gray(
+          `Intent ${(intent as any).action ?? "unknown"} is not executable yet.`
+        )
+      );
       return undefined;
   }
 };
 
-
-
 const promptLine = async (promptLabel: string): Promise<string> => {
   return await new Promise((resolve) => {
-    const rl = readline.createInterface({ input, output, terminal: true, historySize: 0 });
+    const rl = readline.createInterface({
+      input,
+      output,
+      terminal: true,
+      historySize: 0,
+    });
     const inputStream = input as NodeJS.ReadStream;
     const outputStream = output as NodeJS.WriteStream;
 
     let finished = false;
     const setLine = (value: string) => {
-      rl.write(null, { ctrl: true, name: 'u' });
+      rl.write(null, { ctrl: true, name: "u" });
       rl.write(value);
     };
 
@@ -1205,8 +1459,8 @@ const promptLine = async (promptLabel: string): Promise<string> => {
         if ((error as { isTtyError?: boolean } | undefined)?.isTtyError) {
           console.log(
             chalk.yellow(
-              "Interactive selection unavailable in this terminal; type the command manually (e.g. /help).",
-            ),
+              "Interactive selection unavailable in this terminal; type the command manually (e.g. /help)."
+            )
           );
         }
         resolve("");
@@ -1221,20 +1475,20 @@ const promptLine = async (promptLabel: string): Promise<string> => {
       finish(line);
     };
 
-    const handleClose = () => finish('');
+    const handleClose = () => finish("");
     const handleSigint = () => {
-      outputStream.write('^C\n');
-      finish('exit');
+      outputStream.write("^C\n");
+      finish("exit");
     };
 
     const handleKeypress = (_str: string, key: readline.Key) => {
-      const isSlash = key?.name === 'slash' || key?.sequence === '/';
+      const isSlash = key?.name === "slash" || key?.sequence === "/";
 
       if (isSlash) {
         const trimmed = rl.line.trim();
-        if (trimmed.length === 0 || trimmed === '/') {
-          if (!rl.line.startsWith('/')) {
-            setLine('/');
+        if (trimmed.length === 0 || trimmed === "/") {
+          if (!rl.line.startsWith("/")) {
+            setLine("/");
           }
           void openPalette();
         }
@@ -1242,14 +1496,14 @@ const promptLine = async (promptLabel: string): Promise<string> => {
       }
     };
 
-    rl.on('line', handleLine);
-    rl.on('close', handleClose);
-    rl.on('SIGINT', handleSigint);
+    rl.on("line", handleLine);
+    rl.on("close", handleClose);
+    rl.on("SIGINT", handleSigint);
 
     if (inputStream.isTTY) {
       readline.emitKeypressEvents(inputStream, rl);
       inputStream.setRawMode(true);
-      inputStream.on('keypress', handleKeypress);
+      inputStream.on("keypress", handleKeypress);
     }
 
     rl.setPrompt(promptLabel);
@@ -1262,7 +1516,9 @@ export interface AgentReplOptions {
   quickMode?: boolean;
 }
 
-export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promise<void> => {
+export const runPragmaAgentRepl = async (
+  options: AgentReplOptions = {}
+): Promise<void> => {
   let agentContext = await ensureAgentContext();
   logAgentContextLoaded({
     delegator: agentContext.delegator,
@@ -1270,12 +1526,18 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
     tokens: listTokenSymbols(agentContext.delegationContext.allowedTokens),
     sessionKey: agentContext.swapSession.session.sessionKeyAddress,
   });
-  console.log(chalk.gray("Connected. Ask me anything or type 'logout' to disconnect."));
-  console.log(chalk.gray("Type '/' for command palette or '/help' to list meta commands."));
+  console.log(
+    chalk.gray("Connected. Ask me anything or type 'logout' to disconnect.")
+  );
+  console.log(
+    chalk.gray("Type '/' for command palette or '/help' to list meta commands.")
+  );
 
   const agent = createConfiguredAgent();
   const publicClient = createMonadPublicClient();
-  const transferSessionCache: { current?: Awaited<ReturnType<typeof loadTransferSession>> } = {};
+  const transferSessionCache: {
+    current?: Awaited<ReturnType<typeof loadTransferSession>>;
+  } = {};
 
   const liveObserverState: {
     timeout?: NodeJS.Timeout;
@@ -1285,7 +1547,7 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
 
   const startObserversForContext = (ctx: LoadedAgentContext) => {
     const delegationManagerAddress = getAddress(
-      ctx.swapSession.environment.DelegationManager,
+      ctx.swapSession.environment.DelegationManager
     ) as `0x${string}`;
 
     const kickoff = async () => {
@@ -1302,8 +1564,8 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
           chalk.red(
             `[observer] Unable to initialise live monitoring: ${
               error instanceof Error ? error.message : String(error)
-            }`,
-          ),
+            }`
+          )
         );
       }
     };
@@ -1340,15 +1602,22 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
 
   startObserversForContext(agentContext);
 
-  console.log(chalk.bold(`Pragma Agent — connected to ${agentContext.delegator}`));
+  console.log(
+    chalk.bold(`Pragma Agent - connected to ${agentContext.delegator}`)
+  );
   console.log(chalk.gray("Type 'exit' to leave the chat."));
   console.log();
 
   const defaultPrompt = (label: string) => promptLine(label);
   const promptFn = options.prompt ?? defaultPrompt;
-  let quickMode = options.quickMode ?? process.env.PRAGMA_AGENT_QUICK_MODE === "1";
+  let quickMode =
+    options.quickMode ?? process.env.PRAGMA_AGENT_QUICK_MODE === "1";
   if (quickMode) {
-    console.log(chalk.yellow("Quick mode active – swaps will execute immediately without preview or confirmation."));
+    console.log(
+      chalk.yellow(
+        "Quick mode active – swaps will execute immediately without preview or confirmation."
+      )
+    );
   }
 
   try {
@@ -1374,7 +1643,7 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
               break;
             }
           } catch (error) {
-            console.log(chalk.red((error as Error).message));
+            logPragmaError(error);
           }
           continue;
         }
@@ -1407,7 +1676,7 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
         break;
       }
 
-  try {
+      try {
         const response = await agent.respond(line, {
           delegation: agentContext.delegationContext,
           metadata: {
@@ -1425,7 +1694,7 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
                 agentContext,
                 publicClient,
                 transferSessionCache,
-                quickMode,
+                quickMode
               );
               if (updatedContext) {
                 agentContext = updatedContext;
@@ -1437,10 +1706,22 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
             if (response.warnings.length > 0) {
               console.log(chalk.gray(`Notes: ${response.warnings.join(", ")}`));
             }
-            if (response.meta?.defaultsApplied && response.meta.defaultsApplied.length > 0) {
-              console.log(chalk.gray(`Defaults applied: ${response.meta.defaultsApplied.join(", ")}`));
+            if (
+              response.meta?.defaultsApplied &&
+              response.meta.defaultsApplied.length > 0
+            ) {
+              console.log(
+                chalk.gray(
+                  `Defaults applied: ${response.meta.defaultsApplied.join(
+                    ", "
+                  )}`
+                )
+              );
             }
-            if (response.meta?.policyEnforcements && response.meta.policyEnforcements.length > 0) {
+            if (
+              response.meta?.policyEnforcements &&
+              response.meta.policyEnforcements.length > 0
+            ) {
               response.meta.policyEnforcements.forEach((enforcement) => {
                 console.log(chalk.gray(describePolicyEnforcement(enforcement)));
               });
@@ -1474,7 +1755,9 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
           case "error":
             console.log(chalk.red("Could not interpret request:"));
             response.violations.forEach((violation) => {
-              console.log(chalk.red(`- ${violation.code}: ${violation.message}`));
+              console.log(
+                chalk.red(`- ${violation.code}: ${violation.message}`)
+              );
             });
             if (response.warnings.length > 0) {
               console.log(chalk.gray(`Notes: ${response.warnings.join(", ")}`));
@@ -1483,7 +1766,9 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
               delegator: agentContext.delegator,
               type: "error",
               extra: {
-                violations: response.violations.map((violation) => violation.code),
+                violations: response.violations.map(
+                  (violation) => violation.code
+                ),
               },
             });
             break;
@@ -1504,7 +1789,7 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
             console.log(chalk.gray("Unhandled response."));
         }
       } catch (error) {
-        console.log(chalk.red((error as Error).message));
+        logPragmaError(error, { prefix: "Agent execution failed:" });
         logAgentError({
           delegator: agentContext.delegator,
           error,

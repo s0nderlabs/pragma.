@@ -1,5 +1,7 @@
 import { Address, getAddress } from "viem";
 
+import { createErrorFromCode } from "../errors/index.js";
+
 export interface MonorailToken {
   address: Address;
   symbol?: string;
@@ -99,7 +101,10 @@ export const fetchMonorailTokensFromPath = async (
   const url = `${config.dataApiUrl}${path}`;
   const response = await getFetchFn(config)(url, { headers: buildHeaders(config.apiKey) });
   if (!response.ok) {
-    throw new Error(`Monorail data API request failed (${response.status} ${response.statusText})`);
+    throw createErrorFromCode("RPC_UNAVAILABLE", {
+      message: `Monorail data API request failed (${response.status} ${response.statusText})`,
+      context: { provider: "MonorailData", path },
+    });
   }
   const payload = (await response.json()) as RawMonorailToken[];
   const tokens: MonorailToken[] = [];
@@ -267,7 +272,7 @@ export const resolveTokenFromAllowlist = (
 
 export const formatTokenLabel = (token: AllowedToken): string => {
   const symbol = token.symbol ?? token.address.slice(0, 6);
-  const suffix = token.categories && token.categories.length > 0 ? ` — ${token.categories.slice(0, 3).join(",")}` : "";
+  const suffix = token.categories && token.categories.length > 0 ? ` - ${token.categories.slice(0, 3).join(",")}` : "";
   return `${symbol} (${token.address.slice(0, 6)}…${token.address.slice(-4)})${suffix}`;
 };
 

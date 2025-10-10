@@ -9,7 +9,7 @@ type Mode = "safe" | "normal";
 export const registerDelegationRevoke = (program: Command) => {
   program
     .command("delegation:revoke")
-    .description("Alias for revoke — bumps nonce to invalidate all delegations")
+    .description("Alias for revoke - bumps nonce to invalidate all delegations")
     .option("--mode <mode>", "safe | normal", "safe")
     .action(async ({ mode }: { mode: string }) => {
       const normalized = mode.toLowerCase();

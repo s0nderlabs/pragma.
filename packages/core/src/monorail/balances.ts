@@ -1,5 +1,7 @@
 import { Address, getAddress } from "viem";
 
+import { createErrorFromCode } from "../errors/index.js";
+
 export interface MonorailBalancesConfig {
   dataApiUrl: string;
   apiKey?: string;
@@ -54,7 +56,10 @@ export const fetchWalletBalances = async (
   const response = await getFetchFn(config)(url.toString(), { headers: buildHeaders(config.apiKey) });
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`Monorail balance request failed (${response.status}): ${text}`);
+    throw createErrorFromCode("RPC_UNAVAILABLE", {
+      message: `Monorail balance request failed (${response.status}): ${text}`,
+      context: { provider: "MonorailData" },
+    });
   }
   return (await response.json()) as RawTokenBalance[];
 };
@@ -67,7 +72,10 @@ export const fetchPortfolioValue = async (
   const response = await getFetchFn(config)(url.toString(), { headers: buildHeaders(config.apiKey) });
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`Monorail portfolio value request failed (${response.status}): ${text}`);
+    throw createErrorFromCode("RPC_UNAVAILABLE", {
+      message: `Monorail portfolio value request failed (${response.status}): ${text}`,
+      context: { provider: "MonorailData" },
+    });
   }
   return (await response.json()) as PortfolioValueResponse;
 };
@@ -87,4 +95,3 @@ export const normalizeTokenBalance = (token: RawTokenBalance): TokenBalance => (
 
 export const normalizeBalances = (balances: RawTokenBalance[]): TokenBalance[] =>
   balances.map(normalizeTokenBalance);
-

@@ -13,6 +13,7 @@ import { ExecutionMode, type ExecutionStruct, contracts, createExecution, redeem
 import type { AllowedToken } from "../monorail/tokens.js";
 import type { SessionDelegationInfo, DeleGatorEnv } from "../delegations/types.js";
 import type { MonorailQuote, QuoteRequestParams } from "../monorail/pathfinder.js";
+import { createErrorFromCode } from "../errors/index.js";
 
 export const ERC20_ABI = [
   {
@@ -280,29 +281,42 @@ export const previewSwapWithSession = async (
 
   const now = Math.floor(Date.now() / 1000);
   if (session.expiresAt <= now) {
-    throw new Error(
-      `Delegation expired at ${new Date(session.expiresAt * 1000).toISOString()} — reissue before swapping.`,
-    );
+    throw createErrorFromCode("SIM_PREVIEW_EXPIRED", {
+      message: `Delegation expired at ${new Date(session.expiresAt * 1000).toISOString()} - reissue before swapping.`,
+      context: {
+        session_key_id: session.sessionKeyAddress,
+        delegation_expires_at: session.expiresAt,
+      },
+    });
   }
 
   const amountIn = parseUnits(amountInput, intent.from.decimals);
   if (amountIn <= 0n) {
-    throw new Error("Swap amount must be greater than zero.");
+    throw createErrorFromCode("AMOUNT_MALFORMED", {
+      message: "Swap amount must be greater than zero.",
+    });
   }
 
   const sessionKeyBalance = await publicClient.getBalance({ address: session.sessionKeyAddress });
   if (sessionKeyBalance === 0n) {
-    throw new Error(
-      `Session key ${session.sessionKeyAddress} has zero MON. Fund the session key before performing delegated swaps.`,
-    );
+    throw createErrorFromCode("SIM_BALANCE_TOO_LOW", {
+      message: `Session key ${session.sessionKeyAddress} has zero MON. Fund the session key before performing delegated swaps.`,
+      context: {
+        session_key_id: session.sessionKeyAddress,
+      },
+    });
   }
 
   const fromBalance = await readTokenBalance(intent.from, hybridDelegator, publicClient, nativeTokenAddress);
   if (fromBalance < amountIn) {
     const symbol = intent.from.symbol ?? nativeTokenAddress.slice(0, 6);
-    throw new Error(
-      `HybridDelegator ${hybridDelegator} has insufficient ${symbol} balance (${formatUnits(fromBalance, intent.from.decimals)}).`,
-    );
+    throw createErrorFromCode("SIM_BALANCE_TOO_LOW", {
+      message: `HybridDelegator ${hybridDelegator} has insufficient ${symbol} balance (${formatUnits(fromBalance, intent.from.decimals)}).`,
+      context: {
+        delegator: hybridDelegator,
+        token: intent.from.address,
+      },
+    });
   }
 
   const amountDecimal = formatUnits(amountIn, intent.from.decimals);
@@ -362,9 +376,14 @@ export const previewSwapWithSession = async (
   const expectedOut = quote.rawOutput;
   const policyMin = expectedOut > 0n ? (expectedOut * BigInt(10_000 - slippageBps)) / 10_000n : 0n;
   if (quote.rawMinOutput < policyMin) {
-    throw new Error(
-      `Quoted minimum output is below the policy floor (${formatUnits(policyMin, intent.to.decimals)} ${intent.to.symbol ?? intent.to.address.slice(0, 6)}).`,
-    );
+    throw createErrorFromCode("SIM_MIN_OUT_NOT_MET", {
+      message: `Quoted minimum output is below the policy floor (${formatUnits(policyMin, intent.to.decimals)} ${intent.to.symbol ?? intent.to.address.slice(0, 6)}).`,
+      context: {
+        token_in: intent.from.address,
+        token_out: intent.to.address,
+        min_out: formatUnits(quote.rawMinOutput, intent.to.decimals),
+      },
+    });
   }
 
   return {
@@ -405,19 +424,27 @@ export const executeSwapWithSession = async (
 
   const now = Math.floor(Date.now() / 1000);
   if (session.expiresAt <= now) {
-    throw new Error(
-      `Delegation expired at ${new Date(session.expiresAt * 1000).toISOString()} — reissue before swapping.`,
-    );
+    throw createErrorFromCode("SIM_PREVIEW_EXPIRED", {
+      message: `Delegation expired at ${new Date(session.expiresAt * 1000).toISOString()} - reissue before swapping.`,
+      context: {
+        session_key_id: session.sessionKeyAddress,
+        delegation_expires_at: session.expiresAt,
+      },
+    });
   }
 
   let amountIn = parseUnits(amountInput, intent.from.decimals);
   if (amountIn <= 0n) {
-    throw new Error("Swap amount must be greater than zero.");
+    throw createErrorFromCode("AMOUNT_MALFORMED", {
+      message: "Swap amount must be greater than zero.",
+    });
   }
 
   if (preparedPlan) {
     if (preparedPlan.amountIn <= 0n) {
-      throw new Error("Prepared swap plan has invalid amount (<= 0).");
+      throw createErrorFromCode("AMOUNT_MALFORMED", {
+        message: "Prepared swap plan has invalid amount (<= 0).",
+      });
     }
     amountIn = preparedPlan.amountIn;
   }
@@ -427,9 +454,12 @@ export const executeSwapWithSession = async (
   const SESSION_KEY_CRITICAL_THRESHOLD = 10_000_000_000_000_000n; // 0.01 MON
   const SESSION_KEY_WARN_THRESHOLD = 100_000_000_000_000_000n; // 0.1 MON
   if (sessionKeyBalance === 0n || sessionKeyBalance < SESSION_KEY_CRITICAL_THRESHOLD) {
-    throw new Error(
-      `Session key ${session.sessionKeyAddress} only has ${formatUnits(sessionKeyBalance, 18)} MON. Fund the session key (≥0.1 MON) before performing delegated swaps.`,
-    );
+    throw createErrorFromCode("SIM_BALANCE_TOO_LOW", {
+      message: `Session key ${session.sessionKeyAddress} only has ${formatUnits(sessionKeyBalance, 18)} MON. Fund the session key (≥0.1 MON) before performing delegated swaps.`,
+      context: {
+        session_key_id: session.sessionKeyAddress,
+      },
+    });
   }
   if (sessionKeyBalance < SESSION_KEY_WARN_THRESHOLD) {
     emit(
@@ -442,9 +472,13 @@ export const executeSwapWithSession = async (
   const fromBalance = await readTokenBalance(intent.from, hybridDelegator, publicClient, nativeTokenAddress);
   if (fromBalance < amountIn) {
     const symbol = intent.from.symbol ?? nativeTokenSymbol ?? "token";
-    throw new Error(
-      `HybridDelegator ${hybridDelegator} has insufficient ${symbol} balance (${formatUnits(fromBalance, intent.from.decimals)}).`,
-    );
+    throw createErrorFromCode("SIM_BALANCE_TOO_LOW", {
+      message: `HybridDelegator ${hybridDelegator} has insufficient ${symbol} balance (${formatUnits(fromBalance, intent.from.decimals)}).`,
+      context: {
+        delegator: hybridDelegator,
+        token: intent.from.address,
+      },
+    });
   }
 
   const approvalStrategy = resolveApprovalStrategy(config);
@@ -531,15 +565,19 @@ export const executeSwapWithSession = async (
   } catch (error) {
     const message = (error as Error)?.message ?? "";
     if (/0x8199f5f3/i.test(message) || /SlippageExceeded/i.test(message)) {
-      throw new Error(
-        "Swap reverted with SlippageExceeded: the actual output dropped below the Monorail quote's minimum. Increase the slippage tolerance (e.g. --slippage-bps 300) or retry after obtaining a fresh quote.",
-      );
+      throw createErrorFromCode("EXEC_ROUTER_REVERT", {
+        message:
+          "Swap reverted with SlippageExceeded: the actual output dropped below the Monorail quote's minimum. Increase tolerance or refresh the quote.",
+        cause: error,
+      });
     }
     const sessionKeyBalanceNow = await publicClient.getBalance({ address: session.sessionKeyAddress });
     if (sessionKeyBalanceNow < SESSION_KEY_CRITICAL_THRESHOLD) {
-      throw new Error(
-        `Delegated swap failed because session key ${session.sessionKeyAddress} only has ${formatUnits(sessionKeyBalanceNow, 18)} MON. Fund the session key (≥0.1 MON) and retry.`,
-      );
+      throw createErrorFromCode("SIM_BALANCE_TOO_LOW", {
+        message: `Delegated swap failed because session key ${session.sessionKeyAddress} only has ${formatUnits(sessionKeyBalanceNow, 18)} MON. Fund the session key (≥0.1 MON) and retry.`,
+        context: { session_key_id: session.sessionKeyAddress },
+        cause: error,
+      });
     }
     throw error;
   }
@@ -626,19 +664,25 @@ export const wrapNativeWithSession = async (
 
   const amount = parseUnits(amountInput, 18);
   if (amount <= 0n) {
-    throw new Error("Wrap amount must be greater than zero.");
+    throw createErrorFromCode("AMOUNT_MALFORMED", {
+      message: "Wrap amount must be greater than zero.",
+    });
   }
 
   const now = Math.floor(Date.now() / 1000);
   if (session.expiresAt <= now) {
-    throw new Error("Delegation expired. Reissue before wrapping.");
+    throw createErrorFromCode("SIM_PREVIEW_EXPIRED", {
+      message: "Delegation expired. Reissue before wrapping.",
+      context: { session_key_id: session.sessionKeyAddress },
+    });
   }
 
   const balance = await publicClient.getBalance({ address: hybridDelegator });
   if (balance < amount) {
-    throw new Error(
-      `HybridDelegator ${hybridDelegator} has insufficient ${nativeTokenSymbol ?? "MON"} balance (${formatUnits(balance, 18)}).`,
-    );
+    throw createErrorFromCode("SIM_BALANCE_TOO_LOW", {
+      message: `HybridDelegator ${hybridDelegator} has insufficient ${nativeTokenSymbol ?? "MON"} balance (${formatUnits(balance, 18)}).`,
+      context: { delegator: hybridDelegator, token: nativeTokenSymbol ?? "MON" },
+    });
   }
 
   const sessionWallet = sessionWalletFactory(session);
@@ -688,7 +732,9 @@ export const unwrapNativeWithSession = async (
 
   const amount = parseUnits(amountInput, 18);
   if (amount <= 0n) {
-    throw new Error("Unwrap amount must be greater than zero.");
+    throw createErrorFromCode("AMOUNT_MALFORMED", {
+      message: "Unwrap amount must be greater than zero.",
+    });
   }
 
   const wrappedBalance = (await publicClient.readContract({
@@ -699,9 +745,10 @@ export const unwrapNativeWithSession = async (
   })) as bigint;
 
   if (wrappedBalance < amount) {
-    throw new Error(
-      `HybridDelegator ${hybridDelegator} has insufficient ${wrappedNativeSymbol ?? "WMON"} balance (${formatUnits(wrappedBalance, 18)}).`,
-    );
+    throw createErrorFromCode("SIM_BALANCE_TOO_LOW", {
+      message: `HybridDelegator ${hybridDelegator} has insufficient ${wrappedNativeSymbol ?? "WMON"} balance (${formatUnits(wrappedBalance, 18)}).`,
+      context: { delegator: hybridDelegator, token: wrappedNativeAddress },
+    });
   }
 
   const sessionWallet = sessionWalletFactory(session);

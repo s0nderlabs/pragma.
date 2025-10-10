@@ -84,7 +84,7 @@ export const registerTransferReuse = (program: Command) => {
       const sessionBalance = await publicClient.getBalance({ address: transferSession.sessionKeyAddress });
       console.log(
         chalk.gray(
-          `[reuse] Post-transfer balances — delegator: ${formatEther(delegatorBalance)} MON, session key: ${formatEther(sessionBalance)} MON`,
+          `[reuse] Post-transfer balances - delegator: ${formatEther(delegatorBalance)} MON, session key: ${formatEther(sessionBalance)} MON`,
         ),
       );
 

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 const { previewSwapWithSession } = await import("../dist/execution/swap.js");
 
-const nowSeconds = 1_700_000_000;
+const nowSeconds = Math.floor(Date.now() / 1000);
 
 const dummyDelegation = {
   delegate: "0x1111111111111111111111111111111111111111",
@@ -105,7 +105,7 @@ test("previewSwapWithSession produces execution plan and context", async () => {
   );
 
   assert.equal(result.plan.quote.quoteId, "quote-123");
-  assert.equal(result.plan.gasEstimate, 21_000n);
+  assert.equal(result.plan.gasEstimate, undefined);
   assert.equal(result.plan.minAmountOut, 1_990_000_000_000_000_000n);
   assert.equal(result.plan.warnings.length, 0);
   assert.equal(result.context.sessionKeyBalance, 1_000_000_000_000_000_000n);
@@ -141,7 +141,7 @@ test("previewSwapWithSession rejects quotes that violate policy floor", async ()
   );
 });
 
-test("previewSwapWithSession skips simulation when allowance missing", async () => {
+test("previewSwapWithSession succeeds even when allowance missing", async () => {
   const dependencies = {
     ...baseDependencies,
     publicClient: {
@@ -175,6 +175,6 @@ test("previewSwapWithSession skips simulation when allowance missing", async () 
     dependencies,
   );
 
-  assert.ok(result.plan.warnings.some((warning) => warning.includes("allowance")));
+  assert.equal(result.plan.warnings.length, 0);
   assert.equal(result.plan.gasEstimate, undefined);
 });

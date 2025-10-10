@@ -8,6 +8,7 @@ import {
 } from "viem";
 
 import { HyperSyncObserver, type HyperSyncLogSubscription } from "./hypersync.js";
+import { createErrorFromCode } from "../errors/index.js";
 
 const toTopicHash = (signature: string) => keccak256(stringToHex(signature)).toLowerCase();
 
@@ -32,7 +33,10 @@ const toTopicArray = (
 ): [`0x${string}`, ...`0x${string}`[]] => {
   const [first, ...rest] = topics;
   if (!first) {
-    throw new Error("HyperSync log is missing topic0");
+    throw createErrorFromCode("RECEIPT_LOGS_MISSING", {
+      message: "HyperSync log is missing topic0",
+      context: { module: "observability" },
+    });
   }
   const normalizedFirst = first as `0x${string}`;
   const extras = rest.filter((topic): topic is `0x${string}` => typeof topic === "string");

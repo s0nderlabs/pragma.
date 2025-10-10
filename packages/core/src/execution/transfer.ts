@@ -15,6 +15,7 @@ import { createExecution, ExecutionMode, redeemDelegations } from "@metamask/del
 import type { AllowedToken } from "../monorail/tokens.js";
 import type { SessionDelegationInfo, DeleGatorEnv } from "../delegations/types.js";
 import { ERC20_ABI, type ExecutionLogger } from "./swap.js";
+import { createErrorFromCode } from "../errors/index.js";
 
 const emit = (logger: ExecutionLogger | undefined, level: keyof ExecutionLogger, message: string) => {
   const fn = logger?.[level];
@@ -37,12 +38,15 @@ export interface TokenTransferDependencies extends NativeTransferDependencies {
 const ensureSessionActive = (session: SessionDelegationInfo) => {
   const now = Math.floor(Date.now() / 1000);
   if (session.expiresAt <= now) {
-    throw new Error(
-      `Delegation expired at ${new Date(session.expiresAt * 1000).toISOString()} — reissue before executing transfers.`,
-    );
+    throw createErrorFromCode("SIM_PREVIEW_EXPIRED", {
+      message: `Delegation expired at ${new Date(session.expiresAt * 1000).toISOString()} - reissue before executing transfers.`,
+      context: { session_key_id: session.sessionKeyAddress },
+    });
   }
   if (!session.sessionKeyPrivateKey) {
-    throw new Error("Session delegation is missing the private key secret; reissue onboarding before transferring.");
+    throw createErrorFromCode("SESSION_KEY_INVALID", {
+      message: "Session delegation is missing the private key secret; reissue onboarding before transferring.",
+    });
   }
 };
 
@@ -73,12 +77,15 @@ export const transferNativeWithSession = async (
   ensureSessionActive(session);
   const amount = parseEther(amountInput);
   if (amount <= 0n) {
-    throw new Error("Native transfer amount must be greater than zero.");
+    throw createErrorFromCode("AMOUNT_MALFORMED", {
+      message: "Native transfer amount must be greater than zero.",
+    });
   }
   if (session.transferMaxAmount && amount > session.transferMaxAmount) {
-    throw new Error(
-      `Requested amount ${formatEther(amount)} exceeds native transfer cap of ${formatEther(session.transferMaxAmount)} ${nativeTokenSymbol ?? "MON"}.`,
-    );
+    throw createErrorFromCode("AMOUNT_EXCEEDS_CAP", {
+      message: `Requested amount ${formatEther(amount)} exceeds native transfer cap of ${formatEther(session.transferMaxAmount)} ${nativeTokenSymbol ?? "MON"}.`,
+      context: { cap: formatEther(session.transferMaxAmount) },
+    });
   }
 
   const sessionWallet = sessionWalletFactory(session);
@@ -117,7 +124,9 @@ export const transferTokenWithSession = async (
 
   ensureSessionActive(session);
   if (!session.allowedTokens || session.allowedTokens.length === 0) {
-    throw new Error("Session delegation is missing allowed token metadata; reissue onboarding before transferring tokens.");
+    throw createErrorFromCode("SESSION_KEY_INVALID", {
+      message: "Session delegation is missing allowed token metadata; reissue onboarding before transferring tokens.",
+    });
   }
 
   const tokenAddress = getAddress(token.address);
@@ -125,19 +134,24 @@ export const transferTokenWithSession = async (
     (entry) => entry.address.toLowerCase() === tokenAddress.toLowerCase(),
   );
   if (!normalizedAllowed) {
-    throw new Error(
-      `Token ${token.symbol ?? tokenAddress} is not included in this delegation scope. Update delegation tokens before transferring.`,
-    );
+    throw createErrorFromCode("TOKEN_OUT_OF_SCOPE", {
+      message: `Token ${token.symbol ?? tokenAddress} is not included in this delegation scope. Update delegation tokens before transferring.`,
+      context: { token: tokenAddress },
+    });
   }
 
   if (isNativeToken(token, nativeTokenAddress)) {
-    throw new Error("Wrapped/native MON should use the dedicated native transfer command.");
+    throw createErrorFromCode("POLICY_CONFLICT", {
+      message: "Wrapped/native MON should use the dedicated native transfer command.",
+    });
   }
 
   const decimals = typeof token.decimals === "number" ? token.decimals : Number(token.decimals ?? 18);
   const amount = parseUnits(amountInput, decimals);
   if (amount <= 0n) {
-    throw new Error("Token transfer amount must be greater than zero.");
+    throw createErrorFromCode("AMOUNT_MALFORMED", {
+      message: "Token transfer amount must be greater than zero.",
+    });
   }
 
   const sessionWallet = sessionWalletFactory(session);
@@ -150,9 +164,10 @@ export const transferTokenWithSession = async (
   })) as bigint;
 
   if (balance < amount) {
-    throw new Error(
-      `HybridDelegator ${hybridDelegator} has insufficient balance (${formatUnits(balance, decimals)} available).`,
-    );
+    throw createErrorFromCode("SIM_BALANCE_TOO_LOW", {
+      message: `HybridDelegator ${hybridDelegator} has insufficient balance (${formatUnits(balance, decimals)} available).`,
+      context: { delegator: hybridDelegator, token: tokenAddress },
+    });
   }
 
   const callData = encodeFunctionData({

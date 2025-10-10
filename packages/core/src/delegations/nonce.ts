@@ -1,5 +1,7 @@
 import type { Address, PublicClient } from "viem";
 
+import { createErrorFromCode } from "../errors/index.js";
+
 import type { DeleGatorEnv } from "./types.js";
 
 const NONCE_ENFORCER_ABI = [
@@ -22,7 +24,10 @@ export const fetchDelegatorNonce = async (
 ): Promise<bigint> => {
   const nonceEnforcerAddress = environment.caveatEnforcers?.NonceEnforcer;
   if (!nonceEnforcerAddress) {
-    throw new Error("NonceEnforcer address missing in environment configuration");
+    throw createErrorFromCode("CONFIG_MISSING", {
+      message: "NonceEnforcer address missing in environment configuration",
+      context: { component: "NonceEnforcer" },
+    });
   }
 
   return (await publicClient.readContract({

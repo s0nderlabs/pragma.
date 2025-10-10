@@ -1,5 +1,7 @@
 import { Address, Hex, getAddress } from "viem";
 
+import { createErrorFromCode } from "../errors/index.js";
+
 export interface MonorailPathfinderConfig {
   appId: string;
   pathfinderUrl: string;
@@ -129,7 +131,10 @@ const normalizeAmount = (value?: string): bigint => {
     }
     return BigInt(trimmed);
   } catch (error) {
-    throw new Error(`Unable to parse amount '${value}': ${(error as Error).message}`);
+    throw createErrorFromCode("QUOTE_RPC_ERROR", {
+      message: `Unable to parse amount '${value}': ${(error as Error).message}`,
+      cause: error,
+    });
   }
 };
 
@@ -170,7 +175,10 @@ export const fetchMonorailQuote = async (
   config: MonorailPathfinderConfig,
 ): Promise<MonorailQuote> => {
   if (!config.appId) {
-    throw new Error("Monorail app id is required to request quotes.");
+    throw createErrorFromCode("CONFIG_MISSING", {
+      message: "Monorail app id is required to request quotes.",
+      context: { provider: "MonorailPathfinder" },
+    });
   }
 
   const url = new URL(`${config.pathfinderUrl}/quote`);
@@ -201,7 +209,10 @@ export const fetchMonorailQuote = async (
 
   const body = (await response.json()) as RawQuoteResponse;
   if (!body.transaction?.data || !body.quote_id) {
-    throw new Error("Monorail quote response missing transaction data.");
+    throw createErrorFromCode("QUOTE_NO_ROUTE", {
+      message: "Monorail quote response missing transaction data.",
+      context: { from: getAddress(params.fromToken), to: getAddress(params.toToken) },
+    });
   }
 
   const transactionData = body.transaction.data as Hex;

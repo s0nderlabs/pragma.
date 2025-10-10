@@ -77,7 +77,7 @@ export const registerReceipts = (program: Command) => {
         );
       }
       if (record.error) {
-        console.log(chalk.red(`Error     : ${record.error.code} — ${record.error.message}`));
+        console.log(chalk.red(`Error     : ${record.error.code} - ${record.error.message}`));
       }
     });
 };

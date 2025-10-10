@@ -197,7 +197,7 @@ export const registerTransferDualTest = (program: Command) => {
       const sessionBalance = await publicClient.getBalance({ address: transferSession.sessionKeyAddress });
       console.log(
         chalk.gray(
-          `[dual/${normalizedMode}] Final balances — delegator: ${formatEther(delegatorBalance)} MON · session key: ${formatEther(sessionBalance)} MON`,
+          `[dual/${normalizedMode}] Final balances - delegator: ${formatEther(delegatorBalance)} MON · session key: ${formatEther(sessionBalance)} MON`,
         ),
       );
 

@@ -940,7 +940,7 @@ export const runOnboard4337 = async (
       ]);
 
       if (!continueWithExisting) {
-        console.log(chalk.yellow("Onboarding cancelled — retaining existing HybridDelegator."));
+      console.log(chalk.yellow("Onboarding cancelled - retaining existing HybridDelegator."));
         return undefined;
       }
 

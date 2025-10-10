@@ -43,6 +43,7 @@ export interface SwapIntentFields {
   defaultsApplied?: string[];
   symbolResolutions?: Record<string, Address>;
   amountWei?: string;
+  policyEnforcements?: PolicyEnforcement[];
 }
 
 export interface WrapIntentFields {
@@ -76,6 +77,18 @@ export interface IntentMeta {
   feeBps?: number;
   feeRecipient?: Address;
   amountExactWei?: string;
+  policyEnforcements?: PolicyEnforcement[];
+}
+
+export type PolicyEnforcementKey = "slippageBps" | "deadlineSeconds";
+
+export interface PolicyEnforcement {
+  key: PolicyEnforcementKey;
+  requested?: number;
+  applied: number;
+  limit?: number;
+  reason: "default" | "clamped_max" | "clamped_min" | "normalized_negative";
+  unit: "bps" | "seconds";
 }
 
 export type CanonicalIntent =

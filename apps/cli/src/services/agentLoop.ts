@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import inquirer from "inquirer";
-import { formatUnits, getAddress } from "viem";
-import { createInterface } from "node:readline/promises";
+import { formatUnits, getAddress, parseUnits } from "viem";
+import * as readline from "node:readline";
 import { stdin as input, stdout as output } from "node:process";
 
 import {
@@ -11,15 +11,22 @@ import {
   type WrapIntentFields,
   type AmountSpecification,
   type AgentInsightResult,
+  type PolicyEnforcement,
   ERC20_ABI,
+  computeSwapPlanHash,
+  isPragmaError,
+  toPlainError,
 } from "@pragma/core";
 
 import { loadAgentContext, type LoadedAgentContext } from "./agentContext.js";
 import { createMonadPublicClient } from "./web3authClients.js";
 import {
   executeSwapWithSession,
+  previewSwapWithSession,
   wrapNativeWithSession,
   unwrapNativeWithSession,
+  type SwapExecutionConfig,
+  verifyTokenCaps,
 } from "./swapEngine.js";
 import {
   transferNativeWithSession,
@@ -50,8 +57,9 @@ import { runOnboard4337 } from "./onboarding4337.js";
 import { loadSessionState, saveDelegatorSession, markRequireOnboarding } from "./sessionStore.js";
 import { listDelegationArtifacts, isDelegationExpired } from "./delegationArtifacts.js";
 import { startLiveObservers } from "./liveObservers.js";
+import { storeReceipt, type SwapReceiptRecord } from "./receiptStore.js";
 
-const EXIT_COMMANDS = new Set(["exit", "quit", "q", ":q", "bye"]);
+const EXIT_COMMANDS = new Set(["exit", "quit", "q", ":q", "/q", "bye"]);
 
 const isNativeToken = (token?: AllowedToken) =>
   !token || token.kind === "native" || token.address.toLowerCase() === MONAD_NATIVE_TOKEN_ADDRESS.toLowerCase();
@@ -81,6 +89,31 @@ const describeAmount = (amount: AmountSpecification): string => {
   }
 };
 
+const formatPercent = (bps: number): string => `${Number((bps / 100).toFixed(4))}%`;
+
+const formatMinutes = (seconds: number): string => `${Number((seconds / 60).toFixed(2)).toString().replace(/\.0+$/, "")} min`;
+
+const describePolicyEnforcement = (enforcement: PolicyEnforcement): string => {
+  const label = enforcement.key === "slippageBps" ? "Slippage" : "Deadline";
+  const formatValue = enforcement.unit === "bps" ? formatPercent : formatMinutes;
+  const applied = formatValue(enforcement.applied);
+  const requested = enforcement.requested !== undefined ? formatValue(enforcement.requested) : undefined;
+  const limit = enforcement.limit !== undefined ? formatValue(enforcement.limit) : undefined;
+
+  switch (enforcement.reason) {
+    case "default":
+      return `${label}: default applied (${applied}).`;
+    case "clamped_max":
+      return `${label}: requested ${requested ?? applied}${limit ? ` exceeds max ${limit}` : " exceeds policy limit"}; clamped to ${applied}.`;
+    case "clamped_min":
+      return `${label}: requested ${requested ?? applied}${limit ? ` below min ${limit}` : " below policy minimum"}; raised to ${applied}.`;
+    case "normalized_negative":
+      return `${label}: negative value normalised to ${applied}.`;
+    default:
+      return `${label}: policy adjustment applied (${applied}).`;
+  }
+};
+
 const promptConfirm = async (message: string): Promise<boolean> => {
   if (process.env.PRAGMA_REPL_FIXTURE === "1") {
     console.log(chalk.gray(`[fixture] ${message} -> auto-confirm`));
@@ -101,6 +134,16 @@ const printInsight = (insight: AgentInsightResult) => {
   console.log(chalk.blue(insight.title));
   console.log(insight.body);
 };
+
+const META_COMMAND_CHOICES: Array<{ value: string; description: string }> = [
+  { value: "balances", description: "show current balances" },
+  { value: "delegation", description: "display delegation scope" },
+  { value: "trending", description: "view featured Monad tokens" },
+  { value: "quick", description: "toggle quick mode" },
+  { value: "help", description: "list meta commands" },
+  { value: "logout", description: "disconnect the agent" },
+  { value: "exit", description: "leave the agent" },
+];
 
 type QuickAction =
   | { type: "balances" }
@@ -197,6 +240,7 @@ const handleSwapIntent = async (
   intent: SwapIntentFields,
   agentCtx: LoadedAgentContext,
   publicClient: ReturnType<typeof createMonadPublicClient>,
+  quickMode: boolean,
 ) => {
   const { swapSession } = agentCtx;
   const fromToken = toSwapToken(intent.tokenIn);
@@ -230,13 +274,9 @@ const handleSwapIntent = async (
     ),
   );
 
-  const confirm = await promptConfirm("Execute this swap?");
-  if (!confirm) {
-    console.log(chalk.gray("Swap cancelled."));
-    return;
-  }
+  const amountInWei = parseUnits(amountInput, decimals);
 
-  const result = await executeSwapWithSession({
+  const executionConfigBase: SwapExecutionConfig = {
     session: swapSession.session,
     environment: swapSession.environment,
     hybridDelegator: swapSession.delegatorAddress,
@@ -245,7 +285,279 @@ const handleSwapIntent = async (
     slippageBps: intent.slippageBps,
     logPrefix: "[agent]",
     artifactPath: swapSession.artifactPath,
+  };
+
+  const chainId = agentCtx.delegationContext.chainId ?? 0;
+  verifyTokenCaps(executionConfigBase, amountInWei);
+
+  if (quickMode) {
+    console.log(chalk.yellow("Quick mode enabled – executing swap immediately (no preview)."));
+    const startedAt = Date.now();
+    let result;
+    try {
+      result = await executeSwapWithSession(executionConfigBase);
+    } catch (error) {
+      const message = isPragmaError(error)
+        ? `${error.code}: ${(error as Error).message}`
+        : (error as Error).message;
+      console.log(chalk.red(`Swap failed: ${message}`));
+      const failureReceipt: SwapReceiptRecord = {
+        type: "swap",
+        status: "failed",
+        mode: swapSession.session.mode,
+        delegator: agentCtx.delegator,
+        sessionKey: swapSession.session.sessionKeyAddress,
+        chainId,
+        tokenIn: {
+          address: getAddress(fromToken.address),
+          symbol: fromToken.symbol,
+          decimals,
+        },
+        tokenOut: {
+          address: getAddress(toToken.address),
+          symbol: toToken.symbol,
+          decimals: toToken.decimals,
+        },
+        amountInWei: amountInWei.toString(),
+        minAmountOutWei: "0",
+        slippageBps: intent.slippageBps,
+        deadlineSeconds: intent.deadlineSeconds,
+        createdAt: Date.now(),
+        executedAt: startedAt,
+        summary: `Swap failed: ${message}`,
+        error: toPlainError(error),
+      };
+      try {
+        await storeReceipt(failureReceipt);
+      } catch (storeError) {
+        console.warn("Failed to persist failure receipt", storeError);
+      }
+      return;
+    }
+
+    if (swapSession.session.perTokenCapsWei && Object.keys(swapSession.session.perTokenCapsWei).length > 0) {
+      agentCtx.delegationContext.perTokenCapsWei = { ...swapSession.session.perTokenCapsWei };
+    } else {
+      delete agentCtx.delegationContext.perTokenCapsWei;
+    }
+
+    if (swapSession.session.nativeTokenCapWei !== undefined) {
+      agentCtx.delegationContext.nativeTokenCapWei = swapSession.session.nativeTokenCapWei;
+    } else {
+      delete agentCtx.delegationContext.nativeTokenCapWei;
+    }
+
+    const amountOutDisplay = formatUnits(result.amountOut, toToken.decimals);
+    console.log(
+      chalk.green(
+        `Swap complete: ${resolvedDisplay ?? amountInput} ${fromToken.symbol ?? "TOKEN"} → ${amountOutDisplay} ${
+          toToken.symbol ?? "TOKEN"
+        } (tx: ${result.txHash}).`,
+      ),
+    );
+
+    const planHash = computeSwapPlanHash({
+      chainId,
+      tokenIn: getAddress(fromToken.address),
+      tokenOut: getAddress(toToken.address),
+      amountInWei: result.amountIn,
+      minAmountOutWei: result.minAmountOut,
+      slippageBps: intent.slippageBps,
+      deadlineSeconds: intent.deadlineSeconds,
+      quoteId: result.quote.quoteId,
+    });
+
+    const successReceipt: SwapReceiptRecord = {
+      type: "swap",
+      status: "success",
+      mode: swapSession.session.mode,
+      delegator: agentCtx.delegator,
+      sessionKey: swapSession.session.sessionKeyAddress,
+      chainId,
+      tokenIn: {
+        address: getAddress(fromToken.address),
+        symbol: fromToken.symbol,
+        decimals,
+      },
+      tokenOut: {
+        address: getAddress(toToken.address),
+        symbol: toToken.symbol,
+        decimals: toToken.decimals,
+      },
+      amountInWei: result.amountIn.toString(),
+      amountOutWei: result.amountOut.toString(),
+      minAmountOutWei: result.minAmountOut.toString(),
+      slippageBps: intent.slippageBps,
+      deadlineSeconds: intent.deadlineSeconds,
+      quoteId: result.quote.quoteId,
+      planHash,
+      txHash: result.txHash,
+      blockNumber: Number(result.blockNumber),
+      gasUsedWei: result.gasUsed.toString(),
+      createdAt: Date.now(),
+      executedAt: Date.now(),
+      summary: `Swap ${resolvedDisplay ?? amountInput} ${fromToken.symbol ?? fromToken.address.slice(0, 6)} → ${amountOutDisplay} ${
+        toToken.symbol ?? toToken.address.slice(0, 6)
+      }`,
+    };
+    try {
+      const receiptPath = await storeReceipt(successReceipt);
+      console.log(chalk.gray(`Receipt stored at ${receiptPath}`));
+    } catch (storeError) {
+      console.warn("Failed to persist success receipt", storeError);
+    }
+    console.log(
+      chalk.gray(
+        `Quote ${result.quote.quoteId}: minimum out ${formatUnits(
+          result.minAmountOut,
+          toToken.decimals,
+        )} ${toToken.symbol ?? toToken.address.slice(0, 6)}, slippage tolerance ${intent.slippageBps / 100}%`,
+      ),
+    );
+    return;
+  }
+
+  const previewedAt = Date.now();
+  let preview; // SwapPreviewResult
+  try {
+    preview = await previewSwapWithSession(executionConfigBase);
+  } catch (error) {
+    const message = isPragmaError(error)
+      ? `${error.code}: ${(error as Error).message}`
+      : (error as Error).message;
+    console.log(chalk.red(`Swap preview failed: ${message}`));
+    const failureReceipt: SwapReceiptRecord = {
+      type: "swap",
+      status: "failed",
+      mode: swapSession.session.mode,
+      delegator: agentCtx.delegator,
+      sessionKey: swapSession.session.sessionKeyAddress,
+      chainId,
+      tokenIn: {
+        address: getAddress(fromToken.address),
+        symbol: fromToken.symbol,
+        decimals,
+      },
+      tokenOut: {
+        address: getAddress(toToken.address),
+        symbol: toToken.symbol,
+        decimals: toToken.decimals,
+      },
+      amountInWei: amountInWei.toString(),
+      minAmountOutWei: "0",
+      slippageBps: intent.slippageBps,
+      deadlineSeconds: intent.deadlineSeconds,
+      createdAt: Date.now(),
+      previewedAt,
+      summary: `Swap preview failed: ${message}`,
+      error: toPlainError(error),
+    };
+    try {
+      await storeReceipt(failureReceipt);
+    } catch (storeError) {
+      console.warn("Failed to persist preview receipt", storeError);
+    }
+    return;
+  }
+
+  const expectedOutDisplay = formatUnits(preview.plan.expectedAmountOut, toToken.decimals);
+  const minOutDisplay = formatUnits(preview.plan.minAmountOut, toToken.decimals);
+  const sessionBalanceDisplay = formatUnits(preview.context.sessionKeyBalance, 18);
+  const delegatorBalanceDisplay = formatUnits(preview.context.fromTokenBalance, decimals);
+
+  const planHash = computeSwapPlanHash({
+    chainId,
+    tokenIn: getAddress(fromToken.address),
+    tokenOut: getAddress(toToken.address),
+    amountInWei,
+    minAmountOutWei: preview.plan.minAmountOut,
+    slippageBps: intent.slippageBps,
+    deadlineSeconds: intent.deadlineSeconds,
+    quoteId: preview.plan.quote.quoteId,
   });
+
+  preview.plan.planHash = planHash;
+
+  const baseReceipt: Omit<SwapReceiptRecord, "status" | "summary" | "createdAt"> = {
+    type: "swap",
+    mode: swapSession.session.mode,
+    delegator: agentCtx.delegator,
+    sessionKey: swapSession.session.sessionKeyAddress,
+    chainId,
+    tokenIn: {
+      address: getAddress(fromToken.address),
+      symbol: fromToken.symbol,
+      decimals,
+    },
+    tokenOut: {
+      address: getAddress(toToken.address),
+      symbol: toToken.symbol,
+      decimals: toToken.decimals,
+    },
+    amountInWei: amountInWei.toString(),
+    minAmountOutWei: preview.plan.minAmountOut.toString(),
+    slippageBps: intent.slippageBps,
+    deadlineSeconds: intent.deadlineSeconds,
+    quoteId: preview.plan.quote.quoteId,
+    planHash,
+    previewedAt,
+  };
+
+  console.log(
+    chalk.cyan(
+      `[Preview] Expected ≈ ${expectedOutDisplay} ${toToken.symbol ?? toToken.address.slice(0, 6)} | Minimum ${minOutDisplay} ${
+        toToken.symbol ?? toToken.address.slice(0, 6)
+      }`,
+    ),
+  );
+  if (preview.plan.gasEstimate !== undefined) {
+    console.log(chalk.cyan(`[Preview] Estimated gas ${preview.plan.gasEstimate.toString()} units`));
+  } else {
+    console.log(chalk.cyan(`[Preview] Estimated gas unavailable`));
+  }
+  console.log(
+    chalk.cyan(
+      `[Preview] Quote ${preview.plan.quote.quoteId} | Delegator balance ${delegatorBalanceDisplay} ${
+        fromToken.symbol ?? fromToken.address.slice(0, 6)
+      } | Session key balance ${sessionBalanceDisplay} MON`,
+    ),
+  );
+  if (preview.plan.warnings.length > 0) {
+    preview.plan.warnings.forEach((warning) => console.log(chalk.yellow(`[Preview warning] ${warning}`)));
+  }
+  console.log(chalk.gray(`[Preview] Plan hash ${planHash}`));
+
+  const confirm = await promptConfirm("Execute this swap?");
+  if (!confirm) {
+    console.log(chalk.gray("Swap cancelled."));
+    return;
+  }
+
+  let result;
+  try {
+    result = await executeSwapWithSession({
+      ...executionConfigBase,
+      preparedPlan: preview.plan,
+    });
+  } catch (error) {
+    const message = isPragmaError(error)
+      ? `${error.code}: ${(error as Error).message}`
+      : (error as Error).message;
+    console.log(chalk.red(`Swap failed: ${message}`));
+    const failureReceipt: SwapReceiptRecord = {
+      ...baseReceipt,
+      status: "failed",
+      summary: `Swap failed: ${message}`,
+      createdAt: Date.now(),
+      error: toPlainError(error),
+    };
+    try {
+      await storeReceipt(failureReceipt);
+    } catch (storeError) {
+      console.warn("Failed to persist failure receipt", storeError);
+    }
+    return;
+  }
 
   if (swapSession.session.perTokenCapsWei && Object.keys(swapSession.session.perTokenCapsWei).length > 0) {
     agentCtx.delegationContext.perTokenCapsWei = { ...swapSession.session.perTokenCapsWei };
@@ -267,6 +579,26 @@ const handleSwapIntent = async (
       } (tx: ${result.txHash}).`,
     ),
   );
+
+  const successReceipt: SwapReceiptRecord = {
+    ...baseReceipt,
+    status: "success",
+    amountOutWei: result.amountOut.toString(),
+    txHash: result.txHash,
+    blockNumber: Number(result.blockNumber),
+    gasUsedWei: result.gasUsed.toString(),
+    executedAt: Date.now(),
+    createdAt: Date.now(),
+    summary: `Swap ${resolvedDisplay ?? amountInput} ${fromToken.symbol ?? fromToken.address.slice(0, 6)} → ${amountOutDisplay} ${
+      toToken.symbol ?? toToken.address.slice(0, 6)
+    }`,
+  };
+  try {
+    const receiptPath = await storeReceipt(successReceipt);
+    console.log(chalk.gray(`Receipt stored at ${receiptPath}`));
+  } catch (storeError) {
+    console.warn("Failed to persist success receipt", storeError);
+  }
 };
 
 const handleWrapIntent = async (
@@ -626,9 +958,11 @@ const handleMetaCommand = async (
     agentContext: LoadedAgentContext;
     setAgentContext: (ctx: LoadedAgentContext) => Promise<void> | void;
     transferSessionCache: { current?: Awaited<ReturnType<typeof loadTransferSession>> };
+    quickMode: boolean;
+    setQuickMode: (value: boolean) => void;
   },
 ): Promise<"continue" | "exit"> => {
-  const [commandRaw] = line.slice(1).split(/\s+/);
+  const [commandRaw, ...rest] = line.slice(1).split(/\s+/);
   const command = commandRaw.toLowerCase();
 
   logAgentMetaCommand({
@@ -653,6 +987,62 @@ const handleMetaCommand = async (
           phase: "balances",
         });
       }
+      return "continue";
+    }
+    case "quick": {
+      const arg = (rest[0] ?? "").toLowerCase();
+      const toggleValues = new Set(["", "toggle", "switch"]);
+      const statusValues = new Set(["status", "show", "info"]);
+      const enableValues = new Set(["on", "enable", "enabled", "true"]);
+      const disableValues = new Set(["off", "disable", "disabled", "false"]);
+
+      if (toggleValues.has(arg)) {
+        const target = !state.quickMode;
+        state.setQuickMode(target);
+        if (target) {
+          console.log(
+            chalk.yellow("Quick mode enabled – swaps will execute immediately without preview or confirmation."),
+          );
+          logAgentResponse({ delegator: state.agentContext.delegator, type: "meta_quick_on" });
+        } else {
+          console.log(chalk.gray("Quick mode disabled – swap previews and confirmations restored."));
+          logAgentResponse({ delegator: state.agentContext.delegator, type: "meta_quick_off" });
+        }
+        return "continue";
+      }
+
+      if (statusValues.has(arg)) {
+        console.log(
+          chalk.gray(`Quick mode is currently ${state.quickMode ? "enabled" : "disabled"}.`),
+        );
+        return "continue";
+      }
+
+      if (enableValues.has(arg)) {
+        if (state.quickMode) {
+          console.log(chalk.gray("Quick mode already enabled."));
+        } else {
+          state.setQuickMode(true);
+          console.log(
+            chalk.yellow("Quick mode enabled – swaps will execute immediately without preview or confirmation."),
+          );
+          logAgentResponse({ delegator: state.agentContext.delegator, type: "meta_quick_on" });
+        }
+        return "continue";
+      }
+
+      if (disableValues.has(arg)) {
+        if (!state.quickMode) {
+          console.log(chalk.gray("Quick mode already disabled."));
+        } else {
+          state.setQuickMode(false);
+          console.log(chalk.gray("Quick mode disabled – swap previews and confirmations restored."));
+          logAgentResponse({ delegator: state.agentContext.delegator, type: "meta_quick_off" });
+        }
+        return "continue";
+      }
+
+      console.log(chalk.red("Unknown quick mode option. Usage: /quick, /quick status, /quick on, /quick off"));
       return "continue";
     }
     case "delegation": {
@@ -683,11 +1073,12 @@ const handleMetaCommand = async (
     }
     case "help": {
       console.log(chalk.gray("Meta commands available:"));
-      console.log(chalk.gray(":balances – show current balances"));
-      console.log(chalk.gray(":delegation – show delegation scope"));
-      console.log(chalk.gray(":trending – show featured Monad tokens"));
-      console.log(chalk.gray(":logout – exit the current session"));
-      console.log(chalk.gray(":exit – close the agent"));
+      console.log(chalk.gray("/balances – show current balances"));
+      console.log(chalk.gray("/delegation – show delegation scope"));
+      console.log(chalk.gray("/trending – show featured Monad tokens"));
+      console.log(chalk.gray("/quick – toggle quick mode"));
+      console.log(chalk.gray("/logout – exit the current session"));
+      console.log(chalk.gray("/exit – close the agent"));
       return "continue";
     }
     case "logout":
@@ -699,7 +1090,7 @@ const handleMetaCommand = async (
     case "exit":
       return "exit";
     default:
-      console.log(chalk.red(`Unknown meta command :${command}`));
+      console.log(chalk.red(`Unknown meta command /${command}`));
       return "continue";
   }
 };
@@ -709,10 +1100,11 @@ const handleIntent = async (
   agentCtx: LoadedAgentContext,
   publicClient: ReturnType<typeof createMonadPublicClient>,
   transferSessionCache: { current?: Awaited<ReturnType<typeof loadTransferSession>> },
+  quickMode: boolean,
 ): Promise<LoadedAgentContext | undefined> => {
   switch (intent.action) {
     case "swap":
-      await handleSwapIntent(intent, agentCtx, publicClient);
+      await handleSwapIntent(intent, agentCtx, publicClient, quickMode);
       return undefined;
     case "wrap":
       await handleWrapIntent(intent, agentCtx, publicClient);
@@ -750,17 +1142,124 @@ const handleIntent = async (
   }
 };
 
+
+
 const promptLine = async (promptLabel: string): Promise<string> => {
-  const rl = createInterface({ input, output, terminal: true });
-  try {
-    return await rl.question(promptLabel);
-  } finally {
-    rl.close();
-  }
+  return await new Promise((resolve) => {
+    const rl = readline.createInterface({ input, output, terminal: true, historySize: 0 });
+    const inputStream = input as NodeJS.ReadStream;
+    const outputStream = output as NodeJS.WriteStream;
+
+    let finished = false;
+    const setLine = (value: string) => {
+      rl.write(null, { ctrl: true, name: 'u' });
+      rl.write(value);
+    };
+
+    const finish = (value: string) => {
+      if (finished) return;
+      finished = true;
+      if (inputStream.isTTY) {
+        inputStream.setRawMode(false);
+        inputStream.off("keypress", handleKeypress);
+      }
+      rl.removeListener("line", handleLine);
+      rl.removeListener("close", handleClose);
+      rl.removeListener("SIGINT", handleSigint);
+      rl.close();
+      resolve(value);
+    };
+
+    const openPalette = async () => {
+      if (finished) return;
+      finished = true;
+      if (inputStream.isTTY) {
+        inputStream.setRawMode(false);
+        inputStream.off("keypress", handleKeypress);
+      }
+      rl.removeListener("line", handleLine);
+      rl.removeListener("close", handleClose);
+      rl.removeListener("SIGINT", handleSigint);
+      rl.pause();
+      rl.close();
+
+      console.log();
+      try {
+        const { metaCommand } = await inquirer.prompt<{ metaCommand: string }>([
+          {
+            type: "list",
+            name: "metaCommand",
+            message: chalk.cyan("Meta commands"),
+            choices: [
+              ...META_COMMAND_CHOICES.map(({ value, description }) => ({
+                value,
+                name: `/${value.padEnd(10)} ${description}`,
+              })),
+              { value: "", name: "Cancel" },
+            ],
+            pageSize: META_COMMAND_CHOICES.length + 2,
+          },
+        ]);
+        resolve(metaCommand ? `/${metaCommand}` : "");
+      } catch (error) {
+        if ((error as { isTtyError?: boolean } | undefined)?.isTtyError) {
+          console.log(
+            chalk.yellow(
+              "Interactive selection unavailable in this terminal; type the command manually (e.g. /help).",
+            ),
+          );
+        }
+        resolve("");
+      } finally {
+        if (inputStream.isTTY) {
+          inputStream.setRawMode(true);
+        }
+      }
+    };
+
+    const handleLine = (line: string) => {
+      finish(line);
+    };
+
+    const handleClose = () => finish('');
+    const handleSigint = () => {
+      outputStream.write('^C\n');
+      finish('exit');
+    };
+
+    const handleKeypress = (_str: string, key: readline.Key) => {
+      const isSlash = key?.name === 'slash' || key?.sequence === '/';
+
+      if (isSlash) {
+        const trimmed = rl.line.trim();
+        if (trimmed.length === 0 || trimmed === '/') {
+          if (!rl.line.startsWith('/')) {
+            setLine('/');
+          }
+          void openPalette();
+        }
+        return;
+      }
+    };
+
+    rl.on('line', handleLine);
+    rl.on('close', handleClose);
+    rl.on('SIGINT', handleSigint);
+
+    if (inputStream.isTTY) {
+      readline.emitKeypressEvents(inputStream, rl);
+      inputStream.setRawMode(true);
+      inputStream.on('keypress', handleKeypress);
+    }
+
+    rl.setPrompt(promptLabel);
+    rl.prompt();
+  });
 };
 
 export interface AgentReplOptions {
   prompt?: (label: string) => Promise<string>;
+  quickMode?: boolean;
 }
 
 export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promise<void> => {
@@ -772,6 +1271,7 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
     sessionKey: agentContext.swapSession.session.sessionKeyAddress,
   });
   console.log(chalk.gray("Connected. Ask me anything or type 'logout' to disconnect."));
+  console.log(chalk.gray("Type '/' for command palette or '/help' to list meta commands."));
 
   const agent = createConfiguredAgent();
   const publicClient = createMonadPublicClient();
@@ -844,7 +1344,12 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
   console.log(chalk.gray("Type 'exit' to leave the chat."));
   console.log();
 
-  const promptFn = options.prompt ?? promptLine;
+  const defaultPrompt = (label: string) => promptLine(label);
+  const promptFn = options.prompt ?? defaultPrompt;
+  let quickMode = options.quickMode ?? process.env.PRAGMA_AGENT_QUICK_MODE === "1";
+  if (quickMode) {
+    console.log(chalk.yellow("Quick mode active – swaps will execute immediately without preview or confirmation."));
+  }
 
   try {
     // eslint-disable-next-line no-constant-condition
@@ -853,7 +1358,7 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
       const line = inputLine.trim();
       if (!line) continue;
 
-      const isMeta = line.startsWith(":");
+      const isMeta = line.startsWith("/");
       logAgentInput({
         delegator: agentContext.delegator,
         line,
@@ -885,6 +1390,10 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
             startObserversForContext(agentContext);
           },
           transferSessionCache,
+          quickMode,
+          setQuickMode: (value: boolean) => {
+            quickMode = value;
+          },
         });
         if (metaResult === "exit") {
           console.log(chalk.gray("Goodbye."));
@@ -916,6 +1425,7 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
                 agentContext,
                 publicClient,
                 transferSessionCache,
+                quickMode,
               );
               if (updatedContext) {
                 agentContext = updatedContext;
@@ -929,6 +1439,11 @@ export const runPragmaAgentRepl = async (options: AgentReplOptions = {}): Promis
             }
             if (response.meta?.defaultsApplied && response.meta.defaultsApplied.length > 0) {
               console.log(chalk.gray(`Defaults applied: ${response.meta.defaultsApplied.join(", ")}`));
+            }
+            if (response.meta?.policyEnforcements && response.meta.policyEnforcements.length > 0) {
+              response.meta.policyEnforcements.forEach((enforcement) => {
+                console.log(chalk.gray(describePolicyEnforcement(enforcement)));
+              });
             }
             logAgentResponse({
               delegator: agentContext.delegator,

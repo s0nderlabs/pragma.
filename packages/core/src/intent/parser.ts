@@ -14,7 +14,7 @@ import {
   ParsedSlots,
   PolicyViolation,
 } from "./types.js";
-import type { CanonicalIntent, IntentAction, AmountKind } from "./types.js";
+import type { CanonicalIntent, IntentAction, AmountKind, PolicyEnforcement } from "./types.js";
 import type { AllowedToken } from "../monorail/tokens.js";
 
 const CONNECTOR_TOKENS = new Set(["to", "into", "for"]);
@@ -309,16 +309,16 @@ const previousMeaningfulToken = (tokens: string[], startIndex: number): string |
   return undefined;
 };
 
-const DEFAULT_SLIPPAGE_SAFE_BPS = 50;
-const DEFAULT_SLIPPAGE_NORMAL_BPS = 100;
+const DEFAULT_SLIPPAGE_SAFE_BPS = 25;
+const DEFAULT_SLIPPAGE_NORMAL_BPS = 50;
 const DEFAULT_DEADLINE_SAFE_MIN = 15;
-const DEFAULT_DEADLINE_NORMAL_MIN = 30;
+const DEFAULT_DEADLINE_NORMAL_MIN = 15;
 const MIN_DEADLINE_SAFE_MIN = 1;
 const MIN_DEADLINE_NORMAL_MIN = 1;
-const MAX_SLIPPAGE_SAFE_BPS = 250; // 2.5%
-const MAX_SLIPPAGE_NORMAL_BPS = 500; // 5%
-const MAX_DEADLINE_SAFE_MIN = 60;
-const MAX_DEADLINE_NORMAL_MIN = 120;
+const MAX_SLIPPAGE_SAFE_BPS = 25; // 0.25%
+const MAX_SLIPPAGE_NORMAL_BPS = 50; // 0.5%
+const MAX_DEADLINE_SAFE_MIN = 15;
+const MAX_DEADLINE_NORMAL_MIN = 30;
 
 const NUMBER_REGEX = /^(?:\d+)(?:\.\d+)?$/;
 
@@ -608,9 +608,8 @@ const toDeadlineSeconds = (minutes: number): number => Math.round(minutes * 60);
 const clampPolicyValues = (
   context: DelegationContext,
   slots: ParsedSlots,
-  violations: PolicyViolation[],
   warnings: string[],
-): { slippageBps: number; deadlineSeconds: number; defaultsApplied: string[] } => {
+): { slippageBps: number; deadlineSeconds: number; defaultsApplied: string[]; policy: PolicyEnforcement[] } => {
   const safeMode = context.mode === "safe";
   const defaultSlippage = context.defaultSlippageBps ?? (safeMode ? DEFAULT_SLIPPAGE_SAFE_BPS : DEFAULT_SLIPPAGE_NORMAL_BPS);
   const defaultDeadline =
@@ -626,29 +625,59 @@ const clampPolicyValues = (
     : context.maxDeadlineMinutesNormal ?? MAX_DEADLINE_NORMAL_MIN;
 
   const defaultsApplied: string[] = [];
+  const policy: PolicyEnforcement[] = [];
 
-  let slippage = slots.slippageBps ?? defaultSlippage;
-  if (slots.slippageBps === undefined) {
-    defaultsApplied.push("slippage");
+  const slippageRequested = slots.slippageBps;
+  let slippage = slippageRequested ?? defaultSlippage;
+  let slippageReason: PolicyEnforcement["reason"] | undefined = slippageRequested === undefined ? "default" : undefined;
+  if (slippageRequested === undefined) {
+    defaultsApplied.push("slippage_default");
   }
   if (slippage > maxSlippage) {
-    violations.push({ code: "SLIPPAGE_TOO_HIGH", message: `Slippage ${slippage / 100}% exceeds limit`, field: "slippage" });
+    const requestedPct = slippage / 100;
+    const maxPct = maxSlippage / 100;
+    warnings.push(`Slippage ${requestedPct}% exceeds policy limit (${maxPct}%). Clamped to ${maxPct}%.`);
+    slippage = maxSlippage;
+    slippageReason = "clamped_max";
+    if (!defaultsApplied.includes("slippage_clamped_max")) {
+      defaultsApplied.push("slippage_clamped_max");
+    }
   }
   if (slippage < 0) {
     warnings.push("Slippage cannot be negative. Using 0 bps.");
     slippage = 0;
+    slippageReason = "normalized_negative";
+    if (!defaultsApplied.includes("slippage_normalized_negative")) {
+      defaultsApplied.push("slippage_normalized_negative");
+    }
   }
 
-  let deadlineMinutes = slots.deadlineMinutes ?? defaultDeadline;
-  if (slots.deadlineMinutes === undefined) {
-    defaultsApplied.push("deadline");
+  if (slippageReason) {
+    policy.push({
+      key: "slippageBps",
+      requested: slippageRequested,
+      applied: slippage,
+      limit: slippageReason === "clamped_max" ? maxSlippage : slippageReason === "normalized_negative" ? 0 : undefined,
+      reason: slippageReason,
+      unit: "bps",
+    });
+  }
+
+  const deadlineRequestedMinutes = slots.deadlineMinutes;
+  let deadlineMinutes = deadlineRequestedMinutes ?? defaultDeadline;
+  let deadlineReason: PolicyEnforcement["reason"] | undefined = deadlineRequestedMinutes === undefined ? "default" : undefined;
+  if (deadlineRequestedMinutes === undefined) {
+    defaultsApplied.push("deadline_default");
   }
   if (deadlineMinutes > maxDeadline) {
-    violations.push({
-      code: "DEADLINE_TOO_LONG",
-      message: `Deadline ${deadlineMinutes} minutes exceeds limit`,
-      field: "deadline",
-    });
+    warnings.push(
+      `Deadline ${deadlineMinutes} minutes exceeds policy limit (${maxDeadline} minutes). Clamped to ${maxDeadline} minutes.`,
+    );
+    deadlineMinutes = maxDeadline;
+    deadlineReason = "clamped_max";
+    if (!defaultsApplied.includes("deadline_clamped_max")) {
+      defaultsApplied.push("deadline_clamped_max");
+    }
   }
 
   if (deadlineMinutes < minDeadlineMinutes) {
@@ -656,16 +685,34 @@ const clampPolicyValues = (
       `Deadline ${deadlineMinutes} minutes is below the minimum allowed (${minDeadlineMinutes} minutes). Using ${minDeadlineMinutes} minutes.`,
     );
     deadlineMinutes = minDeadlineMinutes;
-    if (!defaultsApplied.includes("deadline")) {
-      defaultsApplied.push("deadline_min_clamp");
+    deadlineReason = "clamped_min";
+    if (!defaultsApplied.includes("deadline_clamped_min")) {
+      defaultsApplied.push("deadline_clamped_min");
     }
   }
 
   const clampedDeadlineMinutes = Math.min(Math.max(deadlineMinutes, minDeadlineMinutes), maxDeadline);
-
   const deadlineSeconds = toDeadlineSeconds(clampedDeadlineMinutes);
+  const requestedDeadlineSeconds =
+    deadlineRequestedMinutes !== undefined ? toDeadlineSeconds(deadlineRequestedMinutes) : undefined;
 
-  return { slippageBps: Math.min(slippage, maxSlippage), deadlineSeconds, defaultsApplied };
+  if (deadlineReason) {
+    policy.push({
+      key: "deadlineSeconds",
+      requested: requestedDeadlineSeconds,
+      applied: deadlineSeconds,
+      limit:
+        deadlineReason === "clamped_max"
+          ? toDeadlineSeconds(maxDeadline)
+          : deadlineReason === "clamped_min"
+          ? toDeadlineSeconds(minDeadlineMinutes)
+          : undefined,
+      reason: deadlineReason,
+      unit: "seconds",
+    });
+  }
+
+  return { slippageBps: slippage, deadlineSeconds, defaultsApplied, policy };
 };
 
 const buildClarification = (slots: ParsedSlots, questions: ClarificationQuestion[], warnings: string[]): IntentParseOutcome => ({
@@ -767,8 +814,7 @@ const resolveSwapIntent = (
   enforcePerTxCap(amount, tokenIn, context, warnings, violations);
   if (violations.length > 0) return buildError(violations, warnings);
 
-  const { slippageBps, deadlineSeconds, defaultsApplied } = clampPolicyValues(context, slots, violations, warnings);
-  if (violations.length > 0) return buildError(violations, warnings);
+  const { slippageBps, deadlineSeconds, defaultsApplied, policy } = clampPolicyValues(context, slots, warnings);
 
   const deadlineTimestamp = nowSeconds + deadlineSeconds;
 
@@ -790,6 +836,7 @@ const resolveSwapIntent = (
     defaultsApplied: mergedDefaults,
     symbolResolutions: mergedSymbolResolutions,
     amountExactWei: amountWei ?? baseMeta.amountExactWei,
+    policyEnforcements: [...(baseMeta.policyEnforcements ?? []), ...policy],
   };
 
   return buildSuccess(
@@ -809,6 +856,7 @@ const resolveSwapIntent = (
       defaultsApplied,
       symbolResolutions,
       amountWei,
+      policyEnforcements: policy,
     },
     warnings,
     meta,

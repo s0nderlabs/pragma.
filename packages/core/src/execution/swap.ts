@@ -8,7 +8,7 @@ import {
   getAddress,
   parseUnits,
 } from "viem";
-import { ExecutionMode, createExecution, redeemDelegations } from "@metamask/delegation-toolkit";
+import { ExecutionMode, type ExecutionStruct, contracts, createExecution, redeemDelegations } from "@metamask/delegation-toolkit";
 
 import type { AllowedToken } from "../monorail/tokens.js";
 import type { SessionDelegationInfo, DeleGatorEnv } from "../delegations/types.js";
@@ -75,6 +75,39 @@ export interface SwapToken extends AllowedToken {
   decimals: number;
 }
 
+export interface SwapPreviewConfig {
+  session: SessionDelegationInfo;
+  environment: DeleGatorEnv;
+  hybridDelegator: Address;
+  intent: SwapIntent;
+  amountInput: string;
+  slippageBps: number;
+}
+
+export interface SwapPreviewPlan {
+  amountIn: bigint;
+  quote: MonorailQuote;
+  minAmountOut: bigint;
+  expectedAmountOut: bigint;
+  valueForSwap: bigint;
+  execution: ExecutionStruct;
+  redeemCalldata: Hex;
+  simulationReturn?: Hex;
+  gasEstimate?: bigint;
+  warnings: string[];
+  planHash?: Hex;
+}
+
+export interface SwapPreviewContext {
+  sessionKeyBalance: bigint;
+  fromTokenBalance: bigint;
+}
+
+export interface SwapPreviewResult {
+  plan: SwapPreviewPlan;
+  context: SwapPreviewContext;
+}
+
 export interface SwapIntent {
   from: SwapToken;
   to: SwapToken;
@@ -90,6 +123,8 @@ export interface SwapResult {
   quoteId: string;
   slippageToleranceBps: number;
   quote: MonorailQuote;
+  blockNumber: bigint;
+  gasUsed: bigint;
 }
 
 export interface ExecutionLogger {
@@ -127,6 +162,7 @@ export interface SwapExecutionConfig {
   amountInput: string;
   slippageBps: number;
   approvalStrategy?: ApprovalStrategy;
+  preparedPlan?: SwapPreviewPlan;
 }
 
 const toTokenAddress = (token: AllowedToken): Address => getAddress(token.address);
@@ -233,6 +269,124 @@ const ensureAllowance = async (
   }
 };
 
+export const previewSwapWithSession = async (
+  config: SwapPreviewConfig,
+  dependencies: SwapEngineDependencies,
+): Promise<SwapPreviewResult> => {
+  const { session, environment, hybridDelegator, intent, amountInput, slippageBps } = config;
+  const { publicClient, quoteFetcher, nativeTokenAddress, routerAddress, logger } = dependencies;
+
+  const warnings: string[] = [];
+
+  const now = Math.floor(Date.now() / 1000);
+  if (session.expiresAt <= now) {
+    throw new Error(
+      `Delegation expired at ${new Date(session.expiresAt * 1000).toISOString()} — reissue before swapping.`,
+    );
+  }
+
+  const amountIn = parseUnits(amountInput, intent.from.decimals);
+  if (amountIn <= 0n) {
+    throw new Error("Swap amount must be greater than zero.");
+  }
+
+  const sessionKeyBalance = await publicClient.getBalance({ address: session.sessionKeyAddress });
+  if (sessionKeyBalance === 0n) {
+    throw new Error(
+      `Session key ${session.sessionKeyAddress} has zero MON. Fund the session key before performing delegated swaps.`,
+    );
+  }
+
+  const fromBalance = await readTokenBalance(intent.from, hybridDelegator, publicClient, nativeTokenAddress);
+  if (fromBalance < amountIn) {
+    const symbol = intent.from.symbol ?? nativeTokenAddress.slice(0, 6);
+    throw new Error(
+      `HybridDelegator ${hybridDelegator} has insufficient ${symbol} balance (${formatUnits(fromBalance, intent.from.decimals)}).`,
+    );
+  }
+
+  const amountDecimal = formatUnits(amountIn, intent.from.decimals);
+  const destination = getAddress(hybridDelegator);
+  const sender = destination;
+
+  const applyQuote = (quoteCandidate: MonorailQuote) => {
+    const isNativeInput = isNativeToken(intent.from, nativeTokenAddress);
+    let valueForSwap = quoteCandidate.transactionValue;
+    if (isNativeInput) {
+      if (valueForSwap === 0n) {
+        valueForSwap = amountIn;
+      } else if (valueForSwap !== amountIn) {
+        warnings.push(
+          `Quote value ${formatUnits(valueForSwap, intent.from.decimals)} differs from input ${formatUnits(amountIn, intent.from.decimals)}. Using input amount for native swap.`,
+        );
+        valueForSwap = amountIn;
+      }
+    } else if (valueForSwap !== 0n) {
+      warnings.push(
+        `Quote returned non-zero native value (${valueForSwap}) for ERC-20 input; this may indicate multi-asset routing.`,
+      );
+    }
+
+    if (routerAddress && quoteCandidate.aggregator.toLowerCase() !== routerAddress.toLowerCase()) {
+      warnings.push(
+        `Quote aggregator ${quoteCandidate.aggregator} does not match configured router ${routerAddress}. Ensure the allowlist is up to date.`,
+      );
+    }
+
+    const execution = createExecution({
+      target: quoteCandidate.aggregator,
+      value: valueForSwap,
+      callData: quoteCandidate.transactionData,
+    });
+
+    return { quote: quoteCandidate, valueForSwap, execution };
+  };
+
+  const initialQuote = await quoteFetcher({
+    fromToken: toTokenAddress(intent.from),
+    toToken: toTokenAddress(intent.to),
+    amountDecimal,
+    sender,
+    destination,
+    maxSlippageBps: slippageBps,
+  });
+
+  const { quote, valueForSwap, execution: swapExecution } = applyQuote(initialQuote);
+
+  const redeemCalldata = contracts.DelegationManager.encode.redeemDelegations({
+    delegations: [[session.delegation]],
+    modes: [ExecutionMode.SingleDefault],
+    executions: [[swapExecution]],
+  });
+
+  const expectedOut = quote.rawOutput;
+  const policyMin = expectedOut > 0n ? (expectedOut * BigInt(10_000 - slippageBps)) / 10_000n : 0n;
+  if (quote.rawMinOutput < policyMin) {
+    throw new Error(
+      `Quoted minimum output is below the policy floor (${formatUnits(policyMin, intent.to.decimals)} ${intent.to.symbol ?? intent.to.address.slice(0, 6)}).`,
+    );
+  }
+
+  return {
+    plan: {
+      amountIn,
+      quote,
+      minAmountOut: quote.rawMinOutput,
+      expectedAmountOut: expectedOut,
+      valueForSwap,
+      execution: swapExecution,
+      redeemCalldata,
+      simulationReturn: undefined,
+      gasEstimate: undefined,
+      warnings,
+    },
+    context: {
+      sessionKeyBalance,
+      fromTokenBalance: fromBalance,
+    },
+  };
+};
+
 const resolveApprovalStrategy = (config: SwapExecutionConfig): ApprovalStrategy => {
   if (config.approvalStrategy) return config.approvalStrategy;
   const env = process.env.PRAGMA_SWAP_APPROVAL_STRATEGY?.toLowerCase();
@@ -245,7 +399,7 @@ export const executeSwapWithSession = async (
   config: SwapExecutionConfig,
   dependencies: SwapEngineDependencies,
 ): Promise<SwapResult> => {
-  const { session, environment, hybridDelegator, intent, amountInput, slippageBps } = config;
+  const { session, environment, hybridDelegator, intent, amountInput, slippageBps, preparedPlan } = config;
   const { publicClient, sessionWalletFactory, quoteFetcher, nativeTokenAddress, wrappedNativeSymbol, nativeTokenSymbol, logger } =
     dependencies;
 
@@ -256,9 +410,16 @@ export const executeSwapWithSession = async (
     );
   }
 
-  const amountIn = parseUnits(amountInput, intent.from.decimals);
+  let amountIn = parseUnits(amountInput, intent.from.decimals);
   if (amountIn <= 0n) {
     throw new Error("Swap amount must be greater than zero.");
+  }
+
+  if (preparedPlan) {
+    if (preparedPlan.amountIn <= 0n) {
+      throw new Error("Prepared swap plan has invalid amount (<= 0).");
+    }
+    amountIn = preparedPlan.amountIn;
   }
 
   const sessionWallet = sessionWalletFactory(session);
@@ -290,7 +451,6 @@ export const executeSwapWithSession = async (
 
   await ensureAllowance(intent.from, amountIn, session, dependencies, environment, hybridDelegator, approvalStrategy);
 
-  const amountDecimal = formatUnits(amountIn, intent.from.decimals);
   const destination = getAddress(hybridDelegator);
   const sender = destination;
 
@@ -307,41 +467,52 @@ export const executeSwapWithSession = async (
     nativeTokenAddress,
   );
 
-  const quote = await quoteFetcher({
-    fromToken: toTokenAddress(intent.from),
-    toToken: toTokenAddress(intent.to),
-    amountDecimal,
-    sender,
-    destination,
-    maxSlippageBps: slippageBps,
-  });
+  let quote: MonorailQuote;
+  let valueForSwap: bigint;
+  let swapExecution: ExecutionStruct;
 
-  const isNativeInput = isNativeToken(intent.from, nativeTokenAddress);
-  let valueForSwap = quote.transactionValue;
-  if (isNativeInput) {
-    if (valueForSwap === 0n) {
-      valueForSwap = amountIn;
-    } else if (valueForSwap !== amountIn) {
+  if (preparedPlan) {
+    quote = preparedPlan.quote;
+    valueForSwap = preparedPlan.valueForSwap;
+    swapExecution = preparedPlan.execution;
+  } else {
+    const amountDecimal = formatUnits(amountIn, intent.from.decimals);
+    quote = await quoteFetcher({
+      fromToken: toTokenAddress(intent.from),
+      toToken: toTokenAddress(intent.to),
+      amountDecimal,
+      sender,
+      destination,
+      maxSlippageBps: slippageBps,
+    });
+
+    const isNativeInput = isNativeToken(intent.from, nativeTokenAddress);
+    valueForSwap = quote.transactionValue;
+    if (isNativeInput) {
+      if (valueForSwap === 0n) {
+        valueForSwap = amountIn;
+      } else if (valueForSwap !== amountIn) {
+        emit(
+          logger,
+          "warn",
+          `Quote value ${formatUnits(valueForSwap, intent.from.decimals)} differs from input ${formatUnits(amountIn, intent.from.decimals)}. Using input amount for native swap.`,
+        );
+        valueForSwap = amountIn;
+      }
+    } else if (valueForSwap !== 0n) {
       emit(
         logger,
         "warn",
-        `Quote value ${formatUnits(valueForSwap, intent.from.decimals)} differs from input ${formatUnits(amountIn, intent.from.decimals)}. Using input amount for native swap.`,
+        `Quote returned non-zero native value (${valueForSwap}) for ERC-20 input; this may indicate multi-asset routing.`,
       );
-      valueForSwap = amountIn;
     }
-  } else if (valueForSwap !== 0n) {
-    emit(
-      logger,
-      "warn",
-      `Quote returned non-zero native value (${valueForSwap}) for ERC-20 input; this may indicate multi-asset routing.`,
-    );
-  }
 
-  const swapExecution = createExecution({
-    target: quote.aggregator,
-    value: valueForSwap,
-    callData: quote.transactionData,
-  });
+    swapExecution = createExecution({
+      target: quote.aggregator,
+      value: valueForSwap,
+      callData: quote.transactionData,
+    });
+  }
 
   let txHash: Hex;
   try {
@@ -424,6 +595,8 @@ export const executeSwapWithSession = async (
     quoteId: quote.quoteId,
     slippageToleranceBps: slippageBps,
     quote,
+    blockNumber: receipt.blockNumber,
+    gasUsed: receipt.gasUsed ?? 0n,
   };
 };
 

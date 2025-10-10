@@ -3,6 +3,7 @@ import { Address, getAddress, parseUnits, formatUnits } from "viem";
 
 import {
   executeSwapWithSession as executeSwapWithSessionCore,
+  previewSwapWithSession as previewSwapWithSessionCore,
   wrapNativeWithSession as wrapNativeWithSessionCore,
   unwrapNativeWithSession as unwrapNativeWithSessionCore,
   createSessionWallet as createSessionWalletCore,
@@ -10,6 +11,9 @@ import {
   type SwapResult,
   type ExecutionLogger,
   type SwapEngineDependencies,
+  createError,
+  type SwapPreviewResult,
+  type SwapPreviewPlan,
   type WrapConfig as CoreWrapConfig,
   type WrapDependencies,
   type SessionDelegationInfo,
@@ -67,6 +71,13 @@ const buildSwapDependencies = (logPrefix?: string): SwapEngineDependencies => ({
   logger: createLogger(logPrefix),
 });
 
+export const previewSwapWithSession = async (
+  config: SwapExecutionConfig,
+): Promise<SwapPreviewResult> => {
+  const dependencies = buildSwapDependencies(config.logPrefix);
+  return previewSwapWithSessionCore(config, dependencies);
+};
+
 export interface SwapExecutionConfig extends CoreSwapExecutionConfig {
   logPrefix?: string;
   artifactPath?: string;
@@ -77,7 +88,7 @@ const getTokenDecimals = (token: AllowedToken & { decimals?: number }): number =
     ? token.decimals
     : Number(token.decimals ?? 18);
 
-const verifyTokenCaps = (config: SwapExecutionConfig, amountInWei: bigint) => {
+export const verifyTokenCaps = (config: SwapExecutionConfig, amountInWei: bigint) => {
   const { session, intent } = config;
   const fromAddress = getAddress(intent.from.address).toLowerCase();
   const decimals = getTokenDecimals(intent.from);
@@ -87,18 +98,35 @@ const verifyTokenCaps = (config: SwapExecutionConfig, amountInWei: bigint) => {
     const cap = perTokenCaps[fromAddress];
     if (cap !== undefined && amountInWei > cap) {
       const remaining = formatUnits(cap, decimals);
-      throw new Error(
-        `Swap amount exceeds remaining allowance for ${intent.from.symbol ?? intent.from.address}. Remaining cap: ${remaining}.`,
-      );
+      throw createError({
+        code: "SIM_POLICY_CAP_EXCEEDED",
+        class: "Policy",
+        module: "Execution",
+        message: `Swap amount exceeds remaining allowance for ${intent.from.symbol ?? intent.from.address}.`,
+        retriable: false,
+        severity: "error",
+        context: {
+          token: intent.from.address,
+          remaining,
+        },
+      });
     }
   }
 
   if (session.nativeTokenCapWei !== undefined && isNativeToken(intent.from)) {
     if (amountInWei > session.nativeTokenCapWei) {
       const remaining = formatUnits(session.nativeTokenCapWei, decimals);
-      throw new Error(
-        `Swap amount exceeds native token allowance. Remaining cap: ${remaining}.`,
-      );
+      throw createError({
+        code: "SIM_POLICY_CAP_EXCEEDED",
+        class: "Policy",
+        module: "Execution",
+        message: "Swap amount exceeds native token allowance.",
+        retriable: false,
+        severity: "error",
+        context: {
+          remaining,
+        },
+      });
     }
   }
 };
@@ -159,6 +187,8 @@ export const executeSwapWithSession = async (
         rawOutput: amountOut,
         rawMinOutput: minAmountOut,
       },
+      blockNumber: 0n,
+      gasUsed: 0n,
     } satisfies SwapResult;
 
     consumeTokenCaps(config, amountInWei);

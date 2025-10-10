@@ -35,8 +35,11 @@ test("agent respond attaches meta for defaults", async () => {
   const result = await agent.respond("swap 0.1 mon to usdc", { delegation: delegationContext });
   assert.equal(result.type, "intent");
   assert.ok(result.meta);
-  assert.equal(result.meta?.defaultsApplied?.includes("slippage"), true);
-  assert.equal(result.meta?.defaultsApplied?.includes("deadline"), true);
+  assert.equal(result.meta?.defaultsApplied?.includes("slippage_default"), true);
+  assert.equal(result.meta?.defaultsApplied?.includes("slippage_clamped_max"), true);
+  assert.equal(result.meta?.defaultsApplied?.includes("deadline_default"), true);
+  assert.ok(result.meta?.policyEnforcements?.some((item) => item.key === "slippageBps" && item.reason === "clamped_max"));
+  assert.ok(result.meta?.policyEnforcements?.some((item) => item.key === "deadlineSeconds" && item.reason === "default"));
   assert.equal(result.meta?.chainId, 10_143);
   assert.equal(result.intent.amountWei, BigInt("100000000000000000").toString());
   assert.equal(result.meta?.amountExactWei, result.intent.amountWei);

@@ -74,7 +74,7 @@ test("chooses explicit amount over max", () => {
   assert.equal(outcome.type, "success");
   assert.equal(outcome.intent.amount.kind, "exact");
   assert.equal(outcome.intent.amount.value, "0.75");
-  assert.equal(outcome.meta?.defaultsApplied?.includes("slippage"), true);
+  assert.equal(outcome.meta?.defaultsApplied?.includes("slippage_default"), true);
   assert.equal(outcome.intent.amountWei, BigInt("750000000000000000").toString());
   assert.equal(outcome.intent.amount.valueWei, outcome.intent.amountWei);
 });
@@ -113,4 +113,34 @@ test("enforces safe pair scope", () => {
   const badOutcome = parseIntent("swap 0.1 wmon to mon", safeContext);
   assert.equal(badOutcome.type, "error");
   assert.equal(badOutcome.violations[0]?.code, "SAFE_PAIR_MISMATCH");
+});
+
+test("clamps safe mode slippage requests to policy maximum", () => {
+  const safeContext = {
+    ...delegationContext,
+    mode: "safe",
+    allowedTokens: [nativeToken, usdcToken],
+    pairAddresses: [nativeToken.address, usdcToken.address],
+  };
+  const outcome = parseIntent("swap 0.1 mon to usdc with 1% slippage", safeContext);
+  assert.equal(outcome.type, "success");
+  assert.equal(outcome.intent.slippageBps, 25);
+  assert.ok(outcome.meta?.policyEnforcements?.some((item) => item.key === "slippageBps" && item.reason === "clamped_max"));
+  assert.ok(outcome.warnings.some((warning) => warning.includes("Slippage")));
+});
+
+test("clamps deadline requests above policy limit", () => {
+  const outcome = parseIntent("swap 0.1 mon to usdc with 45 minute deadline", delegationContext);
+  assert.equal(outcome.type, "success");
+  assert.equal(outcome.intent.deadlineSeconds, 30 * 60);
+  assert.ok(outcome.meta?.policyEnforcements?.some((item) => item.key === "deadlineSeconds" && item.reason === "clamped_max"));
+  assert.ok(outcome.warnings.some((warning) => warning.includes("Deadline")));
+});
+
+test("raises deadlines below the minimum to the policy floor", () => {
+  const outcome = parseIntent("swap 0.1 mon to usdc with 0 minute deadline", delegationContext);
+  assert.equal(outcome.type, "success");
+  assert.equal(outcome.intent.deadlineSeconds, 60);
+  assert.ok(outcome.meta?.policyEnforcements?.some((item) => item.key === "deadlineSeconds" && item.reason === "clamped_min"));
+  assert.ok(outcome.warnings.some((warning) => warning.includes("below the minimum")));
 });

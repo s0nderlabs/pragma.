@@ -6,10 +6,10 @@ import {
   transferTokenWithSession,
   type NativeTransferConfig,
   type TokenTransferConfig,
-  type ExecutionLogger,
   type NativeTransferDependencies,
   type TokenTransferDependencies,
 } from "@pragma/core/execution/transfer";
+import type { ExecutionLogger } from "@pragma/core/execution/swap";
 import { createSessionWallet } from "@pragma/core/session/wallet";
 
 import {

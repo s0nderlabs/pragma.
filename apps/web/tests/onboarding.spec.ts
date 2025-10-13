@@ -33,10 +33,20 @@ test.describe("Onboarding surface", () => {
 
     await page.goto("/");
 
-    await expect(page.getByRole("heading", { name: "HybridDelegator Onboarding" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Chat console" })).toBeVisible();
 
     await expect(page.getByText(/Failed to fetch/i)).toHaveCount(0);
 
-    await expect(page.getByText("Select source token")).toBeVisible();
+    await expect(
+      page.getByText(
+        /Open the Connected account menu to configure your delegation/i,
+      ),
+    ).toBeVisible();
+
+    await expect(
+      page.getByPlaceholder(
+        /Ask Pragma to swap, transfer, wrap, or explain capabilities/i,
+      ),
+    ).toBeVisible();
   });
 });

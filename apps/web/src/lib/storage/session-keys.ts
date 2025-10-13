@@ -80,3 +80,8 @@ export const deleteSessionKey = (delegator: Address) => {
     writeAll(records);
   }
 };
+
+export const clearSessionKeys = () => {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(STORAGE_KEY);
+};

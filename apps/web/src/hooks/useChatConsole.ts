@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { nanoid } from "nanoid/non-secure";
-import { formatUnits, isAddress } from "viem";
+import { formatUnits, getAddress, isAddress, type Address, type Hex } from "viem";
 import type { AllowedToken } from "@pragma/core/monorail/tokens";
 import type {
   ExecutionLogger,
@@ -10,9 +10,19 @@ import type {
   SwapPreviewResult,
   SwapResult,
 } from "@pragma/core/execution/swap";
+import type {
+  CanonicalIntent,
+  ClarificationRequest,
+  PolicyViolation,
+  SwapIntentFields,
+  TransferIntentFields,
+  WrapIntentFields,
+  AmountSpecification,
+} from "@pragma/core/intent/types";
+import { resolveAmountInput } from "@pragma/core/agent/amount";
 
 import { fetchAllowlist } from "../lib/onboarding/service";
-import { loadChatSession } from "../lib/chat/session";
+import { loadChatSession, type ChatSessionContext } from "../lib/chat/session";
 import { previewSwap, executeSwap } from "../lib/chat/swap";
 import { executeNativeTransfer, executeTokenTransfer } from "../lib/chat/transfer";
 import { executeWrap, executeUnwrap } from "../lib/chat/wrap";
@@ -20,10 +30,10 @@ import {
   MONAD_NATIVE_TOKEN_SYMBOL,
   MONAD_WRAPPED_TOKEN_SYMBOL,
   MONAD_WMON_ADDRESS,
+  MONAD_NATIVE_TOKEN_ADDRESS,
 } from "../lib/config";
-import { monadChain } from "../lib/clients";
-
-type ChatCommand = "swap" | "transfer" | "wrap";
+import { monadChain, createMonadPublicClient } from "../lib/clients";
+import { callAgent, type AgentControlEvent } from "../lib/chat/agent";
 
 type LogLevel = "info" | "success" | "warn";
 
@@ -40,46 +50,24 @@ export interface ChatMessage {
   logs?: ChatMessageLog[];
 }
 
-interface SwapFormState {
-  fromAddress?: string;
-  toAddress?: string;
-  amount: string;
-  slippageBps: number;
-}
-
-interface TransferFormState {
-  type: "native" | "token";
-  tokenAddress?: string;
-  recipient: string;
-  amount: string;
-}
-
-interface WrapFormState {
-  direction: "wrap" | "unwrap";
-  amount: string;
-}
-
 const shortHex = (value: string) => `${value.slice(0, 6)}…${value.slice(-4)}`;
+
 const toNumber = (value: unknown, fallback = 18): number => {
   const parsed = typeof value === "number" ? value : Number(value ?? fallback);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-const initialSwapForm: SwapFormState = {
-  amount: "0.1",
-  slippageBps: 50,
-};
+const ERC20_BALANCE_ABI = [
+  {
+    type: "function",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+] as const;
 
-const initialTransferForm: TransferFormState = {
-  type: "native",
-  recipient: "",
-  amount: "",
-};
-
-const initialWrapForm: WrapFormState = {
-  direction: "wrap",
-  amount: "",
-};
+const QUICK_MODE_STORAGE_KEY = "pragma.h1.quick-mode.v1";
 
 const parseError = (error: unknown): string => {
   if (error instanceof Error && error.message) {
@@ -99,16 +87,94 @@ const formatTokenAmount = (amount: bigint, token: AllowedToken, decimalsOverride
   return formatUnits(amount, decimals);
 };
 
+const formatWarnings = (warnings?: string[]) =>
+  warnings && warnings.length > 0 ? `\n\nWarnings:\n- ${warnings.join("\n- ")}` : "";
+
+const summarizeAmount = (amount?: AmountSpecification) => {
+  if (!amount) return "?";
+  if (amount.kind === "exact") return amount.value ?? "?";
+  if (amount.kind === "max") return "max";
+  if (amount.kind === "fraction") return `${amount.numerator}/${amount.denominator}`;
+  return "?";
+};
+
+type PendingAction =
+  | {
+      kind: "swap";
+      statusId: string;
+      config: SwapExecutionConfig;
+      preview: SwapPreviewResult;
+      summary: string;
+    }
+  | {
+      kind: "transfer_native";
+      statusId: string;
+      context: ChatSessionContext;
+      recipient: string;
+      amountInput: string;
+      resolvedDisplay: string;
+    }
+  | {
+      kind: "transfer_token";
+      statusId: string;
+      context: ChatSessionContext;
+      token: AllowedToken & { decimals: number };
+      recipient: string;
+      amountInput: string;
+      resolvedDisplay: string;
+    }
+  | {
+      kind: "wrap";
+      statusId: string;
+      context: ChatSessionContext;
+      direction: "wrap" | "unwrap";
+      amountInput: string;
+      resolvedDisplay: string;
+    };
+
+const describeIntent = (intent: CanonicalIntent): string => {
+  switch (intent.action) {
+    case "swap": {
+      const typed = intent as SwapIntentFields;
+      const amount = summarizeAmount(typed.amount);
+      return `swap ${amount} ${typed.tokenIn.symbol ?? shortHex(typed.tokenIn.address)} to ${typed.tokenOut.symbol ?? shortHex(typed.tokenOut.address)}`;
+    }
+    case "transfer": {
+      const typed = intent as TransferIntentFields;
+      const amount = summarizeAmount(typed.amount);
+      const symbol = typed.token ? typed.token.symbol ?? shortHex(typed.token.address) : MONAD_NATIVE_TOKEN_SYMBOL;
+      return `transfer ${amount} ${symbol} to ${typed.recipient ?? "?"}`;
+    }
+    case "wrap":
+      return `wrap ${summarizeAmount((intent as WrapIntentFields).amount)} ${MONAD_NATIVE_TOKEN_SYMBOL}`;
+    case "unwrap":
+      return `unwrap ${summarizeAmount((intent as WrapIntentFields).amount)} ${MONAD_WRAPPED_TOKEN_SYMBOL}`;
+    case "delegation_issue":
+      return "delegation issuance";
+    default:
+      return (intent as { action: string }).action;
+  }
+};
+
 export const useChatConsole = () => {
-  const [command, setCommand] = React.useState<ChatCommand>("swap");
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [allowedTokens, setAllowedTokens] = React.useState<AllowedToken[]>([]);
   const [delegationTokens, setDelegationTokens] = React.useState<AllowedToken[] | undefined>(undefined);
   const [loadingTokens, setLoadingTokens] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [swapForm, setSwapForm] = React.useState<SwapFormState>(initialSwapForm);
-  const [transferForm, setTransferForm] = React.useState<TransferFormState>(initialTransferForm);
-  const [wrapForm, setWrapForm] = React.useState<WrapFormState>(initialWrapForm);
+  const [draft, setDraft] = React.useState<string>("");
+  const publicClientRef = React.useRef(createMonadPublicClient());
+  const [quickMode, setQuickMode] = React.useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(QUICK_MODE_STORAGE_KEY) === "1";
+  });
+  const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
+  const [isConfirming, setIsConfirming] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(QUICK_MODE_STORAGE_KEY, quickMode ? "1" : "0");
+  }, [quickMode]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -156,46 +222,6 @@ export const useChatConsole = () => {
     [delegationTokens, allowedTokens],
   );
 
-  const tokensByAddress = React.useMemo(() => {
-    const map = new Map<string, AllowedToken>();
-    effectiveTokens.forEach((token) => {
-      map.set(token.address.toLowerCase(), token);
-    });
-    return map;
-  }, [effectiveTokens]);
-
-  React.useEffect(() => {
-    if (effectiveTokens.length === 0) return;
-    setSwapForm((prev) => {
-      const tokensMap = new Map(effectiveTokens.map((token) => [token.address.toLowerCase(), token]));
-      const fromValid = prev.fromAddress && tokensMap.has(prev.fromAddress.toLowerCase());
-      const toValid = prev.toAddress && tokensMap.has(prev.toAddress.toLowerCase());
-      if (fromValid && toValid) {
-        return prev;
-      }
-      const [first, second] = effectiveTokens;
-      const fallbackTo = second ?? first;
-      return {
-        ...prev,
-        fromAddress: fromValid ? prev.fromAddress : first?.address,
-        toAddress: toValid ? prev.toAddress : fallbackTo?.address,
-      };
-    });
-
-    setTransferForm((prev) => {
-      if (prev.type !== "token") {
-        return prev;
-      }
-      const tokensMap = new Map(effectiveTokens.map((token) => [token.address.toLowerCase(), token]));
-      const valid = prev.tokenAddress && tokensMap.has(prev.tokenAddress.toLowerCase());
-      if (valid) return prev;
-      return {
-        ...prev,
-        tokenAddress: effectiveTokens[0]?.address,
-      };
-    });
-  }, [effectiveTokens]);
-
   const appendMessage = React.useCallback((message: ChatMessage) => {
     setMessages((prev) => [...prev, message]);
     return message.id;
@@ -232,266 +258,683 @@ export const useChatConsole = () => {
     [],
   );
 
-  const buildSwapConfig = React.useCallback(
-    (override?: Partial<SwapExecutionConfig>): SwapExecutionConfig => {
+  const fetchNativeBalance = React.useCallback(
+    async (owner: Address): Promise<bigint> => {
+      try {
+        return await publicClientRef.current.getBalance({ address: owner });
+      } catch (error) {
+        console.warn("Failed to fetch native balance", error);
+        return 0n;
+      }
+    },
+    [],
+  );
+
+  const fetchTokenBalance = React.useCallback(
+    async (token: AllowedToken, owner: Address): Promise<bigint> => {
+      const address = token.address ? getAddress(token.address) : undefined;
+      try {
+        if (
+          token.kind === "native" ||
+          (address && address.toLowerCase() === MONAD_NATIVE_TOKEN_ADDRESS.toLowerCase())
+        ) {
+          return await fetchNativeBalance(owner);
+        }
+        if (!address) {
+          return 0n;
+        }
+        return (await publicClientRef.current.readContract({
+          address,
+          abi: ERC20_BALANCE_ABI,
+          functionName: "balanceOf",
+          args: [owner],
+        })) as bigint;
+      } catch (error) {
+        console.warn("Failed to fetch token balance", error);
+        return 0n;
+      }
+    },
+    [fetchNativeBalance],
+  );
+
+
+  const formatQuoteSummary = React.useCallback((preview: SwapPreviewResult, config: SwapExecutionConfig) => {
+    const amountIn = formatTokenAmount(preview.plan.amountIn, config.intent.from, config.intent.from.decimals);
+    const expectedOut = formatTokenAmount(preview.plan.expectedAmountOut, config.intent.to, config.intent.to.decimals);
+    const minOut = formatTokenAmount(preview.plan.minAmountOut, config.intent.to, config.intent.to.decimals);
+    return `Quote ${preview.plan.quote.quoteId}\n${amountIn} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${expectedOut} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}\nMinimum out: ${minOut} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}`;
+  }, []);
+
+  const formatSwapResult = React.useCallback((result: SwapResult, config: SwapExecutionConfig) => {
+    const amountIn = formatTokenAmount(result.amountIn, config.intent.from, config.intent.from.decimals);
+    const amountOut = formatTokenAmount(result.amountOut, config.intent.to, config.intent.to.decimals);
+    const explorerUrl = monadChain.blockExplorers?.default?.url;
+    const txLabel = shortHex(result.txHash);
+    const txLink = explorerUrl ? `${explorerUrl}/tx/${result.txHash}` : undefined;
+    return `Swap executed successfully\n${amountIn} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${amountOut} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}\nTx hash: ${txLabel}${txLink ? `\nExplorer: ${txLink}` : ""}`;
+  }, []);
+
+  const runSwapExecution = React.useCallback(
+    async (config: SwapExecutionConfig, preview: SwapPreviewResult, statusId: string) => {
+      const logger = createLogger(statusId);
+      updateMessage(statusId, (current) => ({
+        ...current,
+        status: "loading",
+        content: `${current.content}\n\nExecuting swap…`,
+      }));
+
+      const result = await executeSwap({ ...config, preparedPlan: preview.plan }, logger);
+
+      updateMessage(statusId, (current) => ({
+        ...current,
+        content: formatSwapResult(result, config),
+        status: "success",
+      }));
+      updateMessage(statusId, (current) => ({ ...current, logs: current.logs ?? [] }));
+    },
+    [createLogger, formatSwapResult, updateMessage],
+  );
+
+  const runNativeTransferExecution = React.useCallback(
+    async (
+      context: ChatSessionContext,
+      recipient: string,
+      amountInput: string,
+      resolvedDisplay: string,
+      statusId: string,
+    ) => {
+      const logger = createLogger(statusId);
+      updateMessage(statusId, (current) => ({
+        ...current,
+        status: "loading",
+        content: `${current.content}\n\nExecuting transfer…`,
+      }));
+
+      const result = await executeNativeTransfer(
+        {
+          session: context.session,
+          environment: context.environment,
+          hybridDelegator: context.delegator,
+          recipient: getAddress(recipient),
+          amountInput,
+        },
+        logger,
+      );
+
+      updateMessage(statusId, (current) => ({
+        ...current,
+        content: `Transferred ${resolvedDisplay} ${MONAD_NATIVE_TOKEN_SYMBOL} to ${recipient}\nTx hash: ${shortHex(result.txHash)}`,
+        status: "success",
+      }));
+      updateMessage(statusId, (current) => ({ ...current, logs: current.logs ?? [] }));
+    },
+    [createLogger, updateMessage],
+  );
+
+  const runTokenTransferExecution = React.useCallback(
+    async (
+      context: ChatSessionContext,
+      token: AllowedToken & { decimals: number },
+      recipient: string,
+      amountInput: string,
+      resolvedDisplay: string,
+      statusId: string,
+    ) => {
+      const logger = createLogger(statusId);
+      updateMessage(statusId, (current) => ({
+        ...current,
+        status: "loading",
+        content: `${current.content}\n\nExecuting transfer…`,
+      }));
+
+      const result = await executeTokenTransfer(
+        {
+          session: context.session,
+          environment: context.environment,
+          hybridDelegator: context.delegator,
+          token,
+          recipient: getAddress(recipient),
+          amountInput,
+        },
+        logger,
+      );
+
+      updateMessage(statusId, (current) => ({
+        ...current,
+        content: `Transferred ${resolvedDisplay} ${token.symbol ?? shortHex(token.address)} to ${recipient}\nTx hash: ${shortHex(result.txHash)}`,
+        status: "success",
+      }));
+      updateMessage(statusId, (current) => ({ ...current, logs: current.logs ?? [] }));
+    },
+    [createLogger, updateMessage],
+  );
+
+  const runWrapExecution = React.useCallback(
+    async (
+      context: ChatSessionContext,
+      direction: "wrap" | "unwrap",
+      amountInput: string,
+      resolvedDisplay: string,
+      statusId: string,
+    ) => {
+      const logger = createLogger(statusId);
+      updateMessage(statusId, (current) => ({
+        ...current,
+        status: "loading",
+        content: `${current.content}\n\nExecuting ${direction === "wrap" ? "wrap" : "unwrap"}…`,
+      }));
+
+      const result = direction === "wrap"
+        ? await executeWrap(
+            {
+              session: context.session,
+              environment: context.environment,
+              hybridDelegator: context.delegator,
+              amountInput,
+            },
+            logger,
+          )
+        : await executeUnwrap(
+            {
+              session: context.session,
+              environment: context.environment,
+              hybridDelegator: context.delegator,
+              amountInput,
+            },
+            logger,
+          );
+
+      updateMessage(statusId, (current) => ({
+        ...current,
+        content: `${direction === "wrap" ? "Wrapped" : "Unwrapped"} ${resolvedDisplay} ${direction === "wrap" ? MONAD_NATIVE_TOKEN_SYMBOL : MONAD_WRAPPED_TOKEN_SYMBOL}\nTx hash: ${shortHex(result.txHash)}`,
+        status: "success",
+      }));
+      updateMessage(statusId, (current) => ({ ...current, logs: current.logs ?? [] }));
+    },
+    [createLogger, updateMessage],
+  );
+
+  const executeSwapIntent = React.useCallback(
+    async (intent: SwapIntentFields, statusId: string) => {
       const context = loadChatSession("swap");
       if (!context) {
         throw new Error("No active swap delegation found. Complete onboarding before swapping.");
       }
 
-      const fromToken = withDecimals(tokensByAddress.get((swapForm.fromAddress ?? "").toLowerCase()));
-      const toToken = withDecimals(tokensByAddress.get((swapForm.toAddress ?? "").toLowerCase()));
+      const allowedTokens = context.session.allowedTokens ?? [];
+
+      const fromToken = withDecimals(
+        allowedTokens.find((token) => token.address.toLowerCase() === intent.tokenIn.address.toLowerCase())
+          ?? intent.tokenIn,
+      );
+      const toToken = withDecimals(
+        allowedTokens.find((token) => token.address.toLowerCase() === intent.tokenOut.address.toLowerCase())
+          ?? intent.tokenOut,
+      );
 
       if (!fromToken || !toToken) {
-        throw new Error("Select both source and destination tokens before swapping.");
+        throw new Error("Swap intent references a token outside of the delegation scope.");
       }
 
       if (fromToken.address.toLowerCase() === toToken.address.toLowerCase()) {
         throw new Error("Source and destination tokens must be different.");
       }
 
-      if (!swapForm.amount || Number(swapForm.amount) <= 0) {
-        throw new Error("Swap amount must be greater than zero.");
+      if (!intent.amount) {
+        throw new Error("Swap intent is missing an amount specification.");
       }
 
-      const slippageBps = Number.isFinite(swapForm.slippageBps)
-        ? swapForm.slippageBps
-        : 50;
+      const amountResolution = await resolveAmountInput({
+        amount: intent.amount,
+        tokenDecimals: fromToken.decimals,
+        fetchBalance: () => fetchTokenBalance(fromToken, context.delegator),
+      });
+      const amountInput = amountResolution.amountInput;
+      const slippageBps = intent.slippageBps ?? 50;
 
-      return {
+      const config: SwapExecutionConfig = {
         session: context.session,
         environment: context.environment,
         hybridDelegator: context.delegator,
         intent: { from: fromToken, to: toToken },
-        amountInput: swapForm.amount,
+        amountInput,
         slippageBps,
-        ...override,
-      } satisfies SwapExecutionConfig;
-    },
-    [swapForm, tokensByAddress, withDecimals],
-  );
+      };
 
-  const formatQuoteSummary = (preview: SwapPreviewResult, config: SwapExecutionConfig) => {
-    const amountIn = formatTokenAmount(preview.plan.amountIn, config.intent.from, config.intent.from.decimals);
-    const expectedOut = formatTokenAmount(preview.plan.expectedAmountOut, config.intent.to, config.intent.to.decimals);
-    const minOut = formatTokenAmount(preview.plan.minAmountOut, config.intent.to, config.intent.to.decimals);
-    return `Quote ${preview.plan.quote.quoteId}
-${amountIn} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${expectedOut} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}
-Minimum out: ${minOut} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}`;
-  };
-
-  const formatSwapResult = (result: SwapResult, config: SwapExecutionConfig) => {
-    const amountIn = formatTokenAmount(result.amountIn, config.intent.from, config.intent.from.decimals);
-    const amountOut = formatTokenAmount(result.amountOut, config.intent.to, config.intent.to.decimals);
-    const explorerUrl = monadChain.blockExplorers?.default?.url;
-    const txLabel = shortHex(result.txHash);
-    const txLink = explorerUrl ? `${explorerUrl}/tx/${result.txHash}` : undefined;
-    return `Swap executed successfully
-${amountIn} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${amountOut} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}
-Tx hash: ${txLabel}${txLink ? `
-Explorer: ${txLink}` : ""}`;
-  };
-
-  const submitSwap = React.useCallback(async () => {
-    setIsSubmitting(true);
-    const userMessageId = appendMessage({
-      id: nanoid(),
-      role: "user",
-      content: `Swap ${swapForm.amount} ${tokensByAddress.get((swapForm.fromAddress ?? "").toLowerCase())?.symbol ?? "token"} → ${tokensByAddress.get((swapForm.toAddress ?? "").toLowerCase())?.symbol ?? "token"}`,
-      status: "default",
-    });
-
-    const statusId = appendMessage({
-      id: nanoid(),
-      role: "system",
-      content: "Fetching quote…",
-      status: "loading",
-    });
-
-    try {
-      const config = buildSwapConfig();
       const logger = createLogger(statusId);
       const preview = await previewSwap(config, logger);
+      const summary = formatQuoteSummary(preview, config);
       updateMessage(statusId, (current) => ({
         ...current,
-        content: formatQuoteSummary(preview, config),
+        content: summary,
+        status: "default",
       }));
 
-      const result = await executeSwap({ ...config, preparedPlan: preview.plan }, logger);
-      updateMessage(statusId, (current) => ({
-        ...current,
-        content: formatSwapResult(result, config),
-        status: "success",
-      }));
-
-      // ensure logs array at least empty for consistent UI
-      updateMessage(statusId, (current) => ({ ...current, logs: current.logs ?? [] }));
-    } catch (error) {
-      const message = parseError(error);
-      updateMessage(statusId, (current) => ({
-        ...current,
-        content: message,
-        status: "error",
-      }));
-    } finally {
-      setIsSubmitting(false);
-      updateMessage(userMessageId, (current) => current);
-    }
-  }, [appendMessage, buildSwapConfig, createLogger, swapForm, tokensByAddress, updateMessage]);
-
-  const submitTransfer = React.useCallback(async () => {
-    setIsSubmitting(true);
-    const labelToken =
-      transferForm.type === "token"
-        ? tokensByAddress.get((transferForm.tokenAddress ?? "").toLowerCase())?.symbol ?? "token"
-        : MONAD_NATIVE_TOKEN_SYMBOL;
-    const userMessageId = appendMessage({
-      id: nanoid(),
-      role: "user",
-      content: `Transfer ${transferForm.amount || "?"} ${labelToken} to ${transferForm.recipient || "?"}`,
-      status: "default",
-    });
-
-    const statusId = appendMessage({
-      id: nanoid(),
-      role: "system",
-      content: "Preparing transfer…",
-      status: "loading",
-    });
-
-    try {
-      if (!transferForm.amount || Number(transferForm.amount) <= 0) {
-        throw new Error("Transfer amount must be greater than zero.");
-      }
-      if (!isAddress(transferForm.recipient)) {
-        throw new Error("Recipient must be a valid address.");
+      if (!quickMode) {
+        setPendingAction({
+          kind: "swap",
+          statusId,
+          config,
+          preview,
+          summary,
+        });
+        appendLog(statusId, { level: "info", message: "Awaiting confirmation" });
+        return;
       }
 
-      const logger = createLogger(statusId);
+      await runSwapExecution(config, preview, statusId);
+    },
+    [
+      appendLog,
+      createLogger,
+      fetchTokenBalance,
+      formatQuoteSummary,
+      quickMode,
+      runSwapExecution,
+      setPendingAction,
+      withDecimals,
+      updateMessage,
+    ],
+  );
 
-      if (transferForm.type === "native") {
+  const executeTransferIntent = React.useCallback(
+    async (intent: TransferIntentFields, statusId: string) => {
+      if (!intent.recipient || !isAddress(intent.recipient)) {
+        throw new Error("Transfer intent is missing a valid recipient address.");
+      }
+      if (!intent.amount) {
+        throw new Error("Transfer intent is missing an amount specification.");
+      }
+
+      if (!intent.token) {
         const context = loadChatSession("transfer", "swap");
         if (!context) {
           throw new Error("No active transfer delegation found. Reissue onboarding before transferring MON.");
         }
 
-        const result = await executeNativeTransfer(
-          {
-            session: context.session,
-            environment: context.environment,
-            hybridDelegator: context.delegator,
-            recipient: transferForm.recipient,
-            amountInput: transferForm.amount,
-          },
-          logger,
-        );
+        const amountResolution = await resolveAmountInput({
+          amount: intent.amount,
+          tokenDecimals: 18,
+          fetchBalance: () => fetchNativeBalance(context.delegator),
+        });
+        const amountInput = amountResolution.amountInput;
+        const resolvedDisplay = amountResolution.resolvedDisplay ?? amountInput;
 
         updateMessage(statusId, (current) => ({
           ...current,
-          content: `Transferred ${transferForm.amount} ${MONAD_NATIVE_TOKEN_SYMBOL} to ${transferForm.recipient}
-Tx hash: ${shortHex(result.txHash)}`,
-          status: "success",
+          content: `Ready to transfer ${resolvedDisplay} ${MONAD_NATIVE_TOKEN_SYMBOL} to ${intent.recipient}.`,
+          status: "default",
         }));
-      } else {
-        const token = withDecimals(tokensByAddress.get((transferForm.tokenAddress ?? "").toLowerCase()));
-        if (!token) {
-          throw new Error("Select a token to transfer.");
+
+        if (!quickMode) {
+          setPendingAction({
+            kind: "transfer_native",
+            statusId,
+            context,
+            recipient: intent.recipient,
+            amountInput,
+            resolvedDisplay,
+          });
+          appendLog(statusId, { level: "info", message: "Awaiting confirmation" });
+          return;
         }
 
-        const context = loadChatSession("swap");
-        if (!context) {
-          throw new Error("No active swap delegation found. Reissue onboarding before transferring tokens.");
-        }
-
-        const result = await executeTokenTransfer(
-          {
-            session: context.session,
-            environment: context.environment,
-            hybridDelegator: context.delegator,
-            token,
-            recipient: transferForm.recipient,
-            amountInput: transferForm.amount,
-          },
-          logger,
-        );
-
-        const formatted = formatTokenAmount(result.amount, token, token.decimals);
-        updateMessage(statusId, (current) => ({
-          ...current,
-          content: `Transferred ${formatted} ${token.symbol ?? shortHex(token.address)} to ${transferForm.recipient}
-Tx hash: ${shortHex(result.txHash)}`,
-          status: "success",
-        }));
+        await runNativeTransferExecution(context, intent.recipient, amountInput, resolvedDisplay, statusId);
+        return;
       }
 
-      updateMessage(statusId, (current) => ({ ...current, logs: current.logs ?? [] }));
-    } catch (error) {
-      const message = parseError(error);
+      const context = loadChatSession("swap");
+      if (!context) {
+        throw new Error("No active swap delegation found. Complete onboarding before transferring tokens.");
+      }
+
+      const allowedTokens = context.session.allowedTokens ?? [];
+      const token = withDecimals(
+        allowedTokens.find((candidate) => candidate.address.toLowerCase() === intent.token!.address.toLowerCase())
+          ?? intent.token,
+      );
+
+      if (!token) {
+        throw new Error("Transfer intent references a token outside of the delegation scope.");
+      }
+
+      const amountResolution = await resolveAmountInput({
+        amount: intent.amount,
+        tokenDecimals: token.decimals,
+        fetchBalance: () => fetchTokenBalance(token, context.delegator),
+      });
+      const amountInput = amountResolution.amountInput;
+      const resolvedDisplay = amountResolution.resolvedDisplay ?? amountInput;
+
       updateMessage(statusId, (current) => ({
         ...current,
-        content: message,
+        content: `Ready to transfer ${resolvedDisplay} ${token.symbol ?? shortHex(token.address)} to ${intent.recipient}.`,
+        status: "default",
+      }));
+
+      if (!quickMode) {
+        setPendingAction({
+          kind: "transfer_token",
+          statusId,
+          context,
+          token,
+          recipient: intent.recipient,
+          amountInput,
+          resolvedDisplay,
+        });
+        appendLog(statusId, { level: "info", message: "Awaiting confirmation" });
+        return;
+      }
+
+      await runTokenTransferExecution(context, token, intent.recipient, amountInput, resolvedDisplay, statusId);
+    },
+    [
+      appendLog,
+      fetchNativeBalance,
+      fetchTokenBalance,
+      quickMode,
+      runNativeTransferExecution,
+      runTokenTransferExecution,
+      setPendingAction,
+      updateMessage,
+      withDecimals,
+    ],
+  );
+
+  const executeWrapIntent = React.useCallback(
+    async (intent: WrapIntentFields, statusId: string) => {
+      const context = loadChatSession("swap");
+      if (!context) {
+        throw new Error("No active swap delegation found. Complete onboarding before wrapping.");
+      }
+
+      const allowedTokens = context.session.allowedTokens ?? [];
+
+      const hasWrappedAllowance = allowedTokens.some(
+        (token) => token.kind === "wrappedNative" || token.address.toLowerCase() === MONAD_WMON_ADDRESS.toLowerCase(),
+      );
+      if (!hasWrappedAllowance) {
+        throw new Error("Delegation does not permit WMON. Reissue with MON/WMON enabled before wrapping.");
+      }
+
+      if (!intent.amount) {
+        throw new Error("Wrap intent is missing an amount specification.");
+      }
+
+      const wrappedToken =
+        allowedTokens.find((token) => token.address.toLowerCase() === MONAD_WMON_ADDRESS.toLowerCase()) ??
+        ({
+          address: MONAD_WMON_ADDRESS,
+          symbol: MONAD_WRAPPED_TOKEN_SYMBOL,
+          decimals: 18,
+          kind: "wrappedNative",
+          name: "Wrapped Monad",
+        } as AllowedToken);
+
+      const amountResolution = await resolveAmountInput({
+        amount: intent.amount,
+        tokenDecimals: 18,
+        fetchBalance: () =>
+          intent.action === "wrap"
+            ? fetchNativeBalance(context.delegator)
+            : fetchTokenBalance(wrappedToken, context.delegator),
+      });
+      const amountInput = amountResolution.amountInput;
+      const resolvedDisplay = amountResolution.resolvedDisplay ?? amountInput;
+
+      updateMessage(statusId, (current) => ({
+        ...current,
+        content: `Ready to ${intent.action === "wrap" ? "wrap" : "unwrap"} ${resolvedDisplay} ${intent.action === "wrap" ? MONAD_NATIVE_TOKEN_SYMBOL : MONAD_WRAPPED_TOKEN_SYMBOL}.`,
+        status: "default",
+      }));
+
+      if (!quickMode) {
+        setPendingAction({
+          kind: "wrap",
+          statusId,
+          context,
+          direction: intent.action,
+          amountInput,
+          resolvedDisplay,
+        });
+        appendLog(statusId, { level: "info", message: "Awaiting confirmation" });
+        return;
+      }
+
+      await runWrapExecution(context, intent.action, amountInput, resolvedDisplay, statusId);
+    },
+    [
+      appendLog,
+      fetchNativeBalance,
+      fetchTokenBalance,
+      quickMode,
+      runWrapExecution,
+      setPendingAction,
+      updateMessage,
+    ],
+  );
+
+  const cancelPendingAction = React.useCallback(() => {
+    setPendingAction((current) => {
+      if (!current) {
+        return null;
+      }
+      updateMessage(current.statusId, (message) => ({
+        ...message,
+        status: "default",
+        content: `${message.content}\n\nCancelled.`,
+      }));
+      appendLog(current.statusId, { level: "info", message: "Action cancelled" });
+      return null;
+    });
+  }, [appendLog, updateMessage]);
+
+  const confirmPendingAction = React.useCallback(async () => {
+    if (!pendingAction) return;
+    const currentAction = pendingAction;
+    setIsConfirming(true);
+    try {
+      switch (currentAction.kind) {
+        case "swap":
+          await runSwapExecution(currentAction.config, currentAction.preview, currentAction.statusId);
+          appendLog(currentAction.statusId, { level: "success", message: "Swap executed" });
+          setPendingAction(null);
+          break;
+        case "transfer_native":
+          await runNativeTransferExecution(
+            currentAction.context,
+            currentAction.recipient,
+            currentAction.amountInput,
+            currentAction.resolvedDisplay,
+            currentAction.statusId,
+          );
+          appendLog(currentAction.statusId, { level: "success", message: "Transfer executed" });
+          setPendingAction(null);
+          break;
+        case "transfer_token":
+          await runTokenTransferExecution(
+            currentAction.context,
+            currentAction.token,
+            currentAction.recipient,
+            currentAction.amountInput,
+            currentAction.resolvedDisplay,
+            currentAction.statusId,
+          );
+          appendLog(currentAction.statusId, { level: "success", message: "Transfer executed" });
+          setPendingAction(null);
+          break;
+        case "wrap":
+          await runWrapExecution(
+            currentAction.context,
+            currentAction.direction,
+            currentAction.amountInput,
+            currentAction.resolvedDisplay,
+            currentAction.statusId,
+          );
+          appendLog(currentAction.statusId, { level: "success", message: "Action executed" });
+          setPendingAction(null);
+          break;
+        default:
+          break;
+      }
+    } catch (error) {
+      const message = parseError(error);
+      updateMessage(currentAction.statusId, (current) => ({
+        ...current,
+        content: `${current.content}\n\n${message}`,
         status: "error",
       }));
+      appendLog(currentAction.statusId, { level: "warn", message });
     } finally {
-      setIsSubmitting(false);
-      updateMessage(userMessageId, (current) => current);
+      setIsConfirming(false);
     }
-  }, [appendMessage, createLogger, tokensByAddress, transferForm, updateMessage, withDecimals]);
+  }, [appendLog, pendingAction, runNativeTransferExecution, runSwapExecution, runTokenTransferExecution, runWrapExecution, updateMessage]);
 
-  const submitWrap = React.useCallback(async () => {
+  const handleIntent = React.useCallback(
+    async (intent: CanonicalIntent, statusId: string) => {
+      switch (intent.action) {
+        case "swap":
+          await executeSwapIntent(intent as SwapIntentFields, statusId);
+          return;
+        case "transfer":
+          await executeTransferIntent(intent as TransferIntentFields, statusId);
+          return;
+        case "wrap":
+        case "unwrap":
+          await executeWrapIntent(intent as WrapIntentFields, statusId);
+          return;
+        case "delegation_issue":
+          updateMessage(statusId, (current) => ({
+            ...current,
+            content: "Delegation issuance must be completed via the Connected account modal in the web app.",
+            status: "error",
+          }));
+          return;
+        default:
+          updateMessage(statusId, (current) => ({
+            ...current,
+            content: `Intent action "${(intent as { action: string }).action}" is not supported in the web console yet.`,
+            status: "error",
+          }));
+      }
+    },
+    [executeSwapIntent, executeTransferIntent, executeWrapIntent, updateMessage],
+  );
+
+  const submitDraft = React.useCallback(async () => {
+    const input = draft.trim();
+    if (!input || isSubmitting) return;
+
+    setDraft("");
     setIsSubmitting(true);
+    setPendingAction(null);
+    setIsConfirming(false);
+
     const userMessageId = appendMessage({
       id: nanoid(),
       role: "user",
-      content: `${wrapForm.direction === "wrap" ? "Wrap" : "Unwrap"} ${wrapForm.amount || "?"} ${wrapForm.direction === "wrap" ? MONAD_NATIVE_TOKEN_SYMBOL : MONAD_WRAPPED_TOKEN_SYMBOL}`,
-      status: "default",
+      content: input,
     });
 
     const statusId = appendMessage({
       id: nanoid(),
       role: "system",
-      content: `${wrapForm.direction === "wrap" ? "Wrapping" : "Unwrapping"}…`,
+      content: "Analyzing intent…",
       status: "loading",
     });
 
     try {
-      if (!wrapForm.amount || Number(wrapForm.amount) <= 0) {
-        throw new Error("Amount must be greater than zero.");
+      const swapContext = loadChatSession("swap");
+      if (!swapContext) {
+        throw new Error("No active delegation found. Connect and issue a delegation from the Connected account menu first.");
       }
 
-      const context = loadChatSession("swap");
-      if (!context) {
-        throw new Error("No active delegation found. Reissue onboarding before wrapping.");
-      }
-
-      const hasWrappedAllowance = context.session.allowedTokens?.some(
-        (token) => token.kind === "wrappedNative" || token.address.toLowerCase() === MONAD_WMON_ADDRESS.toLowerCase(),
-      );
-      if (!hasWrappedAllowance) {
-        throw new Error(
-          "Current delegation does not allow wrapped MON operations. Reissue the delegation after selecting tokens to refresh wrap permissions.",
-        );
-      }
-
-      const logger = createLogger(statusId);
-      const config = {
-        session: context.session,
-        environment: context.environment,
-        hybridDelegator: context.delegator,
-        amountInput: wrapForm.amount,
+      const sanitizedArtifact = {
+        ...swapContext.artifact,
+        sessionKeyPrivateKey: "0x" as Hex,
       };
 
-      const result = wrapForm.direction === "wrap"
-        ? await executeWrap(config, logger)
-        : await executeUnwrap(config, logger);
+      const allowedTokens = swapContext.session.allowedTokens ?? [];
+
+      let streamedContent = "";
+
+      const response = await callAgent(
+        {
+          message: input,
+          delegation: {
+            artifact: sanitizedArtifact,
+            tokens: allowedTokens.length > 0 ? allowedTokens : effectiveTokens,
+          },
+          quickMode,
+        },
+        {
+          onStream: (chunk) => {
+            streamedContent += chunk;
+            updateMessage(statusId, (current) => ({
+              ...current,
+              content: streamedContent,
+              status: "default",
+            }));
+          },
+          onControl: (event: AgentControlEvent) => {
+            if (event.type === "quick_mode") {
+              const enabled = Boolean((event.payload as { enabled?: unknown })?.enabled);
+              setQuickMode(enabled);
+            }
+          },
+        },
+      );
+
+      if (response.type === "intent") {
+        const intent = response.intent as CanonicalIntent;
+        const summary = describeIntent(intent);
+        updateMessage(statusId, (current) => ({
+          ...current,
+          content: `Recognized intent: ${summary}${formatWarnings(response.warnings)}`,
+        }));
+        await handleIntent(intent, statusId);
+        return;
+      }
+
+      if (response.type === "clarification") {
+        const clarification = response.clarification as ClarificationRequest;
+        const prompts = clarification.questions
+          .map((question, index) => `${index + 1}. ${question.prompt}`)
+          .join("\n");
+        updateMessage(statusId, (current) => ({
+          ...current,
+          content: `I need a bit more detail:${formatWarnings(response.warnings)}\n\n${prompts}`,
+          status: "default",
+        }));
+        return;
+      }
+
+      if (response.type === "insight") {
+        const finalBody = typeof response.body === "string" ? response.body : "";
+        const combined = (finalBody || streamedContent || "No additional insight is available for this request.").trim();
+        updateMessage(statusId, (current) => ({
+          ...current,
+          content: `${combined}${formatWarnings(response.warnings)}`,
+          status: "default",
+        }));
+        return;
+      }
+
+      if (response.type === "error") {
+        const violations = (response.violations as PolicyViolation[] | undefined)?.map((violation) => `- ${violation.message}`) ?? [];
+        updateMessage(statusId, (current) => ({
+          ...current,
+          content: `Unable to fulfil the request:${formatWarnings(response.warnings)}${violations.length > 0 ? `\n\n${violations.join("\n")}` : ""}`,
+          status: "error",
+        }));
+        return;
+      }
 
       updateMessage(statusId, (current) => ({
         ...current,
-        content: `${wrapForm.direction === "wrap" ? "Wrapped" : "Unwrapped"} ${wrapForm.amount} ${wrapForm.direction === "wrap" ? MONAD_NATIVE_TOKEN_SYMBOL : MONAD_WRAPPED_TOKEN_SYMBOL}
-Tx hash: ${shortHex(result.txHash)}`,
-        status: "success",
+        content: "Agent returned an unsupported response type.",
+        status: "error",
       }));
-      updateMessage(statusId, (current) => ({ ...current, logs: current.logs ?? [] }));
     } catch (error) {
       const message = parseError(error);
       updateMessage(statusId, (current) => ({
@@ -503,35 +946,28 @@ Tx hash: ${shortHex(result.txHash)}`,
       setIsSubmitting(false);
       updateMessage(userMessageId, (current) => current);
     }
-  }, [appendMessage, createLogger, updateMessage, wrapForm]);
+  }, [appendMessage, draft, effectiveTokens, handleIntent, isSubmitting, quickMode, updateMessage]);
 
-  const updateSwapForm = React.useCallback((patch: Partial<SwapFormState>) => {
-    setSwapForm((prev) => ({ ...prev, ...patch }));
-  }, []);
-
-  const updateTransferForm = React.useCallback((patch: Partial<TransferFormState>) => {
-    setTransferForm((prev) => ({ ...prev, ...patch }));
-  }, []);
-
-  const updateWrapForm = React.useCallback((patch: Partial<WrapFormState>) => {
-    setWrapForm((prev) => ({ ...prev, ...patch }));
-  }, []);
+  const handleSubmit = React.useCallback(
+    async (event?: React.FormEvent<HTMLFormElement>) => {
+      event?.preventDefault();
+      await submitDraft();
+    },
+    [submitDraft],
+  );
 
   return {
-    command,
-    setCommand,
     messages,
-    availableTokens: effectiveTokens,
     loadingTokens,
     isSubmitting,
-    swapForm,
-    updateSwapForm,
-    transferForm,
-    updateTransferForm,
-    wrapForm,
-    updateWrapForm,
-    submitSwap,
-    submitTransfer,
-    submitWrap,
+    draft,
+    setDraft,
+    handleSubmit,
+    quickMode,
+    setQuickMode,
+    pendingAction,
+    confirmPendingAction,
+    cancelPendingAction,
+    isConfirming,
   };
 };

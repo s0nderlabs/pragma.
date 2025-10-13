@@ -71,21 +71,20 @@ export const getFallbackAllowedTokens = (): AllowedToken[] =>
 const normalizeCacheEntry = (entry: TokenCacheEntry | undefined): AllowedToken[] => {
   if (!entry) return [];
   return normalizeAllowedTokensList(
-    entry.tokens
-      .map((token) => {
-        try {
-          return {
-            address: getAddress(token.address as `0x${string}`),
-            symbol: token.symbol,
-            name: token.name,
-            decimals: typeof token.decimals === "number" ? token.decimals : Number(token.decimals ?? 18),
-            categories: token.categories,
-          } satisfies AllowedToken;
-        } catch {
-          return undefined;
-        }
-      })
-      .filter((token): token is AllowedToken => Boolean(token)),
+    entry.tokens.reduce<AllowedToken[]>((acc, token) => {
+      try {
+        acc.push({
+          address: getAddress(token.address as `0x${string}`),
+          symbol: token.symbol,
+          name: token.name,
+          decimals: typeof token.decimals === "number" ? token.decimals : Number(token.decimals ?? 18),
+          categories: token.categories,
+        });
+      } catch {
+        // ignore malformed token entries
+      }
+      return acc;
+    }, []),
   );
 };
 

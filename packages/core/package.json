@@ -25,6 +25,18 @@
       "types": "./dist/agent/types.d.ts",
       "import": "./dist/agent/types.js"
     },
+    "./agent/context": {
+      "types": "./dist/agent/context.d.ts",
+      "import": "./dist/agent/context.js"
+    },
+    "./agent/amount": {
+      "types": "./dist/agent/amount.d.ts",
+      "import": "./dist/agent/amount.js"
+    },
+    "./agent/quickActions": {
+      "types": "./dist/agent/quickActions.d.ts",
+      "import": "./dist/agent/quickActions.js"
+    },
     "./delegations/types": {
       "types": "./dist/delegations/types.d.ts",
       "import": "./dist/delegations/types.js"

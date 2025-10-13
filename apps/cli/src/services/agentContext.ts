@@ -9,6 +9,7 @@ import {
   MONAD_WMON_ADDRESS,
   MONAD_WRAPPED_TOKEN_SYMBOL,
 } from "./config.js";
+import { buildDelegationContext } from "@pragma/core/agent/context";
 import type { DelegationContext } from "@pragma/core";
 
 export interface LoadedAgentContext {
@@ -84,32 +85,32 @@ export const loadAgentContext = async (delegator?: string): Promise<LoadedAgentC
     );
   }
 
-  const delegationContext: DelegationContext = {
-    mode: swapSession.session.mode,
-    allowedTokens: swapSession.allowedTokens,
-    nativeTokenSymbol: MONAD_NATIVE_TOKEN_SYMBOL,
-    nativeTokenAddress: getAddress(MONAD_NATIVE_TOKEN_ADDRESS),
-    wrappedNativeSymbol: MONAD_WRAPPED_TOKEN_SYMBOL,
-    wrappedNativeAddress: getAddress(MONAD_WMON_ADDRESS),
-    defaultSlippageBps: swapSession.session.mode === "safe" ? 50 : 100,
-    defaultDeadlineMinutes: swapSession.session.mode === "safe" ? 15 : 30,
-    maxSlippageBpsSafe: 250,
-    maxSlippageBpsNormal: 500,
-    maxDeadlineMinutesSafe: 60,
-    maxDeadlineMinutesNormal: 120,
-    chainId: MONAD_CHAIN_ID,
-    feeBps: 0,
-    feeRecipient: getAddress("0x000000000000000000000000000000000000dEaD"),
-    sessionKeyId: swapSession.session.sessionKeyAddress,
-    nonce: (() => {
-      if (!swapSession.session.sessionNonce) return undefined;
-      const nonceBig = BigInt(swapSession.session.sessionNonce);
-      if (nonceBig > BigInt(Number.MAX_SAFE_INTEGER)) {
-        return undefined;
-      }
-      return Number(nonceBig);
-    })(),
-  };
+  const delegationContext: DelegationContext = buildDelegationContext({
+    session: {
+      mode: swapSession.session.mode,
+      allowedTokens: swapSession.allowedTokens,
+      sessionKeyAddress: swapSession.session.sessionKeyAddress,
+      sessionNonce: swapSession.session.sessionNonce,
+      perTokenCapsWei: swapSession.session.perTokenCapsWei,
+      nativeTokenCapWei: swapSession.session.nativeTokenCapWei,
+      pairAddresses: swapSession.session.pairAddresses,
+    },
+    metadata: {
+      nativeTokenSymbol: MONAD_NATIVE_TOKEN_SYMBOL,
+      nativeTokenAddress: MONAD_NATIVE_TOKEN_ADDRESS,
+      wrappedNativeSymbol: MONAD_WRAPPED_TOKEN_SYMBOL,
+      wrappedNativeAddress: MONAD_WMON_ADDRESS,
+      defaultSlippageBps: swapSession.session.mode === "safe" ? 50 : 100,
+      defaultDeadlineMinutes: swapSession.session.mode === "safe" ? 15 : 30,
+      maxSlippageBpsSafe: 250,
+      maxSlippageBpsNormal: 500,
+      maxDeadlineMinutesSafe: 60,
+      maxDeadlineMinutesNormal: 120,
+      chainId: MONAD_CHAIN_ID,
+      feeBps: 0,
+      feeRecipient: "0x000000000000000000000000000000000000dEaD",
+    },
+  });
 
   const { perTokenCaps, nativeCap } = extractCaps(swapSession.session, swapSession.environment);
   const mergedCaps = new Map<string, bigint>();

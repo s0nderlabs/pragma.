@@ -4,7 +4,12 @@ import * as React from "react";
 
 import { ThemeToggle } from "./theme-toggle";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+interface AppShellProps {
+  children: React.ReactNode;
+  headerActions?: React.ReactNode;
+}
+
+export function AppShell({ children, headerActions }: AppShellProps) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header className="sticky top-0 z-40 border-b border-border/80 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -18,7 +23,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <h1 className="text-lg font-semibold text-foreground">HybridDelegator Console</h1>
             </div>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            {headerActions}
+            <ThemeToggle />
+          </div>
         </div>
       </header>
       <main className="flex flex-1 justify-center">

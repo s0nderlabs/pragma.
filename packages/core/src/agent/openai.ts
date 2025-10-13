@@ -241,6 +241,39 @@ export const createOpenAiInsightStreamer = (
     process.env.PRAGMA_AGENT_STREAM_TIMEOUT_MS ?? 1200
   );
 
+  const extractOutputText = (response: unknown): string => {
+    if (!response || typeof response !== "object") return "";
+    const candidate = (response as { output_text?: unknown }).output_text;
+    if (typeof candidate === "string") return candidate;
+    if (Array.isArray(candidate)) {
+      return candidate.filter((value): value is string => typeof value === "string").join("");
+    }
+    const blocks = (response as { output?: Array<{ content?: Array<unknown> }> }).output;
+    if (!Array.isArray(blocks)) return "";
+    const pieces: string[] = [];
+    for (const block of blocks) {
+      if (!block || typeof block !== "object") continue;
+      const content = (block as { content?: Array<unknown> }).content;
+      if (!Array.isArray(content)) continue;
+      for (const entry of content) {
+        if (!entry || typeof entry !== "object") continue;
+        const maybe = entry as { text?: unknown; output_text?: unknown };
+        if (typeof maybe.output_text === "string") {
+          pieces.push(maybe.output_text);
+        } else if (Array.isArray(maybe.output_text)) {
+          pieces.push(
+            maybe.output_text
+              .filter((value): value is string => typeof value === "string")
+              .join("")
+          );
+        } else if (typeof maybe.text === "string") {
+          pieces.push(maybe.text);
+        }
+      }
+    }
+    return pieces.join("");
+  };
+
   const attemptStream = async (
     model: string,
     input: string,
@@ -273,16 +306,52 @@ export const createOpenAiInsightStreamer = (
       }
     })();
 
+    const fallbackToNonStreaming = async (): Promise<string> => {
+      const completion = await client.responses.create({
+        model,
+        input: prompt,
+      });
+      const text = extractOutputText(completion).trim();
+      if (!text) {
+        throw new Error("Insight generation returned no content");
+      }
+      return text;
+    };
+
     return {
       type: "insight_stream",
       title: "pragma insight",
       stream: generator,
       collect: async () => {
         try {
-          await stream.finalResponse();
+          const final = await Promise.race([
+            stream
+              .finalResponse()
+              .then((response) => ({ type: "final" as const, response }))
+              .catch((error) => ({ type: "error" as const, error })),
+            (async () => {
+              if (firstChunkTimeoutMs <= 0) return undefined;
+              await new Promise((resolve) => setTimeout(resolve, firstChunkTimeoutMs));
+              return undefined;
+            })(),
+          ]);
+          if (final && final.type === "error") {
+            throw final.error;
+          }
+          if (final && final.type === "final") {
+            const finalText = extractOutputText(final.response);
+            if (finalText) {
+              chunks.push(finalText);
+            }
+          }
         } catch (error) {
           if (!chunks.length) {
-            throw error;
+            try {
+              const fallback = await fallbackToNonStreaming();
+              return fallback;
+            } catch (fallbackError) {
+              throw fallbackError ?? error;
+            }
           }
           if (!streamError) {
             streamError = error;
@@ -293,11 +362,12 @@ export const createOpenAiInsightStreamer = (
           return chunks.join("");
         }
 
-        if (streamError) {
-          throw streamError;
+        try {
+          const fallback = await fallbackToNonStreaming();
+          return fallback;
+        } catch (fallbackError) {
+          throw fallbackError ?? streamError ?? new Error("Insight stream completed with no content");
         }
-
-        throw new Error("Insight stream completed with no content");
       },
     } satisfies AgentStreamingInsightResult;
   };

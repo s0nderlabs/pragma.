@@ -14,6 +14,15 @@ import {
   type PolicyEnforcement,
   ERC20_ABI,
   computeSwapPlanHash,
+  resolveAmountInput,
+  describeAmount,
+  detectQuickAction,
+  buildHelpInsight,
+  buildAboutInsight,
+  buildBuildersInsight,
+  buildQuickModeStatusInsight,
+  buildQuickModeToggleInsight,
+  type QuickAction,
 } from "@pragma/core";
 
 import { loadAgentContext, type LoadedAgentContext } from "./agentContext.js";
@@ -79,29 +88,6 @@ const isNativeToken = (token?: AllowedToken) =>
 
 const listTokenSymbols = (tokens?: AllowedToken[]): string[] =>
   (tokens ?? []).map((token) => token.symbol ?? token.address.slice(0, 6));
-
-const describeAmount = (amount: AmountSpecification): string => {
-  switch (amount.kind) {
-    case "exact":
-      return amount.value;
-    case "max":
-      return "max";
-    case "fraction": {
-      if (amount.denominator === 0) return "a portion of your balance";
-      const ratio = amount.numerator / amount.denominator;
-      if (Math.abs(ratio - 0.5) < 0.01) return "half of your balance";
-      if (Math.abs(ratio - 0.25) < 0.01) return "a quarter of your balance";
-      if (Math.abs(ratio - 0.75) < 0.01)
-        return "three quarters of your balance";
-      if (Math.abs(ratio - 0.3333) < 0.01) return "a third of your balance";
-      if (Math.abs(ratio - 0.6666) < 0.01) return "two thirds of your balance";
-      const percent = (ratio * 100).toFixed(2).replace(/\.00$/, "");
-      return `${percent}% of your balance`;
-    }
-    default:
-      return "unknown";
-  }
-};
 
 const formatPercent = (bps: number): string =>
   `${Number((bps / 100).toFixed(4))}%`;
@@ -174,141 +160,6 @@ const META_COMMAND_CHOICES: Array<{ value: string; description: string }> = [
   { value: "exit", description: "leave the agent" },
 ];
 
-type QuickAction =
-  | { type: "balances" }
-  | { type: "delegation" }
-  | { type: "trending" }
-  | { type: "status" }
-  | { type: "help" }
-  | { type: "about" }
-  | { type: "builders" }
-  | { type: "revoke" }
-  | { type: "logout" };
-
-const detectQuickAction = (raw: string): QuickAction | undefined => {
-  const normalized = raw.trim().toLowerCase();
-  if (!normalized) return undefined;
-
-  const contains = (keywords: string[]): boolean =>
-    keywords.some((keyword) => normalized.includes(keyword));
-
-  if (contains(["balance", "portfolio", "net worth"])) {
-    return { type: "balances" };
-  }
-
-  if (
-    contains([
-      "delegation",
-      "allowlist",
-      "scope",
-      "limits",
-      "call limit",
-      "ttl",
-      "session",
-    ])
-  ) {
-    if (
-      contains([
-        "issue",
-        "reissue",
-        "create",
-        "new",
-        "renew",
-        "refresh",
-        "rotate",
-        "reset",
-        "update",
-        "generate",
-        "setup",
-        "set up",
-        "recreate",
-        "redo",
-      ])
-    ) {
-      return undefined;
-    }
-    return { type: "delegation" };
-  }
-
-  if (
-    contains(["trending", "popular", "hot token", "top token", "top project"])
-  ) {
-    return { type: "trending" };
-  }
-
-  if (contains(["status", "overview", "summary"])) {
-    return { type: "status" };
-  }
-
-  if (
-    contains([
-      "help",
-      "what can you do",
-      "abilities",
-      "capabilities",
-      "how do you work",
-    ])
-  ) {
-    return { type: "help" };
-  }
-
-  if (contains(["what is pragma", "about pragma", "tell me about pragma"])) {
-    return { type: "about" };
-  }
-
-  if (contains(["who built", "who created", "who made pragma", "s0nderlabs"])) {
-    return { type: "builders" };
-  }
-
-  if (
-    contains([
-      "revoke",
-      "remove delegation",
-      "invalidate delegation",
-      "cancel delegation",
-    ])
-  ) {
-    return { type: "revoke" };
-  }
-
-  if (contains(["logout", "sign out", "disconnect", "exit account"])) {
-    return { type: "logout" };
-  }
-
-  return undefined;
-};
-
-const resolveAmountInput = async (
-  amount: AmountSpecification,
-  tokenDecimals: number,
-  fetchBalance: () => Promise<bigint>
-): Promise<{ amountInput: string; resolvedDisplay?: string }> => {
-  if (amount.kind === "exact") {
-    return { amountInput: amount.value };
-  }
-
-  const balance = await fetchBalance();
-
-  if (amount.kind === "max") {
-    if (balance === 0n) {
-      throw new Error(
-        "HybridDelegator balance is zero; cannot use max amount."
-      );
-    }
-    const decimal = formatUnits(balance, tokenDecimals);
-    return { amountInput: decimal, resolvedDisplay: decimal };
-  }
-
-  const fraction =
-    (balance * BigInt(amount.numerator)) / BigInt(amount.denominator);
-  if (fraction === 0n) {
-    throw new Error(
-      "Computed fraction results in zero amount. Adjust the fraction or fund the account."
-    );
-  }
-  const decimal = formatUnits(fraction, tokenDecimals);
-  return { amountInput: decimal, resolvedDisplay: decimal };
-};
 
 const toSwapToken = (token: AllowedToken) => ({
   ...token,
@@ -343,11 +194,11 @@ const handleSwapIntent = async (
     })) as bigint;
   };
 
-  const { amountInput, resolvedDisplay } = await resolveAmountInput(
-    intent.amount,
-    decimals,
-    fetchBalance
-  );
+  const { amountInput, resolvedDisplay } = await resolveAmountInput({
+    amount: intent.amount,
+    tokenDecimals: decimals,
+    fetchBalance,
+  });
 
   const amountLabel = describeAmount(intent.amount);
   const resolvedLabel = resolvedDisplay ?? amountInput;
@@ -751,11 +602,11 @@ const handleWrapIntent = async (
 
   const { delegatorAddress } = swapSession;
 
-  const { amountInput, resolvedDisplay } = await resolveAmountInput(
-    intent.amount,
-    18,
-    () => publicClient.getBalance({ address: delegatorAddress })
-  );
+  const { amountInput, resolvedDisplay } = await resolveAmountInput({
+    amount: intent.amount,
+    tokenDecimals: 18,
+    fetchBalance: () => publicClient.getBalance({ address: delegatorAddress }),
+  });
 
   const result = await wrapNativeWithSession({
     session: swapSession.session,
@@ -791,18 +642,17 @@ const handleUnwrapIntent = async (
 
   const { delegatorAddress } = swapSession;
 
-  const { amountInput, resolvedDisplay } = await resolveAmountInput(
-    intent.amount,
-    18,
-    async () => {
-      return (await publicClient.readContract({
+  const { amountInput, resolvedDisplay } = await resolveAmountInput({
+    amount: intent.amount,
+    tokenDecimals: 18,
+    fetchBalance: async () =>
+      (await publicClient.readContract({
         address: getAddress(MONAD_WMON_ADDRESS),
         abi: ERC20_ABI,
         functionName: "balanceOf",
         args: [delegatorAddress],
-      })) as bigint;
-    }
-  );
+      })) as bigint,
+  });
 
   const result = await unwrapNativeWithSession({
     session: swapSession.session,
@@ -856,11 +706,11 @@ const handleTransferIntent = async (
     const transferSession = transferSessionCache.current;
     const { delegatorAddress } = transferSession;
 
-    const { amountInput, resolvedDisplay } = await resolveAmountInput(
-      intent.amount,
-      18,
-      () => publicClient.getBalance({ address: delegatorAddress })
-    );
+    const { amountInput, resolvedDisplay } = await resolveAmountInput({
+      amount: intent.amount,
+      tokenDecimals: 18,
+      fetchBalance: () => publicClient.getBalance({ address: delegatorAddress }),
+    });
 
     await transferNativeWithSession({
       session: transferSession.session,
@@ -881,18 +731,17 @@ const handleTransferIntent = async (
     const decimals = token.decimals ?? 18;
     const { swapSession } = agentCtx;
 
-    const { amountInput, resolvedDisplay } = await resolveAmountInput(
-      intent.amount,
-      decimals,
-      async () => {
-        return (await publicClient.readContract({
+    const { amountInput, resolvedDisplay } = await resolveAmountInput({
+      amount: intent.amount,
+      tokenDecimals: decimals,
+      fetchBalance: async () =>
+        (await publicClient.readContract({
           address: getAddress(token.address),
           abi: ERC20_ABI,
           functionName: "balanceOf",
           args: [swapSession.delegatorAddress],
-        })) as bigint;
-      }
-    );
+        })) as bigint,
+    });
 
     await transferTokenWithSession({
       session: swapSession.session,
@@ -913,15 +762,6 @@ const handleTransferIntent = async (
     );
   }
 };
-
-const HELP_MESSAGE = `I can help you:
-- Swap tokens that are authorised in your delegation.
-- Wrap or unwrap MON and WMON.
-- Transfer MON or any allowed ERC-20.
-- Show your balances, delegation scope, remaining call budget, and token allowlist.
-- Surface trending Monad tokens based on Monorail data.
-- Reissue or revoke delegations (ask me when you need those flows).
-Let me know what you’d like to do in plain language.`;
 
 const handleQuickAction = async (
   action: QuickAction,
@@ -1018,8 +858,7 @@ const handleQuickAction = async (
       return "continue";
     }
     case "help": {
-      console.log(chalk.blue("What I can do"));
-      console.log(HELP_MESSAGE);
+      printInsight(buildHelpInsight());
       logAgentResponse({
         delegator: agentCtx.delegator,
         type: "quick_help",
@@ -1027,13 +866,7 @@ const handleQuickAction = async (
       return "continue";
     }
     case "about": {
-      console.log(chalk.blue("What is Pragma"));
-      console.log(
-        "pragma is an AI-powered execution layer that understands your intent and turns it into on-chain actions — powered by MetaMask DTK, Monorail, and Envio, all running through verified contracts on Monad."
-      );
-      console.log(
-        "If you’d like a deeper dive into the system design or roadmap, just ask."
-      );
+      printInsight(buildAboutInsight());
       logAgentResponse({
         delegator: agentCtx.delegator,
         type: "quick_about",
@@ -1041,10 +874,7 @@ const handleQuickAction = async (
       return "continue";
     }
     case "builders": {
-      console.log(chalk.blue("Who built Pragma"));
-      console.log(
-        "pragma is built by s0nderlabs, led by founder elpabl0.eth. You can learn more about the team and projects at https://s0nderlabs.xyz."
-      );
+      printInsight(buildBuildersInsight());
       logAgentResponse({
         delegator: agentCtx.delegator,
         type: "quick_builders",

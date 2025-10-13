@@ -16,6 +16,7 @@ export interface ChatSessionContext {
   session: SessionDelegationInfo;
   environment: DeleGatorEnv;
   delegator: Address;
+  artifact: DelegationArtifact;
 }
 
 const toSessionDelegation = (artifact: DelegationArtifact): SessionDelegationInfo => {
@@ -78,5 +79,6 @@ export const loadChatSession = (kind: "swap" | "transfer", fallbackKind?: "swap"
     session,
     environment,
     delegator,
+    artifact: target.artifact,
   };
 };

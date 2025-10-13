@@ -5,14 +5,9 @@ import * as React from "react";
 import { useChatConsole } from "../../hooks/useChatConsole";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Spinner } from "../ui/spinner";
+import { Textarea } from "../ui/textarea";
 import { cn } from "../../lib/utils";
-import { MONAD_NATIVE_TOKEN_SYMBOL, MONAD_WRAPPED_TOKEN_SYMBOL } from "../../lib/config";
-
-const shortLabel = (value: string) => `${value.slice(0, 6)}…${value.slice(-4)}`;
 
 const MessageBubble = ({
   role,
@@ -70,75 +65,49 @@ const MessageBubble = ({
 
 export const ChatConsole = () => {
   const {
-    command,
-    setCommand,
     messages,
-    availableTokens,
-    loadingTokens,
     isSubmitting,
-    swapForm,
-    updateSwapForm,
-    transferForm,
-    updateTransferForm,
-    wrapForm,
-    updateWrapForm,
-    submitSwap,
-    submitTransfer,
-    submitWrap,
+    loadingTokens,
+    draft,
+    setDraft,
+    handleSubmit,
+    quickMode,
+    setQuickMode,
+    pendingAction,
+    confirmPendingAction,
+    cancelPendingAction,
+    isConfirming,
   } = useChatConsole();
 
-  const handleSubmit = React.useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      if (command === "swap") {
-        await submitSwap();
-      } else if (command === "transfer") {
-        await submitTransfer();
-      } else {
-        await submitWrap();
-      }
-    },
-    [command, submitSwap, submitTransfer, submitWrap],
-  );
-
-  const commandButton = (value: typeof command, label: string) => (
-    <Button
-      type="button"
-      variant={command === value ? "default" : "outline"}
-      onClick={() => setCommand(value)}
-      disabled={isSubmitting && command !== value}
-    >
-      {label}
-    </Button>
-  );
-
-  const tokenOptions = availableTokens.map((token) => (
-    <SelectItem key={token.address} value={token.address}>
-      {token.symbol ?? shortLabel(token.address)}
-    </SelectItem>
-  ));
-
-  const swapFormDisabled = isSubmitting || loadingTokens || availableTokens.length < 2;
-  const transferFormDisabled = isSubmitting || (transferForm.type === "token" && availableTokens.length === 0);
-  const wrapFormDisabled = isSubmitting;
+  const pendingSummary = React.useMemo(() => {
+    if (!pendingAction) return "";
+    switch (pendingAction.kind) {
+      case "swap":
+        return pendingAction.summary;
+      case "transfer_native":
+        return `Transfer ${pendingAction.resolvedDisplay} MON to ${pendingAction.recipient}.`;
+      case "transfer_token":
+        return `Transfer ${pendingAction.resolvedDisplay} ${
+          pendingAction.token.symbol ?? `${pendingAction.token.address.slice(0, 6)}…`
+        } to ${pendingAction.recipient}.`;
+      case "wrap":
+        return `${pendingAction.direction === "wrap" ? "Wrap" : "Unwrap"} ${pendingAction.resolvedDisplay} ${pendingAction.direction === "wrap" ? "MON" : "WMON"}.`;
+      default:
+        return "";
+    }
+  }, [pendingAction]);
 
   return (
-    <Card className="mt-6 flex h-full flex-1 flex-col">
+    <Card className="flex h-full w-full flex-col">
       <CardHeader className="pb-4">
         <CardTitle className="text-lg font-semibold">Chat console</CardTitle>
       </CardHeader>
       <CardContent className="flex h-full flex-col gap-4">
-        <div className="flex flex-wrap gap-2">
-          {commandButton("swap", "Swap")}
-          {commandButton("transfer", "Transfer")}
-          {commandButton("wrap", "Wrap/Unwrap")}
-        </div>
-
         <div className="flex-1 overflow-hidden rounded-2xl border border-border/60 bg-muted/30">
           <div className="flex h-full flex-col gap-3 overflow-y-auto px-4 py-4">
             {messages.length === 0 ? (
               <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                Start by selecting a command and submitting details below.
+                Open the Connected account menu to configure your delegation, then ask Pragma to execute swaps, transfers, wraps, or answer questions here.
               </div>
             ) : (
               messages.map((message) => (
@@ -148,175 +117,79 @@ export const ChatConsole = () => {
           </div>
         </div>
 
+        {pendingAction && (
+          <div className="rounded-2xl border border-amber-400/50 bg-amber-500/10 p-4 text-sm text-foreground shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold">Confirmation required</p>
+                <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{pendingSummary}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={cancelPendingAction}
+                  variant="ghost"
+                  disabled={isConfirming}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={confirmPendingAction}
+                  disabled={isConfirming}
+                >
+                  {isConfirming ? (
+                    <span className="flex items-center gap-2">
+                      <Spinner className="h-3 w-3" /> Confirming…
+                    </span>
+                  ) : (
+                    "Confirm"
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <form className="grid gap-4 rounded-2xl border border-border/70 bg-card/50 p-4" onSubmit={handleSubmit}>
-          {command === "swap" ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="swap-from">Token in</Label>
-                <Select
-                  value={swapForm.fromAddress}
-                  onValueChange={(value) => updateSwapForm({ fromAddress: value })}
-                  disabled={swapFormDisabled}
-                >
-                  <SelectTrigger id="swap-from">
-                    <SelectValue placeholder={loadingTokens ? "Loading…" : "Select token"} />
-                  </SelectTrigger>
-                  <SelectContent>{tokenOptions}</SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="swap-to">Token out</Label>
-                <Select
-                  value={swapForm.toAddress}
-                  onValueChange={(value) => updateSwapForm({ toAddress: value })}
-                  disabled={swapFormDisabled}
-                >
-                  <SelectTrigger id="swap-to">
-                    <SelectValue placeholder={loadingTokens ? "Loading…" : "Select token"} />
-                  </SelectTrigger>
-                  <SelectContent>{tokenOptions}</SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="swap-amount">Amount</Label>
-                <Input
-                  id="swap-amount"
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={swapForm.amount}
-                  onChange={(event) => updateSwapForm({ amount: event.target.value })}
-                  disabled={swapFormDisabled}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="swap-slippage">Slippage (bps)</Label>
-                <Input
-                  id="swap-slippage"
-                  type="number"
-                  min={1}
-                  max={500}
-                  value={swapForm.slippageBps}
-                  onChange={(event) => updateSwapForm({ slippageBps: Number(event.target.value) })}
-                  disabled={swapFormDisabled}
-                />
-              </div>
-            </div>
-          ) : null}
-
-          {command === "transfer" ? (
-            <div className="grid gap-4">
-              <div className="flex gap-2">
+          <div className="grid gap-2">
+            <Textarea
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              placeholder={loadingTokens ? "Loading delegation context…" : "Ask Pragma to swap, transfer, wrap, or explain capabilities. Example: swap 0.5 MON to USDC."}
+              className="min-h-[80px] resize-none"
+              disabled={isSubmitting}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Enter natural language requests. Shift+Enter for a new line.
+            </p>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 text-xs text-muted-foreground">
+              <span>Delegation-driven execution with CLI parity. Try “swap 0.1 MON to NOM” or “what tokens can I trade?”</span>
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-foreground">Quick mode:</span>
                 <Button
                   type="button"
-                  variant={transferForm.type === "native" ? "default" : "outline"}
-                  onClick={() => updateTransferForm({ type: "native" })}
-                  disabled={isSubmitting}
+                  size="sm"
+                  variant={quickMode ? "default" : "outline"}
+                  onClick={() => setQuickMode((value) => !value)}
+                  disabled={isSubmitting || isConfirming}
                 >
-                  Native ({MONAD_NATIVE_TOKEN_SYMBOL})
+                  {quickMode ? "On" : "Off"}
                 </Button>
-                <Button
-                  type="button"
-                  variant={transferForm.type === "token" ? "default" : "outline"}
-                  onClick={() => updateTransferForm({ type: "token" })}
-                  disabled={isSubmitting}
-                >
-                  ERC-20 token
-                </Button>
-              </div>
-              {transferForm.type === "token" ? (
-                <div className="grid gap-2">
-                  <Label htmlFor="transfer-token">Token</Label>
-                  <Select
-                    value={transferForm.tokenAddress}
-                    onValueChange={(value) => updateTransferForm({ tokenAddress: value })}
-                    disabled={transferFormDisabled}
-                  >
-                    <SelectTrigger id="transfer-token">
-                      <SelectValue placeholder={loadingTokens ? "Loading…" : "Select token"} />
-                    </SelectTrigger>
-                    <SelectContent>{tokenOptions}</SelectContent>
-                  </Select>
-                </div>
-              ) : null}
-              <div className="grid gap-2">
-                <Label htmlFor="transfer-recipient">Recipient</Label>
-                <Input
-                  id="transfer-recipient"
-                  placeholder="0x…"
-                  value={transferForm.recipient}
-                  onChange={(event) => updateTransferForm({ recipient: event.target.value })}
-                  disabled={transferFormDisabled}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="transfer-amount">Amount</Label>
-                <Input
-                  id="transfer-amount"
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={transferForm.amount}
-                  onChange={(event) => updateTransferForm({ amount: event.target.value })}
-                  disabled={transferFormDisabled}
-                />
               </div>
             </div>
-          ) : null}
-
-          {command === "wrap" ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant={wrapForm.direction === "wrap" ? "default" : "outline"}
-                  onClick={() => updateWrapForm({ direction: "wrap" })}
-                  disabled={wrapFormDisabled}
-                >
-                  Wrap ({MONAD_NATIVE_TOKEN_SYMBOL} → {MONAD_WRAPPED_TOKEN_SYMBOL})
-                </Button>
-                <Button
-                  type="button"
-                  variant={wrapForm.direction === "unwrap" ? "default" : "outline"}
-                  onClick={() => updateWrapForm({ direction: "unwrap" })}
-                  disabled={wrapFormDisabled}
-                >
-                  Unwrap ({MONAD_WRAPPED_TOKEN_SYMBOL} → {MONAD_NATIVE_TOKEN_SYMBOL})
-                </Button>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="wrap-amount">Amount</Label>
-                <Input
-                  id="wrap-amount"
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={wrapForm.amount}
-                  onChange={(event) => updateWrapForm({ amount: event.target.value })}
-                  disabled={wrapFormDisabled}
-                />
-              </div>
-            </div>
-          ) : null}
-
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-xs text-muted-foreground">
-              {command === "swap"
-                ? "Swaps use the active delegation scope and Monorail quotes."
-                : command === "transfer"
-                  ? "Transfers execute via your delegation session key."
-                  : "Wrap/unwrap interacts with the WMON contract under your delegation."}
-            </div>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? (
-                <span className="flex items-center gap-2"><Spinner className="h-4 w-4" /> Processing…</span>
-              ) : command === "swap"
-                ? "Execute swap"
-                : command === "transfer"
-                  ? "Send transfer"
-                  : wrapForm.direction === "wrap"
-                    ? "Wrap MON"
-                    : "Unwrap WMON"}
+            <Button type="submit" disabled={isSubmitting || (!draft.trim() && !loadingTokens)}>
+              {isSubmitting ? <span className="flex items-center gap-2"><Spinner className="h-4 w-4" /> Processing…</span> : "Send"}
             </Button>
           </div>
         </form>

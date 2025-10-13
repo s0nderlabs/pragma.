@@ -4,6 +4,7 @@ export * from "./monorail/balances.js";
 export * from "./delegations/types.js";
 export * from "./delegations/hybrid.js";
 export * from "./delegations/nonce.js";
+export * from "./delegations/typedData.js";
 export * from "./session/keys.js";
 export * from "./session/wallet.js";
 export * from "./execution/swap.js";

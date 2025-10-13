@@ -1217,7 +1217,7 @@ export const runOnboard4337 = async (
       scope,
       from: hybridDelegator as Hex,
       to: sessionKey.address as Hex,
-      caveats,
+      caveats: caveats as unknown as Caveats,
       salt: ZERO_SALT,
     });
 
@@ -1534,7 +1534,7 @@ export const setupHybridDelegatorTest = async (
       scope,
       from: hybridDelegator as Hex,
       to: sessionKey.address as Hex,
-      caveats,
+      caveats: caveats as unknown as Caveats,
       salt: ZERO_SALT,
     });
 

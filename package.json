@@ -23,6 +23,7 @@
     "build:cli-and-core": "pnpm --filter @pragma/core build && pnpm --filter @pragma/utils build && pnpm --filter @pragma/cli build"
   },
   "devDependencies": {
+    "@playwright/mcp": "^0.0.42",
     "typescript": "^5.6.3"
   },
   "dependencies": {

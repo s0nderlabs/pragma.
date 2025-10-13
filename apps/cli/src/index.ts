@@ -1,4 +1,25 @@
 #!/usr/bin/env node
+const originalEmitWarning = process.emitWarning.bind(process) as (
+  warning: any,
+  ...args: any[]
+) => void;
+
+process.emitWarning = ((warning: any, ...args: any[]) => {
+  const code: string | undefined =
+    typeof warning === "object" && warning && "code" in warning
+      ? (warning as { code?: string }).code
+      : typeof args[1] === "string"
+        ? args[1]
+        : typeof args[0] === "string"
+          ? args[0]
+          : undefined;
+  const message = typeof warning === "string" ? warning : warning?.message ?? "";
+  if ((code === "DEP0040" || message.includes("DEP0040")) && message.includes("punycode")) {
+    return;
+  }
+  originalEmitWarning(warning, ...args);
+}) as typeof process.emitWarning;
+
 process.on("warning", (warning) => {
   const warningWithCode = warning as NodeJS.ErrnoException & { code?: string };
   if (

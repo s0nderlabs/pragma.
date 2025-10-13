@@ -12,6 +12,66 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./agent/openai": {
+      "types": "./dist/agent/openai.d.ts",
+      "import": "./dist/agent/openai.js"
+    },
+    "./agent/pragmaAgent": {
+      "types": "./dist/agent/pragmaAgent.d.ts",
+      "import": "./dist/agent/pragmaAgent.js"
+    },
+    "./agent/types": {
+      "types": "./dist/agent/types.d.ts",
+      "import": "./dist/agent/types.js"
+    },
+    "./delegations/types": {
+      "types": "./dist/delegations/types.d.ts",
+      "import": "./dist/delegations/types.js"
+    },
+    "./delegations/hybrid": {
+      "types": "./dist/delegations/hybrid.d.ts",
+      "import": "./dist/delegations/hybrid.js"
+    },
+    "./delegations/typedData": {
+      "types": "./dist/delegations/typedData.d.ts",
+      "import": "./dist/delegations/typedData.js"
+    },
+    "./delegations/nonce": {
+      "types": "./dist/delegations/nonce.d.ts",
+      "import": "./dist/delegations/nonce.js"
+    },
+    "./session/keys": {
+      "types": "./dist/session/keys.d.ts",
+      "import": "./dist/session/keys.js"
+    },
+    "./session/wallet": {
+      "types": "./dist/session/wallet.d.ts",
+      "import": "./dist/session/wallet.js"
+    },
+    "./clients/publicClient": {
+      "types": "./dist/clients/publicClient.d.ts",
+      "import": "./dist/clients/publicClient.js"
+    },
+    "./execution/swap": {
+      "types": "./dist/execution/swap.d.ts",
+      "import": "./dist/execution/swap.js"
+    },
+    "./execution/transfer": {
+      "types": "./dist/execution/transfer.d.ts",
+      "import": "./dist/execution/transfer.js"
+    },
+    "./errors": {
+      "types": "./dist/errors/index.d.ts",
+      "import": "./dist/errors/index.js"
+    },
+    "./monorail/tokens": {
+      "types": "./dist/monorail/tokens.d.ts",
+      "import": "./dist/monorail/tokens.js"
+    },
+    "./monorail/pathfinder": {
+      "types": "./dist/monorail/pathfinder.d.ts",
+      "import": "./dist/monorail/pathfinder.js"
     }
   },
   "scripts": {

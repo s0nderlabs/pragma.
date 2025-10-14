@@ -2,25 +2,31 @@
 
 :root {
   color-scheme: light;
-  --background: 0 0% 100%;
-  --foreground: 240 10% 4%;
+  --background: 31 24% 88%;
+  --foreground: 24 18% 12%;
   --card: 0 0% 100%;
-  --card-foreground: 240 10% 4%;
+  --card-foreground: 24 18% 12%;
   --popover: 0 0% 100%;
-  --popover-foreground: 240 10% 4%;
-  --primary: 222 81% 56%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 240 4% 90%;
-  --secondary-foreground: 240 6% 15%;
-  --muted: 240 4% 90%;
-  --muted-foreground: 240 5% 40%;
-  --accent: 240 4% 90%;
-  --accent-foreground: 240 6% 15%;
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 240 5% 90%;
-  --input: 240 5% 90%;
-  --ring: 222 81% 56%;
+  --popover-foreground: 24 18% 12%;
+  --accent-h: 12;
+  --accent-s: 66%;
+  --accent-l: 63%;
+  --accent: var(--accent-h) var(--accent-s) var(--accent-l);
+  --accent-strong: 10 66% 54%;
+  --accent-soft: var(--accent-h) var(--accent-s) 80%;
+  --accent-rgb: 224, 122, 95;
+  --primary: var(--accent);
+  --primary-foreground: 0 0% 100%;
+  --secondary: 32 22% 92%;
+  --secondary-foreground: 24 18% 12%;
+  --muted: 32 16% 86%;
+  --muted-foreground: 26 12% 34%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 4 73% 48%;
+  --destructive-foreground: 210 40% 96%;
+  --border: 28 20% 78%;
+  --input: 28 20% 78%;
+  --ring: var(--accent);
   --radius: 0.75rem;
 }
 
@@ -38,7 +44,13 @@
   --secondary-foreground: 210 40% 98%;
   --muted: 240 4% 14%;
   --muted-foreground: 240 5% 65%;
-  --accent: 240 4% 18%;
+  --accent-h: 12;
+  --accent-s: 66%;
+  --accent-l: 56%;
+  --accent: var(--accent-h) var(--accent-s) var(--accent-l);
+  --accent-strong: 12 66% 50%;
+  --accent-soft: var(--accent-h) var(--accent-s) 72%;
+  --accent-rgb: 224, 122, 95;
   --accent-foreground: 210 40% 98%;
   --destructive: 0 63% 45%;
   --destructive-foreground: 0 0% 100%;
@@ -68,7 +80,7 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --radius-lg: var(--radius);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
 }
 
@@ -81,7 +93,18 @@
     min-height: 100dvh;
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont,
+    font-family: var(--font-sans), "Space Grotesk", system-ui, -apple-system, BlinkMacSystemFont,
       "Segoe UI", sans-serif;
+    font-weight: 300;
+    letter-spacing: -0.01em;
   }
+}
+
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }

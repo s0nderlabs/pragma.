@@ -6,31 +6,25 @@ import { ThemeToggle } from "./theme-toggle";
 
 interface AppShellProps {
   children: React.ReactNode;
-  headerActions?: React.ReactNode;
 }
 
-export function AppShell({ children, headerActions }: AppShellProps) {
+export function AppShell({ children }: AppShellProps) {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="sticky top-0 z-40 border-b border-border/80 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-4">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              λ
-            </span>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Pragma H1</p>
-              <h1 className="text-lg font-semibold text-foreground">HybridDelegator Console</h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {headerActions}
-            <ThemeToggle />
-          </div>
+    <div className="relative min-h-screen overflow-hidden bg-[#E6E2DC] text-[#0D0D0D]">
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-40 -left-24 h-[520px] w-[520px] rounded-full bg-[#E07A5F]/18 blur-3xl" />
+        <div className="absolute -bottom-48 -right-32 h-[420px] w-[420px] rounded-full bg-[#E07A5F]/12 blur-3xl" />
+        <div className="absolute inset-y-0 left-1/2 h-[640px] w-[640px] -translate-x-1/2 rounded-[50%] bg-white/20 blur-[180px]" />
+      </div>
+
+      <div className="pointer-events-none absolute top-6 right-6 z-30">
+        <div className="pointer-events-auto">
+          <ThemeToggle />
         </div>
-      </header>
-      <main className="flex flex-1 justify-center">
-        <div className="flex w-full max-w-5xl flex-1 px-4 py-6">
+      </div>
+
+      <main className="relative z-20 flex h-screen items-center justify-center px-4">
+        <div className="flex w-full max-w-6xl flex-col items-center justify-center gap-8">
           {children}
         </div>
       </main>

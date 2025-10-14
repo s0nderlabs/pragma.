@@ -1,60 +1,65 @@
 "use client";
 
 import * as React from "react";
+import { ArrowUpRight } from "lucide-react";
 
 import { useChatConsole } from "../../hooks/useChatConsole";
 import { Button } from "../ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Spinner } from "../ui/spinner";
-import { Textarea } from "../ui/textarea";
 import { cn } from "../../lib/utils";
+import { ConnectedAccount } from "../account/connected-account";
 
-const MessageBubble = ({
-  role,
-  content,
-  status,
-  logs,
-}: {
+const LoadingDots = ({ tone = "#E07A5F" }: { tone?: string }) => (
+  <div data-testid="loading-dots" className="mt-3 flex items-center gap-1.5">
+    {[0, 120, 240].map((delay) => (
+      <span
+        key={delay}
+        className="h-2.5 w-2.5 rounded-full animate-bounce"
+        style={{ animationDelay: `${delay}ms`, backgroundColor: tone }}
+      />
+    ))}
+  </div>
+);
+
+interface MessageBubbleProps {
   role: "user" | "system";
   content: string;
   status?: "default" | "loading" | "success" | "error";
   logs?: { level: "info" | "success" | "warn"; message: string }[];
-}) => {
+}
+
+const MessageBubble = ({ role, content, status = "default", logs }: MessageBubbleProps) => {
   const isUser = role === "user";
+  if (isUser) {
+    return (
+      <div className="flex w-full justify-end">
+        <div
+          data-testid="user-message"
+          className="inline-flex max-w-[60%] overflow-hidden rounded-2xl border border-transparent bg-gradient-to-br from-[#E07A5F] to-[#D96B55] px-4 py-2 text-xs font-medium leading-relaxed text-white shadow-[0_3px_12px_rgba(0,0,0,0.1)]"
+        >
+          <div className="whitespace-pre-wrap break-words leading-relaxed text-left">{content}</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={cn("flex", isUser ? "justify-end" : "justify-start")}
-    >
-      <div
-        className={cn(
-          "max-w-[90%] rounded-2xl border px-4 py-3 text-sm shadow-sm",
-          isUser ? "bg-primary text-primary-foreground" : "bg-card/80 text-foreground",
-          status === "error" && "border-destructive/60 bg-destructive/10 text-destructive",
-          status === "success" && !isUser && "border-emerald-500/70 bg-emerald-500/10",
-        )}
-      >
-        <div className="whitespace-pre-wrap leading-relaxed">{content}</div>
-        {status === "loading" && (
-          <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-            <Spinner className="h-3 w-3" />
-            Processing…
-          </div>
-        )}
+    <div className="flex w-full justify-start">
+      <div data-testid="system-message" className="flex w-full flex-col">
+        <p
+          className={cn(
+            "whitespace-pre-wrap break-words text-[15px] leading-relaxed text-[#1A120F]",
+            status === "error" && "text-[#6F1A1A]",
+            status === "success" && "text-emerald-700",
+          )}
+        >
+          {content}
+        </p>
+        {status === "loading" && <LoadingDots />}
         {logs && logs.length > 0 && (
-          <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+          <ul className="mt-3 space-y-1 text-xs text-[#4A403B]">
             {logs.map((log, index) => (
-              <li key={`${log.level}-${index}`}>
-                <span
-                  className={cn(
-                    "font-medium",
-                    log.level === "success" && "text-emerald-500",
-                    log.level === "warn" && "text-amber-500",
-                  )}
-                >
-                  {log.level === "info" ? "Info" : log.level === "warn" ? "Warn" : "Success"}
-                </span>
-                {": "}
-                {log.message}
-              </li>
+              <li key={`${log.level}-${index}`}>{log.message}</li>
             ))}
           </ul>
         )}
@@ -79,6 +84,32 @@ export const ChatConsole = () => {
     isConfirming,
   } = useChatConsole();
 
+  const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const inputRef = React.useRef<HTMLTextAreaElement | null>(null);
+  const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
+
+  const adjustTextareaHeight = React.useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    const maxHeight = 160; // ~8 lines at 20px each
+    textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+  }, []);
+
+  React.useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    if (messages.length === 0) {
+      container.scrollTop = container.scrollHeight;
+      return;
+    }
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+  }, [messages]);
+
+  React.useEffect(() => {
+    adjustTextareaHeight();
+  }, [draft, adjustTextareaHeight]);
+
   const pendingSummary = React.useMemo(() => {
     if (!pendingAction) return "";
     switch (pendingAction.kind) {
@@ -91,109 +122,160 @@ export const ChatConsole = () => {
           pendingAction.token.symbol ?? `${pendingAction.token.address.slice(0, 6)}…`
         } to ${pendingAction.recipient}.`;
       case "wrap":
-        return `${pendingAction.direction === "wrap" ? "Wrap" : "Unwrap"} ${pendingAction.resolvedDisplay} ${pendingAction.direction === "wrap" ? "MON" : "WMON"}.`;
+        return `${pendingAction.direction === "wrap" ? "Wrap" : "Unwrap"} ${pendingAction.resolvedDisplay} ${
+          pendingAction.direction === "wrap" ? "MON" : "WMON"
+        }.`;
       default:
         return "";
     }
   }, [pendingAction]);
 
+  const disableSend = isSubmitting || (!draft.trim() && !loadingTokens);
+
   return (
-    <Card className="flex h-full w-full flex-col">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-lg font-semibold">Chat console</CardTitle>
-      </CardHeader>
-      <CardContent className="flex h-full flex-col gap-4">
-        <div className="flex-1 overflow-hidden rounded-2xl border border-border/60 bg-muted/30">
-          <div className="flex h-full flex-col gap-3 overflow-y-auto px-4 py-4">
-            {messages.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                Open the Connected account menu to configure your delegation, then ask Pragma to execute swaps, transfers, wraps, or answer questions here.
-              </div>
-            ) : (
-              messages.map((message) => (
-                <MessageBubble key={message.id} {...message} />
-              ))
-            )}
-          </div>
-        </div>
-
-        {pendingAction && (
-          <div className="rounded-2xl border border-amber-400/50 bg-amber-500/10 p-4 text-sm text-foreground shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-semibold">Confirmation required</p>
-                <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{pendingSummary}</p>
-              </div>
-              <div className="flex gap-2">
+    <div className="flex w-full justify-center">
+      <div className="w-full max-w-4xl">
+        <h1 className="sr-only">Chat console</h1>
+        <div className="rounded-[2.5rem] border border-[#E07A5F]/40 bg-gradient-to-br from-white/65 via-white/35 to-white/20 p-[3px] shadow-[0_35px_80px_rgba(13,13,13,0.18)] backdrop-blur-xl">
+          <div
+            className="flex flex-col rounded-[2.3rem] border border-[#E07A5F]/30 bg-white/80 p-8 shadow-[0_18px_45px_rgba(13,13,13,0.12)] backdrop-blur-2xl"
+            style={{ height: "min(700px, calc(100dvh - 240px))", minHeight: "400px" }}
+          >
+            <div className="mb-6 flex w-full items-center justify-end gap-3">
+              <div className="flex items-center gap-2 rounded-full border border-[#0D0D0D]/10 bg-white/70 px-4 py-2 text-xs font-medium text-black/60 shadow-sm">
+                <span className="text-black/70">Quick mode</span>
                 <Button
                   type="button"
                   size="sm"
-                  onClick={cancelPendingAction}
                   variant="ghost"
-                  disabled={isConfirming}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={confirmPendingAction}
-                  disabled={isConfirming}
-                >
-                  {isConfirming ? (
-                    <span className="flex items-center gap-2">
-                      <Spinner className="h-3 w-3" /> Confirming…
-                    </span>
-                  ) : (
-                    "Confirm"
-                  )}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <form className="grid gap-4 rounded-2xl border border-border/70 bg-card/50 p-4" onSubmit={handleSubmit}>
-          <div className="grid gap-2">
-            <Textarea
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder={loadingTokens ? "Loading delegation context…" : "Ask Pragma to swap, transfer, wrap, or explain capabilities. Example: swap 0.5 MON to USDC."}
-              className="min-h-[80px] resize-none"
-              disabled={isSubmitting}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  event.currentTarget.form?.requestSubmit();
-                }
-              }}
-            />
-            <p className="text-xs text-muted-foreground">
-              Enter natural language requests. Shift+Enter for a new line.
-            </p>
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col gap-2 text-xs text-muted-foreground">
-              <span>Delegation-driven execution with CLI parity. Try “swap 0.1 MON to NOM” or “what tokens can I trade?”</span>
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-foreground">Quick mode:</span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={quickMode ? "default" : "outline"}
                   onClick={() => setQuickMode((value) => !value)}
                   disabled={isSubmitting || isConfirming}
+                  className={cn(
+                    "h-7 rounded-full border border-[#E07A5F]/30 px-3 text-xs font-semibold transition",
+                    quickMode
+                      ? "bg-gradient-to-br from-[#E07A5F] to-[#D96B55] text-white shadow-[0_6px_18px_rgba(224,122,95,0.35)]"
+                      : "bg-transparent text-[#E07A5F] hover:bg-[#E07A5F]/10",
+                    (isSubmitting || isConfirming) && "opacity-60"
+                  )}
                 >
                   {quickMode ? "On" : "Off"}
                 </Button>
               </div>
-            </div>
-            <Button type="submit" disabled={isSubmitting || (!draft.trim() && !loadingTokens)}>
-              {isSubmitting ? <span className="flex items-center gap-2"><Spinner className="h-4 w-4" /> Processing…</span> : "Send"}
-            </Button>
+              <ConnectedAccount />
           </div>
-        </form>
-      </CardContent>
-    </Card>
+
+            <div className="flex-1 overflow-hidden">
+              <div
+                ref={scrollContainerRef}
+                className="flex h-full flex-col space-y-6 overflow-y-auto pr-2 scrollbar-hide"
+              >
+              {messages.length === 0 ? (
+                <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-[#0D0D0D]/12 bg-white/60 p-8 text-center text-sm text-black/60">
+                  Open the Connected account menu to configure your delegation, then ask Pragma to execute swaps, transfers, wraps, or answer questions here.
+                </div>
+              ) : (
+                messages.map((message) => <MessageBubble key={message.id} {...message} />)
+              )}
+              </div>
+            </div>
+
+            {pendingAction && (
+              <div className="mt-6 rounded-[1.5rem] border border-[#E07A5F]/30 bg-[#E07A5F]/10 p-4 text-sm text-[#4A332C] shadow-inner">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-wide text-[#E07A5F]">Confirmation required</p>
+                    <p className="mt-1 whitespace-pre-wrap text-black/70">{pendingSummary}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={cancelPendingAction}
+                      disabled={isConfirming}
+                      className="rounded-full border border-transparent px-4 text-xs font-semibold text-[#4A332C] hover:bg-[#E07A5F]/20"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={confirmPendingAction}
+                      disabled={isConfirming}
+                      className="rounded-full bg-gradient-to-br from-[#E07A5F] to-[#D96B55] px-4 text-xs font-semibold text-white shadow-[0_6px_18px_rgba(224,122,95,0.35)] hover:opacity-90"
+                    >
+                      {isConfirming ? (
+                        <span className="flex items-center gap-2">
+                          <Spinner className="h-3 w-3" /> Confirming…
+                        </span>
+                      ) : (
+                        "Confirm"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <form className="mt-6 space-y-3" onSubmit={handleSubmit}>
+              <div
+                className="group flex items-center gap-3 rounded-full border border-[#0D0D0D]/10 bg-gradient-to-br from-white/40 to-white/20 px-4 py-2.5 shadow-[0_4px_16px_rgba(0,0,0,0.06)] backdrop-blur-xl transition focus-within:ring-2 focus-within:ring-[#E07A5F]/40"
+                onClick={() => inputRef.current?.focus()}
+              >
+                <textarea
+                  ref={(node) => {
+                    inputRef.current = node;
+                    textareaRef.current = node;
+                  }}
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder={
+                    loadingTokens
+                      ? "Loading delegation context…"
+                      : "Ask Pragma to swap, transfer, wrap, or explain capabilities. Example: swap 0.5 MON to USDC."
+                  }
+                  disabled={isSubmitting}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      event.currentTarget.form?.requestSubmit();
+                    }
+                  }}
+                  className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-[#0D0D0D] placeholder:text-[#0D0D0D]/45 outline-none"
+                  rows={1}
+                />
+                <button
+                  type="submit"
+                  disabled={disableSend}
+                  className={cn(
+                    "group inline-flex shrink-0 items-center gap-1.5 rounded-full px-5 py-2 text-xs font-semibold transition bg-gradient-to-br from-[#E07A5F] to-[#D96B55] text-white",
+                    disableSend
+                      ? "cursor-not-allowed opacity-50"
+                      : "shadow-[0_4px_12px_rgba(224,122,95,0.3)] hover:shadow-[0_6px_20px_rgba(224,122,95,0.35)]",
+                  )}
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center gap-2">
+                      <Spinner className="h-4 w-4" /> Sending…
+                    </span>
+                  ) : (
+                    <>
+                      <span>Send</span>
+                      <ArrowUpRight className="h-4 w-4 transition group-active:-rotate-45" />
+                    </>
+                  )}
+                </button>
+              </div>
+              <div className="flex items-center justify-between text-xs text-black/50">
+                <span>Shift+Enter for a new line. Press Enter to send immediately.</span>
+                {loadingTokens && (
+                  <div className="flex items-center gap-2 text-[#E07A5F]">
+                    <Spinner className="h-3.5 w-3.5" /> Preparing delegation context…
+                  </div>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };

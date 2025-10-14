@@ -8,6 +8,7 @@ import type { Mode } from "@pragma/core/delegations/types";
 import { useIdentity } from "../../hooks/useIdentity";
 import { OnboardingPanel, type QuickStatusSnapshot } from "../onboarding/onboarding-panel";
 import { Button } from "../ui/button";
+import { cn } from "../../lib/utils";
 import {
   Dialog,
   DialogBody,
@@ -337,7 +338,14 @@ export const ConnectedAccount = () => {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant={connected ? "outline" : "default"} size="sm" className="gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn(
+            "gap-2 rounded-full border border-[hsla(var(--accent),0.35)] bg-white/50 px-4 py-2 text-xs font-semibold text-[#3B2B24] shadow-none backdrop-blur-xl transition",
+            connected ? "text-[hsl(var(--accent))] hover:bg-white/60" : "hover:bg-white/60"
+          )}
+        >
           <KeyRound className="h-4 w-4" />
           {buttonLabel}
         </Button>

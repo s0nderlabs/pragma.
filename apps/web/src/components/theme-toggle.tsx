@@ -7,28 +7,26 @@ import { useTheme } from "next-themes";
 import { Button } from "./ui/button";
 
 export function ThemeToggle() {
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
     setMounted(true);
   }, []);
 
-  const current = theme === "system" ? resolvedTheme : theme;
-
   const nextTheme = () => {
-    if (current === "light") {
-      setTheme("dark");
-    } else if (current === "dark") {
-      setTheme("light");
-    } else {
-      setTheme("dark");
+    if (!mounted) {
+      return;
     }
+
+    const target = resolvedTheme === "dark" ? "light" : "dark";
+    setTheme(target);
   };
 
   return (
     <Button
       aria-label="Toggle theme"
+      data-testid="theme-toggle"
       variant="ghost"
       size="icon"
       className="relative"

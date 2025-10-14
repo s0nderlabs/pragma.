@@ -342,8 +342,10 @@ export const ConnectedAccount = () => {
           variant="ghost"
           size="sm"
           className={cn(
-            "gap-2 rounded-full border border-[hsla(var(--accent),0.35)] bg-white/50 px-4 py-2 text-xs font-semibold text-[#2F2F2F] shadow-none backdrop-blur-xl transition",
-            connected ? "text-[hsl(var(--accent))] hover:bg-white/60" : "hover:bg-white/60"
+            "gap-2 rounded-full border border-[hsla(var(--accent),0.35)] bg-white/50 px-4 py-2 text-xs font-semibold text-[#2F2F2F] shadow-none backdrop-blur-xl transition dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]",
+            connected
+              ? "text-[hsl(var(--accent))] hover:bg-white/60 dark:text-[#F8F8FF] dark:hover:bg-[#1E1E27]/85"
+              : "hover:bg-white/60 dark:hover:bg-[#1E1E27]/85"
           )}
         >
           <KeyRound className="h-4 w-4" />

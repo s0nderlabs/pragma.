@@ -1,10 +1,12 @@
 "use client";
 
 import { nanoid } from "nanoid/non-secure";
+import { getAddress, type Address } from "viem";
 import type { DelegationArtifact } from "@pragma/core/delegations/types";
 
 type StoredDelegation = {
   id: string;
+  delegator: string;
   createdAt: number;
   updatedAt: number;
   artifact: DelegationArtifact;
@@ -14,32 +16,102 @@ const STORAGE_KEY = "pragma.h1.delegations.v1";
 
 const isBrowser = () => typeof window !== "undefined";
 
-const readVault = (): StoredDelegation[] => {
-  if (!isBrowser()) return [];
+type DelegationVault = Record<string, StoredDelegation[]>;
+
+const extractDelegator = (artifact: DelegationArtifact): string | undefined => {
+  const delegator = artifact?.delegation?.delegator;
+  if (!delegator) return undefined;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as StoredDelegation[];
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map((entry) => ({
-      ...entry,
-      artifact: {
-        ...entry.artifact,
-        allowedTokens: entry.artifact.allowedTokens ?? [],
-      },
-    }));
+    return getAddress(delegator as Address).toLowerCase();
   } catch {
-    return [];
+    return undefined;
   }
 };
 
-const writeVault = (entries: StoredDelegation[]) => {
-  if (!isBrowser()) return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+const ensureDelegator = (entry: StoredDelegation): StoredDelegation => {
+  if (entry.delegator) {
+    return { ...entry, delegator: entry.delegator.toLowerCase() };
+  }
+  const derived = extractDelegator(entry.artifact) ?? "unknown";
+  return {
+    ...entry,
+    delegator: derived,
+  };
 };
 
-export const listDelegations = (): StoredDelegation[] =>
-  readVault().sort((a, b) => b.createdAt - a.createdAt);
+const migrateLegacyVault = (legacy: StoredDelegation[]): DelegationVault => {
+  const result: DelegationVault = {};
+  for (const entry of legacy) {
+    const normalized = ensureDelegator(entry);
+    const list = result[normalized.delegator] ?? [];
+    list.push(normalized);
+    result[normalized.delegator] = list;
+  }
+  return result;
+};
+
+const readVault = (): DelegationVault => {
+  if (!isBrowser()) return {};
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) {
+      const migrated = migrateLegacyVault(
+        parsed.map((entry) => ({
+          ...entry,
+          artifact: {
+            ...entry.artifact,
+            allowedTokens: entry.artifact.allowedTokens ?? [],
+          },
+        })),
+      );
+      writeVault(migrated);
+      return migrated;
+    }
+    if (parsed && typeof parsed === "object" && "delegators" in parsed) {
+      const delegators = (parsed as { delegators?: DelegationVault }).delegators ?? {};
+      return Object.fromEntries(
+        Object.entries(delegators).map(([delegator, entries]) => [
+          delegator.toLowerCase(),
+          entries.map((entry) => ({
+            ...ensureDelegator(entry),
+            artifact: {
+              ...entry.artifact,
+              allowedTokens: entry.artifact.allowedTokens ?? [],
+            },
+          })),
+        ]),
+      );
+    }
+    return {};
+  } catch {
+    return {};
+  }
+};
+
+const writeVault = (entries: DelegationVault) => {
+  if (!isBrowser()) return;
+  const payload = {
+    version: 2,
+    delegators: entries,
+  } satisfies { version: number; delegators: DelegationVault };
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+};
+
+const flattenVault = (vault: DelegationVault): StoredDelegation[] =>
+  Object.values(vault)
+    .flatMap((entries) => entries)
+    .sort((a, b) => b.createdAt - a.createdAt);
+
+export const listDelegations = (delegator?: Address): StoredDelegation[] => {
+  const vault = readVault();
+  if (delegator) {
+    const key = getAddress(delegator).toLowerCase();
+    return [...(vault[key] ?? [])].sort((a, b) => b.createdAt - a.createdAt);
+  }
+  return flattenVault(vault);
+};
 
 const deriveExpiresAt = (artifact: DelegationArtifact): number | undefined => {
   if (artifact.expiresAt) {
@@ -67,19 +139,31 @@ const isDelegationExpired = (artifact: DelegationArtifact): boolean => {
   return Math.floor(Date.now() / 1000) >= expiry;
 };
 
-export const listActiveDelegations = (kind: "swap" | "transfer" | undefined = "swap") =>
-  listDelegations().filter((entry) => {
+export const listActiveDelegations = (
+  kind: "swap" | "transfer" | undefined = "swap",
+  delegator?: Address,
+) =>
+  listDelegations(delegator).filter((entry) => {
     if (kind && (entry.artifact.kind ?? "swap") !== kind) return false;
     return !isDelegationExpired(entry.artifact);
   });
 
-export const getDelegationById = (id: string): StoredDelegation | undefined =>
-  readVault().find((entry) => entry.id === id);
+export const getDelegationById = (id: string, delegator?: Address): StoredDelegation | undefined => {
+  if (delegator) {
+    const key = getAddress(delegator).toLowerCase();
+    const vault = readVault();
+    return (vault[key] ?? []).find((entry) => entry.id === id);
+  }
+  return flattenVault(readVault()).find((entry) => entry.id === id);
+};
 
 export const saveDelegation = (artifact: DelegationArtifact, id?: string): StoredDelegation => {
   const now = Date.now();
-  const entries = readVault();
+  const vault = readVault();
   const targetId = id ?? `delegation-${now}-${nanoid(6)}`;
+
+  const delegatorKey = extractDelegator(artifact) ?? "unknown";
+  const entries = vault[delegatorKey] ?? [];
 
   const normalized: DelegationArtifact = {
     ...artifact,
@@ -91,6 +175,7 @@ export const saveDelegation = (artifact: DelegationArtifact, id?: string): Store
   const existingIndex = entries.findIndex((entry) => entry.id === targetId);
   const nextEntry: StoredDelegation = {
     id: targetId,
+    delegator: delegatorKey,
     artifact: normalized,
     createdAt: existingIndex >= 0 ? entries[existingIndex].createdAt : now,
     updatedAt: now,
@@ -102,15 +187,55 @@ export const saveDelegation = (artifact: DelegationArtifact, id?: string): Store
     entries.push(nextEntry);
   }
 
-  writeVault(entries);
+  vault[delegatorKey] = entries;
+  writeVault(vault);
   return nextEntry;
 };
 
-export const removeDelegation = (id: string) => {
-  const entries = readVault().filter((entry) => entry.id !== id);
-  writeVault(entries);
+export const removeDelegation = (id: string, delegator?: Address) => {
+  const vault = readVault();
+  if (delegator) {
+    const key = getAddress(delegator).toLowerCase();
+    const entries = vault[key];
+    if (!entries) return;
+    const filtered = entries.filter((entry) => entry.id !== id);
+    if (filtered.length === 0) {
+      delete vault[key];
+    } else {
+      vault[key] = filtered;
+    }
+    writeVault(vault);
+    return;
+  }
+
+  let mutated = false;
+  for (const key of Object.keys(vault)) {
+    const filtered = vault[key].filter((entry) => entry.id !== id);
+    if (filtered.length !== vault[key].length) {
+      mutated = true;
+      if (filtered.length === 0) {
+        delete vault[key];
+      } else {
+        vault[key] = filtered;
+      }
+    }
+  }
+  if (mutated) {
+    writeVault(vault);
+  }
 };
 
-export const clearDelegations = () => writeVault([]);
+export const clearDelegations = (delegator?: Address) => {
+  if (!delegator) {
+    writeVault({});
+    return;
+  }
+  const vault = readVault();
+  const key = getAddress(delegator).toLowerCase();
+  if (vault[key]) {
+    delete vault[key];
+    writeVault(vault);
+  }
+};
 
 export type { StoredDelegation };

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { parseEther } from "viem";
+import { getAddress, parseEther, type Address } from "viem";
 import type { AllowedToken, Mode } from "@pragma/core";
 
 import { useIdentity } from "../../hooks/useIdentity";
@@ -23,6 +23,9 @@ import {
 } from "../../lib/config";
 import { ensureTokenInSet } from "../../lib/monorail";
 import type { WalletWithAddress } from "../../lib/clients";
+import { loadChatSession } from "../../lib/chat/session";
+import { getActiveDelegator, IDENTITY_EVENT } from "../../lib/storage/active-delegator";
+import { getOwnerDelegator } from "../../lib/storage/owner-delegators";
 
 export interface QuickStatusSnapshot {
   delegator: string;
@@ -36,6 +39,7 @@ export interface QuickStatusSnapshot {
 
 interface OnboardingPanelProps {
   onStatusUpdate?: (status: QuickStatusSnapshot) => void;
+  onRequestClose?: () => void;
 }
 
 const SAFE_TTL_SECONDS = 60 * 60;
@@ -57,7 +61,7 @@ const formatExpiry = (expiresAt?: number) => {
   return new Date(expiresAt * 1000).toLocaleString();
 };
 
-export const OnboardingPanel = ({ onStatusUpdate }: OnboardingPanelProps) => {
+export const OnboardingPanel = ({ onStatusUpdate, onRequestClose }: OnboardingPanelProps) => {
   const identity = useIdentity();
   const [availableTokens, setAvailableTokens] = React.useState<AllowedToken[]>([]);
   const [mode, setMode] = React.useState<Mode>("safe");
@@ -81,9 +85,10 @@ export const OnboardingPanel = ({ onStatusUpdate }: OnboardingPanelProps) => {
     smartAccountStatus?: "new" | "existing";
     deploymentTx?: string;
   } | null>(null);
+  const [activeDelegator, setActiveDelegatorState] = React.useState<Address | undefined>(() => getActiveDelegator());
 
   const connectButtonDisabled = identity.status === "connecting" || identity.status === "initializing";
-  const connectButtonVariant = identity.wallet ? "secondary" : "default";
+  const connectButtonVariant = identity.status === "connected" && identity.wallet ? "secondary" : "default";
   const showDisconnectButton = identity.status === "connected" && Boolean(identity.wallet);
   const identityMessage = identity.status === "connecting"
     ? "Waiting for authentication..."
@@ -94,19 +99,38 @@ export const OnboardingPanel = ({ onStatusUpdate }: OnboardingPanelProps) => {
         : "Use your Web3Auth login to authenticate the HybridDelegator owner.";
 
   const quickStatus = React.useMemo<QuickStatusSnapshot>(() => {
-    const delegator = delegationStatus?.delegator ?? identity.wallet?.address;
-    const smartAccount = delegationStatus
-      ? delegationStatus.smartAccountStatus === "new"
-        ? `Deployed this session${delegationStatus.deploymentTx ? ` · tx ${shortHex(delegationStatus.deploymentTx)}` : ""}`
-        : "Already deployed"
-      : identity.wallet
-        ? "Awaiting issuance"
-        : "—";
+    const derivedDelegator = delegationStatus?.delegator ?? activeDelegator ?? identity.wallet?.address;
+    if (!derivedDelegator) {
+      return {
+        delegator: "Not connected",
+        delegatorFull: undefined,
+        smartAccount: "—",
+        sessionKey: "—",
+        sessionKeyFull: undefined,
+        expiry: "—",
+        mode: "—",
+      } satisfies QuickStatusSnapshot;
+    }
 
+    const delegator = derivedDelegator;
     const sessionKey = delegationStatus?.sessionKey;
 
+    let smartAccount: string;
+    if (delegationStatus) {
+      smartAccount =
+        delegationStatus.smartAccountStatus === "new"
+          ? `Deployed this session${delegationStatus.deploymentTx ? ` · tx ${shortHex(delegationStatus.deploymentTx)}` : ""}`
+          : "Already deployed";
+    } else if (delegator) {
+      smartAccount = "Awaiting issuance";
+    } else {
+      smartAccount = "Deriving HybridDelegator…";
+    }
+
+    const delegatorLabel = delegator ? shortHex(delegator) : "Deriving…";
+
     return {
-      delegator: delegator ? shortHex(delegator) : "Not connected",
+      delegator: delegatorLabel,
       delegatorFull: delegator,
       smartAccount,
       sessionKey: sessionKey ? shortHex(sessionKey) : "—",
@@ -114,12 +138,44 @@ export const OnboardingPanel = ({ onStatusUpdate }: OnboardingPanelProps) => {
       expiry: formatExpiry(delegationStatus?.expiresAt),
       mode: delegationStatus?.mode ? (delegationStatus.mode === "safe" ? "Safe" : "Normal") : "—",
     } satisfies QuickStatusSnapshot;
-  }, [delegationStatus, identity.wallet]);
+  }, [activeDelegator, delegationStatus, identity.status, identity.wallet]);
 
   React.useEffect(() => {
     if (!onStatusUpdate) return;
     onStatusUpdate(quickStatus);
   }, [onStatusUpdate, quickStatus]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const updateFromStorage = () => {
+      const stored = getActiveDelegator();
+      setActiveDelegatorState(stored ? getAddress(stored as Address) : undefined);
+    };
+
+    const handleIdentityChange = (event: Event) => {
+      if (event instanceof CustomEvent && event.detail && "delegator" in event.detail) {
+        const detail = (event as CustomEvent<{ delegator: string | null }>).detail;
+        setActiveDelegatorState(detail.delegator ? getAddress(detail.delegator as Address) : undefined);
+        return;
+      }
+      updateFromStorage();
+    };
+
+    updateFromStorage();
+    window.addEventListener(IDENTITY_EVENT, handleIdentityChange as EventListener);
+    return () => {
+      window.removeEventListener(IDENTITY_EVENT, handleIdentityChange as EventListener);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!identity.wallet || identity.status !== "connected" || activeDelegator) return;
+    const mapped = getOwnerDelegator(identity.wallet.address as Address);
+    if (mapped) {
+      setActiveDelegatorState(getAddress(mapped as Address));
+    }
+  }, [activeDelegator, identity.status, identity.wallet]);
 
   const normalSelectionsInitialized = React.useRef(false);
 
@@ -157,15 +213,44 @@ export const OnboardingPanel = ({ onStatusUpdate }: OnboardingPanelProps) => {
     }
   }, [mode]);
 
+  const hydrateStatusFromStorage = React.useCallback(() => {
+    if (!activeDelegator) {
+      setDelegationStatus(null);
+      return;
+    }
+
+    const context = loadChatSession("swap", undefined, activeDelegator);
+    if (!context) {
+      setDelegationStatus(null);
+      return;
+    }
+
+    setDelegationStatus({
+      delegator: context.delegator,
+      sessionKey: context.session.sessionKeyAddress,
+      expiresAt: context.session.expiresAt,
+      mode: context.session.mode,
+      smartAccountStatus: "existing",
+    });
+  }, [activeDelegator]);
+
   React.useEffect(() => {
-    if (!identity.wallet) {
+    if (!identity.wallet || identity.status !== "connected") {
       setDelegationStatus(null);
       setWalletRef(null);
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("pragma:delegation:updated"));
       }
+      return;
     }
-  }, [identity.wallet]);
+
+    hydrateStatusFromStorage();
+  }, [hydrateStatusFromStorage, identity.status, identity.wallet]);
+
+  React.useEffect(() => {
+    if (!identity.wallet || identity.status !== "connected" || !activeDelegator) return;
+    hydrateStatusFromStorage();
+  }, [activeDelegator, hydrateStatusFromStorage, identity.status, identity.wallet]);
 
   const resolveWallet = React.useCallback(async (): Promise<WalletWithAddress> => {
     if (walletRef) return walletRef;
@@ -173,10 +258,23 @@ export const OnboardingPanel = ({ onStatusUpdate }: OnboardingPanelProps) => {
       setWalletRef(identity.wallet);
       return identity.wallet;
     }
+    onRequestClose?.();
     const walletClient = await identity.connect();
     setWalletRef(walletClient);
     return walletClient;
-  }, [identity, walletRef]);
+  }, [identity, onRequestClose, walletRef]);
+
+  React.useEffect(() => {
+    const handler = () => hydrateStatusFromStorage();
+    if (typeof window !== "undefined") {
+      window.addEventListener("pragma:delegation:updated", handler);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("pragma:delegation:updated", handler);
+      }
+    };
+  }, [hydrateStatusFromStorage]);
 
   const buildTokenList = React.useCallback((): AllowedToken[] => {
     if (mode === "safe") {
@@ -308,11 +406,14 @@ export const OnboardingPanel = ({ onStatusUpdate }: OnboardingPanelProps) => {
       setStatusMessage("Delegations stored locally. Session ready for execution.");
       setState("completed");
       const swapArtifact = artifacts.find((artifact) => (artifact.kind ?? "swap") === "swap");
-      setDelegationStatus((prev) => ({
-        ...prev,
+      setDelegationStatus({
+        delegator: swapArtifact?.delegation.delegator ?? init.handle.delegator,
+        sessionKey: init.sessionKey.address,
+        expiresAt: swapArtifact?.expiresAt,
         mode,
-        expiresAt: swapArtifact?.expiresAt ?? prev?.expiresAt,
-      }));
+        smartAccountStatus: init.deployment ? "new" : "existing",
+        deploymentTx: init.deployment?.transactionHash,
+      });
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("pragma:delegation:updated"));
       }
@@ -333,6 +434,25 @@ export const OnboardingPanel = ({ onStatusUpdate }: OnboardingPanelProps) => {
       }
       return next;
     });
+  };
+
+  const allNormalSelected = React.useMemo(
+    () =>
+      availableTokens.length > 0 && availableTokens.every((token) => Boolean(normalSelections[token.address])),
+    [availableTokens, normalSelections],
+  );
+
+  const someNormalSelected = React.useMemo(
+    () => availableTokens.some((token) => Boolean(normalSelections[token.address])),
+    [availableTokens, normalSelections],
+  );
+
+  const toggleAllNormalTokens = (checked: boolean) => {
+    if (checked) {
+      setNormalSelections(Object.fromEntries(availableTokens.map((token) => [token.address, true])));
+    } else {
+      setNormalSelections({});
+    }
   };
 
   const renderTokenControls = () => {
@@ -378,6 +498,16 @@ export const OnboardingPanel = ({ onStatusUpdate }: OnboardingPanelProps) => {
         <p className="text-sm text-muted-foreground">
           Select allowlisted assets. You can include native {MONAD_NATIVE_TOKEN_SYMBOL} and {MONAD_WRAPPED_TOKEN_SYMBOL} for wrap/unwrap support.
         </p>
+        <div className="flex items-center justify-end gap-2 text-sm">
+          <Checkbox
+            checked={allNormalSelected ? true : someNormalSelected ? "indeterminate" : false}
+            onCheckedChange={(checked) => toggleAllNormalTokens(checked === true)}
+            id="normal-select-all"
+          />
+          <Label htmlFor="normal-select-all" className="cursor-pointer select-none">
+            {allNormalSelected ? "Deselect all" : "Select all"}
+          </Label>
+        </div>
         <div className="grid gap-2 max-h-64 overflow-y-auto rounded-lg border border-border/60 p-3">
           {availableTokens.map((token) => (
             <label key={token.address} className="flex items-center justify-between gap-3 rounded-lg border border-transparent px-2 py-1.5 hover:border-border/70">
@@ -419,7 +549,12 @@ export const OnboardingPanel = ({ onStatusUpdate }: OnboardingPanelProps) => {
                 <Button
                   type="button"
                   variant={connectButtonVariant}
-                  onClick={() => identity.connect()}
+                  onClick={() => {
+                    onRequestClose?.();
+                    void identity.connect().catch((error) => {
+                      console.error("Web3Auth connection failed", error);
+                    });
+                  }}
                   disabled={connectButtonDisabled}
                 >
                   {identity.status === "connecting" ? (

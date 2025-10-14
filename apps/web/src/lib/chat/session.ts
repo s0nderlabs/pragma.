@@ -61,11 +61,19 @@ const toSessionDelegation = (artifact: DelegationArtifact): SessionDelegationInf
 
 const environment = getDeleGatorEnvironment(MONAD_CHAIN_ID);
 
-export const loadChatSession = (kind: "swap" | "transfer", fallbackKind?: "swap" | "transfer"):
+export const loadChatSession = (
+  kind: "swap" | "transfer",
+  fallbackKind?: "swap" | "transfer",
+  delegator?: Address,
+):
   | ChatSessionContext
   | undefined => {
-  const primary = listActiveDelegations(kind);
-  const candidates = primary.length > 0 ? primary : fallbackKind ? listActiveDelegations(fallbackKind) : [];
+  const primary = listActiveDelegations(kind, delegator);
+  const candidates = primary.length > 0
+    ? primary
+    : fallbackKind
+      ? listActiveDelegations(fallbackKind, delegator)
+      : [];
 
   const target = candidates[0];
   if (!target) {
@@ -73,12 +81,12 @@ export const loadChatSession = (kind: "swap" | "transfer", fallbackKind?: "swap"
   }
 
   const session = toSessionDelegation(target.artifact);
-  const delegator = getAddress(target.artifact.delegation.delegator as Address);
+  const delegatorAddress = getAddress(target.artifact.delegation.delegator as Address);
 
   return {
     session,
     environment,
-    delegator,
+    delegator: delegatorAddress,
     artifact: target.artifact,
   };
 };

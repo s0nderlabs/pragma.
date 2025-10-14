@@ -34,6 +34,9 @@ import {
 } from "../lib/config";
 import { monadChain, createMonadPublicClient } from "../lib/clients";
 import { callAgent, type AgentControlEvent } from "../lib/chat/agent";
+import { getActiveDelegator, IDENTITY_EVENT } from "../lib/storage/active-delegator";
+import { getQuickModePreference, setQuickModePreference } from "../lib/storage/quick-mode";
+import { listDelegations } from "../lib/storage/delegations";
 
 type LogLevel = "info" | "success" | "warn";
 
@@ -66,8 +69,6 @@ const ERC20_BALANCE_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
 ] as const;
-
-const QUICK_MODE_STORAGE_KEY = "pragma.h1.quick-mode.v1";
 
 const parseError = (error: unknown): string => {
   if (error instanceof Error && error.message) {
@@ -164,17 +165,93 @@ export const useChatConsole = () => {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [draft, setDraft] = React.useState<string>("");
   const publicClientRef = React.useRef(createMonadPublicClient());
-  const [quickMode, setQuickMode] = React.useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(QUICK_MODE_STORAGE_KEY) === "1";
-  });
+  const [hydrated, setHydrated] = React.useState(false);
+  const [activeDelegator, setActiveDelegatorState] = React.useState<Address | undefined>(undefined);
+  const [quickMode, setQuickModeState] = React.useState<boolean>(false);
   const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
   const [isConfirming, setIsConfirming] = React.useState(false);
 
+  const setQuickMode = React.useCallback<React.Dispatch<React.SetStateAction<boolean>>>(
+    (value) => {
+      setQuickModeState((previous) => {
+        const next = typeof value === "function" ? (value as (prev: boolean) => boolean)(previous) : value;
+        if (hydrated) {
+          setQuickModePreference(activeDelegator, next);
+        }
+        return next;
+      });
+    },
+    [activeDelegator, hydrated],
+  );
+
+const selectStoredDelegator = React.useCallback((): Address | undefined => {
+  if (typeof window === "undefined" || !activeDelegator) return undefined;
+  try {
+    const matches = listDelegations(activeDelegator as Address);
+    if (matches.length === 0) return undefined;
+    return getAddress(matches[0].delegator as Address);
+  } catch (error) {
+    console.warn("Failed to derive stored delegator", error);
+    return undefined;
+  }
+}, [activeDelegator]);
+
   React.useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(QUICK_MODE_STORAGE_KEY, quickMode ? "1" : "0");
-  }, [quickMode]);
+    setHydrated(true);
+    const stored = getActiveDelegator();
+    if (stored) {
+      setActiveDelegatorState(stored);
+    } else {
+      const fallback = selectStoredDelegator();
+      if (fallback) {
+        setActiveDelegatorState(fallback);
+      }
+    }
+  }, [selectStoredDelegator]);
+
+  React.useEffect(() => {
+    if (!hydrated) return;
+    setQuickModeState(getQuickModePreference(activeDelegator));
+  }, [hydrated, activeDelegator]);
+
+  React.useEffect(() => {
+    if (!hydrated || activeDelegator) return;
+    const fallback = selectStoredDelegator();
+    if (fallback) {
+      setActiveDelegatorState(fallback);
+    }
+  }, [activeDelegator, hydrated, selectStoredDelegator]);
+
+  React.useEffect(() => {
+    if (!hydrated) return;
+    setPendingAction(null);
+    setIsConfirming(false);
+    if (!activeDelegator) {
+      setDelegationTokens(undefined);
+      setMessages([]);
+      setQuickModeState(false);
+    }
+  }, [activeDelegator, hydrated]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleIdentityChange = (event: Event) => {
+      if (event instanceof CustomEvent && event.detail && "delegator" in event.detail) {
+        const detail = (event as CustomEvent<{ delegator: string | null }>).detail;
+        setActiveDelegatorState(detail.delegator ? getAddress(detail.delegator as Address) : undefined);
+        return;
+      }
+      setActiveDelegatorState(getActiveDelegator());
+    };
+
+    window.addEventListener(IDENTITY_EVENT, handleIdentityChange as EventListener);
+
+    return () => {
+      window.removeEventListener(IDENTITY_EVENT, handleIdentityChange as EventListener);
+    };
+  }, []);
 
   React.useEffect(() => {
     let mounted = true;
@@ -199,8 +276,15 @@ export const useChatConsole = () => {
   }, []);
 
   React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const updateContext = () => {
-      const context = loadChatSession("swap");
+      if (!activeDelegator) {
+        setDelegationTokens(undefined);
+        return;
+      }
+
+      const context = loadChatSession("swap", undefined, activeDelegator);
       setDelegationTokens(
         context?.session.allowedTokens && context.session.allowedTokens.length > 0
           ? context.session.allowedTokens
@@ -215,7 +299,7 @@ export const useChatConsole = () => {
     return () => {
       window.removeEventListener("pragma:delegation:updated", handler);
     };
-  }, []);
+  }, [activeDelegator]);
 
   const effectiveTokens = React.useMemo<AllowedToken[]>(
     () => (delegationTokens && delegationTokens.length > 0 ? delegationTokens : allowedTokens),
@@ -456,7 +540,11 @@ export const useChatConsole = () => {
 
   const executeSwapIntent = React.useCallback(
     async (intent: SwapIntentFields, statusId: string) => {
-      const context = loadChatSession("swap");
+      if (!activeDelegator) {
+        throw new Error("No connected delegator found. Connect your account before swapping.");
+      }
+
+      const context = loadChatSession("swap", undefined, activeDelegator);
       if (!context) {
         throw new Error("No active swap delegation found. Complete onboarding before swapping.");
       }
@@ -525,6 +613,7 @@ export const useChatConsole = () => {
       await runSwapExecution(config, preview, statusId);
     },
     [
+      activeDelegator,
       appendLog,
       createLogger,
       fetchTokenBalance,
@@ -539,6 +628,9 @@ export const useChatConsole = () => {
 
   const executeTransferIntent = React.useCallback(
     async (intent: TransferIntentFields, statusId: string) => {
+      if (!activeDelegator) {
+        throw new Error("No connected delegator found. Connect your account before transferring.");
+      }
       if (!intent.recipient || !isAddress(intent.recipient)) {
         throw new Error("Transfer intent is missing a valid recipient address.");
       }
@@ -547,7 +639,7 @@ export const useChatConsole = () => {
       }
 
       if (!intent.token) {
-        const context = loadChatSession("transfer", "swap");
+        const context = loadChatSession("transfer", "swap", activeDelegator);
         if (!context) {
           throw new Error("No active transfer delegation found. Reissue onboarding before transferring MON.");
         }
@@ -583,7 +675,7 @@ export const useChatConsole = () => {
         return;
       }
 
-      const context = loadChatSession("swap");
+      const context = loadChatSession("swap", undefined, activeDelegator);
       if (!context) {
         throw new Error("No active swap delegation found. Complete onboarding before transferring tokens.");
       }
@@ -629,6 +721,7 @@ export const useChatConsole = () => {
       await runTokenTransferExecution(context, token, intent.recipient, amountInput, resolvedDisplay, statusId);
     },
     [
+      activeDelegator,
       appendLog,
       fetchNativeBalance,
       fetchTokenBalance,
@@ -643,7 +736,11 @@ export const useChatConsole = () => {
 
   const executeWrapIntent = React.useCallback(
     async (intent: WrapIntentFields, statusId: string) => {
-      const context = loadChatSession("swap");
+      if (!activeDelegator) {
+        throw new Error("No connected delegator found. Connect your account before wrapping or unwrapping.");
+      }
+
+      const context = loadChatSession("swap", undefined, activeDelegator);
       if (!context) {
         throw new Error("No active swap delegation found. Complete onboarding before wrapping.");
       }
@@ -704,6 +801,7 @@ export const useChatConsole = () => {
       await runWrapExecution(context, intent.action, amountInput, resolvedDisplay, statusId);
     },
     [
+      activeDelegator,
       appendLog,
       fetchNativeBalance,
       fetchTokenBalance,
@@ -830,7 +928,7 @@ export const useChatConsole = () => {
     setPendingAction(null);
     setIsConfirming(false);
 
-    const userMessageId = appendMessage({
+    appendMessage({
       id: nanoid(),
       role: "user",
       content: input,
@@ -844,7 +942,22 @@ export const useChatConsole = () => {
     });
 
     try {
-      const swapContext = loadChatSession("swap");
+      let connectedDelegator = activeDelegator;
+      if (!connectedDelegator) {
+        connectedDelegator = selectStoredDelegator();
+        if (connectedDelegator) {
+          setActiveDelegatorState(connectedDelegator);
+        }
+      }
+
+      const swapContext = connectedDelegator
+        ? loadChatSession("swap", undefined, connectedDelegator)
+        : undefined;
+
+      if (!connectedDelegator) {
+        throw new Error("No connected delegator found. Connect your account before using the chat console.");
+      }
+
       if (!swapContext) {
         throw new Error("No active delegation found. Connect and issue a delegation from the Connected account menu first.");
       }
@@ -944,9 +1057,20 @@ export const useChatConsole = () => {
       }));
     } finally {
       setIsSubmitting(false);
-      updateMessage(userMessageId, (current) => current);
     }
-  }, [appendMessage, draft, effectiveTokens, handleIntent, isSubmitting, quickMode, updateMessage]);
+  }, [
+    activeDelegator,
+    appendMessage,
+    draft,
+    effectiveTokens,
+    handleIntent,
+    isSubmitting,
+    quickMode,
+    selectStoredDelegator,
+    setActiveDelegatorState,
+    setQuickMode,
+    updateMessage,
+  ]);
 
   const handleSubmit = React.useCallback(
     async (event?: React.FormEvent<HTMLFormElement>) => {

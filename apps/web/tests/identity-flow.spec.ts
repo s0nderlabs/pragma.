@@ -1,0 +1,184 @@
+import { expect, test } from "@playwright/test";
+
+const OWNER_ADDRESS = "0x1111111111111111111111111111111111111111";
+const DELEGATOR_ADDRESS = "0x2222222222222222222222222222222222222222";
+const SESSION_KEY_ADDRESS = "0x3333333333333333333333333333333333333333";
+
+const allowedTokens = [
+  {
+    address: "0x0000000000000000000000000000000000000000",
+    symbol: "MON",
+    name: "Monad",
+    decimals: 18,
+    kind: "native",
+    categories: ["fallback"],
+  },
+  {
+    address: "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701",
+    symbol: "WMON",
+    name: "Wrapped Monad",
+    decimals: 18,
+    kind: "wrappedNative",
+    categories: ["fallback"],
+  },
+];
+
+const buildDelegationArtifact = (seed: number, overrideDelegator?: string) => {
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    mode: "normal",
+    sessionKeyPrivateKey: "0x1",
+    sessionKeyAddress: SESSION_KEY_ADDRESS,
+    delegation: {
+      delegate: SESSION_KEY_ADDRESS,
+      delegator: overrideDelegator ?? DELEGATOR_ADDRESS,
+      authority: "0x",
+      caveats: [],
+      salt: `0x${(seed + 1).toString(16).padStart(2, "0")}`,
+      signature: `0x${"ab".repeat(65)}`,
+    },
+    expiresAt: now + 24 * 60 * 60,
+    callLimit: null,
+    callsUnlimited: true,
+    sessionNonce: `0x0${seed}`,
+    allowedTokens,
+    kind: "swap",
+    transferMaxAmount: null,
+    pairAddresses: [],
+    perTokenCapsWei: {},
+    nativeTokenCapWei: null,
+  } satisfies Record<string, unknown>;
+};
+
+const buildStoredDelegations = (count: number, delegator: string = DELEGATOR_ADDRESS) => {
+  const createdAt = Date.now();
+  return Array.from({ length: count }, (_, index) => ({
+    id: `delegation-${index}`,
+    delegator: delegator.toLowerCase(),
+    createdAt: createdAt - index * 1000,
+    updatedAt: createdAt - index * 1000,
+    artifact: buildDelegationArtifact(index, delegator),
+  }));
+};
+
+test.describe("Connected account identity flow", () => {
+  test.beforeEach(async ({ page }) => {
+    const delegations = buildStoredDelegations(3, DELEGATOR_ADDRESS);
+    await page.addInitScript((state) => {
+      const { owner, delegator, stored } = state as {
+        owner: string;
+        delegator: string;
+        stored: unknown[];
+      };
+
+      const delegatorKey = delegator.toLowerCase();
+      const ownerKey = owner.toLowerCase();
+
+      window.localStorage.setItem(
+        "pragma.h1.owner-delegators.v1",
+        JSON.stringify({
+          [ownerKey]: {
+            delegator: delegatorKey,
+            updatedAt: Date.now(),
+          },
+        }),
+      );
+
+      window.localStorage.setItem("pragma.h1.active-delegator.v1", delegator);
+
+      window.localStorage.setItem(
+        "pragma.h1.delegations.v1",
+        JSON.stringify({
+          version: 2,
+          delegators: {
+            [delegatorKey]: stored,
+          },
+        }),
+      );
+    }, { owner: OWNER_ADDRESS, delegator: DELEGATOR_ADDRESS, stored: delegations });
+  });
+
+  test("shows active delegations and clears state on disconnect", async ({ page }) => {
+    const consoleErrors: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error") {
+        consoleErrors.push(message.text());
+      }
+    });
+
+    await page.goto("/");
+
+    await page.waitForFunction(() => {
+      return typeof (window as unknown as { __PRAGMA_IDENTITY_MOCK__?: unknown }).__PRAGMA_IDENTITY_MOCK__ !== "undefined";
+    });
+
+    await page.evaluate(
+      ([owner, delegator]) => {
+        (window as unknown as {
+          __PRAGMA_IDENTITY_MOCK__?: { connect: (o: string, d?: string) => void };
+        }).__PRAGMA_IDENTITY_MOCK__?.connect(owner, delegator);
+      },
+      [OWNER_ADDRESS, DELEGATOR_ADDRESS],
+    );
+
+    const connectedButton = page.getByRole("button", { name: /Connected ·/ });
+    await expect(connectedButton).toBeVisible();
+
+    await connectedButton.click();
+
+    const shortDelegator = `${DELEGATOR_ADDRESS.slice(0, 6)}…${DELEGATOR_ADDRESS.slice(-4)}`;
+    await page.waitForSelector("section ul li", { state: "attached" });
+
+    await expect(async () => {
+      const textContent = await page.evaluate(() => {
+        const rows = Array.from(document.querySelectorAll("section ul li"));
+        for (const row of rows) {
+          const label = row.querySelector("span");
+          if (label?.textContent?.trim() === "Delegator") {
+            const value = row.querySelector("div > span");
+            return value?.textContent?.trim() ?? null;
+          }
+        }
+        return null;
+      });
+      expect(textContent).toBe(shortDelegator);
+    }).toPass();
+
+    await expect(async () => {
+      const value = await page.evaluate(() => {
+        const rows = Array.from(document.querySelectorAll("section ul li"));
+        for (const row of rows) {
+          const label = row.querySelector("span");
+          if (label?.textContent?.trim() === "Smart account") {
+            const span = row.querySelector("span:last-child");
+            return span?.textContent ?? null;
+          }
+        }
+        return null;
+      });
+      expect(value).toMatch(/HybridDelegator ready|Awaiting issuance|Already deployed/);
+    }).toPass();
+
+    await expect(page.getByText(/Tokens: MON, WMON/).first()).toBeVisible();
+
+    await page.keyboard.press("Escape");
+
+    await page.evaluate(() => {
+      return (window as unknown as {
+        __PRAGMA_IDENTITY_MOCK__?: { disconnect: () => Promise<void> };
+      }).__PRAGMA_IDENTITY_MOCK__?.disconnect();
+    });
+
+    await page.waitForFunction(() => {
+      return Array.from(document.querySelectorAll("button"))
+        .some((button) => button.textContent?.trim() === "Connect account");
+    });
+
+    await page.getByRole("button", { name: "Connect account" }).click();
+
+    await expect(page.getByText(/No delegations stored yet/i)).toBeVisible();
+
+    expect(consoleErrors.some((text) => text.includes("400"))).toBeFalsy();
+    expect(consoleErrors.some((text) => text.includes("Non-200"))).toBeFalsy();
+  });
+});

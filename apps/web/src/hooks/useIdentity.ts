@@ -4,6 +4,7 @@ import * as React from "react";
 import { Web3Auth } from "@web3auth/modal";
 import { OpenloginAdapter } from "@web3auth/openlogin-adapter";
 import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider";
+import { getAddress, type Address } from "viem";
 const CHAIN_NAMESPACES = {
   EIP155: "eip155" as const,
 };
@@ -16,6 +17,9 @@ import {
   WEB3AUTH_NETWORK,
 } from "../lib/config";
 import { createWalletClientFromProvider, type WalletWithAddress } from "../lib/clients";
+import { createHybridDelegatorHandle } from "../lib/onboarding/hybridDelegator";
+import { setActiveDelegator, clearActiveDelegator, IDENTITY_EVENT } from "../lib/storage/active-delegator";
+import { clearOwnerDelegator, getOwnerDelegator, setOwnerDelegator } from "../lib/storage/owner-delegators";
 
 export type IdentityStatus =
   | "idle"
@@ -25,142 +29,321 @@ export type IdentityStatus =
   | "connected"
   | "error";
 
-export const useIdentity = () => {
-  const [status, setStatus] = React.useState<IdentityStatus>("idle");
-  const [web3auth, setWeb3auth] = React.useState<Web3Auth | null>(null);
-  const [wallet, setWallet] = React.useState<WalletWithAddress | null>(null);
-  const [error, setError] = React.useState<string>();
-  const web3authRef = React.useRef<Web3Auth | null>(null);
-  const initPromiseRef = React.useRef<Promise<Web3Auth> | null>(null);
+type IdentitySnapshot = {
+  status: IdentityStatus;
+  wallet: WalletWithAddress | null;
+  error?: string;
+};
 
-  const initialize = React.useCallback(async (): Promise<Web3Auth> => {
-    if (web3authRef.current) {
-      return web3authRef.current;
-    }
-    if (initPromiseRef.current) {
-      return initPromiseRef.current;
-    }
-    if (typeof window === "undefined") {
-      throw new Error("Web3Auth can only be initialised in the browser");
-    }
+const isMockIdentity = process.env.NEXT_PUBLIC_PRAGMA_IDENTITY_PROVIDER === "mock";
+const DEFAULT_MOCK_OWNER = (process.env.NEXT_PUBLIC_PRAGMA_MOCK_OWNER_ADDRESS ?? "0x1111111111111111111111111111111111111111") as Address;
+const DEFAULT_MOCK_DELEGATOR = (process.env.NEXT_PUBLIC_PRAGMA_MOCK_DELEGATOR_ADDRESS ?? "0x2222222222222222222222222222222222222222") as Address;
 
-    setStatus((current) => (current === "idle" ? "initializing" : current));
+const createMockWallet = (address: Address): WalletWithAddress => ({
+  address,
+  walletClient: {
+    account: { address } as unknown,
+  } as WalletWithAddress["walletClient"],
+});
 
-    if (!WEB3AUTH_CLIENT_ID) {
-      const message = "Missing NEXT_PUBLIC_WEB3_AUTH_ID environment variable";
-      setStatus("error");
-      setError(message);
-      throw new Error(message);
+let identitySnapshot: IdentitySnapshot = {
+  status: "idle",
+  wallet: null,
+  error: undefined,
+};
+
+const identityListeners = new Set<() => void>();
+
+const subscribeIdentity = (listener: () => void) => {
+  identityListeners.add(listener);
+  return () => identityListeners.delete(listener);
+};
+
+const getIdentitySnapshot = () => identitySnapshot;
+
+const setIdentitySnapshot = (partial: Partial<IdentitySnapshot>) => {
+  identitySnapshot = { ...identitySnapshot, ...partial };
+  identityListeners.forEach((listener) => listener());
+};
+
+const updateMockIdentityState = (status: IdentityStatus, walletAddress: string | null) => {
+  if (!isMockIdentity || typeof window === "undefined") return;
+  (window as typeof window & {
+    __PRAGMA_IDENTITY_STATE__?: { status: IdentityStatus; wallet: string | null };
+  }).__PRAGMA_IDENTITY_STATE__ = {
+    status,
+    wallet: walletAddress,
+  };
+};
+
+let web3authInstance: Web3Auth | null = null;
+let initPromise: Promise<Web3Auth> | null = null;
+let walletRef: WalletWithAddress | null = null;
+let bootstrapCleanup: (() => void) | null = null;
+let mockApiInitialised = false;
+
+const announceIdentity = async (walletClient: WalletWithAddress | null) => {
+  if (!walletClient || isMockIdentity) {
+    return;
+  }
+
+  const ownerAddress = walletClient.address;
+  let delegator = getOwnerDelegator(ownerAddress);
+  if (!delegator) {
+    try {
+      const handle = await createHybridDelegatorHandle(walletClient.walletClient, ownerAddress);
+      delegator = handle.delegator;
+      setOwnerDelegator(ownerAddress, delegator);
+    } catch (deriveError) {
+      console.warn("Failed to derive HybridDelegator address", deriveError);
     }
+  }
 
-    if (!WEB3AUTH_NETWORK) {
-      throw new Error("Missing NEXT_PUBLIC_WEB3AUTH_NETWORK environment variable");
+  if (delegator) {
+    setActiveDelegator(delegator, ownerAddress);
+  } else if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(IDENTITY_EVENT, { detail: { delegator: null, owner: ownerAddress } }));
+  }
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("pragma:delegation:updated"));
+  }
+};
+
+const initializeWeb3Auth = async (): Promise<Web3Auth> => {
+  if (isMockIdentity) {
+    if (identitySnapshot.status === "idle") {
+      setIdentitySnapshot({ status: "ready" });
     }
+    updateMockIdentityState(identitySnapshot.status, identitySnapshot.wallet?.address ?? null);
+    throw new Error("Mock identity provider does not initialize Web3Auth");
+  }
 
-    const promise = (async () => {
-      const privateKeyProvider = new EthereumPrivateKeyProvider({
-        config: {
-          chainConfig: {
-            chainNamespace: CHAIN_NAMESPACES.EIP155,
-            chainId: `0x${MONAD_CHAIN_ID.toString(16)}`,
-            rpcTarget: MONAD_RPC_URL,
-            displayName: "Monad Testnet",
-            ticker: MONAD_NATIVE_TOKEN_SYMBOL,
-            tickerName: "Monad",
-          },
+  if (web3authInstance) {
+    return web3authInstance;
+  }
+
+  if (initPromise) {
+    return initPromise;
+  }
+
+  if (typeof window === "undefined") {
+    throw new Error("Web3Auth can only be initialised in the browser");
+  }
+
+  if (identitySnapshot.status === "idle") {
+    setIdentitySnapshot({ status: "initializing" });
+  }
+
+  if (!WEB3AUTH_CLIENT_ID) {
+    const message = "Missing NEXT_PUBLIC_WEB3_AUTH_ID environment variable";
+    setIdentitySnapshot({ status: "error", error: message });
+    throw new Error(message);
+  }
+
+  if (!WEB3AUTH_NETWORK) {
+    throw new Error("Missing NEXT_PUBLIC_WEB3AUTH_NETWORK environment variable");
+  }
+
+  const promise = (async () => {
+    const privateKeyProvider = new EthereumPrivateKeyProvider({
+      config: {
+        chainConfig: {
+          chainNamespace: CHAIN_NAMESPACES.EIP155,
+          chainId: `0x${MONAD_CHAIN_ID.toString(16)}`,
+          rpcTarget: MONAD_RPC_URL,
+          displayName: "Monad Testnet",
+          ticker: MONAD_NATIVE_TOKEN_SYMBOL,
+          tickerName: "Monad",
         },
-      });
-
-      const instance = new Web3Auth({
-        clientId: WEB3AUTH_CLIENT_ID,
-        web3AuthNetwork: WEB3AUTH_NETWORK as never,
-        privateKeyProvider,
-      });
-
-      const openlogin = new OpenloginAdapter({
-        adapterSettings: {
-          uxMode: "popup",
-        },
-      });
-
-      instance.configureAdapter(openlogin);
-      await instance.initModal();
-      web3authRef.current = instance;
-      return instance;
-    })().catch((err) => {
-      initPromiseRef.current = null;
-      throw err;
+      },
     });
 
-    initPromiseRef.current = promise;
-    return promise;
-  }, []);
+    const instance = new Web3Auth({
+      clientId: WEB3AUTH_CLIENT_ID,
+      web3AuthNetwork: WEB3AUTH_NETWORK as never,
+      privateKeyProvider,
+    });
+
+    const openlogin = new OpenloginAdapter({
+      adapterSettings: {
+        uxMode: "popup",
+      },
+    });
+
+    instance.configureAdapter(openlogin);
+    await instance.initModal();
+    web3authInstance = instance;
+    return instance;
+  })().catch((error) => {
+    initPromise = null;
+    throw error;
+  });
+
+  initPromise = promise;
+  return promise;
+};
+
+const ensureBootstrap = () => {
+  if (bootstrapCleanup || typeof window === "undefined") {
+    return bootstrapCleanup;
+  }
+
+  if (isMockIdentity) {
+    if (identitySnapshot.status === "idle") {
+      setIdentitySnapshot({ status: "ready" });
+      updateMockIdentityState("ready", identitySnapshot.wallet?.address ?? null);
+    }
+    return null;
+  }
+
+  let cancelled = false;
+
+  (async () => {
+    try {
+      const instance = await initializeWeb3Auth();
+      if (cancelled) return;
+
+      if (instance.provider) {
+        const walletClient = await createWalletClientFromProvider(instance.provider);
+        if (cancelled) return;
+        walletRef = walletClient;
+        setIdentitySnapshot({ status: "connected", wallet: walletClient, error: undefined });
+        await announceIdentity(walletClient);
+      } else {
+        setIdentitySnapshot({ status: "ready" });
+      }
+    } catch (error) {
+      if (cancelled) return;
+      const message = error instanceof Error ? error.message : String(error);
+      setIdentitySnapshot({ status: "error", error: message });
+    }
+  })();
+
+  bootstrapCleanup = () => {
+    cancelled = true;
+  };
+
+  return bootstrapCleanup;
+};
+
+const applyMockConnection = (owner: Address, delegatorOverride?: Address) => {
+  const normalizedOwner = getAddress(owner);
+  const walletClient = createMockWallet(normalizedOwner);
+  walletRef = walletClient;
+  setIdentitySnapshot({ status: "connected", wallet: walletClient, error: undefined });
+  updateMockIdentityState("connected", normalizedOwner);
+
+  const mappedDelegator = delegatorOverride
+    ? getAddress(delegatorOverride)
+    : getOwnerDelegator(normalizedOwner) ?? DEFAULT_MOCK_DELEGATOR;
+
+  setOwnerDelegator(normalizedOwner, mappedDelegator);
+  setActiveDelegator(mappedDelegator, normalizedOwner);
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("pragma:delegation:updated"));
+  }
+
+  return walletClient;
+};
+
+const connectIdentity = async (): Promise<WalletWithAddress> => {
+  if (isMockIdentity) {
+    const nextConfig =
+      typeof window !== "undefined"
+        ? ((window as unknown as { __PRAGMA_IDENTITY_MOCK_NEXT__?: { owner?: string; delegator?: string } })
+            .__PRAGMA_IDENTITY_MOCK_NEXT__ ?? null)
+        : null;
+
+    const ownerAddress = nextConfig?.owner ? getAddress(nextConfig.owner as Address) : DEFAULT_MOCK_OWNER;
+    const delegatorAddress = nextConfig?.delegator
+      ? getAddress(nextConfig.delegator as Address)
+      : DEFAULT_MOCK_DELEGATOR;
+
+    return applyMockConnection(ownerAddress, delegatorAddress);
+  }
+
+  try {
+    const instance = web3authInstance ?? (await initializeWeb3Auth());
+    web3authInstance = instance;
+    setIdentitySnapshot({ status: "connecting" });
+    updateMockIdentityState("connecting", walletRef?.address ?? null);
+
+    const provider = await instance.connect();
+    if (!provider) {
+      throw new Error("Web3Auth connection did not return a provider");
+    }
+
+    const walletClient = await createWalletClientFromProvider(provider);
+    walletRef = walletClient;
+    setIdentitySnapshot({ status: "connected", wallet: walletClient, error: undefined });
+    updateMockIdentityState("connected", walletClient.address);
+    await announceIdentity(walletClient);
+    return walletClient;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setIdentitySnapshot({ status: "error", error: message });
+    updateMockIdentityState("error", walletRef?.address ?? null);
+    throw error;
+  }
+};
+
+const disconnectIdentity = async () => {
+  if (web3authInstance) {
+    try {
+      await web3authInstance.logout();
+    } catch (error) {
+      console.warn("Web3Auth logout failed", error);
+    }
+  }
+
+  const previous = walletRef;
+  walletRef = null;
+  setIdentitySnapshot({ status: "ready", wallet: null });
+  updateMockIdentityState("ready", null);
+  clearActiveDelegator(previous?.address);
+  clearOwnerDelegator(previous?.address);
+
+  if (typeof window !== "undefined") {
+    const ownerDetail = previous?.address ? { owner: previous.address } : {};
+    window.dispatchEvent(new CustomEvent(IDENTITY_EVENT, { detail: { delegator: null, ...ownerDetail } }));
+    window.dispatchEvent(new Event("pragma:delegation:updated"));
+  }
+};
+
+const ensureMockApi = () => {
+  if (!isMockIdentity || typeof window === "undefined" || mockApiInitialised) return;
+  mockApiInitialised = true;
+
+  const api = {
+    connect: (owner: Address, delegator?: Address) => applyMockConnection(owner, delegator),
+    disconnect: () => disconnectIdentity(),
+  } satisfies {
+    connect: (owner: Address, delegator?: Address) => WalletWithAddress;
+    disconnect: () => Promise<void>;
+  };
+
+  (window as typeof window & { __PRAGMA_IDENTITY_MOCK__?: typeof api }).__PRAGMA_IDENTITY_MOCK__ = api;
+};
+
+export const useIdentity = () => {
+  const snapshot = React.useSyncExternalStore(subscribeIdentity, getIdentitySnapshot, getIdentitySnapshot);
 
   React.useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-    let cancelled = false;
-
-    initialize()
-      .then(async (instance) => {
-        if (cancelled) return;
-        setWeb3auth(instance);
-        if (instance.provider) {
-          setStatus("connected");
-          const walletClient = await createWalletClientFromProvider(instance.provider);
-          if (!cancelled) {
-            setWallet(walletClient);
-          }
-        } else {
-          setStatus("ready");
-        }
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : String(err));
-        setStatus("error");
-      });
-
+    ensureMockApi();
+    const cleanup = ensureBootstrap();
     return () => {
-      cancelled = true;
+      cleanup?.();
     };
-  }, [initialize]);
-
-  const connect = React.useCallback(async () => {
-    try {
-      const instance = web3authRef.current ?? (await initialize());
-      setWeb3auth(instance);
-      setStatus("connecting");
-      const provider = await instance.connect();
-      if (!provider) {
-        throw new Error("Web3Auth connection did not return a provider");
-      }
-      const walletClient = await createWalletClientFromProvider(provider);
-      setWallet(walletClient);
-      setStatus("connected");
-      return walletClient;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setStatus(web3authRef.current?.provider ? "connected" : "error");
-      throw err;
-    }
-  }, [initialize]);
-
-  const disconnect = React.useCallback(async () => {
-    const instance = web3authRef.current;
-    if (!instance) return;
-    await instance.logout();
-    setWallet(null);
-    setStatus("ready");
   }, []);
 
   return {
-    status,
-    wallet,
-    error,
-    connect,
-    disconnect,
-    web3auth,
+    status: snapshot.status,
+    wallet: snapshot.wallet,
+    error: snapshot.error,
+    connect: connectIdentity,
+    disconnect: disconnectIdentity,
+    web3auth: web3authInstance,
   };
 };

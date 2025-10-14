@@ -13,6 +13,7 @@ import {
 import { buildSwapDelegation, buildTransferDelegation, type DelegationBuildResult } from "../delegations/hybrid";
 import { getFallbackAllowedTokens, loadAllowedTokens, normalizeTokens } from "../monorail";
 import { listActiveDelegations, saveDelegation } from "../storage/delegations";
+import { setOwnerDelegator } from "../storage/owner-delegators";
 import { getOrCreateSessionKey, rotateSessionKey, type SessionKeyRecord } from "../storage/session-keys";
 import type { WalletWithAddress } from "../clients";
 
@@ -70,7 +71,7 @@ export const initializeHybridDelegator = async (
   const deployment = await ensureHybridDelegatorDeployed(handle);
   const nonce = await fetchDelegationNonce(handle);
 
-  const existingActive = listActiveDelegations().find(
+  const existingActive = listActiveDelegations(undefined, handle.delegator).find(
     (entry) => getAddress(entry.artifact.delegation.delegator) === handle.delegator,
   );
 
@@ -156,6 +157,7 @@ export const finalizeDelegations = async (
     },
   };
   results.push(saveDelegation(swapArtifact).artifact);
+  setOwnerDelegator(ownerAddress, swapArtifact.delegation.delegator as Address);
 
   if (plan.transfer) {
     const transferSignature = await signDelegation(walletClient, ownerAddress, plan.transfer.typedData);
@@ -168,6 +170,7 @@ export const finalizeDelegations = async (
       },
     };
     results.push(saveDelegation(transferArtifact).artifact);
+    setOwnerDelegator(ownerAddress, transferArtifact.delegation.delegator as Address);
   }
 
   return results;

@@ -136,9 +136,9 @@ export const ChatConsole = () => {
     <div className="flex w-full justify-center">
       <div className="w-full max-w-4xl">
         <h1 className="sr-only">Chat console</h1>
-        <div className="rounded-[2.5rem] border border-[#846FFA]/40 bg-gradient-to-br from-white/65 via-white/35 to-white/20 p-[3px] shadow-[0_35px_80px_rgba(13,13,13,0.18)] backdrop-blur-xl">
+        <div className="relative overflow-hidden rounded-[2.5rem] border border-[#846FFA]/30 bg-white/55 p-[5px] shadow-[0_35px_90px_rgba(132,111,250,0.22)] backdrop-blur-[30px] before:pointer-events-none before:absolute before:-inset-8 before:-z-10 before:rounded-[2.7rem] before:bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.58)_0%,rgba(255,255,255,0.08)_64%,rgba(132,111,250,0)_85%),radial-gradient(circle_at_bottom_right,rgba(132,111,250,0.22)_18%,rgba(132,111,250,0)_74%)] before:opacity-95 before:blur-[24px] after:pointer-events-none after:absolute after:inset-0 after:rounded-[2.5rem] after:border after:border-white/20 after:opacity-70 after:bg-[radial-gradient(circle_at_center,rgba(132,111,250,0.12)_0%,rgba(132,111,250,0)_68%)]">
           <div
-            className="flex flex-col rounded-[2.3rem] border border-[#846FFA]/30 bg-white/80 p-8 shadow-[0_18px_45px_rgba(13,13,13,0.12)] backdrop-blur-2xl"
+            className="flex flex-col rounded-[2.3rem] border border-[#846FFA]/24 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.68)_0%,rgba(255,255,255,0.5)_52%,rgba(255,255,255,0.62)_100%)] p-8 shadow-[0_20px_42px_rgba(26,26,26,0.06)] backdrop-blur-[32px]"
             style={{ height: "min(700px, calc(100dvh - 240px))", minHeight: "400px" }}
           >
             <div className="mb-6 flex w-full items-center justify-end gap-3">

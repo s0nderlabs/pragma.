@@ -12,9 +12,9 @@ import {
 } from "./hybridDelegator";
 import { buildSwapDelegation, buildTransferDelegation, type DelegationBuildResult } from "../delegations/hybrid";
 import { getFallbackAllowedTokens, loadAllowedTokens, normalizeTokens } from "../monorail";
-import { listActiveDelegations, saveDelegation } from "../storage/delegations";
-import { setOwnerDelegator } from "../storage/owner-delegators";
-import { getOrCreateSessionKey, rotateSessionKey, type SessionKeyRecord } from "../storage/session-keys";
+import { listDelegations, saveDelegation } from "../storage/delegations";
+import { getOwnerDelegator, setOwnerDelegator } from "../storage/owner-delegators";
+import { getOrCreateSessionKey, getSessionKey, rotateSessionKey, type SessionKeyRecord } from "../storage/session-keys";
 import type { WalletWithAddress } from "../clients";
 
 export interface HybridOnboardingInitResult {
@@ -56,7 +56,7 @@ export const fetchAllowlist = async (): Promise<AllowedToken[]> => {
 export const initializeHybridDelegator = async (
   walletClient: WalletWithAddress["walletClient"],
   ownerAddress: Address,
-  { rotateKey }: { rotateKey?: boolean } = {},
+  { rotateKey, skipDeployment }: { rotateKey?: boolean; skipDeployment?: boolean } = {},
 ): Promise<HybridOnboardingInitResult> => {
   const handle = await createHybridDelegatorHandle(walletClient, ownerAddress);
 
@@ -68,16 +68,13 @@ export const initializeHybridDelegator = async (
     );
   }
 
-  const deployment = await ensureHybridDelegatorDeployed(handle);
+  const deployment = skipDeployment ? undefined : await ensureHybridDelegatorDeployed(handle);
   const nonce = await fetchDelegationNonce(handle);
 
-  const existingActive = listActiveDelegations(undefined, handle.delegator).find(
-    (entry) => getAddress(entry.artifact.delegation.delegator) === handle.delegator,
-  );
-
-  const sessionKey = rotateKey || !existingActive
+  const existingSessionKey = getSessionKey(handle.delegator);
+  const sessionKey = rotateKey
     ? rotateSessionKey(handle.delegator)
-    : getOrCreateSessionKey(handle.delegator);
+    : existingSessionKey ?? getOrCreateSessionKey(handle.delegator);
 
   return {
     handle,
@@ -174,4 +171,82 @@ export const finalizeDelegations = async (
   }
 
   return results;
+};
+
+const SAFE_TTL_SECONDS = 60 * 60;
+const NORMAL_TTL_SECONDS = 24 * 60 * 60;
+
+const normalizeAllowedTokens = (tokens: AllowedToken[]): AllowedToken[] =>
+  tokens.map((token) => ({
+    ...token,
+    address: getAddress(token.address as Address),
+  }));
+
+const toBigIntRecord = (input?: Record<string, string | number | bigint | undefined | null>) => {
+  if (!input) return undefined;
+  const mapped = Object.entries(input)
+    .map(([key, value]) => {
+      if (value === undefined || value === null) return undefined;
+      try {
+        return [getAddress(key as Address), BigInt(value)] as const;
+      } catch {
+        return undefined;
+      }
+    })
+    .filter((entry): entry is readonly [Address, bigint] => Array.isArray(entry));
+  if (mapped.length === 0) return undefined;
+  return Object.fromEntries(mapped);
+};
+
+export const rotateHybridDelegatorSession = async (
+  walletClient: WalletWithAddress["walletClient"],
+  ownerAddress: Address,
+): Promise<{ sessionKey: SessionKeyRecord; delegator: Address }> => {
+  const init = await initializeHybridDelegator(walletClient, ownerAddress, { rotateKey: true, skipDeployment: true });
+  let delegations = listDelegations(init.handle.delegator);
+
+  let swapEntry = delegations.find((entry) => !entry.revokedAt && (entry.artifact.kind ?? "swap") === "swap");
+  if (!swapEntry) {
+    const mappedDelegator = getOwnerDelegator(ownerAddress);
+    if (mappedDelegator) {
+      delegations = listDelegations(mappedDelegator);
+      swapEntry = delegations.find((entry) => !entry.revokedAt && (entry.artifact.kind ?? "swap") === "swap");
+    }
+  }
+  if (!swapEntry) {
+    throw new Error("No existing swap delegation found to replicate. Issue a new delegation first.");
+  }
+
+  const ttl = swapEntry.artifact.mode === "safe" ? SAFE_TTL_SECONDS : NORMAL_TTL_SECONDS;
+  const expiresAt = Math.floor(Date.now() / 1000) + ttl;
+
+  const swapOptions: SwapDelegationOptions = {
+    mode: swapEntry.artifact.mode,
+    allowedTokens: normalizeAllowedTokens(swapEntry.artifact.allowedTokens ?? []),
+    expiresAt,
+    unlimitedCalls: swapEntry.artifact.callsUnlimited ?? false,
+    callLimit: swapEntry.artifact.callsUnlimited ? undefined : swapEntry.artifact.callLimit ?? undefined,
+    perTokenCaps: toBigIntRecord(swapEntry.artifact.perTokenCapsWei ?? undefined),
+    nativeTokenCap: swapEntry.artifact.nativeTokenCapWei ? BigInt(swapEntry.artifact.nativeTokenCapWei) : undefined,
+  };
+
+  let transferOptions: TransferDelegationOptions | undefined;
+  const transferEntry = delegations.find((entry) => !entry.revokedAt && entry.artifact.kind === "transfer");
+  if (transferEntry) {
+    transferOptions = {
+      enabled: true,
+      maxAmountWei: transferEntry.artifact.transferMaxAmount
+        ? BigInt(transferEntry.artifact.transferMaxAmount)
+        : 0n,
+    };
+  }
+
+  const plan = buildDelegationPlan(init, swapOptions, transferOptions);
+  await finalizeDelegations(walletClient, ownerAddress, plan);
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("pragma:delegation:updated"));
+  }
+
+  return { sessionKey: init.sessionKey, delegator: init.handle.delegator };
 };

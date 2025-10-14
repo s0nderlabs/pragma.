@@ -4,7 +4,7 @@ import * as React from "react";
 import { Web3Auth } from "@web3auth/modal";
 import { OpenloginAdapter } from "@web3auth/openlogin-adapter";
 import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider";
-import { getAddress, type Address } from "viem";
+import { getAddress, type Address, type Hex } from "viem";
 const CHAIN_NAMESPACES = {
   EIP155: "eip155" as const,
 };
@@ -43,6 +43,7 @@ const createMockWallet = (address: Address): WalletWithAddress => ({
   address,
   walletClient: {
     account: { address } as unknown,
+    signTypedData: async () => "0x" as Hex,
   } as WalletWithAddress["walletClient"],
 });
 

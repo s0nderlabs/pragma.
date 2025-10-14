@@ -95,6 +95,8 @@ test.describe("Connected account identity flow", () => {
           },
         }),
       );
+
+      window.localStorage.removeItem("pragma.h1.receipts.v1");
     }, { owner: OWNER_ADDRESS, delegator: DELEGATOR_ADDRESS, stored: delegations });
   });
 
@@ -180,5 +182,172 @@ test.describe("Connected account identity flow", () => {
 
     expect(consoleErrors.some((text) => text.includes("400"))).toBeFalsy();
     expect(consoleErrors.some((text) => text.includes("Non-200"))).toBeFalsy();
+  });
+
+  test("revokes delegations from the connected account modal", async ({ page }) => {
+    await page.goto("/");
+
+    await page.waitForFunction(() => {
+      return typeof (window as unknown as { __PRAGMA_IDENTITY_MOCK__?: unknown }).__PRAGMA_IDENTITY_MOCK__ !== "undefined";
+    });
+
+    await page.evaluate(
+      ([owner, delegator]) => {
+        (window as unknown as {
+          __PRAGMA_IDENTITY_MOCK__?: { connect: (o: string, d?: string) => void };
+        }).__PRAGMA_IDENTITY_MOCK__?.connect(owner, delegator);
+      },
+      [OWNER_ADDRESS, DELEGATOR_ADDRESS],
+    );
+
+    const connectedButton = page.getByRole("button", { name: /Connected ·/ });
+    await expect(connectedButton).toBeVisible();
+    await connectedButton.click();
+
+    await page.getByRole("button", { name: "Revoke delegations" }).click();
+    await page.getByRole("button", { name: "Confirm revoke" }).click();
+
+    await expect(page.getByText(/Delegations revoked/i)).toBeVisible();
+
+    const statusLabel = await page.evaluate(() => {
+      const rows = Array.from(document.querySelectorAll("section ul li"));
+      for (const row of rows) {
+        const label = row.querySelector("span");
+        if (label?.textContent?.trim() === "Smart account") {
+          const span = row.querySelector("span:last-child");
+          return span?.textContent ?? null;
+        }
+      }
+      return null;
+    });
+
+    expect(statusLabel).not.toBeNull();
+    expect(statusLabel as string).toMatch(/Delegation revoked|Awaiting issuance/);
+
+    await expect(page.getByText(/Revoked/i).first()).toBeVisible();
+  });
+
+  test("rotates session key and reissues delegation", async ({ page }) => {
+    await page.goto("/");
+
+    await page.waitForFunction(() => {
+      return typeof (window as unknown as { __PRAGMA_IDENTITY_MOCK__?: unknown }).__PRAGMA_IDENTITY_MOCK__ !== "undefined";
+    });
+
+    await page.evaluate(
+      ([owner, delegator]) => {
+        (window as unknown as {
+          __PRAGMA_IDENTITY_MOCK__?: { connect: (o: string, d?: string) => void };
+        }).__PRAGMA_IDENTITY_MOCK__?.connect(owner, delegator);
+      },
+      [OWNER_ADDRESS, DELEGATOR_ADDRESS],
+    );
+
+    const connectedButton = page.getByRole("button", { name: /Connected ·/ });
+    await expect(connectedButton).toBeVisible();
+    await connectedButton.click();
+
+    const readSessionKey = async () => {
+      return page.evaluate(() => {
+        const rows = Array.from(document.querySelectorAll("section ul li"));
+        for (const row of rows) {
+          const label = row.querySelector("span");
+          if (label?.textContent?.trim() === "Session key") {
+            const value = row.querySelector("div > span");
+            return value?.textContent?.trim() ?? null;
+          }
+        }
+        return null;
+      });
+    };
+
+    const initialSessionKey = await readSessionKey();
+    expect(initialSessionKey).not.toBeNull();
+
+    await page.getByRole("button", { name: "Rotate session key" }).click();
+
+    await page.waitForFunction((previous) => {
+      const rows = Array.from(document.querySelectorAll("section ul li"));
+      for (const row of rows) {
+        const label = row.querySelector("span");
+        if (label?.textContent?.trim() === "Session key") {
+          const value = row.querySelector("div > span");
+          return value?.textContent?.trim() !== previous;
+        }
+      }
+      return false;
+    }, initialSessionKey);
+
+    const rotatedSessionKey = await readSessionKey();
+    expect(rotatedSessionKey).not.toBeNull();
+    expect(rotatedSessionKey).not.toBe(initialSessionKey);
+  });
+
+  test("shows stored receipts for the connected delegator", async ({ page }) => {
+    await page.goto("/");
+
+    const receipt = {
+      id: "receipt-test",
+      delegator: DELEGATOR_ADDRESS,
+      storedAt: Date.now(),
+      record: {
+        type: "swap",
+        status: "success",
+        delegator: DELEGATOR_ADDRESS,
+        sessionKey: SESSION_KEY_ADDRESS,
+        chainId: 10143,
+        mode: "normal",
+        tokenIn: {
+          address: DELEGATOR_ADDRESS,
+          symbol: "MON",
+          decimals: 18,
+        },
+        tokenOut: {
+          address: SESSION_KEY_ADDRESS,
+          symbol: "WMON",
+          decimals: 18,
+        },
+        amountInWei: "100000000000000000",
+        amountOutWei: "200000000000000000",
+        minAmountOutWei: "150000000000000000",
+        slippageBps: 50,
+        quoteId: "quote-123",
+        planHash: "0x123",
+        txHash: "0xabc",
+        blockNumber: 12345,
+        gasUsedWei: "21000",
+        createdAt: Date.now() - 1000,
+        executedAt: Date.now() - 500,
+        summary: "Swap 0.1 MON → 0.2 WMON",
+      },
+    } satisfies Record<string, unknown>;
+
+    await page.evaluate(([delegator, entry]) => {
+      const existing = window.localStorage.getItem("pragma.h1.receipts.v1");
+      const parsed = existing ? JSON.parse(existing) : {};
+      parsed[(delegator as string).toLowerCase()] = [entry];
+      window.localStorage.setItem("pragma.h1.receipts.v1", JSON.stringify(parsed));
+    }, [DELEGATOR_ADDRESS, receipt]);
+
+    await page.waitForFunction(() => {
+      return typeof (window as unknown as { __PRAGMA_IDENTITY_MOCK__?: unknown }).__PRAGMA_IDENTITY_MOCK__ !== "undefined";
+    });
+
+    await page.evaluate(
+      ([owner, delegator]) => {
+        (window as unknown as {
+          __PRAGMA_IDENTITY_MOCK__?: { connect: (o: string, d?: string) => void };
+        }).__PRAGMA_IDENTITY_MOCK__?.connect(owner, delegator);
+      },
+      [OWNER_ADDRESS, DELEGATOR_ADDRESS],
+    );
+
+    const connectedButton = page.getByRole("button", { name: /Connected ·/ });
+    await expect(connectedButton).toBeVisible();
+    await connectedButton.click();
+
+    await expect(page.getByText(/Recent receipts/i)).toBeVisible();
+    await expect(page.getByText(/Swap 0.1 MON → 0.2 WMON/)).toBeVisible();
+    await expect(page.getByText(/Success/)).toBeVisible();
   });
 });

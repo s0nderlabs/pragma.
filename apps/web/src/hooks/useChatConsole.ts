@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { nanoid } from "nanoid/non-secure";
-import { formatUnits, getAddress, isAddress, type Address, type Hex } from "viem";
+import { formatUnits, getAddress, isAddress, parseUnits, type Address, type Hex } from "viem";
 import type { AllowedToken } from "@pragma/core/monorail/tokens";
 import type {
   ExecutionLogger,
@@ -20,6 +20,7 @@ import type {
   AmountSpecification,
 } from "@pragma/core/intent/types";
 import { resolveAmountInput } from "@pragma/core/agent/amount";
+import { computeSwapPlanHash } from "@pragma/core/execution/plan";
 
 import { fetchAllowlist } from "../lib/onboarding/service";
 import { loadChatSession, type ChatSessionContext } from "../lib/chat/session";
@@ -37,6 +38,7 @@ import { callAgent, type AgentControlEvent } from "../lib/chat/agent";
 import { getActiveDelegator, IDENTITY_EVENT } from "../lib/storage/active-delegator";
 import { getQuickModePreference, setQuickModePreference } from "../lib/storage/quick-mode";
 import { listDelegations } from "../lib/storage/delegations";
+import { storeReceipt, type SwapReceiptRecord } from "../lib/storage/receipts";
 
 type LogLevel = "info" | "success" | "warn";
 
@@ -157,6 +159,36 @@ const describeIntent = (intent: CanonicalIntent): string => {
   }
 };
 
+const serializeError = (error: unknown): Record<string, unknown> => {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+  if (typeof error === "object" && error !== null) {
+    return { ...error } as Record<string, unknown>;
+  }
+  return { message: String(error) };
+};
+
+const toReceiptToken = (token: AllowedToken & { decimals: number }) => ({
+  address: getAddress(token.address),
+  symbol: token.symbol,
+  decimals: token.decimals,
+});
+
+const isNativeTokenCandidate = (token?: AllowedToken) => {
+  if (!token) return false;
+  if (token.kind === "native") return true;
+  try {
+    return getAddress(token.address).toLowerCase() === MONAD_NATIVE_TOKEN_ADDRESS.toLowerCase();
+  } catch {
+    return false;
+  }
+};
+
 export const useChatConsole = () => {
   const [messages, setMessages] = React.useState<ChatMessage[]>([]);
   const [allowedTokens, setAllowedTokens] = React.useState<AllowedToken[]>([]);
@@ -170,6 +202,14 @@ export const useChatConsole = () => {
   const [quickMode, setQuickModeState] = React.useState<boolean>(false);
   const [pendingAction, setPendingAction] = React.useState<PendingAction | null>(null);
   const [isConfirming, setIsConfirming] = React.useState(false);
+
+  const recordSwapReceipt = React.useCallback((record: SwapReceiptRecord) => {
+    try {
+      storeReceipt(record);
+    } catch (error) {
+      console.warn("Failed to store receipt", error);
+    }
+  }, []);
 
   const setQuickMode = React.useCallback<React.Dispatch<React.SetStateAction<boolean>>>(
     (value) => {
@@ -281,6 +321,11 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
     const updateContext = () => {
       if (!activeDelegator) {
         setDelegationTokens(undefined);
+        if (hydrated) {
+          setQuickModeState(false);
+        }
+        setPendingAction(null);
+        setIsConfirming(false);
         return;
       }
 
@@ -290,6 +335,15 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
           ? context.session.allowedTokens
           : undefined,
       );
+
+      if (hydrated) {
+        setQuickModeState(getQuickModePreference(activeDelegator));
+      }
+
+      if (!context) {
+        setPendingAction(null);
+        setIsConfirming(false);
+      }
     };
 
     updateContext();
@@ -299,7 +353,7 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
     return () => {
       window.removeEventListener("pragma:delegation:updated", handler);
     };
-  }, [activeDelegator]);
+  }, [activeDelegator, hydrated, setQuickModeState]);
 
   const effectiveTokens = React.useMemo<AllowedToken[]>(
     () => (delegationTokens && delegationTokens.length > 0 ? delegationTokens : allowedTokens),
@@ -407,16 +461,83 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
         content: `${current.content}\n\nExecuting swap…`,
       }));
 
-      const result = await executeSwap({ ...config, preparedPlan: preview.plan }, logger);
+      const startedAt = Date.now();
+      try {
+        const result = await executeSwap({ ...config, preparedPlan: preview.plan }, logger);
 
-      updateMessage(statusId, (current) => ({
-        ...current,
-        content: formatSwapResult(result, config),
-        status: "success",
-      }));
-      updateMessage(statusId, (current) => ({ ...current, logs: current.logs ?? [] }));
+        const successSummary = `Swap ${formatTokenAmount(result.amountIn, config.intent.from, config.intent.from.decimals)} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${formatTokenAmount(result.amountOut, config.intent.to, config.intent.to.decimals)} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}`;
+
+        updateMessage(statusId, (current) => ({
+          ...current,
+          content: formatSwapResult(result, config),
+          status: "success",
+        }));
+
+        recordSwapReceipt({
+          type: "swap",
+          status: "success",
+          delegator: config.hybridDelegator,
+          sessionKey: config.session.sessionKeyAddress,
+          chainId: monadChain.id,
+          mode: config.session.mode,
+          tokenIn: toReceiptToken(config.intent.from),
+          tokenOut: toReceiptToken(config.intent.to),
+          amountInWei: result.amountIn.toString(),
+          amountOutWei: result.amountOut.toString(),
+          minAmountOutWei: result.minAmountOut.toString(),
+          slippageBps: config.slippageBps,
+          quoteId: preview.plan.quote.quoteId,
+          planHash: computeSwapPlanHash({
+            chainId: monadChain.id,
+            tokenIn: getAddress(config.intent.from.address),
+            tokenOut: getAddress(config.intent.to.address),
+            amountInWei: preview.plan.amountIn,
+            minAmountOutWei: preview.plan.minAmountOut,
+            slippageBps: config.slippageBps,
+            quoteId: preview.plan.quote.quoteId,
+          }),
+          txHash: result.txHash,
+          blockNumber: Number(result.blockNumber),
+          gasUsedWei: result.gasUsed.toString(),
+          createdAt: startedAt,
+          executedAt: Date.now(),
+          summary: successSummary,
+        });
+      } catch (error) {
+        const failureSummary = `Swap ${config.amountInput} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${config.intent.to.symbol ?? shortHex(config.intent.to.address)} failed`;
+        recordSwapReceipt({
+          type: "swap",
+          status: "failed",
+          delegator: config.hybridDelegator,
+          sessionKey: config.session.sessionKeyAddress,
+          chainId: monadChain.id,
+          mode: config.session.mode,
+          tokenIn: toReceiptToken(config.intent.from),
+          tokenOut: toReceiptToken(config.intent.to),
+          amountInWei: preview.plan.amountIn.toString(),
+          minAmountOutWei: preview.plan.minAmountOut.toString(),
+          slippageBps: config.slippageBps,
+          quoteId: preview.plan.quote.quoteId,
+          planHash: computeSwapPlanHash({
+            chainId: monadChain.id,
+            tokenIn: getAddress(config.intent.from.address),
+            tokenOut: getAddress(config.intent.to.address),
+            amountInWei: preview.plan.amountIn,
+            minAmountOutWei: preview.plan.minAmountOut,
+            slippageBps: config.slippageBps,
+            quoteId: preview.plan.quote.quoteId,
+          }),
+          createdAt: startedAt,
+          executedAt: Date.now(),
+          summary: `${failureSummary}: ${parseError(error)}`,
+          error: serializeError(error),
+        });
+        throw error;
+      } finally {
+        updateMessage(statusId, (current) => ({ ...current, logs: current.logs ?? [] }));
+      }
     },
-    [createLogger, formatSwapResult, updateMessage],
+    [createLogger, formatSwapResult, recordSwapReceipt, updateMessage],
   );
 
   const runNativeTransferExecution = React.useCallback(
@@ -590,7 +711,35 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
       };
 
       const logger = createLogger(statusId);
-      const preview = await previewSwap(config, logger);
+      let preview: SwapPreviewResult;
+      try {
+        preview = await previewSwap(config, logger);
+      } catch (error) {
+        recordSwapReceipt({
+          type: "swap",
+          status: "failed",
+          delegator: config.hybridDelegator,
+          sessionKey: config.session.sessionKeyAddress,
+          chainId: monadChain.id,
+          mode: config.session.mode,
+          tokenIn: toReceiptToken(config.intent.from),
+          tokenOut: toReceiptToken(config.intent.to),
+          amountInWei: (() => {
+            try {
+              return parseUnits(amountInput, fromToken.decimals).toString();
+            } catch {
+              return "0";
+            }
+          })(),
+          minAmountOutWei: "0",
+          slippageBps,
+          createdAt: Date.now(),
+          previewedAt: Date.now(),
+          summary: `Swap preview failed: ${parseError(error)}`,
+          error: serializeError(error),
+        });
+        throw error;
+      }
       const summary = formatQuoteSummary(preview, config);
       updateMessage(statusId, (current) => ({
         ...current,
@@ -621,6 +770,7 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
       quickMode,
       runSwapExecution,
       setPendingAction,
+      recordSwapReceipt,
       withDecimals,
       updateMessage,
     ],
@@ -638,7 +788,8 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
         throw new Error("Transfer intent is missing an amount specification.");
       }
 
-      if (!intent.token) {
+      const nativeTransfer = !intent.token || isNativeTokenCandidate(intent.token);
+      if (nativeTransfer) {
         const context = loadChatSession("transfer", "swap", activeDelegator);
         if (!context) {
           throw new Error("No active transfer delegation found. Reissue onboarding before transferring MON.");
@@ -651,10 +802,11 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
         });
         const amountInput = amountResolution.amountInput;
         const resolvedDisplay = amountResolution.resolvedDisplay ?? amountInput;
+        const symbol = intent.token?.symbol ?? MONAD_NATIVE_TOKEN_SYMBOL;
 
         updateMessage(statusId, (current) => ({
           ...current,
-          content: `Ready to transfer ${resolvedDisplay} ${MONAD_NATIVE_TOKEN_SYMBOL} to ${intent.recipient}.`,
+          content: `Ready to transfer ${resolvedDisplay} ${symbol} to ${intent.recipient}.`,
           status: "default",
         }));
 

@@ -72,6 +72,14 @@ export const rotateSessionKey = (delegator: Address): SessionKeyRecord => {
   return { ...stored, isNew: true };
 };
 
+export const getSessionKey = (delegator: Address): SessionKeyRecord | null => {
+  const records = readAll();
+  const normalized = delegator.toLowerCase();
+  const existing = records[normalized];
+  if (!existing) return null;
+  return { ...existing, isNew: false };
+};
+
 export const deleteSessionKey = (delegator: Address) => {
   const records = readAll();
   const normalized = delegator.toLowerCase();

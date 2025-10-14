@@ -9,6 +9,7 @@ type StoredDelegation = {
   delegator: string;
   createdAt: number;
   updatedAt: number;
+  revokedAt?: number | null;
   artifact: DelegationArtifact;
 };
 
@@ -30,12 +31,17 @@ const extractDelegator = (artifact: DelegationArtifact): string | undefined => {
 
 const ensureDelegator = (entry: StoredDelegation): StoredDelegation => {
   if (entry.delegator) {
-    return { ...entry, delegator: entry.delegator.toLowerCase() };
+    return {
+      ...entry,
+      delegator: entry.delegator.toLowerCase(),
+      revokedAt: entry.revokedAt ?? null,
+    };
   }
   const derived = extractDelegator(entry.artifact) ?? "unknown";
   return {
     ...entry,
     delegator: derived,
+    revokedAt: entry.revokedAt ?? null,
   };
 };
 
@@ -145,6 +151,7 @@ export const listActiveDelegations = (
 ) =>
   listDelegations(delegator).filter((entry) => {
     if (kind && (entry.artifact.kind ?? "swap") !== kind) return false;
+    if (entry.revokedAt) return false;
     return !isDelegationExpired(entry.artifact);
   });
 
@@ -179,6 +186,7 @@ export const saveDelegation = (artifact: DelegationArtifact, id?: string): Store
     artifact: normalized,
     createdAt: existingIndex >= 0 ? entries[existingIndex].createdAt : now,
     updatedAt: now,
+    revokedAt: null,
   };
 
   if (existingIndex >= 0) {
@@ -236,6 +244,41 @@ export const clearDelegations = (delegator?: Address) => {
     delete vault[key];
     writeVault(vault);
   }
+};
+
+export const markDelegationsRevoked = (delegator: Address, targetIds?: string[]): StoredDelegation[] => {
+  const vault = readVault();
+  const key = getAddress(delegator).toLowerCase();
+  const entries = vault[key];
+  if (!entries || entries.length === 0) {
+    return [];
+  }
+
+  const now = Date.now();
+  const targets = targetIds && targetIds.length > 0 ? new Set(targetIds) : undefined;
+  let mutated = false;
+
+  const updated = entries.map((entry) => {
+    if (targets && !targets.has(entry.id)) {
+      return entry;
+    }
+    if (entry.revokedAt) {
+      return entry;
+    }
+    mutated = true;
+    return {
+      ...entry,
+      revokedAt: now,
+      updatedAt: now,
+    };
+  });
+
+  if (mutated) {
+    vault[key] = updated;
+    writeVault(vault);
+  }
+
+  return updated;
 };
 
 export type { StoredDelegation };

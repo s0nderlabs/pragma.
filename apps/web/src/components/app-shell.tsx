@@ -10,10 +10,10 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#E6E2DC] text-[#0D0D0D]">
+    <div className="relative min-h-screen overflow-hidden bg-[#F4F3F8] text-[#1A1A1A]">
       <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-40 -left-24 h-[520px] w-[520px] rounded-full bg-[#E07A5F]/18 blur-3xl" />
-        <div className="absolute -bottom-48 -right-32 h-[420px] w-[420px] rounded-full bg-[#E07A5F]/12 blur-3xl" />
+        <div className="absolute -top-40 -left-24 h-[520px] w-[520px] rounded-full bg-[#846FFA]/18 blur-3xl" />
+        <div className="absolute -bottom-48 -right-32 h-[420px] w-[420px] rounded-full bg-[#846FFA]/12 blur-3xl" />
         <div className="absolute inset-y-0 left-1/2 h-[640px] w-[640px] -translate-x-1/2 rounded-[50%] bg-white/20 blur-[180px]" />
       </div>
 

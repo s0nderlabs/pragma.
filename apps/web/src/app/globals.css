@@ -2,25 +2,25 @@
 
 :root {
   color-scheme: light;
-  --background: 31 24% 88%;
-  --foreground: 24 18% 12%;
-  --card: 0 0% 100%;
-  --card-foreground: 24 18% 12%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 24 18% 12%;
-  --accent-h: 12;
-  --accent-s: 66%;
-  --accent-l: 63%;
+  --background: 259 25% 96%;
+  --foreground: 0 0% 10%;
+  --card: 252 25% 95%;
+  --card-foreground: 0 0% 10%;
+  --popover: 252 25% 95%;
+  --popover-foreground: 0 0% 10%;
+  --accent-h: 249;
+  --accent-s: 93%;
+  --accent-l: 71%;
   --accent: var(--accent-h) var(--accent-s) var(--accent-l);
-  --accent-strong: 10 66% 54%;
-  --accent-soft: var(--accent-h) var(--accent-s) 80%;
-  --accent-rgb: 224, 122, 95;
+  --accent-strong: 249 95% 64%;
+  --accent-soft: var(--accent-h) calc(var(--accent-s) * 0.9) 82%;
+  --accent-rgb: 132, 111, 250;
   --primary: var(--accent);
   --primary-foreground: 0 0% 100%;
-  --secondary: 32 22% 92%;
-  --secondary-foreground: 24 18% 12%;
-  --muted: 32 16% 86%;
-  --muted-foreground: 26 12% 34%;
+  --secondary: 252 25% 93%;
+  --secondary-foreground: 0 0% 10%;
+  --muted: 0 0% 36%;
+  --muted-foreground: 0 0% 36%;
   --accent-foreground: 0 0% 100%;
   --destructive: 4 73% 48%;
   --destructive-foreground: 210 40% 96%;
@@ -43,14 +43,14 @@
   --secondary: 240 6% 15%;
   --secondary-foreground: 210 40% 98%;
   --muted: 240 4% 14%;
-  --muted-foreground: 240 5% 65%;
-  --accent-h: 12;
-  --accent-s: 66%;
-  --accent-l: 56%;
+  --muted-foreground: 0 0% 65%;
+  --accent-h: 249;
+  --accent-s: 93%;
+  --accent-l: 60%;
   --accent: var(--accent-h) var(--accent-s) var(--accent-l);
-  --accent-strong: 12 66% 50%;
-  --accent-soft: var(--accent-h) var(--accent-s) 72%;
-  --accent-rgb: 224, 122, 95;
+  --accent-strong: 249 95% 54%;
+  --accent-soft: var(--accent-h) calc(var(--accent-s) * 0.9) 70%;
+  --accent-rgb: 132, 111, 250;
   --accent-foreground: 210 40% 98%;
   --destructive: 0 63% 45%;
   --destructive-foreground: 0 0% 100%;
@@ -91,8 +91,8 @@
 
   body {
     min-height: 100dvh;
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
+    background-color: #f4f3f8;
+    color: #1a1a1a;
     font-family: var(--font-sans), "Space Grotesk", system-ui, -apple-system, BlinkMacSystemFont,
       "Segoe UI", sans-serif;
     font-weight: 300;

@@ -9,7 +9,7 @@ import { Spinner } from "../ui/spinner";
 import { cn } from "../../lib/utils";
 import { ConnectedAccount } from "../account/connected-account";
 
-const LoadingDots = ({ tone = "#E07A5F" }: { tone?: string }) => (
+const LoadingDots = ({ tone = "#846FFA" }: { tone?: string }) => (
   <div data-testid="loading-dots" className="mt-3 flex items-center gap-1.5">
     {[0, 120, 240].map((delay) => (
       <span
@@ -35,7 +35,7 @@ const MessageBubble = ({ role, content, status = "default", logs }: MessageBubbl
       <div className="flex w-full justify-end">
         <div
           data-testid="user-message"
-          className="inline-flex max-w-[60%] overflow-hidden rounded-2xl border border-transparent bg-gradient-to-br from-[#E07A5F] to-[#D96B55] px-4 py-2 text-xs font-medium leading-relaxed text-white shadow-[0_3px_12px_rgba(0,0,0,0.1)]"
+          className="inline-flex max-w-[60%] overflow-hidden rounded-2xl border border-transparent bg-gradient-to-br from-[#846FFA] to-[#674CF9] px-4 py-2 text-xs font-medium leading-relaxed text-white shadow-[0_3px_12px_rgba(0,0,0,0.1)]"
         >
           <div className="whitespace-pre-wrap break-words leading-relaxed text-left">{content}</div>
         </div>
@@ -136,14 +136,14 @@ export const ChatConsole = () => {
     <div className="flex w-full justify-center">
       <div className="w-full max-w-4xl">
         <h1 className="sr-only">Chat console</h1>
-        <div className="rounded-[2.5rem] border border-[#E07A5F]/40 bg-gradient-to-br from-white/65 via-white/35 to-white/20 p-[3px] shadow-[0_35px_80px_rgba(13,13,13,0.18)] backdrop-blur-xl">
+        <div className="rounded-[2.5rem] border border-[#846FFA]/40 bg-gradient-to-br from-white/65 via-white/35 to-white/20 p-[3px] shadow-[0_35px_80px_rgba(13,13,13,0.18)] backdrop-blur-xl">
           <div
-            className="flex flex-col rounded-[2.3rem] border border-[#E07A5F]/30 bg-white/80 p-8 shadow-[0_18px_45px_rgba(13,13,13,0.12)] backdrop-blur-2xl"
+            className="flex flex-col rounded-[2.3rem] border border-[#846FFA]/30 bg-white/80 p-8 shadow-[0_18px_45px_rgba(13,13,13,0.12)] backdrop-blur-2xl"
             style={{ height: "min(700px, calc(100dvh - 240px))", minHeight: "400px" }}
           >
             <div className="mb-6 flex w-full items-center justify-end gap-3">
-              <div className="flex items-center gap-2 rounded-full border border-[#0D0D0D]/10 bg-white/70 px-4 py-2 text-xs font-medium text-black/60 shadow-sm">
-                <span className="text-black/70">Quick mode</span>
+              <div className="flex items-center gap-2 rounded-full border border-[#1A1A1A]/12 bg-white/70 px-4 py-2 text-xs font-medium text-[#5C5C5C] shadow-sm">
+                <span className="text-[#5C5C5C]">Quick mode</span>
                 <Button
                   type="button"
                   size="sm"
@@ -151,10 +151,10 @@ export const ChatConsole = () => {
                   onClick={() => setQuickMode((value) => !value)}
                   disabled={isSubmitting || isConfirming}
                   className={cn(
-                    "h-7 rounded-full border border-[#E07A5F]/30 px-3 text-xs font-semibold transition",
+                    "h-7 rounded-full border border-[#846FFA]/30 px-3 text-xs font-semibold transition",
                     quickMode
-                      ? "bg-gradient-to-br from-[#E07A5F] to-[#D96B55] text-white shadow-[0_6px_18px_rgba(224,122,95,0.35)]"
-                      : "bg-transparent text-[#E07A5F] hover:bg-[#E07A5F]/10",
+                      ? "bg-gradient-to-br from-[#846FFA] to-[#674CF9] text-white shadow-[0_6px_18px_rgba(132,111,250,0.35)]"
+                      : "bg-transparent text-[#846FFA] hover:bg-[#846FFA]/10",
                     (isSubmitting || isConfirming) && "opacity-60"
                   )}
                 >
@@ -170,7 +170,7 @@ export const ChatConsole = () => {
                 className="flex h-full flex-col space-y-6 overflow-y-auto pr-2 scrollbar-hide"
               >
               {messages.length === 0 ? (
-                <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-[#0D0D0D]/12 bg-white/60 p-8 text-center text-sm text-black/60">
+                <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-[#1A1A1A]/12 bg-white/60 p-8 text-center text-sm text-[#5C5C5C]">
                   Open the Connected account menu to configure your delegation, then ask Pragma to execute swaps, transfers, wraps, or answer questions here.
                 </div>
               ) : (
@@ -180,11 +180,11 @@ export const ChatConsole = () => {
             </div>
 
             {pendingAction && (
-              <div className="mt-6 rounded-[1.5rem] border border-[#E07A5F]/30 bg-[#E07A5F]/10 p-4 text-sm text-[#4A332C] shadow-inner">
+              <div className="mt-6 rounded-[1.5rem] border border-[#846FFA]/30 bg-[#846FFA]/10 p-4 text-sm text-[#2F285F] shadow-inner">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-sm font-semibold uppercase tracking-wide text-[#E07A5F]">Confirmation required</p>
-                    <p className="mt-1 whitespace-pre-wrap text-black/70">{pendingSummary}</p>
+                    <p className="text-sm font-semibold uppercase tracking-wide text-[#846FFA]">Confirmation required</p>
+                    <p className="mt-1 whitespace-pre-wrap text-[#3F356F]">{pendingSummary}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <Button
@@ -192,7 +192,7 @@ export const ChatConsole = () => {
                       variant="ghost"
                       onClick={cancelPendingAction}
                       disabled={isConfirming}
-                      className="rounded-full border border-transparent px-4 text-xs font-semibold text-[#4A332C] hover:bg-[#E07A5F]/20"
+                      className="rounded-full border border-transparent px-4 text-xs font-semibold text-[#3F356F] hover:bg-[#846FFA]/20"
                     >
                       Cancel
                     </Button>
@@ -200,7 +200,7 @@ export const ChatConsole = () => {
                       type="button"
                       onClick={confirmPendingAction}
                       disabled={isConfirming}
-                      className="rounded-full bg-gradient-to-br from-[#E07A5F] to-[#D96B55] px-4 text-xs font-semibold text-white shadow-[0_6px_18px_rgba(224,122,95,0.35)] hover:opacity-90"
+                      className="rounded-full bg-gradient-to-br from-[#846FFA] to-[#674CF9] px-4 text-xs font-semibold text-white shadow-[0_6px_18px_rgba(132,111,250,0.35)] hover:opacity-90"
                     >
                       {isConfirming ? (
                         <span className="flex items-center gap-2">
@@ -217,7 +217,7 @@ export const ChatConsole = () => {
 
             <form className="mt-6 space-y-3" onSubmit={handleSubmit}>
               <div
-                className="group flex items-center gap-3 rounded-full border border-[#0D0D0D]/10 bg-gradient-to-br from-white/40 to-white/20 px-4 py-2.5 shadow-[0_4px_16px_rgba(0,0,0,0.06)] backdrop-blur-xl transition focus-within:ring-2 focus-within:ring-[#E07A5F]/40"
+                className="group flex items-center gap-3 rounded-full border border-[#1A1A1A]/12 bg-gradient-to-br from-white/45 via-[#ECEBF2]/80 to-white/30 px-4 py-2.5 shadow-[0_4px_16px_rgba(26,26,26,0.06)] backdrop-blur-xl transition focus-within:ring-2 focus-within:ring-[#846FFA]/35"
                 onClick={() => inputRef.current?.focus()}
               >
                 <textarea
@@ -239,17 +239,17 @@ export const ChatConsole = () => {
                       event.currentTarget.form?.requestSubmit();
                     }
                   }}
-                  className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-[#0D0D0D] placeholder:text-[#0D0D0D]/45 outline-none"
+                  className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-[#1A1A1A] placeholder:text-[#5C5C5C]/70 outline-none"
                   rows={1}
                 />
                 <button
                   type="submit"
                   disabled={disableSend}
                   className={cn(
-                    "group inline-flex shrink-0 items-center gap-1.5 rounded-full px-5 py-2 text-xs font-semibold transition bg-gradient-to-br from-[#E07A5F] to-[#D96B55] text-white",
+                    "group inline-flex shrink-0 items-center gap-1.5 rounded-full px-5 py-2 text-xs font-semibold transition bg-gradient-to-br from-[#846FFA] to-[#674CF9] text-white",
                     disableSend
                       ? "cursor-not-allowed opacity-50"
-                      : "shadow-[0_4px_12px_rgba(224,122,95,0.3)] hover:shadow-[0_6px_20px_rgba(224,122,95,0.35)]",
+                      : "shadow-[0_4px_12px_rgba(132,111,250,0.3)] hover:shadow-[0_6px_20px_rgba(132,111,250,0.35)]",
                   )}
                 >
                   {isSubmitting ? (
@@ -264,10 +264,10 @@ export const ChatConsole = () => {
                   )}
                 </button>
               </div>
-              <div className="flex items-center justify-between text-xs text-black/50">
+              <div className="flex items-center justify-between text-xs text-[#5C5C5C]">
                 <span>Shift+Enter for a new line. Press Enter to send immediately.</span>
                 {loadingTokens && (
-                  <div className="flex items-center gap-2 text-[#E07A5F]">
+                  <div className="flex items-center gap-2 text-[#846FFA]">
                     <Spinner className="h-3.5 w-3.5" /> Preparing delegation context…
                   </div>
                 )}

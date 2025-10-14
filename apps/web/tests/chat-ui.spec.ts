@@ -146,14 +146,14 @@ test.describe("Chat UI", () => {
     }).toPass();
   });
 
-  test("keeps user messages as terracotta bubbles", async ({ page }) => {
+  test("keeps user messages as accent bubbles", async ({ page }) => {
     const textarea = page.getByPlaceholder(/Ask Pragma to swap/i);
     await textarea.fill("swap 1 mon to wmon");
     await textarea.press("Enter");
 
     const userBubble = page.locator("[data-testid=user-message]").first();
     await expect(userBubble).toHaveClass(/bg-gradient-to-br/);
-    await expect(userBubble).toHaveClass(/from-\[#E07A5F\]/);
+    await expect(userBubble).toHaveClass(/from-\[#846FFA\]/);
   });
 
   test("displays loading pulse before system response completes", async ({ page }) => {

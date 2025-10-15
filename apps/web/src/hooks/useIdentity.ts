@@ -4,7 +4,7 @@ import * as React from "react";
 import { Web3Auth } from "@web3auth/modal";
 import { OpenloginAdapter } from "@web3auth/openlogin-adapter";
 import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider";
-import { getAddress, type Address, type Hex } from "viem";
+import { createWalletClient, custom, getAddress, type Address, type Hex } from "viem";
 const CHAIN_NAMESPACES = {
   EIP155: "eip155" as const,
 };
@@ -16,7 +16,7 @@ import {
   WEB3AUTH_CLIENT_ID,
   WEB3AUTH_NETWORK,
 } from "../lib/config";
-import { createWalletClientFromProvider, type WalletWithAddress } from "../lib/clients";
+import { createWalletClientFromProvider, monadChain, type WalletWithAddress } from "../lib/clients";
 import { createHybridDelegatorHandle } from "../lib/onboarding/hybridDelegator";
 import { setActiveDelegator, clearActiveDelegator, IDENTITY_EVENT } from "../lib/storage/active-delegator";
 import { clearOwnerDelegator, getOwnerDelegator, setOwnerDelegator } from "../lib/storage/owner-delegators";
@@ -39,13 +39,29 @@ const isMockIdentity = process.env.NEXT_PUBLIC_PRAGMA_IDENTITY_PROVIDER === "moc
 const DEFAULT_MOCK_OWNER = (process.env.NEXT_PUBLIC_PRAGMA_MOCK_OWNER_ADDRESS ?? "0x1111111111111111111111111111111111111111") as Address;
 const DEFAULT_MOCK_DELEGATOR = (process.env.NEXT_PUBLIC_PRAGMA_MOCK_DELEGATOR_ADDRESS ?? "0x2222222222222222222222222222222222222222") as Address;
 
-const createMockWallet = (address: Address): WalletWithAddress => ({
-  address,
-  walletClient: {
-    account: { address } as unknown,
-    signTypedData: async () => "0x" as Hex,
-  } as WalletWithAddress["walletClient"],
-});
+const createMockWallet = (address: Address): WalletWithAddress => {
+  const baseClient = createWalletClient({
+    chain: monadChain,
+    account: address,
+    transport: custom({
+      request: async () => {
+        throw new Error("Mock wallet client cannot perform RPC requests");
+      },
+    }),
+  });
+
+  const mockClient = baseClient.extend(() => ({
+    signTypedData: async (...args: Parameters<typeof baseClient.signTypedData>) => {
+      void args;
+      return "0x" as Hex;
+    },
+  }));
+
+  return {
+    address,
+    walletClient: mockClient,
+  };
+};
 
 let identitySnapshot: IdentitySnapshot = {
   status: "idle",

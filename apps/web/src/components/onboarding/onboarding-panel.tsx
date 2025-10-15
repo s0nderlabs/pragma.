@@ -138,7 +138,7 @@ export const OnboardingPanel = ({ onStatusUpdate, onRequestClose }: OnboardingPa
       expiry: formatExpiry(delegationStatus?.expiresAt),
       mode: delegationStatus?.mode ? (delegationStatus.mode === "safe" ? "Safe" : "Normal") : "—",
     } satisfies QuickStatusSnapshot;
-  }, [activeDelegator, delegationStatus, identity.status, identity.wallet]);
+  }, [activeDelegator, delegationStatus, identity.wallet]);
 
   React.useEffect(() => {
     if (!onStatusUpdate) return;

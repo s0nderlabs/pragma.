@@ -129,37 +129,9 @@ test.describe("Connected account identity flow", () => {
     await connectedButton.click();
 
     const shortDelegator = `${DELEGATOR_ADDRESS.slice(0, 6)}…${DELEGATOR_ADDRESS.slice(-4)}`;
-    await page.waitForSelector("section ul li", { state: "attached" });
 
-    await expect(async () => {
-      const textContent = await page.evaluate(() => {
-        const rows = Array.from(document.querySelectorAll("section ul li"));
-        for (const row of rows) {
-          const label = row.querySelector("span");
-          if (label?.textContent?.trim() === "Delegator") {
-            const value = row.querySelector("div > span");
-            return value?.textContent?.trim() ?? null;
-          }
-        }
-        return null;
-      });
-      expect(textContent).toBe(shortDelegator);
-    }).toPass();
-
-    await expect(async () => {
-      const value = await page.evaluate(() => {
-        const rows = Array.from(document.querySelectorAll("section ul li"));
-        for (const row of rows) {
-          const label = row.querySelector("span");
-          if (label?.textContent?.trim() === "Smart account") {
-            const span = row.querySelector("span:last-child");
-            return span?.textContent ?? null;
-          }
-        }
-        return null;
-      });
-      expect(value).toMatch(/HybridDelegator ready|Awaiting issuance|Already deployed/);
-    }).toPass();
+    await expect(page.getByTestId("connected-delegator")).toHaveText(shortDelegator);
+    await expect(page.getByTestId("connected-smart-account")).toHaveText(/HybridDelegator ready|Awaiting issuance|Already deployed/);
 
     await expect(page.getByText(/Tokens: MON, WMON/).first()).toBeVisible();
 
@@ -209,20 +181,8 @@ test.describe("Connected account identity flow", () => {
 
     await expect(page.getByText(/Delegations revoked/i)).toBeVisible();
 
-    const statusLabel = await page.evaluate(() => {
-      const rows = Array.from(document.querySelectorAll("section ul li"));
-      for (const row of rows) {
-        const label = row.querySelector("span");
-        if (label?.textContent?.trim() === "Smart account") {
-          const span = row.querySelector("span:last-child");
-          return span?.textContent ?? null;
-        }
-      }
-      return null;
-    });
-
-    expect(statusLabel).not.toBeNull();
-    expect(statusLabel as string).toMatch(/Delegation revoked|Awaiting issuance/);
+    const statusLabel = await page.getByTestId("connected-smart-account").innerText();
+    expect(statusLabel).toMatch(/Delegation revoked|Awaiting issuance/);
 
     await expect(page.getByText(/Revoked/i).first()).toBeVisible();
   });
@@ -247,39 +207,15 @@ test.describe("Connected account identity flow", () => {
     await expect(connectedButton).toBeVisible();
     await connectedButton.click();
 
-    const readSessionKey = async () => {
-      return page.evaluate(() => {
-        const rows = Array.from(document.querySelectorAll("section ul li"));
-        for (const row of rows) {
-          const label = row.querySelector("span");
-          if (label?.textContent?.trim() === "Session key") {
-            const value = row.querySelector("div > span");
-            return value?.textContent?.trim() ?? null;
-          }
-        }
-        return null;
-      });
-    };
-
-    const initialSessionKey = await readSessionKey();
-    expect(initialSessionKey).not.toBeNull();
+    const sessionKeyLocator = page.getByTestId("connected-session-key");
+    const initialSessionKey = (await sessionKeyLocator.innerText()).trim();
+    expect(initialSessionKey.length).toBeGreaterThan(0);
 
     await page.getByRole("button", { name: "Rotate session key" }).click();
 
-    await page.waitForFunction((previous) => {
-      const rows = Array.from(document.querySelectorAll("section ul li"));
-      for (const row of rows) {
-        const label = row.querySelector("span");
-        if (label?.textContent?.trim() === "Session key") {
-          const value = row.querySelector("div > span");
-          return value?.textContent?.trim() !== previous;
-        }
-      }
-      return false;
-    }, initialSessionKey);
+    await expect.poll(async () => (await sessionKeyLocator.innerText()).trim()).not.toBe(initialSessionKey);
 
-    const rotatedSessionKey = await readSessionKey();
-    expect(rotatedSessionKey).not.toBeNull();
+    const rotatedSessionKey = (await sessionKeyLocator.innerText()).trim();
     expect(rotatedSessionKey).not.toBe(initialSessionKey);
   });
 

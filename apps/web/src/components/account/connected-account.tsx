@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ClipboardCopy, KeyRound } from "lucide-react";
+import { ClipboardCopy, Clock, KeyRound, ShieldCheck, Sparkles } from "lucide-react";
 import { getAddress, type Address } from "viem";
 import type { Mode } from "@pragma/core/delegations/types";
 
@@ -50,6 +50,41 @@ const defaultStatus: QuickStatusSnapshot = {
   expiry: "—",
   mode: "—",
 };
+
+const GlassPanel = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      "rounded-[1.5rem] border border-[#846FFA]/30 bg-gradient-to-br from-white/78 via-white/50 to-white/28 p-6 shadow-[0_26px_60px_rgba(132,111,250,0.2)] backdrop-blur-2xl dark:border-[#846FFA]/35 dark:bg-[linear-gradient(140deg,rgba(30,30,39,0.88)_0%,rgba(30,30,39,0.58)_55%,rgba(30,30,39,0.74)_100%)] dark:shadow-[0_32px_70px_rgba(0,0,0,0.45)]",
+      className,
+    )}
+    {...props}
+  />
+);
+
+type StatCardProps = {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+  description?: React.ReactNode;
+  actions?: React.ReactNode;
+  testId?: string;
+};
+
+const StatCard = ({ icon, label, value, description, actions, testId }: StatCardProps) => (
+  <GlassPanel className="flex h-full flex-col gap-4 p-6">
+    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-[#7A6FAF] dark:text-[#C7C3E8]">
+      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#846FFA]/12 text-[#674CF9] shadow-[0_8px_18px_rgba(132,111,250,0.25)] dark:bg-[#846FFA]/20 dark:text-[#D8D4FF]">
+        {icon}
+      </span>
+      {label}
+    </div>
+    <div data-testid={testId} className="text-xl font-semibold text-[#1A1A1A] dark:text-[#F8F8FF]">
+      {value}
+    </div>
+    {description ? <div className="text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">{description}</div> : null}
+    {actions ? <div className="mt-auto flex items-center justify-between gap-3 text-xs text-[#5C5C5C] dark:text-[#C7C3E8]">{actions}</div> : null}
+  </GlassPanel>
+);
 
 const describeError = (error: unknown): string => {
   if (error instanceof Error && error.message) {
@@ -114,6 +149,18 @@ export const ConnectedAccount = () => {
   }, [revokeSelection]);
 
   const hasActiveDelegations = activeDelegations.length > 0;
+
+  const connectionStatusLabel = connected
+    ? "Connected"
+    : identity.status === "connecting"
+      ? "Connecting…"
+      : "Disconnected";
+
+  const connectionBadgeClass = connected
+    ? "border-[#846FFA]/40 bg-[#846FFA]/18 text-[#674CF9]"
+    : identity.status === "connecting"
+      ? "border-amber-500/35 bg-amber-500/15 text-amber-600"
+      : "border-[#1A1A1A]/20 bg-[#1A1A1A]/10 text-[#1A1A1A] dark:border-[#F8F8FF]/20 dark:bg-[#F8F8FF]/10 dark:text-[#F8F8FF]";
 
   React.useEffect(() => {
     if (availableModes.length === 0) {
@@ -352,143 +399,180 @@ export const ConnectedAccount = () => {
           {buttonLabel}
         </Button>
       </DialogTrigger>
-      <DialogContent className="overflow-hidden">
-        <DialogHeader>
-          <DialogTitle>Connected account</DialogTitle>
-          <DialogDescription>
-            Manage your Web3Auth session, delegations, session key, and guardrails that power the chat console.
-          </DialogDescription>
+      <DialogContent className="max-w-4xl overflow-hidden rounded-[2.5rem] border border-[#846FFA]/35 bg-gradient-to-br from-white/88 via-white/55 to-white/34 p-0 shadow-[0_38px_100px_rgba(132,111,250,0.32)] backdrop-blur-3xl dark:border-[#846FFA]/35 dark:bg-[linear-gradient(135deg,rgba(23,23,31,0.95)_0%,rgba(23,23,31,0.72)_55%,rgba(23,23,31,0.88)_100%)]">
+        <DialogHeader className="border-none px-8 pb-4 pt-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-2">
+              <DialogTitle className="text-2xl font-semibold text-[#1A1A1A] dark:text-[#F8F8FF]">Connected account</DialogTitle>
+              <DialogDescription className="max-w-xl text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/85">
+                Manage your Web3Auth session, delegations, session key, and guardrails that power the chat console.
+              </DialogDescription>
+            </div>
+            <span
+              className={cn(
+                "inline-flex h-9 items-center justify-center rounded-full border px-4 text-xs font-semibold uppercase tracking-[0.18em]",
+                connectionBadgeClass,
+              )}
+            >
+              {connectionStatusLabel}
+            </span>
+          </div>
         </DialogHeader>
-        <DialogBody className="space-y-6">
-          <section className="rounded-2xl border border-border/70 bg-card/60 p-5 backdrop-blur">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Session overview</h3>
-            <ul className="mt-4 space-y-3 text-sm">
-              <li className="flex items-center justify-between gap-4">
-                <span>Delegator</span>
-                <div className="flex items-center gap-2">
-                <span className="text-muted-foreground/80">{sessionDelegatorLabel}</span>
+        <DialogBody className="space-y-6 px-8 pb-8 pt-0">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <StatCard
+              icon={<Sparkles className="h-3.5 w-3.5" />}
+              label="Delegator"
+              value={sessionDelegatorLabel}
+              testId="connected-delegator"
+              description={
+                sessionDelegatorFull
+                  ? "Fund this account to settle swaps and transfers."
+                  : "Connect your wallet to derive a HybridDelegator."
+              }
+              actions={
+                <>
+                  <span className="truncate">{walletAddress ? `Owner ${shortHex(walletAddress)}` : "No owner connected"}</span>
                   <Button
                     type="button"
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8"
+                    className="h-8 w-8 rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
                     onClick={() => handleCopy(sessionDelegatorFull)}
                     disabled={!sessionDelegatorFull}
                     aria-label="Copy delegator address"
                   >
                     <ClipboardCopy className="h-4 w-4" />
                   </Button>
+                </>
+              }
+            />
+            <StatCard
+              icon={<KeyRound className="h-3.5 w-3.5" />}
+              label="Session key"
+              value={quickStatus.sessionKey}
+              testId="connected-session-key"
+              description={
+                <div className="space-y-1">
+                  <span data-testid="connected-session-expiry">Expiry {quickStatus.expiry}</span>
+                  <span>{quickStatus.mode !== "—" ? `Mode ${quickStatus.mode}` : "Awaiting issuance"}</span>
                 </div>
-              </li>
-              <li className="flex items-start justify-between gap-4">
-                <span>Smart account</span>
-                <span className="max-w-[220px] text-right text-muted-foreground/80">{quickStatus.smartAccount}</span>
-              </li>
-              <li className="flex items-center justify-between gap-4">
-                <span>Session key</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground/80">{quickStatus.sessionKey}</span>
+              }
+              actions={
+                <>
+                  <span className="truncate">Top up ~0.5 MON for gas</span>
                   <Button
                     type="button"
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8"
+                    className="h-8 w-8 rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
                     onClick={() => handleCopy(quickStatus.sessionKeyFull)}
                     disabled={!quickStatus.sessionKeyFull}
                     aria-label="Copy session key address"
                   >
                     <ClipboardCopy className="h-4 w-4" />
                   </Button>
+                </>
+              }
+            />
+            <StatCard
+              icon={<ShieldCheck className="h-3.5 w-3.5" />}
+              label="Smart account"
+              value={quickStatus.smartAccount}
+              testId="connected-smart-account"
+              description={
+                <div className="space-y-1">
+                  <span>{hasActiveDelegations ? "Delegations active and ready" : "Issue a delegation to activate"}</span>
+                  <span className="flex items-center gap-1 text-[11px] uppercase tracking-[0.2em] text-[#7A6FAF]/80 dark:text-[#C7C3E8]/80">
+                    <Clock className="h-3 w-3" /> Refreshed just now
+                  </span>
                 </div>
-              </li>
-              <li className="flex items-center justify-between gap-4">
-                <span>Mode</span>
-                <span className="text-muted-foreground/80">{quickStatus.mode}</span>
-              </li>
-              <li className="flex items-center justify-between gap-4">
-                <span>Session expiry</span>
-                <span className="text-muted-foreground/80">{quickStatus.expiry}</span>
-              </li>
-            </ul>
-            <div className="mt-4 space-y-3 text-sm">
+              }
+            />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <GlassPanel className="flex flex-col gap-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">Session controls</h3>
+                  <p className="mt-1 text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/85">
+                    Rotate your session key to reissue delegations with a fresh address. This ensures pending plans use the latest guardrails.
+                  </p>
+                </div>
+              </div>
               {rotateSuccess ? (
-                <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-emerald-600">{rotateSuccess}</p>
+                <p className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-600 dark:text-emerald-400">{rotateSuccess}</p>
               ) : null}
               {rotateError ? (
-                <p className="rounded-md bg-destructive/10 px-3 py-2 text-destructive">{rotateError}</p>
+                <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm text-destructive">{rotateError}</p>
               ) : null}
-              <Button type="button" variant="outline" onClick={() => void handleRotateSessionKey()} disabled={isRotating}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => void handleRotateSessionKey()}
+                disabled={isRotating}
+                className={cn(
+                  "inline-flex items-center gap-2 self-start rounded-full border border-[#846FFA]/40 bg-gradient-to-r from-[#846FFA]/25 to-[#674CF9]/35 px-5 py-2 text-sm font-semibold text-[#3F356F] shadow-[0_10px_24px_rgba(132,111,250,0.25)] transition hover:opacity-90 dark:border-[#846FFA]/45 dark:text-[#F8F8FF]",
+                  isRotating && "opacity-60",
+                )}
+              >
                 {isRotating ? "Rotating session key…" : "Rotate session key"}
               </Button>
-            </div>
-          </section>
+            </GlassPanel>
 
-          <section className="rounded-2xl border border-border/70 bg-card/60 p-5 backdrop-blur">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Funding instructions</h3>
-            <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
-              <li>
-                Copy the delegator address above and fund it with the amount of MON you want available for swaps and transfers—
-                it holds the balances that settle each intent. After sending MON, reopen this panel or run
-                <code className="inline rounded bg-muted px-1 py-0.5 text-xs text-foreground">delegation status</code>
-                &nbsp;in chat to confirm the updated balance.
-              </li>
-              <li>
-                Copy the session key address and send roughly <span className="font-medium text-foreground">0.5&nbsp;MON</span>
-                &nbsp;to act as its gas tank for UserOperations. If either balance looks stale after funding, disconnect and
-                reconnect so the session picks up the refreshed state.
-              </li>
-            </ol>
-          </section>
-
-          <section className="rounded-2xl border border-border/70 bg-card/60 p-5 backdrop-blur">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Revoke delegations</h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Bump the HybridDelegator nonce to invalidate existing session keys. You’ll need to reissue delegations before
-                  submitting new actions.
-                </p>
+            <GlassPanel className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">Revoke delegations</h3>
+                  <p className="mt-1 text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/85">
+                    Bump the HybridDelegator nonce to invalidate existing session keys. You’ll need to reissue delegations before submitting new actions.
+                  </p>
+                </div>
+                <div className="w-full max-w-[180px]">
+                  <Select
+                    value={revokeModeValue}
+                    onValueChange={(value) => setRevokeSelection(value as "auto" | Mode)}
+                    disabled={!hasActiveDelegations || availableModes.length <= 1}
+                  >
+                    <SelectTrigger className="rounded-full border border-[#846FFA]/30 bg-white/70 text-xs text-[#3F356F] shadow-sm transition dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/85">
+                      <SelectValue placeholder="Select mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">All modes</SelectItem>
+                      {availableModes.includes("safe") ? <SelectItem value="safe">Safe mode</SelectItem> : null}
+                      {availableModes.includes("normal") ? <SelectItem value="normal">Normal mode</SelectItem> : null}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="w-full max-w-[160px]">
-                <Select
-                  value={revokeModeValue}
-                  onValueChange={(value) => setRevokeSelection(value as "auto" | Mode)}
-                  disabled={!hasActiveDelegations || availableModes.length <= 1}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select mode" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">All modes</SelectItem>
-                    {availableModes.includes("safe") ? <SelectItem value="safe">Safe mode</SelectItem> : null}
-                    {availableModes.includes("normal") ? <SelectItem value="normal">Normal mode</SelectItem> : null}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
 
-            <div className="mt-4 space-y-3 text-sm">
               {revokeSuccess ? (
-                <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-emerald-600">{revokeSuccess}</p>
+                <p className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-600 dark:text-emerald-400">{revokeSuccess}</p>
               ) : null}
               {revokeError ? (
-                <p className="rounded-md bg-destructive/10 px-3 py-2 text-destructive">{revokeError}</p>
+                <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm text-destructive">{revokeError}</p>
               ) : null}
+
               {!revokePending ? (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   disabled={!hasActiveDelegations || isRevoking}
                   onClick={() => {
                     setRevokePending(true);
                     setRevokeError(null);
                     setRevokeSuccess(null);
                   }}
+                  className={cn(
+                    "inline-flex items-center justify-center gap-2 self-start rounded-full border border-[#846FFA]/40 bg-white/70 px-5 py-2 text-sm font-semibold text-[#3F356F] shadow-sm transition hover:bg-[#846FFA]/12 dark:border-[#846FFA]/45 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/85 dark:hover:bg-[#846FFA]/20",
+                    (!hasActiveDelegations || isRevoking) && "opacity-60",
+                  )}
                 >
                   Revoke delegations
                 </Button>
               ) : (
-                <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4">
+                <div className="rounded-[1.25rem] border border-destructive/40 bg-destructive/5 p-4">
                   <p className="text-sm text-destructive">
                     This will bump the HybridDelegator nonce and disable the selected mode’s delegation. Continue?
                   </p>
@@ -498,7 +582,7 @@ export const ConnectedAccount = () => {
                       variant="destructive"
                       disabled={isRevoking}
                       onClick={() => void handleRevoke()}
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold"
                     >
                       {isRevoking ? <Spinner className="h-4 w-4" /> : null}
                       Confirm revoke
@@ -511,46 +595,59 @@ export const ConnectedAccount = () => {
                         setRevokeError(null);
                         setRevokeSuccess(null);
                       }}
+                      className="rounded-full px-4 py-2 text-sm font-semibold"
                     >
                       Cancel
                     </Button>
                   </div>
                 </div>
               )}
-            </div>
-          </section>
+            </GlassPanel>
+          </div>
 
-          <section className="rounded-2xl border border-border/70 bg-card/60 p-5 backdrop-blur">
+          <GlassPanel>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">Funding instructions</h3>
+            <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/85">
+              <li>
+                Copy the delegator address and fund it with the amount of MON you want available for swaps and transfers—the delegator holds the settlement balances. After sending MON, reopen this panel or run <code className="inline rounded bg-[#ECEBF2] px-1 py-0.5 text-xs text-[#1A1A1A] dark:bg-[#1E1E27] dark:text-[#F8F8FF]">delegation status</code> in chat to confirm the updated balance.
+              </li>
+              <li>
+                Copy the session key address and send roughly <span className="font-medium text-[#1A1A1A] dark:text-[#F8F8FF]">0.5&nbsp;MON</span> to act as its gas tank for UserOperations. If either balance looks stale after funding, disconnect and reconnect so the session picks up the refreshed state.
+              </li>
+            </ol>
+          </GlassPanel>
+
+          <GlassPanel>
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Recent receipts</h3>
-              <span className="text-xs text-muted-foreground">{receipts.length} stored</span>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">Recent receipts</h3>
+              <span className="text-xs text-[#7A6FAF] dark:text-[#C7C3E8]">{receipts.length} stored</span>
             </div>
             <div className="mt-4 grid gap-3 text-sm">
               {receipts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Swaps executed from this browser will appear here with status, summary, and transaction links.</p>
+                <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">Swaps executed from this browser will appear here with status, summary, and transaction links.</p>
               ) : (
                 receipts.map((entry) => {
                   const { record } = entry;
                   const statusTone = record.status === "success"
-                    ? "bg-emerald-500/15 text-emerald-600"
+                    ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                     : "bg-destructive/15 text-destructive";
                   const statusLabel = record.status === "success" ? "Success" : "Failed";
                   const txLabel = record.txHash ? shortHex(record.txHash) : "Pending";
                   const explorerUrl = monadChain.blockExplorers?.default?.url;
                   const txLink = record.txHash && explorerUrl ? `${explorerUrl}/tx/${record.txHash}` : null;
                   return (
-                    <div key={entry.id} className="rounded-xl border border-border/60 bg-background/60 px-4 py-3">
+                    <div key={entry.id} className="rounded-[1.25rem] border border-[#846FFA]/25 bg-white/65 px-4 py-3 shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium">{record.summary}</span>
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusTone}`}>
+                        <span className="font-medium text-[#1A1A1A] dark:text-[#F8F8FF]">{record.summary}</span>
+                        <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", statusTone)}>
                           {statusLabel}
                         </span>
                       </div>
-                      <p className="mt-2 text-xs text-muted-foreground">Executed {formatTimestamp(record.executedAt ?? record.createdAt)}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      <p className="mt-2 text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">Executed {formatTimestamp(record.executedAt ?? record.createdAt)}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
                         <span>
                           Tx: {txLink ? (
-                            <a className="text-foreground underline" href={txLink} target="_blank" rel="noreferrer">
+                            <a className="text-[#674CF9] underline dark:text-[#DAD7FF]" href={txLink} target="_blank" rel="noreferrer">
                               {txLabel}
                             </a>
                           ) : (
@@ -565,16 +662,16 @@ export const ConnectedAccount = () => {
                 })
               )}
             </div>
-          </section>
+          </GlassPanel>
 
-          <section className="rounded-2xl border border-border/70 bg-card/60 p-5 backdrop-blur">
+          <GlassPanel>
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Current delegations</h3>
-              <span className="text-xs text-muted-foreground">{delegations.length} stored</span>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">Current delegations</h3>
+              <span className="text-xs text-[#7A6FAF] dark:text-[#C7C3E8]">{delegations.length} stored</span>
             </div>
             <div className="mt-4 grid gap-3">
               {delegations.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No delegations stored yet. Complete onboarding to issue a new delegation.</p>
+                <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">No delegations stored yet. Complete onboarding to issue a new delegation.</p>
               ) : (
                 delegations.map((entry) => {
                   const artifact = entry.artifact;
@@ -584,33 +681,32 @@ export const ConnectedAccount = () => {
                   const isExpired = artifact.expiresAt ? now >= artifact.expiresAt : false;
                   const isRevoked = Boolean(entry.revokedAt);
                   const statusLabel = isRevoked ? "Revoked" : isExpired ? "Expired" : "Active";
-                  const statusTone = isRevoked ? "bg-destructive/15 text-destructive" : isExpired ? "bg-amber-500/15 text-amber-600" : "bg-emerald-500/15 text-emerald-600";
+                  const statusTone = isRevoked
+                    ? "bg-destructive/15 text-destructive"
+                    : isExpired
+                      ? "bg-amber-500/15 text-amber-600"
+                      : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400";
                   const revokeTimestamp = entry.revokedAt ? new Date(entry.revokedAt).toLocaleString() : null;
                   return (
-                    <div
-                      key={entry.id}
-                      className="rounded-xl border border-border/60 bg-background/60 px-4 py-3 text-sm"
-                    >
+                    <div key={entry.id} className="rounded-[1.25rem] border border-[#846FFA]/25 bg-white/65 px-4 py-3 text-sm shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-medium">
+                        <span className="font-medium text-[#1A1A1A] dark:text-[#F8F8FF]">
                           {kind} delegation · {artifact.mode === "safe" ? "Safe" : "Normal"} mode
                         </span>
                         <div className="flex items-center gap-3">
-                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusTone}`}>
+                          <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", statusTone)}>
                             {statusLabel}
                           </span>
-                          <span className="text-xs text-muted-foreground">
-                            Expires {formatExpiry(artifact.expiresAt)}
-                          </span>
+                          <span className="text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">Expires {formatExpiry(artifact.expiresAt)}</span>
                         </div>
                       </div>
                       {tokens.length > 0 ? (
-                        <p className="mt-2 text-xs text-muted-foreground">
+                        <p className="mt-2 text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
                           Tokens: {tokens.join(", ")}
                         </p>
                       ) : null}
                       {revokeTimestamp ? (
-                        <p className="mt-2 text-xs text-muted-foreground">
+                        <p className="mt-2 text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
                           Revoked {revokeTimestamp}
                         </p>
                       ) : null}
@@ -619,12 +715,11 @@ export const ConnectedAccount = () => {
                 })
               )}
             </div>
-          </section>
+          </GlassPanel>
 
-          <OnboardingPanel
-            onStatusUpdate={setQuickStatus}
-            onRequestClose={() => setOpen(false)}
-          />
+          <GlassPanel className="p-0">
+            <OnboardingPanel onStatusUpdate={setQuickStatus} onRequestClose={() => setOpen(false)} />
+          </GlassPanel>
         </DialogBody>
       </DialogContent>
     </Dialog>

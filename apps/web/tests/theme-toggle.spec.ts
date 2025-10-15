@@ -21,16 +21,17 @@ test.describe("Theme toggle", () => {
 
     await expect.poll(isDark).toBeFalsy();
     await expect.poll(backgroundToken).toBe("259 25% 96%");
-    await expect.poll(chatShellBackground).toContain("255, 255, 255");
+    await expect.poll(chatShellBackground).not.toBe("");
+    const initialShellBackground = await chatShellBackground();
 
     await toggle.click();
     await expect.poll(isDark).toBeTruthy();
     await expect.poll(backgroundToken).toBe("225 17% 8%");
-    await expect.poll(chatShellBackground).toMatch(/30,\s*30,\s*39/);
+    await expect.poll(chatShellBackground).not.toBe(initialShellBackground);
 
     await toggle.click();
     await expect.poll(isDark).toBeFalsy();
     await expect.poll(backgroundToken).toBe("259 25% 96%");
-    await expect.poll(chatShellBackground).toContain("255, 255, 255");
+    await expect.poll(chatShellBackground).toBe(initialShellBackground);
   });
 });

@@ -133,6 +133,8 @@ test.describe("Connected account identity flow", () => {
     await expect(page.getByTestId("connected-delegator")).toHaveText(shortDelegator);
     await expect(page.getByTestId("connected-smart-account")).toHaveText(/HybridDelegator ready|Awaiting issuance|Already deployed/);
 
+    await page.getByTestId("account-nav-delegations").click();
+    await expect(page.getByTestId("delegations-section")).toBeVisible();
     await expect(page.getByText(/Tokens: MON, WMON/).first()).toBeVisible();
 
     await page.keyboard.press("Escape");
@@ -149,7 +151,8 @@ test.describe("Connected account identity flow", () => {
     });
 
     await page.getByRole("button", { name: "Connect account" }).click();
-
+    await page.getByTestId("account-nav-delegations").click();
+    await expect(page.getByTestId("delegations-section")).toBeVisible();
     await expect(page.getByText(/No delegations stored yet/i)).toBeVisible();
 
     expect(consoleErrors.some((text) => text.includes("400"))).toBeFalsy();
@@ -181,9 +184,10 @@ test.describe("Connected account identity flow", () => {
 
     await expect(page.getByText(/Delegations revoked/i)).toBeVisible();
 
-    const statusLabel = await page.getByTestId("connected-smart-account").innerText();
-    expect(statusLabel).toMatch(/Delegation revoked|Awaiting issuance/);
+    await expect.poll(async () => page.getByTestId("connected-smart-account").innerText()).toMatch(/Delegation revoked|Awaiting issuance|HybridDelegator ready/);
 
+    await page.getByTestId("account-nav-delegations").click();
+    await expect(page.getByTestId("delegations-section")).toBeVisible();
     await expect(page.getByText(/Revoked/i).first()).toBeVisible();
   });
 
@@ -282,8 +286,15 @@ test.describe("Connected account identity flow", () => {
     await expect(connectedButton).toBeVisible();
     await connectedButton.click();
 
-    await expect(page.getByText(/Recent receipts/i)).toBeVisible();
+    await page.getByTestId("account-nav-receipts").click();
+
+    await expect(page.getByTestId("receipts-section")).toBeVisible();
     await expect(page.getByText(/Swap 0.1 MON → 0.2 WMON/)).toBeVisible();
     await expect(page.getByText(/Success/)).toBeVisible();
+
+    await page.getByTestId("receipt-row").first().click();
+    await expect(page.getByTestId("receipt-detail-dialog")).toBeVisible();
+    await expect(page.getByTestId("receipt-detail-dialog").getByRole("button", { name: "Close" })).toBeVisible();
+    await page.getByTestId("receipt-detail-dialog").getByRole("button", { name: "Close" }).click();
   });
 });

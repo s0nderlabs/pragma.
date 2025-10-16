@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { ClipboardCopy, KeyRound, ShieldCheck, Sparkles } from "lucide-react";
 import { getAddress, parseEther, type Address } from "viem";
 import type { AllowedToken, Mode } from "@pragma/core";
 
@@ -11,9 +12,8 @@ import { Label } from "../ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
 import { Checkbox } from "../ui/checkbox";
-import { Separator } from "../ui/separator";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "../ui/card";
 import { Spinner } from "../ui/spinner";
+import { StatCard } from "../ui/glass";
 import { fetchAllowlist, initializeHybridDelegator, buildDelegationPlan, finalizeDelegations } from "../../lib/onboarding/service";
 import {
   MONAD_NATIVE_TOKEN_SYMBOL,
@@ -26,6 +26,7 @@ import type { WalletWithAddress } from "../../lib/clients";
 import { loadChatSession } from "../../lib/chat/session";
 import { getActiveDelegator, IDENTITY_EVENT } from "../../lib/storage/active-delegator";
 import { getOwnerDelegator } from "../../lib/storage/owner-delegators";
+import { cn } from "../../lib/utils";
 
 export interface QuickStatusSnapshot {
   delegator: string;
@@ -48,6 +49,23 @@ const NORMAL_TTL_SECONDS = 24 * 60 * 60;
 type OnboardingState = "idle" | "loading" | "signing" | "completed" | "error";
 
 const DEFAULT_TRANSFER_MON = "1";
+
+const glassSectionClass =
+  "rounded-[1.25rem] border border-[#846FFA]/22 bg-white/65 p-5 shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/68";
+const chipBaseClass =
+  "flex w-full items-center justify-between gap-3 rounded-[1.15rem] border px-3 py-2 transition-colors";
+const chipActiveClass =
+  "border-[#846FFA]/50 bg-gradient-to-r from-[#846FFA]/18 to-[#674CF9]/24 shadow-[0_12px_28px_rgba(132,111,250,0.18)] dark:border-[#846FFA]/45 dark:from-[#846FFA]/20 dark:to-[#674CF9]/26";
+const chipInactiveClass =
+  "border-white/40 bg-white/52 hover:border-[#846FFA]/30 dark:border-white/10 dark:bg-[#1E1E27]/58 dark:hover:border-[#846FFA]/28";
+const segmentedContainerClass =
+  "inline-flex rounded-full border border-[#846FFA]/30 bg-white/60 p-1 text-sm shadow-sm dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70";
+const segmentedOptionBaseClass =
+  "flex-1 whitespace-nowrap rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition";
+const segmentedOptionActiveClass =
+  "bg-gradient-to-r from-[#846FFA]/30 to-[#674CF9]/35 text-[#2F285F] shadow-[0_10px_24px_rgba(132,111,250,0.22)] dark:text-[#F8F8FF]";
+const segmentedOptionInactiveClass =
+  "text-[#5C5C5C] hover:text-[#2F285F] dark:text-[#C7C3E8]/80 dark:hover:text-[#F8F8FF]";
 
 const tokenLabel = (token: AllowedToken) => {
   const symbol = token.symbol ?? token.address.slice(0, 6);
@@ -88,7 +106,6 @@ export const OnboardingPanel = ({ onStatusUpdate, onRequestClose }: OnboardingPa
   const [activeDelegator, setActiveDelegatorState] = React.useState<Address | undefined>(() => getActiveDelegator());
 
   const connectButtonDisabled = identity.status === "connecting" || identity.status === "initializing";
-  const connectButtonVariant = identity.status === "connected" && identity.wallet ? "secondary" : "default";
   const showDisconnectButton = identity.status === "connected" && Boolean(identity.wallet);
   const identityMessage = identity.status === "connecting"
     ? "Waiting for authentication..."
@@ -251,6 +268,15 @@ export const OnboardingPanel = ({ onStatusUpdate, onRequestClose }: OnboardingPa
     if (!identity.wallet || identity.status !== "connected" || !activeDelegator) return;
     hydrateStatusFromStorage();
   }, [activeDelegator, hydrateStatusFromStorage, identity.status, identity.wallet]);
+
+  const handleCopy = React.useCallback(async (value?: string) => {
+    if (!value || typeof navigator === "undefined" || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch (error) {
+      console.error("Failed to copy value", error);
+    }
+  }, []);
 
   const resolveWallet = React.useCallback(async (): Promise<WalletWithAddress> => {
     if (walletRef) return walletRef;
@@ -442,11 +468,6 @@ export const OnboardingPanel = ({ onStatusUpdate, onRequestClose }: OnboardingPa
     [availableTokens, normalSelections],
   );
 
-  const someNormalSelected = React.useMemo(
-    () => availableTokens.some((token) => Boolean(normalSelections[token.address])),
-    [availableTokens, normalSelections],
-  );
-
   const toggleAllNormalTokens = (checked: boolean) => {
     if (checked) {
       setNormalSelections(Object.fromEntries(availableTokens.map((token) => [token.address, true])));
@@ -455,166 +476,262 @@ export const OnboardingPanel = ({ onStatusUpdate, onRequestClose }: OnboardingPa
     }
   };
 
+  const selectedTokens = React.useMemo(() => buildTokenList(), [buildTokenList]);
+  const tokenSummaryList = React.useMemo(
+    () => selectedTokens.map((token) => token.symbol ?? shortHex(token.address)),
+    [selectedTokens],
+  );
+
+  const tokensConfigured = selectedTokens.length >= 2;
+  const sessionReady = state === "completed" || Boolean(delegationStatus?.sessionKey);
+  const ownerAddress = identity.wallet?.address;
+
+  const onboardingSteps = React.useMemo(
+    () => [
+      {
+        label: "Authenticate owner",
+        description: ownerAddress ? `Owner ${shortHex(ownerAddress)}` : "Connect with Web3Auth to continue",
+        completed: identity.status === "connected" && Boolean(ownerAddress),
+      },
+      {
+        label: "Configure guardrails",
+        description:
+          selectedTokens.length > 0
+            ? `${selectedTokens.length} token${selectedTokens.length > 1 ? "s" : ""} in scope`
+            : "Select allowed tokens",
+        completed: tokensConfigured,
+      },
+      {
+        label: "Issue session",
+        description:
+          state === "completed"
+            ? "Delegations stored locally"
+            : state === "signing"
+              ? "Awaiting signatures"
+              : state === "loading"
+                ? "Provisioning HybridDelegator"
+                : "Sign when ready",
+        completed: sessionReady,
+      },
+    ],
+    [identity.status, ownerAddress, selectedTokens.length, sessionReady, state, tokensConfigured],
+  );
+
+  const statusToneClass =
+    state === "error"
+      ? "border-destructive/55 bg-destructive/10 text-destructive"
+      : state === "completed"
+        ? "border-emerald-500/45 bg-emerald-500/12 text-emerald-600 dark:text-emerald-400"
+        : "border-[#846FFA]/45 bg-[#846FFA]/10 text-[#3F356F] dark:text-[#DAD7FF]";
+
+  const sessionDelegatorLabel = quickStatus.delegator;
+  const sessionDelegatorFull = quickStatus.delegatorFull;
+  const sessionKeyFull = quickStatus.sessionKeyFull;
+  const sessionExpiry = quickStatus.expiry;
+  const sessionModeLabel = quickStatus.mode;
+
   const renderTokenControls = () => {
     if (mode === "safe") {
       return (
-        <div className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="tokenA">Token in</Label>
-            <Select value={safeTokenA} onValueChange={setSafeTokenA}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select source token" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableTokens.map((token) => (
-                  <SelectItem key={token.address} value={token.address}>
-                    {tokenLabel(token)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className={cn(glassSectionClass, "space-y-4")} data-testid="onboarding-token-controls">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Swap pair scope</h3>
+              <p className="mt-1 text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+                Safe mode keeps swaps limited to a single token pair with a 1-hour expiry.
+              </p>
+            </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="tokenB">Token out</Label>
-            <Select value={safeTokenB} onValueChange={setSafeTokenB}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select destination token" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableTokens.map((token) => (
-                  <SelectItem key={token.address} value={token.address}>
-                    {tokenLabel(token)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="tokenA" className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7A6FAF] dark:text-[#C7C3E8]">
+                Token in
+              </Label>
+              <Select value={safeTokenA} onValueChange={setSafeTokenA}>
+                <SelectTrigger className="h-11 rounded-full border border-[#846FFA]/30 bg-white/70 text-sm text-[#1A1A1A] shadow-sm transition hover:bg-white/80 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/90 dark:hover:bg-[#1E1E27]/75">
+                  <SelectValue placeholder="Select source token" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTokens.map((token) => (
+                    <SelectItem key={token.address} value={token.address}>
+                      {tokenLabel(token)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tokenB" className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7A6FAF] dark:text-[#C7C3E8]">
+                Token out
+              </Label>
+              <Select value={safeTokenB} onValueChange={setSafeTokenB}>
+                <SelectTrigger className="h-11 rounded-full border border-[#846FFA]/30 bg-white/70 text-sm text-[#1A1A1A] shadow-sm transition hover:bg-white/80 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/90 dark:hover:bg-[#1E1E27]/75">
+                  <SelectValue placeholder="Select destination token" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTokens.map((token) => (
+                    <SelectItem key={token.address} value={token.address}>
+                      {tokenLabel(token)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       );
     }
 
     return (
-      <div className="grid gap-3">
-        <p className="text-sm text-muted-foreground">
-          Select allowlisted assets. You can include native {MONAD_NATIVE_TOKEN_SYMBOL} and {MONAD_WRAPPED_TOKEN_SYMBOL} for wrap/unwrap support.
-        </p>
-        <div className="flex items-center justify-end gap-2 text-sm">
-          <Checkbox
-            checked={allNormalSelected ? true : someNormalSelected ? "indeterminate" : false}
-            onCheckedChange={(checked) => toggleAllNormalTokens(checked === true)}
-            id="normal-select-all"
-          />
-          <Label htmlFor="normal-select-all" className="cursor-pointer select-none">
+      <div className={cn(glassSectionClass, "space-y-4")} data-testid="onboarding-token-controls">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Allowlisted tokens</h3>
+            <p className="mt-1 text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+              Include native {MONAD_NATIVE_TOKEN_SYMBOL} and {MONAD_WRAPPED_TOKEN_SYMBOL} for wrap / unwrap coverage.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => toggleAllNormalTokens(!allNormalSelected)}
+            className="rounded-full border border-[#846FFA]/30 bg-white/70 px-3 py-1 text-xs font-semibold text-[#3F356F] shadow-sm transition hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/85 dark:hover:bg-[#846FFA]/25"
+          >
             {allNormalSelected ? "Deselect all" : "Select all"}
-          </Label>
+          </Button>
         </div>
-        <div className="grid gap-2 max-h-64 overflow-y-auto rounded-lg border border-border/60 p-3">
-          {availableTokens.map((token) => (
-            <label key={token.address} className="flex items-center justify-between gap-3 rounded-lg border border-transparent px-2 py-1.5 hover:border-border/70">
-              <div>
-                <p className="text-sm font-medium text-foreground">{token.symbol ?? token.address.slice(0, 6)}</p>
-                <p className="text-xs text-muted-foreground">{token.address}</p>
-              </div>
-              <Checkbox
-                checked={Boolean(normalSelections[token.address])}
-                onCheckedChange={(checked) => toggleNormalToken(token.address, Boolean(checked))}
-              />
-            </label>
-          ))}
+        <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+          {availableTokens.map((token) => {
+            const selected = Boolean(normalSelections[token.address]);
+            return (
+              <label
+                key={token.address}
+                className={cn(chipBaseClass, selected ? chipActiveClass : chipInactiveClass)}
+                data-selected={selected}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#846FFA]/15 text-sm font-semibold text-[#3F356F] dark:bg-[#846FFA]/25 dark:text-[#DAD7FF]">
+                    {token.symbol ? token.symbol.slice(0, 3).toUpperCase() : token.address.slice(2, 5).toUpperCase()}
+                  </span>
+                  <div className="text-left">
+                    <p className="text-sm font-medium text-[#1A1A1A] dark:text-[#F8F8FF]">
+                      {token.symbol ?? token.address.slice(0, 6)}
+                    </p>
+                    <p className="text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">{token.address}</p>
+                  </div>
+                </div>
+                <Checkbox
+                  checked={selected}
+                  onCheckedChange={(checked) => toggleNormalToken(token.address, Boolean(checked))}
+                  className="h-5 w-5 rounded-lg border-[#846FFA]/35 text-[#846FFA] data-[state=checked]:bg-[#846FFA] data-[state=checked]:text-white dark:border-[#846FFA]/45"
+                />
+              </label>
+            );
+          })}
         </div>
       </div>
     );
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>HybridDelegator Onboarding</CardTitle>
-        <CardDescription>
-          Connect with Web3Auth, configure delegation guardrails, and sign the session so Pragma can execute swaps on your behalf.
-        </CardDescription>
-      </CardHeader>
-      <form onSubmit={handleSubmit}>
-        <CardContent className="grid gap-6">
-          <div className="grid gap-2">
-            <Label>Identity provider</Label>
-            <div className="flex flex-col gap-3 rounded-lg border border-border/70 px-4 py-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  {formatAddress(identity.wallet?.address)}
-                </p>
-                <p className="text-xs text-muted-foreground">{identityMessage}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant={connectButtonVariant}
-                  onClick={() => {
-                    onRequestClose?.();
-                    void identity.connect().catch((error) => {
-                      console.error("Web3Auth connection failed", error);
-                    });
-                  }}
-                  disabled={connectButtonDisabled}
-                >
-                  {identity.status === "connecting" ? (
-                    <span className="flex items-center gap-2"><Spinner /> Connecting</span>
-                  ) : identity.status === "initializing" ? (
-                    <span className="flex items-center gap-2"><Spinner /> Preparing…</span>
-                  ) : identity.status === "error" ? (
-                    <span className="flex items-center gap-2">Retry connect</span>
-                  ) : identity.wallet ? "Reconnect" : "Connect"}
-                </Button>
-                {showDisconnectButton ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => identity.disconnect()}
-                  >
-                    Disconnect
-                  </Button>
-                ) : null}
-              </div>
+    <form onSubmit={handleSubmit} className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+      <div className="space-y-5">
+        <div className={cn(glassSectionClass, "space-y-4")}> 
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Web3Auth identity</h3>
+              <p className="mt-2 text-lg font-semibold text-[#1A1A1A] dark:text-[#F8F8FF]">
+                {formatAddress(identity.wallet?.address)}
+              </p>
+              <p className="mt-1 text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">{identityMessage}</p>
             </div>
           </div>
-
-          {identity.error && (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {identity.error}
-            </div>
-          )}
-
-          <Separator />
-
-          <div className="grid gap-4">
-            <Label>Mode</Label>
-            <div className="grid gap-2 md:grid-cols-2">
-              <button
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                onRequestClose?.();
+                void identity.connect().catch((error) => {
+                  console.error("Web3Auth connection failed", error);
+                });
+              }}
+              disabled={connectButtonDisabled}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full border border-[#846FFA]/35 bg-white/75 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#3F356F] shadow-sm transition hover:bg-[#846FFA]/15 dark:border-[#846FFA]/40 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/85 dark:hover:bg-[#846FFA]/25",
+                connectButtonDisabled && "opacity-60",
+              )}
+            >
+              {identity.status === "connecting" ? (
+                <span className="flex items-center gap-2"><Spinner className="h-3.5 w-3.5" /> Connecting</span>
+              ) : identity.status === "initializing" ? (
+                <span className="flex items-center gap-2"><Spinner className="h-3.5 w-3.5" /> Preparing…</span>
+              ) : identity.status === "error" ? (
+                <span className="flex items-center gap-2">Retry connect</span>
+              ) : identity.wallet ? "Reconnect" : "Connect"}
+            </Button>
+            {showDisconnectButton ? (
+              <Button
                 type="button"
-                onClick={() => setMode("safe")}
-                className={cnModeCard(mode === "safe")}
+                variant="ghost"
+                onClick={() => identity.disconnect()}
+                className="rounded-full border border-white/40 bg-white/65 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#5C5C5C] shadow-sm transition hover:bg-white/80 dark:border-white/10 dark:bg-[#1E1E27]/60 dark:text-[#C7C3E8]/85 dark:hover:bg-[#1E1E27]/75"
               >
-                <span className="text-sm font-semibold">Safe</span>
-                <span className="text-xs text-muted-foreground">Pair-scoped delegation with 1-hour expiry and tight limits.</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("normal")}
-                className={cnModeCard(mode === "normal")}
-              >
-                <span className="text-sm font-semibold">Normal</span>
-                <span className="text-xs text-muted-foreground">Curated allowlist, 24-hour expiry, broader swap flexibility.</span>
-              </button>
+                Disconnect
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        {identity.error ? (
+          <div className="rounded-[1.25rem] border border-destructive/55 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {identity.error}
+          </div>
+        ) : null}
+
+        <div className={cn(glassSectionClass, "space-y-4")}> 
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Delegation mode</h3>
+              <p className="mt-1 text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+                Tune guardrails for rapid swaps or full console access.
+              </p>
             </div>
           </div>
+          <div className={segmentedContainerClass} role="tablist">
+            <button
+              type="button"
+              data-testid="mode-option-safe"
+              className={cn(segmentedOptionBaseClass, mode === "safe" ? segmentedOptionActiveClass : segmentedOptionInactiveClass)}
+              onClick={() => setMode("safe")}
+              aria-pressed={mode === "safe"}
+            >
+              Safe
+            </button>
+            <button
+              type="button"
+              data-testid="mode-option-normal"
+              className={cn(segmentedOptionBaseClass, mode === "normal" ? segmentedOptionActiveClass : segmentedOptionInactiveClass)}
+              onClick={() => setMode("normal")}
+              aria-pressed={mode === "normal"}
+            >
+              Normal
+            </button>
+          </div>
+          <p className="text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+            {mode === "safe"
+              ? "Pair-scoped delegation with 1-hour expiry and maximum six calls by default."
+              : "Curated allowlist with 24-hour expiry and expansive swap flexibility."}
+          </p>
+        </div>
 
-          {renderTokenControls()}
+        {renderTokenControls()}
 
-          <Separator />
-
+        <div className={cn(glassSectionClass, "space-y-4")}> 
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="callLimit">Call allowance</Label>
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7A6FAF] dark:text-[#C7C3E8]">Call allowance</h4>
               <div className="flex items-center gap-3">
                 <Input
                   id="callLimit"
@@ -624,15 +741,16 @@ export const OnboardingPanel = ({ onStatusUpdate, onRequestClose }: OnboardingPa
                   value={callLimit}
                   disabled={unlimitedCalls}
                   onChange={(event) => setCallLimit(event.target.value)}
+                  className="h-11 rounded-full border border-[#846FFA]/30 bg-white/70 text-sm text-[#1A1A1A] shadow-sm transition focus-visible:ring-[#846FFA] dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/90"
                 />
                 <div className="flex items-center gap-2">
                   <Switch checked={unlimitedCalls} onCheckedChange={(checked) => setUnlimitedCalls(Boolean(checked))} />
-                  <span className="text-xs text-muted-foreground">Unlimited</span>
+                  <span className="text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">Unlimited</span>
                 </div>
               </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="transferAmount">Native transfer allowance</Label>
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7A6FAF] dark:text-[#C7C3E8]">Native transfer allowance</h4>
               <div className="flex items-center gap-3">
                 <Switch checked={enableTransfer} onCheckedChange={(checked) => setEnableTransfer(Boolean(checked))} />
                 <Input
@@ -643,57 +761,194 @@ export const OnboardingPanel = ({ onStatusUpdate, onRequestClose }: OnboardingPa
                   value={transferAmount}
                   disabled={!enableTransfer}
                   onChange={(event) => setTransferAmount(event.target.value)}
+                  className="h-11 w-28 rounded-full border border-[#846FFA]/30 bg-white/70 text-sm text-[#1A1A1A] shadow-sm transition focus-visible:ring-[#846FFA] dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/90"
                 />
-                <span className="text-sm text-muted-foreground">{MONAD_NATIVE_TOKEN_SYMBOL}</span>
+                <span className="text-sm font-medium text-[#5C5C5C] dark:text-[#C7C3E8]/80">{MONAD_NATIVE_TOKEN_SYMBOL}</span>
               </div>
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3 rounded-[1.1rem] border border-white/35 bg-white/55 px-4 py-3 dark:border-white/10 dark:bg-[#1E1E27]/60">
             <Switch checked={rotateSessionKey} onCheckedChange={(checked) => setRotateSessionKey(Boolean(checked))} />
             <div>
-              <p className="text-sm font-medium text-foreground">Rotate session key</p>
-              <p className="text-xs text-muted-foreground">Forces a fresh session key even if an existing delegation is active.</p>
+              <p className="text-sm font-semibold text-[#1A1A1A] dark:text-[#F8F8FF]">Rotate session key</p>
+              <p className="text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">Force a fresh session key even if one already exists for this delegator.</p>
             </div>
           </div>
+        </div>
 
-          {statusMessage && (
-            <div className="rounded-lg border border-border/70 bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-              {state === "loading" || state === "signing" ? (
-                <span className="flex items-center gap-2"><Spinner /> {statusMessage}</span>
-              ) : (
-                statusMessage
-              )}
-            </div>
-          )}
+        {statusMessage ? (
+          <div className={cn("flex items-center gap-2 rounded-[1.25rem] border px-4 py-3 text-sm", statusToneClass)}>
+            {state === "loading" || state === "signing" ? <Spinner className="h-3.5 w-3.5" /> : null}
+            <span>{statusMessage}</span>
+          </div>
+        ) : null}
+      </div>
 
-          {artifactsSummary.length > 0 && (
-            <div className="rounded-lg border border-border/60 bg-secondary/30 px-4 py-3">
-              <h4 className="text-sm font-semibold">Delegations stored</h4>
-              <ul className="mt-2 list-disc pl-5 text-sm text-muted-foreground">
-                {artifactsSummary.map((line, index) => (
-                  <li key={index}>{line}</li>
-                ))}
-              </ul>
+      <div className="space-y-5">
+        <div className="grid gap-4">
+          <StatCard
+            icon={<Sparkles className="h-3.5 w-3.5" />}
+            label="Delegator"
+            value={sessionDelegatorLabel}
+            testId="onboarding-delegator"
+            description={sessionDelegatorFull ? "Fund this HybridDelegator to settle swaps." : "Connect your wallet to derive the delegator."}
+            actions={
+              <>
+                <span className="truncate">{ownerAddress ? `Owner ${shortHex(ownerAddress)}` : "No owner connected"}</span>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
+                  onClick={() => handleCopy(sessionDelegatorFull)}
+                  disabled={!sessionDelegatorFull}
+                  aria-label="Copy delegator address"
+                >
+                  <ClipboardCopy className="h-4 w-4" />
+                </Button>
+              </>
+            }
+          />
+          <StatCard
+            icon={<KeyRound className="h-3.5 w-3.5" />}
+            label="Session key"
+            value={quickStatus.sessionKey}
+            testId="onboarding-session-key"
+            description={
+              <div className="space-y-1">
+                <span>Expiry {sessionExpiry}</span>
+                <span>{sessionModeLabel !== "—" ? `Mode ${sessionModeLabel}` : "Awaiting issuance"}</span>
+              </div>
+            }
+            actions={
+              <>
+                <span className="truncate">Top up ~0.5 {MONAD_NATIVE_TOKEN_SYMBOL} for gas</span>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
+                  onClick={() => handleCopy(sessionKeyFull)}
+                  disabled={!sessionKeyFull}
+                  aria-label="Copy session key address"
+                >
+                  <ClipboardCopy className="h-4 w-4" />
+                </Button>
+              </>
+            }
+          />
+          <StatCard
+            icon={<ShieldCheck className="h-3.5 w-3.5" />}
+            label="Smart account"
+            value={quickStatus.smartAccount}
+            description="Deployments and session refreshes appear here once onboarding completes."
+          />
+        </div>
+
+        <div className={cn(glassSectionClass, "space-y-3")}>
+          <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Session summary</h3>
+          <div className="space-y-2 text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-[#1A1A1A] dark:text-[#F8F8FF]">Mode</span>
+              <span>{mode === "safe" ? "Safe · 1h expiry" : "Normal · 24h expiry"}</span>
             </div>
-          )}
-        </CardContent>
-        <CardFooter className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">
-            Stored delegations live locally in your browser. Export them from the receipts sidebar once execution succeeds.
-          </p>
-          <Button type="submit" disabled={state === "loading" || state === "signing"}>
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-[#1A1A1A] dark:text-[#F8F8FF]">Call limit</span>
+              <span>{unlimitedCalls ? "Unlimited" : `${callLimit} calls`}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-[#1A1A1A] dark:text-[#F8F8FF]">Native transfers</span>
+              <span>{enableTransfer ? `${transferAmount} ${MONAD_NATIVE_TOKEN_SYMBOL}` : "Disabled"}</span>
+            </div>
+            <div>
+              <span className="font-medium text-[#1A1A1A] dark:text-[#F8F8FF]">Tokens in scope</span>
+              <p className="mt-1 text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+                {tokenSummaryList.length > 0 ? tokenSummaryList.join(", ") : "Select at least two assets to enable quick actions."}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className={cn(glassSectionClass, "space-y-3")}>
+          <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Session progress</h3>
+          <ol className="space-y-3">
+            {onboardingSteps.map((step, index) => (
+              <li key={step.label} className="flex items-start gap-3">
+                <span
+                  className={cn(
+                    "mt-1 inline-flex h-6 w-6 items-center justify-center rounded-full border text-xs font-semibold",
+                    step.completed
+                      ? "border-[#846FFA] bg-[#846FFA]/20 text-[#2F285F] dark:border-[#846FFA] dark:bg-[#846FFA]/25 dark:text-[#F8F8FF]"
+                      : "border-[#846FFA]/25 bg-white/70 text-[#5C5C5C] dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#C7C3E8]/80",
+                  )}
+                >
+                  {index + 1}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-[#1A1A1A] dark:text-[#F8F8FF]">{step.label}</p>
+                  <p className="text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">{step.description}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        <div className={cn(glassSectionClass, "space-y-3")}>
+          <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Funding instructions</h3>
+          <ol className="space-y-2 pl-5 text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+            <li>
+              Copy the delegator address and fund it with the MON you want to settle swaps with. After funding, reconnect or ask <code className="inline rounded bg-[#ECEBF2] px-1 py-0.5 text-xs text-[#1A1A1A] dark:bg-[#1E1E27] dark:text-[#F8F8FF]">delegation status</code> in chat to confirm balances.
+            </li>
+            <li>
+              Send roughly <span className="font-medium text-[#1A1A1A] dark:text-[#F8F8FF]">0.5&nbsp;{MONAD_NATIVE_TOKEN_SYMBOL}</span> to the session key as a gas tank for UserOperations. Disconnect and reconnect if balances appear stale.
+            </li>
+          </ol>
+        </div>
+
+        {artifactsSummary.length > 0 ? (
+          <div className={cn(glassSectionClass, "space-y-3")}>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Delegations stored</h3>
+            <div className="space-y-2 text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+              {artifactsSummary.map((line, index) => (
+                <div key={index} className="flex items-start gap-3">
+                  <span className="mt-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#846FFA]/15 text-[10px] font-semibold text-[#3F356F] dark:bg-[#846FFA]/25 dark:text-[#F8F8FF]">
+                    {index + 1}
+                  </span>
+                  <span>{line}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="lg:col-span-2 flex flex-col gap-3 rounded-[1.25rem] border border-[#846FFA]/25 bg-white/55 px-6 py-4 text-xs text-[#5C5C5C] shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/60 dark:text-[#C7C3E8]/80">
+        <p>Stored delegations live locally in your browser. Export them from the receipts tab after a successful execution.</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="text-[11px] uppercase tracking-[0.24em] text-[#7A6FAF] dark:text-[#C7C3E8]">
+            {state === "completed" ? "Session ready" : tokensConfigured ? "Guardrails configured" : "Awaiting guardrails"}
+          </span>
+          <Button
+            type="submit"
+            disabled={state === "loading" || state === "signing"}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-full border border-[#846FFA]/40 bg-gradient-to-r from-[#846FFA]/25 to-[#674CF9]/35 px-6 py-2 text-sm font-semibold text-[#2F285F] shadow-[0_14px_32px_rgba(132,111,250,0.22)] transition hover:opacity-90 dark:border-[#846FFA]/45 dark:text-[#F8F8FF]",
+              (state === "loading" || state === "signing") && "opacity-60",
+            )}
+          >
             {state === "loading" || state === "signing" ? (
-              <span className="flex items-center gap-2"><Spinner /> Issuing delegation…</span>
-            ) : state === "completed" ? "Reissue delegation" : "Issue delegation"}
+              <>
+                <Spinner className="h-4 w-4" /> Issuing delegation…
+              </>
+            ) : state === "completed" ? (
+              "Reissue delegation"
+            ) : (
+              "Issue delegation"
+            )}
           </Button>
-        </CardFooter>
-      </form>
-    </Card>
+        </div>
+      </div>
+    </form>
   );
 };
 
-const cnModeCard = (active: boolean) =>
-  active
-    ? "flex flex-col gap-2 rounded-xl border-2 border-primary bg-primary/5 px-4 py-3 text-left"
-    : "flex flex-col gap-2 rounded-xl border border-border/70 px-4 py-3 text-left hover:border-border/90";

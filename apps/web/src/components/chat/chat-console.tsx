@@ -147,7 +147,7 @@ export const ChatConsole = () => {
           >
             <div className="mb-6 flex w-full items-center justify-end gap-3">
               <div className="flex items-center gap-2 rounded-full border border-[#1A1A1A]/12 bg-white/70 px-4 py-2 text-xs font-medium text-[#5C5C5C] shadow-sm dark:border-white/10 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/75">
-                <span className="text-[#5C5C5C] dark:text-[#F8F8FF]/80">Quick mode</span>
+                <span className="text-[#5C5C5C] dark:text-[#F8F8FF]/80">Quick Mode</span>
                 <Button
                   type="button"
                   size="sm"

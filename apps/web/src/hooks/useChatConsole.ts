@@ -90,6 +90,15 @@ const formatTokenAmount = (amount: bigint, token: AllowedToken, decimalsOverride
   return formatUnits(amount, decimals);
 };
 
+const formatSlippageLabel = (bps: number): string => {
+  const percent = bps / 100;
+  if (!Number.isFinite(percent)) return "0.50%";
+  if (percent >= 1) {
+    return `${Number.isInteger(percent) ? percent.toFixed(0) : percent.toFixed(1)}%`;
+  }
+  return `${percent.toFixed(2)}%`;
+};
+
 const formatWarnings = (warnings?: string[]) =>
   warnings && warnings.length > 0 ? `\n\nWarnings:\n- ${warnings.join("\n- ")}` : "";
 
@@ -440,16 +449,18 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
     const amountIn = formatTokenAmount(preview.plan.amountIn, config.intent.from, config.intent.from.decimals);
     const expectedOut = formatTokenAmount(preview.plan.expectedAmountOut, config.intent.to, config.intent.to.decimals);
     const minOut = formatTokenAmount(preview.plan.minAmountOut, config.intent.to, config.intent.to.decimals);
-    return `Quote ${preview.plan.quote.quoteId}\n${amountIn} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${expectedOut} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}\nMinimum out: ${minOut} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}`;
+    const slippageLabel = formatSlippageLabel(config.slippageBps);
+    return `Quote ${preview.plan.quote.quoteId}\n${amountIn} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${expectedOut} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}\nMinimum out: ${minOut} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}\nSlippage tolerance: ${slippageLabel}`;
   }, []);
 
   const formatSwapResult = React.useCallback((result: SwapResult, config: SwapExecutionConfig) => {
     const amountIn = formatTokenAmount(result.amountIn, config.intent.from, config.intent.from.decimals);
     const amountOut = formatTokenAmount(result.amountOut, config.intent.to, config.intent.to.decimals);
+    const slippageLabel = formatSlippageLabel(config.slippageBps);
     const explorerUrl = monadChain.blockExplorers?.default?.url;
     const txLabel = shortHex(result.txHash);
     const txLink = explorerUrl ? `${explorerUrl}/tx/${result.txHash}` : undefined;
-    return `Swap executed successfully\n${amountIn} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${amountOut} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}\nTx hash: ${txLabel}${txLink ? `\nExplorer: ${txLink}` : ""}`;
+    return `Swap executed successfully\n${amountIn} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${amountOut} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}\nSlippage tolerance: ${slippageLabel}\nTx hash: ${txLabel}${txLink ? `\nExplorer: ${txLink}` : ""}`;
   }, []);
 
   const runSwapExecution = React.useCallback(

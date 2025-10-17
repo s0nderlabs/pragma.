@@ -1,52 +1,17 @@
 "use client";
 
-import type { AllowedToken, TokenCache, TokenCacheEntry } from "@pragma/core/monorail/tokens";
-import {
-  buildAllowedTokens,
-  ensureTokenSet,
-  normalizeAllowedTokensList,
-} from "@pragma/core/monorail/tokens";
+import type { AllowedToken } from "@pragma/core/monorail/tokens";
+import { ensureTokenSet, normalizeAllowedTokensList } from "@pragma/core/monorail/tokens";
 import { getAddress } from "viem";
 
 import {
   MONAD_NATIVE_TOKEN_ADDRESS,
-  MONAD_WMON_ADDRESS,
   MONAD_NATIVE_TOKEN_SYMBOL,
+  MONAD_WMON_ADDRESS,
   MONAD_WRAPPED_TOKEN_SYMBOL,
-  MONORAIL_API_KEY,
-  MONORAIL_DATA_API_URL,
 } from "./config";
 
-const STORAGE_KEY = "pragma.h1.token-cache.v1";
-
-class BrowserTokenCache implements TokenCache {
-  async load(): Promise<TokenCacheEntry | undefined> {
-    if (typeof window === "undefined") return undefined;
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return undefined;
-      return JSON.parse(raw) as TokenCacheEntry;
-    } catch {
-      return undefined;
-    }
-  }
-
-  async save(entry: TokenCacheEntry): Promise<void> {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entry));
-    } catch {
-      // ignore storage quota errors
-    }
-  }
-}
-
-const cache = new BrowserTokenCache();
-
-const TOKEN_METADATA = {
-  nativeTokenAddress: MONAD_NATIVE_TOKEN_ADDRESS as `0x${string}`,
-  wrappedNativeTokenAddress: MONAD_WMON_ADDRESS as `0x${string}`,
-};
+const STORAGE_KEY = "pragma.h1.token-cache.v2";
 
 const FALLBACK_TOKENS: AllowedToken[] = [
   {
@@ -65,44 +30,65 @@ const FALLBACK_TOKENS: AllowedToken[] = [
   },
 ];
 
+const readCachedTokens = (): AllowedToken[] => {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as { tokens?: AllowedToken[] };
+    return parsed.tokens ? normalizeAllowedTokensList(parsed.tokens) : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeCachedTokens = (tokens: AllowedToken[]): void => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        tokens: tokens.map((token) => ({
+          address: token.address,
+          symbol: token.symbol,
+          name: token.name,
+          decimals: token.decimals,
+          categories: token.categories,
+        })),
+      }),
+    );
+  } catch {
+    // ignore quota errors
+  }
+};
+
 export const getFallbackAllowedTokens = (): AllowedToken[] =>
   FALLBACK_TOKENS.map((token) => ({ ...token }));
 
-const normalizeCacheEntry = (entry: TokenCacheEntry | undefined): AllowedToken[] => {
-  if (!entry) return [];
-  return normalizeAllowedTokensList(
-    entry.tokens.reduce<AllowedToken[]>((acc, token) => {
-      try {
-        acc.push({
-          address: getAddress(token.address as `0x${string}`),
-          symbol: token.symbol,
-          name: token.name,
-          decimals: typeof token.decimals === "number" ? token.decimals : Number(token.decimals ?? 18),
-          categories: token.categories,
-        });
-      } catch {
-        // ignore malformed token entries
-      }
-      return acc;
-    }, []),
-  );
-};
+export const normalizeTokens = (tokens: AllowedToken[]) => normalizeAllowedTokensList(tokens);
 
-export const loadAllowedTokens = async (): Promise<AllowedToken[]> =>
-  buildAllowedTokens({
-    dataApiUrl: MONORAIL_DATA_API_URL,
-    apiKey: MONORAIL_API_KEY,
-    cache,
-    tokenMetadata: TOKEN_METADATA,
-  }).catch(async (error) => {
-    console.warn("Monorail token fetch failed; using fallback token list", error);
-    const cached = await cache.load();
-    const cachedTokens = normalizeCacheEntry(cached);
-    if (cachedTokens.length > 0) {
-      return cachedTokens;
+export const ensureTokenInSet = (tokens: AllowedToken[], candidate: AllowedToken) =>
+  ensureTokenSet(tokens, candidate);
+
+export const loadAllowedTokens = async (): Promise<AllowedToken[]> => {
+  try {
+    const response = await fetch("/api/tokens", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Token fetch failed (${response.status})`);
+    }
+    const payload = (await response.json()) as { tokens?: AllowedToken[] };
+    const normalized = payload.tokens ? normalizeTokens(payload.tokens) : [];
+    if (normalized.length === 0) {
+      throw new Error("Token list empty");
+    }
+    writeCachedTokens(normalized);
+    return normalized;
+  } catch (error) {
+    console.warn("Monorail token fetch failed; using cached or fallback list", error);
+    const cached = readCachedTokens();
+    if (cached.length > 0) {
+      return cached;
     }
     return getFallbackAllowedTokens();
-  });
-
-export const normalizeTokens = (tokens: AllowedToken[]) => normalizeAllowedTokensList(tokens);
-export const ensureTokenInSet = (tokens: AllowedToken[], candidate: AllowedToken) => ensureTokenSet(tokens, candidate);
+  }
+};

@@ -2,7 +2,18 @@ import chalk from "chalk";
 import open from "open";
 import ora from "ora";
 import path from "node:path";
-import { Address, Hex, http, getAddress, toHex, parseEther, formatEther, parseUnits, formatUnits } from "viem";
+import {
+  Address,
+  Hex,
+  http,
+  getAddress,
+  toHex,
+  parseEther,
+  formatEther,
+  parseUnits,
+  formatUnits,
+  createWalletClient,
+} from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
   createDelegation,
@@ -21,7 +32,7 @@ import { startWeb3AuthBridge } from "./web3authServer.js";
 import { startPrivyBridge } from "./privyBridgeServer.js";
 import { createMonadPublicClient, createWalletClientFromBridge, monadChain } from "./web3authClients.js";
 import { buildDelegationTypedData } from "./delegationTypedData.js";
-import { sponsorUserOperation } from "./pimlico.js";
+import { sponsorUserOperation, type PimlicoSponsorship } from "./pimlico.js";
 
 import { onboardingLogger } from "../utils/logger.js";
 import {
@@ -34,6 +45,8 @@ import {
   MONAD_NATIVE_TOKEN_SYMBOL,
   MONAD_WRAPPED_TOKEN_SYMBOL,
   MONAD_NATIVE_TOKEN_ADDRESS,
+  MONAD_RPC_URL,
+  PRAGMA_ADMIN_TEST_PK,
 } from "./config.js";
 import {
   AGGREGATE_SELECTOR,
@@ -62,6 +75,47 @@ export {
 export type { Mode, SessionDelegationInfo, DelegationArtifact, DeleGatorEnv } from "@pragma/core";
 
 const createBundlerClientUnsafe = (...args: any[]) => (createBundlerClient as any)(...args);
+
+type WalletClientLike = {
+  account?: Address | { address?: Address };
+  sendTransaction: (args: any) => Promise<Hex>;
+};
+
+interface HybridDeploymentResult {
+  userOpHash: Hex | null;
+  transactionHash: Hex | null;
+  transport: "bundler" | "direct";
+}
+
+const deployHybridDelegatorDirect = async ({
+  smartAccount,
+  walletClient,
+  publicClient,
+}: {
+  smartAccount: any;
+  walletClient: WalletClientLike;
+  publicClient: ReturnType<typeof createMonadPublicClient>;
+}): Promise<Hex> => {
+  if (!walletClient?.sendTransaction) {
+    throw new Error("Wallet client required for direct HybridDelegator deployment");
+  }
+
+  const factoryArgs = await smartAccount.getFactoryArgs?.();
+  if (!factoryArgs) {
+    throw new Error("Unable to fetch factory args for HybridDelegator");
+  }
+
+  const txParams: any = {
+    to: getAddress(factoryArgs.factory),
+    data: factoryArgs.factoryData,
+    value: 0n,
+  };
+
+  const txHash = await walletClient.sendTransaction(txParams);
+
+  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  return txHash;
+};
 
 import {
   loadAllowedTokens,
@@ -484,7 +538,7 @@ interface HybridTestContext {
   environment: ReturnType<typeof getDeleGatorEnvironment>;
   publicClient: ReturnType<typeof createMonadPublicClient>;
   sessionDelegations: SessionDelegationInfo[];
-  deploymentInfo?: { userOpHash: Hex; transactionHash: Hex };
+  deploymentInfo?: HybridDeploymentResult;
 }
 
 const TEST_DELEGATIONS_BASE_DIR = (process.env.PRAGMA_DELEGATION_DIR
@@ -651,17 +705,39 @@ const clearPersistedSessionArtifacts = async (delegator: Address) => {
 
 const NATIVE_TRANSFER_SELECTOR = "0x" as Hex; // placeholder to track native transfer in selectors set
 
+const coerceEstimate = (value?: string | null): bigint | undefined => {
+  if (!value) return undefined;
+  try {
+    const normalized = value.startsWith("0x") ? value : `0x${value}`;
+    const parsed = BigInt(normalized);
+    return parsed > 0n ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const FALLBACK_VERIFICATION_GAS_LIMIT = 2_500_000n;
+const FALLBACK_PRE_VERIFICATION_GAS = 120_000n;
+
+const USER_OPERATION_WAIT_TIMEOUT_MS = Number(
+  process.env.PRAGMA_USEROP_WAIT_TIMEOUT_MS ?? "2000",
+);
+
 const submitHybridDelegatorDeployment = async ({
   smartAccount,
   bundlerClient,
   chainId,
   publicClient,
+  walletClient,
+  allowDirectFallback = false,
 }: {
   smartAccount: any;
   bundlerClient: any;
   chainId: number;
   publicClient: ReturnType<typeof createMonadPublicClient>;
-}): Promise<{ userOpHash: Hex; transactionHash: Hex }> => {
+  walletClient?: WalletClientLike;
+  allowDirectFallback?: boolean;
+}): Promise<HybridDeploymentResult> => {
   const sender = await smartAccount.getAddress();
   const nonce = (await smartAccount.getNonce?.()) ?? 0n;
   const factoryArgs = await smartAccount.getFactoryArgs?.();
@@ -712,26 +788,133 @@ const submitHybridDelegatorDeployment = async ({
     signature: "0x",
   } as any;
 
-  const formattedBase = formatUserOperationRequest(baseUserOp);
-  const sponsorship = await sponsorUserOperation({
-    userOperation: formattedBase,
+  const buildSponsorRequest = (op: any) =>
+    formatUserOperationRequest({
+      ...op,
+      paymaster: undefined,
+      paymasterData: undefined,
+      signature: "0x",
+    } as any);
+
+  const applySponsorshipToUserOp = (target: any, update: PimlicoSponsorship) => {
+    if (update.callGasLimit && update.callGasLimit > 0n) {
+      target.callGasLimit = update.callGasLimit;
+    }
+    if (update.verificationGasLimit && update.verificationGasLimit > 0n) {
+      target.verificationGasLimit = update.verificationGasLimit;
+    }
+    if (update.preVerificationGas && update.preVerificationGas > 0n) {
+      target.preVerificationGas = update.preVerificationGas;
+    }
+    if (update.paymasterPostOpGasLimit) {
+      target.paymasterPostOpGasLimit = update.paymasterPostOpGasLimit;
+    }
+    if (update.paymasterVerificationGasLimit) {
+      target.paymasterVerificationGasLimit = update.paymasterVerificationGasLimit;
+    }
+
+    if (update.paymaster) {
+      target.paymaster = update.paymaster;
+      target.paymasterData = update.paymasterData ?? ("0x" as Hex);
+    } else {
+      target.paymaster = `0x${update.paymasterAndData.slice(2, 42)}` as Hex;
+      target.paymasterData = `0x${update.paymasterAndData.slice(42)}` as Hex;
+    }
+  };
+
+  const userOp = { ...baseUserOp } as any;
+
+  let sponsorship = await sponsorUserOperation({
+    userOperation: buildSponsorRequest(baseUserOp),
     entryPoint: smartAccount.entryPoint.address,
   });
+  applySponsorshipToUserOp(userOp, sponsorship);
 
-  const userOp = {
-    ...baseUserOp,
-    callGasLimit: sponsorship.callGasLimit ?? baseUserOp.callGasLimit,
-    verificationGasLimit: sponsorship.verificationGasLimit ?? baseUserOp.verificationGasLimit,
-    preVerificationGas: sponsorship.preVerificationGas ?? baseUserOp.preVerificationGas,
-    paymasterPostOpGasLimit:
-      sponsorship.paymasterPostOpGasLimit ?? baseUserOp.paymasterPostOpGasLimit,
-    paymasterVerificationGasLimit:
-      sponsorship.paymasterVerificationGasLimit ?? baseUserOp.paymasterVerificationGasLimit,
-    paymaster:
-      sponsorship.paymaster ?? (`0x${sponsorship.paymasterAndData.slice(2, 42)}` as Hex),
-    paymasterData:
-      sponsorship.paymasterData ?? (`0x${sponsorship.paymasterAndData.slice(42)}` as Hex),
-  } as any;
+  let gasAdjusted = false;
+  const setGasValue = (field: "callGasLimit" | "verificationGasLimit" | "preVerificationGas", value?: bigint) => {
+    if (!value || value <= 0n) return;
+    if (userOp[field] === value) return;
+    userOp[field] = value;
+    gasAdjusted = true;
+  };
+
+  if (!userOp.callGasLimit || userOp.callGasLimit === 0n || !userOp.verificationGasLimit || userOp.verificationGasLimit === 0n) {
+    try {
+      const estimationRequest = formatUserOperationRequest({
+        ...userOp,
+        signature: "0x",
+      } as any);
+      const estimation = (await bundlerClient.request(
+        {
+          method: "eth_estimateUserOperationGas",
+          params: [estimationRequest, smartAccount.entryPoint.address],
+        },
+        { retryCount: 0 },
+      )) as
+        | {
+            preVerificationGas?: string;
+            verificationGas?: string;
+            verificationGasLimit?: string;
+            callGasLimit?: string;
+          }
+        | undefined;
+
+      onboardingLogger.debug({ estimation }, "Bundler gas estimation result");
+
+      setGasValue("callGasLimit", coerceEstimate(estimation?.callGasLimit));
+      setGasValue(
+        "verificationGasLimit",
+        coerceEstimate(estimation?.verificationGasLimit ?? estimation?.verificationGas),
+      );
+      setGasValue("preVerificationGas", coerceEstimate(estimation?.preVerificationGas));
+    } catch (error) {
+      onboardingLogger.warn({ err: error }, "Failed to estimate UserOperation gas via bundler");
+    }
+  }
+
+  if (!userOp.verificationGasLimit || userOp.verificationGasLimit === 0n) {
+    onboardingLogger.warn(
+      { fallback: FALLBACK_VERIFICATION_GAS_LIMIT },
+      "Applying fallback verificationGasLimit for HybridDelegator deployment",
+    );
+    setGasValue("verificationGasLimit", FALLBACK_VERIFICATION_GAS_LIMIT);
+  }
+  if (!userOp.preVerificationGas || userOp.preVerificationGas === 0n) {
+    setGasValue("preVerificationGas", FALLBACK_PRE_VERIFICATION_GAS);
+  }
+
+  if (gasAdjusted) {
+    const desiredCallGasLimit = userOp.callGasLimit;
+    const desiredVerificationGasLimit = userOp.verificationGasLimit;
+    const desiredPreVerificationGas = userOp.preVerificationGas;
+
+    sponsorship = await sponsorUserOperation({
+      userOperation: buildSponsorRequest(userOp),
+      entryPoint: smartAccount.entryPoint.address,
+    });
+    applySponsorshipToUserOp(userOp, sponsorship);
+    if (desiredCallGasLimit && desiredCallGasLimit > 0n) {
+      const candidate = desiredCallGasLimit;
+      if (!userOp.callGasLimit || userOp.callGasLimit === 0n) {
+        userOp.callGasLimit = candidate;
+      }
+    }
+    if (desiredVerificationGasLimit && desiredVerificationGasLimit > 0n) {
+      const candidate = desiredVerificationGasLimit;
+      if (!userOp.verificationGasLimit || userOp.verificationGasLimit === 0n) {
+        userOp.verificationGasLimit = candidate;
+      }
+    }
+    if (desiredPreVerificationGas && desiredPreVerificationGas > 0n) {
+      const current = userOp.preVerificationGas ?? 0n;
+      if (desiredPreVerificationGas > current) {
+        userOp.preVerificationGas = desiredPreVerificationGas;
+      }
+    }
+    if (!userOp.preVerificationGas || userOp.preVerificationGas === 0n) {
+      userOp.preVerificationGas = FALLBACK_PRE_VERIFICATION_GAS;
+    }
+  }
 
   const signature = await smartAccount.signUserOperation(userOp);
   const rpcUserOperation = formatUserOperationRequest({
@@ -739,21 +922,124 @@ const submitHybridDelegatorDeployment = async ({
     signature,
   } as any);
 
-  const userOpHash = (await bundlerClient.request(
-    {
-      method: "eth_sendUserOperation",
-      params: [rpcUserOperation, smartAccount.entryPoint.address],
-    },
-    { retryCount: 0 },
-  )) as Hex;
-
-  const receipt = await bundlerClient.waitForUserOperationReceipt({ hash: userOpHash });
-  const transactionHash = receipt.receipt?.transactionHash as Hex | undefined;
-  if (!transactionHash || transactionHash === "0x") {
-    throw new Error("Pimlico bundler response missing transaction hash");
+  if (process.env.PRAGMA_DEBUG_USEROP === "1") {
+    console.log("[debug][userOp] payload:", JSON.stringify(rpcUserOperation, null, 2));
   }
 
-  return { userOpHash, transactionHash };
+  const handleBundlerFailure = async (cause: unknown, userOpHash: Hex | null = null): Promise<HybridDeploymentResult> => {
+    onboardingLogger.warn(
+      { err: cause, sender, userOpHash },
+      "HybridDelegator deployment via bundler failed",
+    );
+
+    const bytecode = await publicClient.getBytecode({ address: sender });
+    if (bytecode && bytecode !== "0x") {
+      onboardingLogger.warn(
+        { sender, chainId, userOpHash },
+        "HybridDelegator appears deployed despite bundler failure",
+      );
+      return {
+        userOpHash,
+        transactionHash: null,
+        transport: "bundler",
+      };
+    }
+
+    if (!allowDirectFallback) {
+      throw cause instanceof Error ? cause : new Error(String(cause));
+    }
+    const resolveFallbackWalletClient = (): WalletClientLike => {
+      if (PRAGMA_ADMIN_TEST_PK) {
+        const adminAccount = privateKeyToAccount(PRAGMA_ADMIN_TEST_PK as Hex);
+        onboardingLogger.warn(
+          { admin: adminAccount.address },
+          "Using admin fallback signer for HybridDelegator deployment",
+        );
+        return createWalletClient({
+          chain: monadChain,
+          transport: http(MONAD_RPC_URL),
+          account: adminAccount,
+        }) as unknown as WalletClientLike;
+      }
+      if (walletClient) {
+        onboardingLogger.warn(
+          {},
+          "Falling back to end-user wallet for HybridDelegator deployment; ensure it has MON funds",
+        );
+        return walletClient;
+      }
+      throw new Error(
+        "Direct deployment fallback requires PRAGMA_ADMIN_TEST_PK or a funded wallet client",
+      );
+    };
+
+    const fallbackWalletClient = resolveFallbackWalletClient();
+    const fallbackTxHash = await deployHybridDelegatorDirect({
+      smartAccount,
+      walletClient: fallbackWalletClient,
+      publicClient,
+    });
+    onboardingLogger.info(
+      { tx: fallbackTxHash, sender, chainId },
+      "HybridDelegator deployed via direct transaction fallback",
+    );
+    return {
+      userOpHash: null,
+      transactionHash: fallbackTxHash,
+      transport: "direct",
+    };
+  };
+
+  try {
+    onboardingLogger.debug({ entryPoint: smartAccount.entryPoint.address }, "Submitting HybridDelegator deployment userOp");
+    const userOpHash = (await bundlerClient.request(
+      {
+        method: "eth_sendUserOperation",
+        params: [rpcUserOperation, smartAccount.entryPoint.address],
+      },
+      { retryCount: 0 },
+    )) as Hex;
+
+    try {
+      const waitWithTimeout = <T>(promise: Promise<T>): Promise<T> =>
+        new Promise<T>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            reject(
+              new Error(
+                `Timed out waiting ${USER_OPERATION_WAIT_TIMEOUT_MS}ms for Pimlico receipt`,
+              ),
+            );
+          }, USER_OPERATION_WAIT_TIMEOUT_MS);
+          promise
+            .then((value) => {
+              clearTimeout(timer);
+              resolve(value);
+            })
+            .catch((error) => {
+              clearTimeout(timer);
+              reject(error);
+            });
+        });
+
+      type BundlerWaitReceipt = { receipt?: { transactionHash?: Hex | undefined } };
+      const receiptPromise = bundlerClient.waitForUserOperationReceipt({ hash: userOpHash }) as Promise<BundlerWaitReceipt>;
+      const receipt = await waitWithTimeout<BundlerWaitReceipt>(receiptPromise);
+      const transactionHash = receipt.receipt?.transactionHash as Hex | undefined;
+      if (!transactionHash || transactionHash === "0x") {
+        throw new Error("Pimlico bundler response missing transaction hash");
+      }
+
+      return {
+        userOpHash,
+        transactionHash,
+        transport: "bundler",
+      };
+    } catch (waitError) {
+      return handleBundlerFailure(waitError, userOpHash);
+    }
+  } catch (requestError) {
+    return handleBundlerFailure(requestError);
+  }
 };
 
 const isSmartAccountDeployed = async ({
@@ -913,7 +1199,7 @@ export const runOnboard4337 = async (
         existingOwner = undefined;
       }
     }
-    let deploymentInfo: { userOpHash: Hex; transactionHash: Hex } | undefined;
+    let deploymentInfo: HybridDeploymentResult | undefined;
 
     if (alreadyDeployed) {
       if (existingOwner && existingOwner !== rootAddress) {
@@ -994,19 +1280,43 @@ export const runOnboard4337 = async (
         return undefined;
       }
 
-      const ensureDeployedSpinner = ora("Deploying HybridDelegator (Pimlico sponsored)").start();
+      const ensureDeployedSpinner = ora(
+        "Deploying HybridDelegator (bundler with direct fallback)",
+      ).start();
       try {
-        const { userOpHash, transactionHash } = await submitHybridDelegatorDeployment({
+        const result = await submitHybridDelegatorDeployment({
           smartAccount,
           bundlerClient,
           chainId: MONAD_CHAIN_ID,
           publicClient,
+          walletClient,
+          allowDirectFallback: true,
         });
-        onboardingLogger.info({ userOpHash, transactionHash }, "HybridDelegator deployment submitted");
-        ensureDeployedSpinner.succeed(
-          `HybridDelegator deployed (userOp: ${userOpHash}, tx: ${transactionHash})`,
+        deploymentInfo = result;
+        onboardingLogger.info(
+          {
+            transport: result.transport,
+            userOpHash: result.userOpHash ?? undefined,
+            transactionHash: result.transactionHash ?? undefined,
+          },
+          "HybridDelegator deployment resolved",
         );
-        deploymentInfo = { userOpHash, transactionHash };
+
+        if (result.transport === "bundler") {
+          if (result.transactionHash) {
+            ensureDeployedSpinner.succeed(
+              `HybridDelegator deployed via Pimlico (userOp: ${result.userOpHash ?? "n/a"}, tx: ${result.transactionHash})`,
+            );
+          } else {
+            ensureDeployedSpinner.succeed(
+              "HybridDelegator deployment detected on-chain; bundler receipt unavailable",
+            );
+          }
+        } else {
+          ensureDeployedSpinner.succeed(
+            `HybridDelegator deployed via direct transaction (tx: ${result.transactionHash})`,
+          );
+        }
       } catch (error) {
         ensureDeployedSpinner.fail("HybridDelegator deployment failed");
         throw error;
@@ -1014,8 +1324,14 @@ export const runOnboard4337 = async (
     }
 
     if (deploymentInfo) {
-      console.log(`UserOperation hash: ${deploymentInfo.userOpHash}`);
-      console.log(`Transaction hash: ${deploymentInfo.transactionHash}`);
+      if (deploymentInfo.userOpHash) {
+        console.log(`UserOperation hash: ${deploymentInfo.userOpHash}`);
+      }
+      if (deploymentInfo.transactionHash) {
+        console.log(`Transaction hash: ${deploymentInfo.transactionHash}`);
+      } else {
+        console.log("Transaction hash unavailable (bundler did not return receipt)");
+      }
     }
 
     const normalizedDelegator = getAddress(hybridDelegator as Address);
@@ -1436,6 +1752,11 @@ export const setupHybridDelegatorTest = async (
   const publicClient: any = createMonadPublicClient();
   const rootPrivateKey = generatePrivateKey();
   const rootAccount = privateKeyToAccount(rootPrivateKey);
+  const walletClient = createWalletClient({
+    chain: monadChain,
+    transport: http(MONAD_RPC_URL),
+    account: rootAccount,
+  }) as unknown as WalletClientLike;
 
   // @ts-ignore -- upstream DTK typings for walletClient vs viem wallet mismatch slightly; runtime invocation is valid.
   const smartAccount = (await toMetaMaskSmartAccount({
@@ -1463,7 +1784,7 @@ export const setupHybridDelegatorTest = async (
   const hybridDelegator = getAddress(maybeTestDelegator);
 
   const spinner = ora("Deploying HybridDelegator on Monad testnet (test)").start();
-  let deploymentInfo: { userOpHash: Hex; transactionHash: Hex } | undefined;
+  let deploymentInfo: HybridDeploymentResult | undefined;
   try {
     const deployed = await isSmartAccountDeployed({
       smartAccount,
@@ -1471,17 +1792,34 @@ export const setupHybridDelegatorTest = async (
       address: hybridDelegator,
     });
     if (!deployed) {
-      const { userOpHash, transactionHash } = await submitHybridDelegatorDeployment({
+      const result = await submitHybridDelegatorDeployment({
         smartAccount,
         bundlerClient,
         chainId: MONAD_CHAIN_ID,
         publicClient,
+        walletClient,
+        allowDirectFallback: true,
       });
-      onboardingLogger.info({ userOpHash, transactionHash }, "Test deployment submitted");
-      spinner.succeed(
-        `HybridDelegator deployed (userOp: ${userOpHash}, tx: ${transactionHash})`,
+      deploymentInfo = result;
+      onboardingLogger.info(
+        {
+          transport: result.transport,
+          userOpHash: result.userOpHash ?? undefined,
+          transactionHash: result.transactionHash ?? undefined,
+        },
+        "Test deployment resolved",
       );
-      deploymentInfo = { userOpHash, transactionHash };
+      if (result.transport === "bundler") {
+        if (result.transactionHash) {
+          spinner.succeed(
+            `HybridDelegator deployed via Pimlico (userOp: ${result.userOpHash ?? "n/a"}, tx: ${result.transactionHash})`,
+          );
+        } else {
+          spinner.succeed("HybridDelegator deployment detected on-chain; bundler receipt unavailable");
+        }
+      } else {
+        spinner.succeed(`HybridDelegator deployed via direct transaction (tx: ${result.transactionHash})`);
+      }
     } else {
       spinner.succeed("HybridDelegator already deployed (test)");
     }
@@ -1682,8 +2020,14 @@ export const runOnboard4337Test = async (
   console.log(`Root private key: ${context.rootPrivateKey}`);
   console.log(`HybridDelegator: ${context.hybridDelegator}`);
   if (context.deploymentInfo) {
-    console.log(`UserOperation hash: ${context.deploymentInfo.userOpHash}`);
-    console.log(`Transaction hash: ${context.deploymentInfo.transactionHash}`);
+    if (context.deploymentInfo.userOpHash) {
+      console.log(`UserOperation hash: ${context.deploymentInfo.userOpHash}`);
+    }
+    if (context.deploymentInfo.transactionHash) {
+      console.log(`Transaction hash: ${context.deploymentInfo.transactionHash}`);
+    } else {
+      console.log("Transaction hash unavailable (bundler did not return receipt)");
+    }
   }
 
   console.log("Delegation explanations printed above. Artifacts are in-memory only for this test run.");

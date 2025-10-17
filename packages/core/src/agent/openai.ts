@@ -234,7 +234,13 @@ export const createOpenAiInsightStreamer = (
     return async () => undefined;
   }
 
-  const client = new OpenAI();
+  const globalAny = globalThis as Record<string, unknown>;
+  const clientFactory =
+    typeof globalAny.__PRAGMA_OPENAI_CLIENT_FACTORY__ === "function"
+      ? (globalAny.__PRAGMA_OPENAI_CLIENT_FACTORY__ as () => unknown)
+      : undefined;
+
+  const client = (clientFactory ? clientFactory() : new OpenAI()) as any;
   const primaryModel = options.primaryModel ?? DEFAULT_PRIMARY_MODEL;
   const fallbackModel = options.fallbackModel ?? DEFAULT_FALLBACK_MODEL;
   const firstChunkTimeoutMs = Number(
@@ -286,7 +292,35 @@ export const createOpenAiInsightStreamer = (
     });
 
     const chunks: string[] = [];
+    let aggregated = "";
     let streamError: unknown;
+
+    const appendChunk = (chunk: string) => {
+      if (!chunk) return;
+      chunks.push(chunk);
+      aggregated += chunk;
+    };
+
+    const appendFinalText = (text: string) => {
+      if (!text) {
+        return aggregated;
+      }
+      if (aggregated.length === 0) {
+        appendChunk(text);
+        return aggregated;
+      }
+      if (text.startsWith(aggregated)) {
+        const remainder = text.slice(aggregated.length);
+        appendChunk(remainder);
+        return aggregated;
+      }
+      aggregated = text;
+      chunks.length = 0;
+      if (text.length > 0) {
+        chunks.push(text);
+      }
+      return aggregated;
+    };
 
     const generator = (async function* () {
       try {
@@ -294,13 +328,13 @@ export const createOpenAiInsightStreamer = (
           if (event.type === "response.output_text.delta") {
             const delta = event.delta ?? "";
             if (!delta) continue;
-            chunks.push(delta);
+            appendChunk(delta);
             yield delta;
           }
         }
       } catch (error) {
         streamError = error;
-        if (!chunks.length) {
+        if (!aggregated.length) {
           throw error;
         }
       }
@@ -315,7 +349,8 @@ export const createOpenAiInsightStreamer = (
       if (!text) {
         throw new Error("Insight generation returned no content");
       }
-      return text;
+      appendFinalText(text);
+      return aggregated;
     };
 
     return {
@@ -327,8 +362,8 @@ export const createOpenAiInsightStreamer = (
           const final = await Promise.race([
             stream
               .finalResponse()
-              .then((response) => ({ type: "final" as const, response }))
-              .catch((error) => ({ type: "error" as const, error })),
+              .then((response: unknown) => ({ type: "final" as const, response }))
+              .catch((error: unknown) => ({ type: "error" as const, error })),
             (async () => {
               if (firstChunkTimeoutMs <= 0) return undefined;
               await new Promise((resolve) => setTimeout(resolve, firstChunkTimeoutMs));
@@ -341,14 +376,13 @@ export const createOpenAiInsightStreamer = (
           if (final && final.type === "final") {
             const finalText = extractOutputText(final.response);
             if (finalText) {
-              chunks.push(finalText);
+              appendFinalText(finalText);
             }
           }
         } catch (error) {
-          if (!chunks.length) {
+          if (!aggregated.length) {
             try {
-              const fallback = await fallbackToNonStreaming();
-              return fallback;
+              return await fallbackToNonStreaming();
             } catch (fallbackError) {
               throw fallbackError ?? error;
             }
@@ -358,13 +392,12 @@ export const createOpenAiInsightStreamer = (
           }
         }
 
-        if (chunks.length > 0) {
-          return chunks.join("");
+        if (aggregated.length > 0) {
+          return aggregated;
         }
 
         try {
-          const fallback = await fallbackToNonStreaming();
-          return fallback;
+          return await fallbackToNonStreaming();
         } catch (fallbackError) {
           throw fallbackError ?? streamError ?? new Error("Insight stream completed with no content");
         }

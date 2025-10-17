@@ -81,6 +81,18 @@ export const normalizeUtterance = (input: string): NormalizedUtterance => {
     normalized = normalized.replace(pattern, replacement);
   });
 
+  normalized = normalized.replace(/\b(\d+),(\d+)\b/g, (_match, whole, fractional) => {
+    if (fractional.length <= 2 || whole === "0") {
+      return `${whole}.${fractional}`;
+    }
+    return `${whole},${fractional}`;
+  });
+
+  normalized = normalized.replace(/\b(\d{1,3}(?:,\d{3})+)(\.\d+)?\b/g, (_match, integerPart, decimalPart = "") => {
+    const compact = (integerPart as string).replace(/,/g, "");
+    return `${compact}${decimalPart}`;
+  });
+
   normalized = normalized.replace(/[,]/g, "");
   normalized = normalized.replace(/[^a-zA-Z0-9.%\s]/g, (match) => (match === "." ? match : " "));
   normalized = normalized.replace(SPACE_REGEX, " ").toLowerCase().trim();

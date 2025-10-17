@@ -19,7 +19,7 @@ import type { WalletWithAddress } from "../clients";
 
 export interface HybridOnboardingInitResult {
   handle: Awaited<ReturnType<typeof createHybridDelegatorHandle>>;
-  deployment?: { userOpHash: Hex; transactionHash: Hex };
+  deployment?: { userOpHash: Hex | null; transactionHash?: Hex };
   sessionKey: SessionKeyRecord;
   nonce: bigint;
 }
@@ -68,7 +68,9 @@ export const initializeHybridDelegator = async (
     );
   }
 
-  const deployment = skipDeployment ? undefined : await ensureHybridDelegatorDeployed(handle);
+  const deployment = skipDeployment
+    ? undefined
+    : await ensureHybridDelegatorDeployed(handle, { allowDirectFallback: true });
   const nonce = await fetchDelegationNonce(handle);
 
   const existingSessionKey = getSessionKey(handle.delegator);

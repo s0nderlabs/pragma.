@@ -79,6 +79,30 @@ test("chooses explicit amount over max", () => {
   assert.equal(outcome.intent.amount.valueWei, outcome.intent.amountWei);
 });
 
+test("parses decimal amounts expressed with a dot", () => {
+  const outcome = parseIntent("swap 25.6 mon to usdc", delegationContext);
+  assert.equal(outcome.type, "success");
+  assert.equal(outcome.intent.amount.kind, "exact");
+  assert.equal(outcome.intent.amount.value, "25.6");
+  assert.equal(outcome.intent.amount.valueWei, BigInt("25600000000000000000").toString());
+});
+
+test("parses decimal amounts expressed with a comma", () => {
+  const outcome = parseIntent("swap 25,6 mon to usdc", delegationContext);
+  assert.equal(outcome.type, "success");
+  assert.equal(outcome.intent.amount.kind, "exact");
+  assert.equal(outcome.intent.amount.value, "25.6");
+  assert.equal(outcome.intent.amount.valueWei, BigInt("25600000000000000000").toString());
+});
+
+test("parses sub-unit comma decimals", () => {
+  const outcome = parseIntent("swap 0,125 mon to usdc", delegationContext);
+  assert.equal(outcome.type, "success");
+  assert.equal(outcome.intent.amount.kind, "exact");
+  assert.equal(outcome.intent.amount.value, "0.125");
+  assert.equal(outcome.intent.amount.valueWei, BigInt("125000000000000000").toString());
+});
+
 test("prompts clarification when token symbol is ambiguous", () => {
   const ambiguousContext = {
     ...delegationContext,

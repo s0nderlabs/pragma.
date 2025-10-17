@@ -72,7 +72,11 @@ const tokenLabel = (token: AllowedToken) => {
   return `${symbol} · ${token.address.slice(0, 6)}…${token.address.slice(-4)}`;
 };
 
-const shortHex = (value: string) => `${value.slice(0, 6)}…${value.slice(-4)}`;
+const shortHex = (value?: string) => {
+  if (!value || value === "0x") return "—";
+  if (value.length <= 10) return value;
+  return `${value.slice(0, 6)}…${value.slice(-4)}`;
+};
 const formatAddress = (address?: string) => (address ? shortHex(address) : "Web3Auth session not connected");
 const formatExpiry = (expiresAt?: number) => {
   if (!expiresAt) return "—";
@@ -376,9 +380,13 @@ export const OnboardingPanel = ({ onStatusUpdate, onRequestClose }: OnboardingPa
         deploymentTx: init.deployment?.transactionHash,
       });
 
-      const statusParts = [] as string[];
+      const statusParts: string[] = [];
       if (init.deployment) {
-        statusParts.push(`HybridDelegator deployed (tx ${shortHex(init.deployment.transactionHash)})`);
+        statusParts.push(
+          init.deployment.transactionHash
+            ? `HybridDelegator deployed (tx ${shortHex(init.deployment.transactionHash)})`
+            : "HybridDelegator deployed",
+        );
       } else {
         statusParts.push(`HybridDelegator ready at ${shortHex(init.handle.delegator)}`);
       }
@@ -951,4 +959,3 @@ export const OnboardingPanel = ({ onStatusUpdate, onRequestClose }: OnboardingPa
     </form>
   );
 };
-

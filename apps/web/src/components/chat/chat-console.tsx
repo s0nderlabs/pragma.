@@ -593,7 +593,7 @@ export const ChatConsole = () => {
             )}
 
             <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-3">
-              <div className="flex items-end gap-3 rounded-[1.5rem] border border-[#846FFA]/25 bg-white/75 px-5 py-4 shadow-[0_20px_45px_rgba(132,111,250,0.12)] backdrop-blur-[18px] dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/80 dark:shadow-[0_30px_60px_rgba(0,0,0,0.55)]">
+              <div className="flex items-center gap-3 rounded-[1.5rem] border border-[#846FFA]/35 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(255,255,255,0.75))] px-4 py-3 shadow-[0_18px_40px_rgba(89,79,200,0.12)] backdrop-blur-xl dark:border-[#7364ff]/40 dark:bg-[linear-gradient(135deg,rgba(22,20,42,0.9),rgba(11,18,35,0.92))] dark:shadow-[0_28px_60px_rgba(9,14,40,0.55)]">
                 <textarea
                   ref={textareaRef}
                   placeholder={
@@ -608,7 +608,7 @@ export const ChatConsole = () => {
                       event.currentTarget.form?.requestSubmit();
                     }
                   }}
-                  className="flex-1 resize-none bg-transparent text-sm leading-relaxed text-[#1A1A1A] placeholder:text-[#5C5C5C]/70 outline-none dark:text-[#F8F8FF] dark:placeholder:text-[#F8F8FF]/55"
+                  className="flex-1 resize-none bg-transparent text-sm text-[#1A1A1A] placeholder:text-[#5C5C5C]/70 outline-none dark:text-[#F8F8FF] dark:placeholder:text-[#F8F8FF]/55"
                   rows={1}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
@@ -617,10 +617,10 @@ export const ChatConsole = () => {
                   type="submit"
                   disabled={disableSend}
                   className={cn(
-                    "group inline-flex shrink-0 items-center gap-1.5 rounded-full px-5 py-2 text-xs font-semibold transition bg-gradient-to-br from-[#846FFA] to-[#674CF9] text-white",
+                    "group inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold transition bg-gradient-to-br from-[#846FFA] to-[#674CF9] text-white shadow-[0_4px_12px_rgba(132,111,250,0.3)]",
                     disableSend
                       ? "cursor-not-allowed opacity-50"
-                      : "shadow-[0_4px_12px_rgba(132,111,250,0.3)] hover:shadow-[0_6px_20px_rgba(132,111,250,0.35)]",
+                      : "hover:shadow-[0_6px_20px_rgba(132,111,250,0.35)]",
                   )}
                 >
                   {isSubmitting ? (

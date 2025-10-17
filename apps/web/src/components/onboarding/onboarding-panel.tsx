@@ -41,6 +41,8 @@ export interface QuickStatusSnapshot {
 interface OnboardingPanelProps {
   onStatusUpdate?: (status: QuickStatusSnapshot) => void;
   onRequestClose?: () => void;
+  showIdentityCard?: boolean;
+  showSummaryCards?: boolean;
 }
 
 const SAFE_TTL_SECONDS = 60 * 60;
@@ -83,7 +85,12 @@ const formatExpiry = (expiresAt?: number) => {
   return new Date(expiresAt * 1000).toLocaleString();
 };
 
-export const OnboardingPanel = ({ onStatusUpdate, onRequestClose }: OnboardingPanelProps) => {
+export const OnboardingPanel = ({
+  onStatusUpdate,
+  onRequestClose,
+  showIdentityCard = true,
+  showSummaryCards = true,
+}: OnboardingPanelProps) => {
   const identity = useIdentity();
   const [availableTokens, setAvailableTokens] = React.useState<AllowedToken[]>([]);
   const [mode, setMode] = React.useState<Mode>("safe");
@@ -645,52 +652,54 @@ export const OnboardingPanel = ({ onStatusUpdate, onRequestClose }: OnboardingPa
   return (
     <form onSubmit={handleSubmit} className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
       <div className="space-y-5">
-        <div className={cn(glassSectionClass, "space-y-4")}> 
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Web3Auth identity</h3>
-              <p className="mt-2 text-lg font-semibold text-[#1A1A1A] dark:text-[#F8F8FF]">
-                {formatAddress(identity.wallet?.address)}
-              </p>
-              <p className="mt-1 text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">{identityMessage}</p>
+        {showIdentityCard ? (
+          <div className={cn(glassSectionClass, "space-y-4")}>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Web3Auth identity</h3>
+                <p className="mt-2 text-lg font-semibold text-[#1A1A1A] dark:text-[#F8F8FF]">
+                  {formatAddress(identity.wallet?.address)}
+                </p>
+                <p className="mt-1 text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">{identityMessage}</p>
+              </div>
             </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                onRequestClose?.();
-                void identity.connect().catch((error) => {
-                  console.error("Web3Auth connection failed", error);
-                });
-              }}
-              disabled={connectButtonDisabled}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-full border border-[#846FFA]/35 bg-white/75 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#3F356F] shadow-sm transition hover:bg-[#846FFA]/15 dark:border-[#846FFA]/40 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/85 dark:hover:bg-[#846FFA]/25",
-                connectButtonDisabled && "opacity-60",
-              )}
-            >
-              {identity.status === "connecting" ? (
-                <span className="flex items-center gap-2"><Spinner className="h-3.5 w-3.5" /> Connecting</span>
-              ) : identity.status === "initializing" ? (
-                <span className="flex items-center gap-2"><Spinner className="h-3.5 w-3.5" /> Preparing…</span>
-              ) : identity.status === "error" ? (
-                <span className="flex items-center gap-2">Retry connect</span>
-              ) : identity.wallet ? "Reconnect" : "Connect"}
-            </Button>
-            {showDisconnectButton ? (
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => identity.disconnect()}
-                className="rounded-full border border-white/40 bg-white/65 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#5C5C5C] shadow-sm transition hover:bg-white/80 dark:border-white/10 dark:bg-[#1E1E27]/60 dark:text-[#C7C3E8]/85 dark:hover:bg-[#1E1E27]/75"
+                onClick={() => {
+                  onRequestClose?.();
+                  void identity.connect().catch((error) => {
+                    console.error("Web3Auth connection failed", error);
+                  });
+                }}
+                disabled={connectButtonDisabled}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-full border border-[#846FFA]/35 bg-white/75 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#3F356F] shadow-sm transition hover:bg-[#846FFA]/15 dark:border-[#846FFA]/40 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/85 dark:hover:bg-[#846FFA]/25",
+                  connectButtonDisabled && "opacity-60",
+                )}
               >
-                Disconnect
+                {identity.status === "connecting" ? (
+                  <span className="flex items-center gap-2"><Spinner className="h-3.5 w-3.5" /> Connecting</span>
+                ) : identity.status === "initializing" ? (
+                  <span className="flex items-center gap-2"><Spinner className="h-3.5 w-3.5" /> Preparing…</span>
+                ) : identity.status === "error" ? (
+                  <span className="flex items-center gap-2">Retry connect</span>
+                ) : identity.wallet ? "Reconnect" : "Connect"}
               </Button>
-            ) : null}
+              {showDisconnectButton ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => identity.disconnect()}
+                  className="rounded-full border border-white/40 bg-white/65 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#5C5C5C] shadow-sm transition hover:bg-white/80 dark:border-white/10 dark:bg-[#1E1E27]/60 dark:text-[#C7C3E8]/85 dark:hover:bg-[#1E1E27]/75"
+                >
+                  Disconnect
+                </Button>
+              ) : null}
+            </div>
           </div>
-        </div>
+        ) : null}
 
         {identity.error ? (
           <div className="rounded-[1.25rem] border border-destructive/55 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -793,65 +802,67 @@ export const OnboardingPanel = ({ onStatusUpdate, onRequestClose }: OnboardingPa
       </div>
 
       <div className="space-y-5">
-        <div className="grid gap-4">
-          <StatCard
-            icon={<Sparkles className="h-3.5 w-3.5" />}
-            label="Delegator"
-            value={sessionDelegatorLabel}
-            testId="onboarding-delegator"
-            description={sessionDelegatorFull ? "Fund this HybridDelegator to settle swaps." : "Connect your wallet to derive the delegator."}
-            actions={
-              <>
-                <span className="truncate">{ownerAddress ? `Owner ${shortHex(ownerAddress)}` : "No owner connected"}</span>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
-                  onClick={() => handleCopy(sessionDelegatorFull)}
-                  disabled={!sessionDelegatorFull}
-                  aria-label="Copy delegator address"
-                >
-                  <ClipboardCopy className="h-4 w-4" />
-                </Button>
-              </>
-            }
-          />
-          <StatCard
-            icon={<KeyRound className="h-3.5 w-3.5" />}
-            label="Session key"
-            value={quickStatus.sessionKey}
-            testId="onboarding-session-key"
-            description={
-              <div className="space-y-1">
-                <span>Expiry {sessionExpiry}</span>
-                <span>{sessionModeLabel !== "—" ? `Mode ${sessionModeLabel}` : "Awaiting issuance"}</span>
-              </div>
-            }
-            actions={
-              <>
-                <span className="truncate">Top up ~0.5 {MONAD_NATIVE_TOKEN_SYMBOL} for gas</span>
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
-                  onClick={() => handleCopy(sessionKeyFull)}
-                  disabled={!sessionKeyFull}
-                  aria-label="Copy session key address"
-                >
-                  <ClipboardCopy className="h-4 w-4" />
-                </Button>
-              </>
-            }
-          />
-          <StatCard
-            icon={<ShieldCheck className="h-3.5 w-3.5" />}
-            label="Smart account"
-            value={quickStatus.smartAccount}
-            description="Deployments and session refreshes appear here once onboarding completes."
-          />
-        </div>
+        {showSummaryCards ? (
+          <div className="grid gap-4">
+            <StatCard
+              icon={<Sparkles className="h-3.5 w-3.5" />}
+              label="Delegator"
+              value={sessionDelegatorLabel}
+              testId="onboarding-delegator"
+              description={sessionDelegatorFull ? "Fund this HybridDelegator to settle swaps." : "Connect your wallet to derive the delegator."}
+              actions={
+                <>
+                  <span className="truncate">{ownerAddress ? `Owner ${shortHex(ownerAddress)}` : "No owner connected"}</span>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
+                    onClick={() => handleCopy(sessionDelegatorFull)}
+                    disabled={!sessionDelegatorFull}
+                    aria-label="Copy delegator address"
+                  >
+                    <ClipboardCopy className="h-4 w-4" />
+                  </Button>
+                </>
+              }
+            />
+            <StatCard
+              icon={<KeyRound className="h-3.5 w-3.5" />}
+              label="Session key"
+              value={quickStatus.sessionKey}
+              testId="onboarding-session-key"
+              description={
+                <div className="space-y-1">
+                  <span>Expiry {sessionExpiry}</span>
+                  <span>{sessionModeLabel !== "—" ? `Mode ${sessionModeLabel}` : "Awaiting issuance"}</span>
+                </div>
+              }
+              actions={
+                <>
+                  <span className="truncate">Top up ~0.5 {MONAD_NATIVE_TOKEN_SYMBOL} for gas</span>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
+                    onClick={() => handleCopy(sessionKeyFull)}
+                    disabled={!sessionKeyFull}
+                    aria-label="Copy session key address"
+                  >
+                    <ClipboardCopy className="h-4 w-4" />
+                  </Button>
+                </>
+              }
+            />
+            <StatCard
+              icon={<ShieldCheck className="h-3.5 w-3.5" />}
+              label="Smart account"
+              value={quickStatus.smartAccount}
+              description="Deployments and session refreshes appear here once onboarding completes."
+            />
+          </div>
+        ) : null}
 
         <div className={cn(glassSectionClass, "space-y-3")}>
           <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Session summary</h3>

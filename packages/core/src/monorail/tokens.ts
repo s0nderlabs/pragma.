@@ -8,6 +8,7 @@ export interface MonorailToken {
   name?: string;
   decimals: number;
   categories: string[];
+  logoURI?: string;
 }
 
 export interface RawMonorailToken {
@@ -16,6 +17,9 @@ export interface RawMonorailToken {
   name?: string;
   decimals?: string | number;
   categories?: string[];
+  logoURI?: string;
+  logoUrl?: string;
+  logo_uri?: string;
 }
 
 export interface MonorailTokenClientConfig {
@@ -38,6 +42,7 @@ export interface AllowedToken {
   decimals: number;
   kind?: TokenKind;
   categories?: string[];
+  logoURI?: string;
 }
 
 export interface TokenCacheEntry {
@@ -81,6 +86,7 @@ export const parseMonorailToken = (raw: RawMonorailToken): MonorailToken | undef
     const symbol = raw.symbol?.trim() || undefined;
     const name = raw.name?.trim() || undefined;
     const categories = Array.isArray(raw.categories) ? raw.categories : [];
+    const logoURI = raw.logoURI ?? raw.logoUrl ?? raw.logo_uri ?? undefined;
 
     return {
       address,
@@ -88,6 +94,7 @@ export const parseMonorailToken = (raw: RawMonorailToken): MonorailToken | undef
       symbol,
       name,
       categories,
+      logoURI: logoURI?.trim() || undefined,
     };
   } catch {
     return undefined;
@@ -132,6 +139,7 @@ const mergeTokenLists = (lists: MonorailToken[][]): MonorailToken[] => {
         name: token.name || existing.name,
         symbol: token.symbol || existing.symbol,
         categories: Array.from(categories),
+        logoURI: token.logoURI || existing.logoURI,
       });
     }
   }
@@ -207,6 +215,7 @@ export const classifyToken = (
     name: token.name,
     kind,
     categories: token.categories,
+    logoURI: token.logoURI,
   };
 };
 
@@ -229,6 +238,7 @@ export const normalizeAllowedTokensList = (tokens: AllowedToken[] = []): Allowed
             : Number(token.decimals ?? 18),
         kind: token.kind,
         categories: token.categories ? [...token.categories] : undefined,
+        logoURI: token.logoURI,
       });
       seen.add(key);
     } catch {

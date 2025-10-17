@@ -48,7 +48,7 @@ const monadChain = {
   blockExplorers: {
     default: {
       name: "Monad Explorer",
-      url: "https://testnet-explorer.monad.xyz",
+      url: "https://testnet.monadexplorer.com",
     },
   },
 } as const;

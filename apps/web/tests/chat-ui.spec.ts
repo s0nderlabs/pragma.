@@ -169,4 +169,123 @@ test.describe("Chat UI", () => {
     const dots = page.locator("[data-testid=system-message] [data-testid=loading-dots]");
     await expect(dots).toBeVisible();
   });
+
+  test("renders swap receipt card with formatted badges", async ({ page }) => {
+    await page.waitForFunction(() => {
+      return typeof (window as unknown as { __PRAGMA_CHAT_DEBUG__?: unknown }).__PRAGMA_CHAT_DEBUG__ !== "undefined";
+    });
+
+    const executedAt = Date.now();
+    await page.evaluate((payload) => {
+      const api = (window as unknown as {
+        __PRAGMA_CHAT_DEBUG__?: {
+          append: (message: unknown) => void;
+          reset: () => void;
+        };
+      }).__PRAGMA_CHAT_DEBUG__;
+      api?.reset?.();
+      api?.append?.(payload);
+    }, {
+      id: "receipt-test",
+      role: "system",
+      status: "success",
+      content: "Swap executed",
+      presentation: {
+        type: "swap_receipt",
+        executedAt,
+        from: { address: "0x0000000000000000000000000000000000000000", symbol: "MON" },
+        to: { address: "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701", symbol: "USDC" },
+        amountIn: "0.50",
+        amountOut: "200.12",
+        minAmountOut: "198.00",
+        slippageBps: 50,
+        slippageLabel: "0.50%",
+        planHash: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        quoteId: "Q-123",
+        txHash: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        explorerUrl: "https://explorer.test/tx/0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      },
+    });
+
+    const receiptPanel = page.locator("[data-testid=system-message]").last();
+    await expect(receiptPanel.locator("text=Swap Executed").first()).toBeVisible();
+    await expect(receiptPanel.locator("text=+ 200.12 USDC")).toBeVisible();
+    await expect(receiptPanel.locator("text=Plan hash")).toBeVisible();
+    await expect(receiptPanel.locator("text=Quote Q-123")).toBeVisible();
+    await expect(receiptPanel.getByRole("link", { name: /View on explorer/i })).toBeVisible();
+  });
+
+  test("renders swap quote card for pending confirmation", async ({ page }) => {
+    await page.waitForFunction(() => {
+      return typeof (window as unknown as { __PRAGMA_CHAT_DEBUG__?: unknown }).__PRAGMA_CHAT_DEBUG__ !== "undefined";
+    });
+
+    const createdAt = Date.now();
+    await page.evaluate((payload) => {
+      const api = (window as unknown as {
+        __PRAGMA_CHAT_DEBUG__?: {
+          append: (message: unknown) => void;
+          reset: () => void;
+        };
+      }).__PRAGMA_CHAT_DEBUG__;
+      api?.reset?.();
+      api?.append?.(payload);
+    }, {
+      id: "quote-test",
+      role: "system",
+      status: "default",
+      content: "Quote ready",
+      presentation: {
+        type: "swap_quote",
+        createdAt,
+        quoteId: "Q-456",
+        from: { address: "0x0000000000000000000000000000000000000000", symbol: "MON" },
+        to: { address: "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701", symbol: "USDC" },
+        amountIn: "0.40",
+        expectedOut: "160.00",
+        minAmountOut: "158.40",
+        slippage: "0.50%",
+      },
+    });
+
+    const quotePanel = page.locator("[data-testid=system-message]").last();
+    await expect(quotePanel.locator("text=Swap Quote")).toBeVisible();
+    await expect(quotePanel.locator("text=Quote #Q-456")).toBeVisible();
+    await expect(quotePanel.locator("text=Minimum out")).toBeVisible();
+    await expect(quotePanel.locator("text=Slippage")).toBeVisible();
+  });
+
+  test("renders agent insight as a note", async ({ page }) => {
+    await page.waitForFunction(() => {
+      return typeof (window as unknown as { __PRAGMA_CHAT_DEBUG__?: unknown }).__PRAGMA_CHAT_DEBUG__ !== "undefined";
+    });
+
+    await page.evaluate((payload) => {
+      const api = (window as unknown as {
+        __PRAGMA_CHAT_DEBUG__?: {
+          append: (message: unknown) => void;
+          reset: () => void;
+        };
+      }).__PRAGMA_CHAT_DEBUG__;
+      api?.reset?.();
+      api?.append?.(payload);
+    }, {
+      id: "insight-test",
+      role: "system",
+      status: "default",
+      content: "Consider rotating your delegation for fresh limits.",
+      presentation: {
+        type: "insight",
+        heading: "Session guidance",
+        body: "Consider rotating your delegation for fresh limits.\n\n- Rotate session key\n- Review token caps",
+      },
+    });
+
+    const insight = page.locator("[data-testid=system-message]").last();
+    await expect(insight.locator("text=Session guidance")).toBeVisible();
+    await expect(
+      insight.locator("p").filter({ hasText: "Consider rotating your delegation for fresh limits." })
+    ).toBeVisible();
+    await expect(insight.locator("li")).toHaveCount(2);
+  });
 });

@@ -461,7 +461,7 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
                 chainName: "Monad Testnet",
                 rpcUrls: [defaultRpcUrl],
                 nativeCurrency: { name: "Monad", symbol: "MON", decimals: 18 },
-                blockExplorerUrls: ["https://testnet-explorer.monad.xyz"],
+                blockExplorerUrls: ["https://testnet.monadexplorer.com"],
               }],
             });
             await provider.request({
@@ -805,7 +805,7 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
                 chainName: "Monad Testnet",
                 rpcUrls: [defaultRpcUrl],
                 nativeCurrency: { name: "Monad", symbol: "MON", decimals: 18 },
-                blockExplorerUrls: ["https://testnet-explorer.monad.xyz"],
+                blockExplorerUrls: ["https://testnet.monadexplorer.com"],
               }],
             });
             await provider.request({

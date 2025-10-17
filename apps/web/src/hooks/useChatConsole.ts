@@ -47,12 +47,58 @@ export interface ChatMessageLog {
   message: string;
 }
 
+export interface TokenDisplaySummary {
+  address: string;
+  symbol: string;
+  logoURI?: string;
+}
+
+export type SwapQuotePresentation = {
+  type: "swap_quote";
+  createdAt: number;
+  quoteId: string;
+  from: TokenDisplaySummary;
+  to: TokenDisplaySummary;
+  amountIn: string;
+  expectedOut: string;
+  minAmountOut: string;
+  slippage: string;
+};
+
+export type SwapReceiptPresentation = {
+  type: "swap_receipt";
+  executedAt: number;
+  from: TokenDisplaySummary;
+  to: TokenDisplaySummary;
+  amountIn: string;
+  amountOut: string;
+  minAmountOut: string;
+  slippageBps: number;
+  slippageLabel: string;
+  planHash?: string;
+  quoteId?: string;
+  txHash?: string;
+  explorerUrl?: string;
+};
+
+export type InsightPresentation = {
+  type: "insight";
+  heading: string;
+  body?: string;
+};
+
+export type ChatMessagePresentation =
+  | SwapQuotePresentation
+  | SwapReceiptPresentation
+  | InsightPresentation;
+
 export interface ChatMessage {
   id: string;
   role: "user" | "system";
   content: string;
   status?: "default" | "loading" | "success" | "error";
   logs?: ChatMessageLog[];
+  presentation?: ChatMessagePresentation;
 }
 
 const shortHex = (value: string) => `${value.slice(0, 6)}…${value.slice(-4)}`;
@@ -188,6 +234,12 @@ const toReceiptToken = (token: AllowedToken & { decimals: number }) => ({
   decimals: token.decimals,
 });
 
+const toTokenDisplaySummary = (token: AllowedToken & { decimals: number }): TokenDisplaySummary => ({
+  address: getAddress(token.address),
+  symbol: token.symbol ?? shortHex(token.address),
+  logoURI: token.logoURI,
+});
+
 const isNativeTokenCandidate = (token?: AllowedToken) => {
   if (!token) return false;
   if (token.kind === "native") return true;
@@ -282,6 +334,35 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
       setQuickModeState(false);
     }
   }, [activeDelegator, hydrated]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const target = window as unknown as {
+      __PRAGMA_CHAT_DEBUG__?: {
+        append: (message: ChatMessage) => void;
+        reset: () => void;
+      };
+    };
+
+    target.__PRAGMA_CHAT_DEBUG__ = {
+      append: (message: ChatMessage) => {
+        setMessages((prev) => [
+          ...prev,
+          {
+            ...message,
+            id: message.id ?? nanoid(),
+          },
+        ]);
+      },
+      reset: () => setMessages([]),
+    };
+
+    return () => {
+      if (target.__PRAGMA_CHAT_DEBUG__) {
+        delete target.__PRAGMA_CHAT_DEBUG__;
+      }
+    };
+  }, []);
 
   React.useEffect(() => {
     if (typeof window === "undefined") return;
@@ -445,23 +526,74 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
   );
 
 
-  const formatQuoteSummary = React.useCallback((preview: SwapPreviewResult, config: SwapExecutionConfig) => {
-    const amountIn = formatTokenAmount(preview.plan.amountIn, config.intent.from, config.intent.from.decimals);
-    const expectedOut = formatTokenAmount(preview.plan.expectedAmountOut, config.intent.to, config.intent.to.decimals);
-    const minOut = formatTokenAmount(preview.plan.minAmountOut, config.intent.to, config.intent.to.decimals);
-    const slippageLabel = formatSlippageLabel(config.slippageBps);
-    return `Quote ${preview.plan.quote.quoteId}\n${amountIn} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${expectedOut} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}\nMinimum out: ${minOut} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}\nSlippage tolerance: ${slippageLabel}`;
-  }, []);
+  const buildSwapQuoteDisplay = React.useCallback(
+    (preview: SwapPreviewResult, config: SwapExecutionConfig): { summary: string; presentation: SwapQuotePresentation } => {
+      const amountIn = formatTokenAmount(preview.plan.amountIn, config.intent.from, config.intent.from.decimals);
+      const expectedOut = formatTokenAmount(preview.plan.expectedAmountOut, config.intent.to, config.intent.to.decimals);
+      const minOut = formatTokenAmount(preview.plan.minAmountOut, config.intent.to, config.intent.to.decimals);
+      const slippageLabel = formatSlippageLabel(config.slippageBps);
+      const summary = `Quote ${preview.plan.quote.quoteId}\n${amountIn} ${
+        config.intent.from.symbol ?? shortHex(config.intent.from.address)
+      } → ${expectedOut} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}\nMinimum out: ${minOut} ${
+        config.intent.to.symbol ?? shortHex(config.intent.to.address)
+      }\nSlippage tolerance: ${slippageLabel}`;
 
-  const formatSwapResult = React.useCallback((result: SwapResult, config: SwapExecutionConfig) => {
-    const amountIn = formatTokenAmount(result.amountIn, config.intent.from, config.intent.from.decimals);
-    const amountOut = formatTokenAmount(result.amountOut, config.intent.to, config.intent.to.decimals);
-    const slippageLabel = formatSlippageLabel(config.slippageBps);
-    const explorerUrl = monadChain.blockExplorers?.default?.url;
-    const txLabel = shortHex(result.txHash);
-    const txLink = explorerUrl ? `${explorerUrl}/tx/${result.txHash}` : undefined;
-    return `Swap executed successfully\n${amountIn} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${amountOut} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}\nSlippage tolerance: ${slippageLabel}\nTx hash: ${txLabel}${txLink ? `\nExplorer: ${txLink}` : ""}`;
-  }, []);
+      return {
+        summary,
+        presentation: {
+          type: "swap_quote",
+          createdAt: Date.now(),
+          quoteId: preview.plan.quote.quoteId,
+          from: toTokenDisplaySummary(config.intent.from),
+          to: toTokenDisplaySummary(config.intent.to),
+          amountIn,
+          expectedOut,
+          minAmountOut: minOut,
+          slippage: slippageLabel,
+        },
+      };
+    },
+    [],
+  );
+
+  const buildSwapReceiptDisplay = React.useCallback(
+    (
+      result: SwapResult,
+      config: SwapExecutionConfig,
+      preview: SwapPreviewResult,
+      planHash: string,
+    ): { summary: string; presentation: SwapReceiptPresentation } => {
+      const amountIn = formatTokenAmount(result.amountIn, config.intent.from, config.intent.from.decimals);
+      const amountOut = formatTokenAmount(result.amountOut, config.intent.to, config.intent.to.decimals);
+      const minOut = formatTokenAmount(result.minAmountOut, config.intent.to, config.intent.to.decimals);
+      const slippageLabel = formatSlippageLabel(config.slippageBps);
+      const explorerUrl = monadChain.blockExplorers?.default?.url;
+      const txLink = result.txHash && explorerUrl ? `${explorerUrl}/tx/${result.txHash}` : undefined;
+      const summary = `Swap ${amountIn} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${amountOut} ${
+        config.intent.to.symbol ?? shortHex(config.intent.to.address)
+      }`;
+
+      return {
+        summary,
+        presentation: {
+          type: "swap_receipt",
+          executedAt: Date.now(),
+          from: toTokenDisplaySummary(config.intent.from),
+          to: toTokenDisplaySummary(config.intent.to),
+          amountIn,
+          amountOut,
+          minAmountOut: minOut,
+          slippageBps: config.slippageBps,
+          slippageLabel,
+          planHash,
+          quoteId: preview.plan.quote.quoteId,
+          txHash: result.txHash,
+          explorerUrl: txLink,
+        },
+      };
+    },
+    [],
+  );
 
   const runSwapExecution = React.useCallback(
     async (config: SwapExecutionConfig, preview: SwapPreviewResult, statusId: string) => {
@@ -475,13 +607,23 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
       const startedAt = Date.now();
       try {
         const result = await executeSwap({ ...config, preparedPlan: preview.plan }, logger);
+        const planHash = computeSwapPlanHash({
+          chainId: monadChain.id,
+          tokenIn: getAddress(config.intent.from.address),
+          tokenOut: getAddress(config.intent.to.address),
+          amountInWei: preview.plan.amountIn,
+          minAmountOutWei: preview.plan.minAmountOut,
+          slippageBps: config.slippageBps,
+          quoteId: preview.plan.quote.quoteId,
+        });
 
-        const successSummary = `Swap ${formatTokenAmount(result.amountIn, config.intent.from, config.intent.from.decimals)} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${formatTokenAmount(result.amountOut, config.intent.to, config.intent.to.decimals)} ${config.intent.to.symbol ?? shortHex(config.intent.to.address)}`;
+        const receiptDisplay = buildSwapReceiptDisplay(result, config, preview, planHash);
 
         updateMessage(statusId, (current) => ({
           ...current,
-          content: formatSwapResult(result, config),
+          content: receiptDisplay.summary,
           status: "success",
+          presentation: receiptDisplay.presentation,
         }));
 
         recordSwapReceipt({
@@ -498,21 +640,13 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
           minAmountOutWei: result.minAmountOut.toString(),
           slippageBps: config.slippageBps,
           quoteId: preview.plan.quote.quoteId,
-          planHash: computeSwapPlanHash({
-            chainId: monadChain.id,
-            tokenIn: getAddress(config.intent.from.address),
-            tokenOut: getAddress(config.intent.to.address),
-            amountInWei: preview.plan.amountIn,
-            minAmountOutWei: preview.plan.minAmountOut,
-            slippageBps: config.slippageBps,
-            quoteId: preview.plan.quote.quoteId,
-          }),
+          planHash,
           txHash: result.txHash,
           blockNumber: Number(result.blockNumber),
           gasUsedWei: result.gasUsed.toString(),
           createdAt: startedAt,
           executedAt: Date.now(),
-          summary: successSummary,
+          summary: receiptDisplay.summary,
         });
       } catch (error) {
         const failureSummary = `Swap ${config.amountInput} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${config.intent.to.symbol ?? shortHex(config.intent.to.address)} failed`;
@@ -548,7 +682,7 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
         updateMessage(statusId, (current) => ({ ...current, logs: current.logs ?? [] }));
       }
     },
-    [createLogger, formatSwapResult, recordSwapReceipt, updateMessage],
+    [buildSwapReceiptDisplay, createLogger, recordSwapReceipt, updateMessage],
   );
 
   const runNativeTransferExecution = React.useCallback(
@@ -751,11 +885,12 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
         });
         throw error;
       }
-      const summary = formatQuoteSummary(preview, config);
+      const quoteDisplay = buildSwapQuoteDisplay(preview, config);
       updateMessage(statusId, (current) => ({
         ...current,
-        content: summary,
+        content: quoteDisplay.summary,
         status: "default",
+        presentation: quoteDisplay.presentation,
       }));
 
       if (!quickMode) {
@@ -764,7 +899,7 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
           statusId,
           config,
           preview,
-          summary,
+          summary: quoteDisplay.summary,
         });
         appendLog(statusId, { level: "info", message: "Awaiting confirmation" });
         return;
@@ -777,7 +912,7 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
       appendLog,
       createLogger,
       fetchTokenBalance,
-      formatQuoteSummary,
+      buildSwapQuoteDisplay,
       quickMode,
       runSwapExecution,
       setPendingAction,
@@ -1192,6 +1327,14 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
           ...current,
           content: `${combined}${formatWarnings(response.warnings)}`,
           status: "default",
+          presentation: {
+            type: "insight",
+            heading:
+              typeof response.title === "string" && response.title.trim().length > 0
+                ? response.title.trim()
+                : "Pragma insight",
+            body: combined,
+          },
         }));
         return;
       }

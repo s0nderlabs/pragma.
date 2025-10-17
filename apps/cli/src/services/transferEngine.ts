@@ -13,11 +13,11 @@ import {
   type SessionDelegationInfo,
 } from "@pragma/core";
 
-import { createMonadPublicClient, monadChain } from "./web3authClients.js";
+import { createMonadExecutionClient, createMonadPublicClient, monadChain } from "./web3authClients.js";
 import {
   MONAD_NATIVE_TOKEN_ADDRESS,
   MONAD_NATIVE_TOKEN_SYMBOL,
-  MONAD_RPC_URL,
+  MONAD_EXECUTION_RPC_URL,
 } from "./config.js";
 import { isFixtureMode, recordFixtureTransfer } from "../testing/fixtureRuntime.js";
 
@@ -37,11 +37,12 @@ const createLogger = (prefix?: string): ExecutionLogger => {
 const createSessionWalletFactory = () => (session: SessionDelegationInfo) =>
   createSessionWalletCore(session, {
     chain: monadChain,
-    rpcUrl: MONAD_RPC_URL,
+    rpcUrl: MONAD_EXECUTION_RPC_URL,
   });
 
 const buildNativeDependencies = (logPrefix?: string): NativeTransferDependencies => ({
   publicClient: createMonadPublicClient(),
+  fallbackPublicClient: createMonadExecutionClient(),
   sessionWalletFactory: createSessionWalletFactory(),
   nativeTokenSymbol: MONAD_NATIVE_TOKEN_SYMBOL,
   logger: createLogger(logPrefix),

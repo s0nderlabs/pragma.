@@ -139,7 +139,7 @@ const deriveExpiresAt = (artifact: DelegationArtifact): number | undefined => {
   return undefined;
 };
 
-const isDelegationExpired = (artifact: DelegationArtifact): boolean => {
+export const isDelegationExpired = (artifact: DelegationArtifact): boolean => {
   const expiry = deriveExpiresAt(artifact);
   if (!expiry) return false;
   return Math.floor(Date.now() / 1000) >= expiry;

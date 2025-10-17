@@ -14,6 +14,7 @@ import type { AllowedToken } from "../monorail/tokens.js";
 import type { SessionDelegationInfo, DeleGatorEnv } from "../delegations/types.js";
 import type { MonorailQuote, QuoteRequestParams } from "../monorail/pathfinder.js";
 import { createErrorFromCode } from "../errors/index.js";
+import { callWithRpcFallback } from "../utils/rpcFallback.js";
 
 export const ERC20_ABI = [
   {
@@ -143,6 +144,7 @@ const emit = (logger: ExecutionLogger | undefined, level: keyof ExecutionLogger,
 
 export interface SwapEngineDependencies {
   publicClient: PublicClient;
+  fallbackPublicClient?: PublicClient;
   sessionWalletFactory: (session: SessionDelegationInfo) => WalletClient;
   quoteFetcher: (params: QuoteRequestParams) => Promise<MonorailQuote>;
   routerAddress: Address;
@@ -175,17 +177,22 @@ const readTokenBalance = async (
   token: AllowedToken,
   owner: Address,
   publicClient: PublicClient,
+  fallbackClient: PublicClient | undefined,
   nativeTokenAddress: Address,
 ): Promise<bigint> => {
   if (isNativeToken(token, nativeTokenAddress)) {
-    return publicClient.getBalance({ address: owner });
+    return callWithRpcFallback(publicClient, fallbackClient, (client) =>
+      client.getBalance({ address: owner }),
+    );
   }
-  return (await publicClient.readContract({
-    address: toTokenAddress(token),
-    abi: ERC20_ABI,
-    functionName: "balanceOf",
-    args: [owner],
-  })) as bigint;
+  return (await callWithRpcFallback(publicClient, fallbackClient, (client) =>
+    client.readContract({
+      address: toTokenAddress(token),
+      abi: ERC20_ABI,
+      functionName: "balanceOf",
+      args: [owner],
+    }),
+  )) as bigint;
 };
 
 const ensureAllowance = async (
@@ -199,14 +206,16 @@ const ensureAllowance = async (
 ) => {
   if (isNativeToken(token, dependencies.nativeTokenAddress)) return;
 
-  const { publicClient, routerAddress, sessionWalletFactory, logger } = dependencies;
+  const { publicClient, fallbackPublicClient, routerAddress, sessionWalletFactory, logger } = dependencies;
 
-  const allowance = (await publicClient.readContract({
-    address: toTokenAddress(token),
-    abi: ERC20_ABI,
-    functionName: "allowance",
-    args: [hybridDelegator, routerAddress],
-  })) as bigint;
+  const allowance = (await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    client.readContract({
+      address: toTokenAddress(token),
+      abi: ERC20_ABI,
+      functionName: "allowance",
+      args: [hybridDelegator, routerAddress],
+    }),
+  )) as bigint;
 
   if (allowance >= requiredAmount) return;
 
@@ -223,17 +232,19 @@ const ensureAllowance = async (
   });
 
   const sessionWallet = sessionWalletFactory(session);
-  const txHash = await redeemDelegations(
-    sessionWallet,
-    publicClient,
-    environment.DelegationManager as Address,
-    [
-      {
-        permissionContext: [session.delegation],
-        executions: [approveExecution],
-        mode: ExecutionMode.SingleDefault,
-      },
-    ],
+  const txHash = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    redeemDelegations(
+      sessionWallet,
+      client,
+      environment.DelegationManager as Address,
+      [
+        {
+          permissionContext: [session.delegation],
+          executions: [approveExecution],
+          mode: ExecutionMode.SingleDefault,
+        },
+      ],
+    ),
   );
 
   const symbol = token.symbol ?? token.address.slice(0, 6);
@@ -244,15 +255,18 @@ const ensureAllowance = async (
   );
 
   if (strategy === "wait") {
-    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+    const receipt = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+      client.waitForTransactionReceipt({ hash: txHash }),
+    );
     emit(
       logger,
       "success",
       `Approval confirmed (tx: ${txHash}, block: ${receipt.blockNumber})`,
     );
   } else {
-    void publicClient
-      .waitForTransactionReceipt({ hash: txHash })
+    void callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+      client.waitForTransactionReceipt({ hash: txHash }),
+    )
       .then((receipt) => {
         emit(
           logger,
@@ -275,7 +289,7 @@ export const previewSwapWithSession = async (
   dependencies: SwapEngineDependencies,
 ): Promise<SwapPreviewResult> => {
   const { session, environment, hybridDelegator, intent, amountInput, slippageBps } = config;
-  const { publicClient, quoteFetcher, nativeTokenAddress, routerAddress, logger } = dependencies;
+  const { publicClient, fallbackPublicClient, quoteFetcher, nativeTokenAddress, routerAddress, logger } = dependencies;
 
   const warnings: string[] = [];
 
@@ -297,7 +311,9 @@ export const previewSwapWithSession = async (
     });
   }
 
-  const sessionKeyBalance = await publicClient.getBalance({ address: session.sessionKeyAddress });
+  const sessionKeyBalance = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    client.getBalance({ address: session.sessionKeyAddress }),
+  );
   if (sessionKeyBalance === 0n) {
     throw createErrorFromCode("SIM_BALANCE_TOO_LOW", {
       message: `Session key ${session.sessionKeyAddress} has zero MON. Fund the session key before performing delegated swaps.`,
@@ -307,7 +323,13 @@ export const previewSwapWithSession = async (
     });
   }
 
-  const fromBalance = await readTokenBalance(intent.from, hybridDelegator, publicClient, nativeTokenAddress);
+  const fromBalance = await readTokenBalance(
+    intent.from,
+    hybridDelegator,
+    publicClient,
+    fallbackPublicClient,
+    nativeTokenAddress,
+  );
   if (fromBalance < amountIn) {
     const symbol = intent.from.symbol ?? nativeTokenAddress.slice(0, 6);
     throw createErrorFromCode("SIM_BALANCE_TOO_LOW", {
@@ -419,7 +441,16 @@ export const executeSwapWithSession = async (
   dependencies: SwapEngineDependencies,
 ): Promise<SwapResult> => {
   const { session, environment, hybridDelegator, intent, amountInput, slippageBps, preparedPlan } = config;
-  const { publicClient, sessionWalletFactory, quoteFetcher, nativeTokenAddress, wrappedNativeSymbol, nativeTokenSymbol, logger } =
+  const {
+    publicClient,
+    fallbackPublicClient,
+    sessionWalletFactory,
+    quoteFetcher,
+    nativeTokenAddress,
+    wrappedNativeSymbol,
+    nativeTokenSymbol,
+    logger,
+  } =
     dependencies;
 
   const now = Math.floor(Date.now() / 1000);
@@ -450,7 +481,9 @@ export const executeSwapWithSession = async (
   }
 
   const sessionWallet = sessionWalletFactory(session);
-  const sessionKeyBalance = await publicClient.getBalance({ address: session.sessionKeyAddress });
+  const sessionKeyBalance = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    client.getBalance({ address: session.sessionKeyAddress }),
+  );
   const SESSION_KEY_CRITICAL_THRESHOLD = 10_000_000_000_000_000n; // 0.01 MON
   const SESSION_KEY_WARN_THRESHOLD = 100_000_000_000_000_000n; // 0.1 MON
   if (sessionKeyBalance === 0n || sessionKeyBalance < SESSION_KEY_CRITICAL_THRESHOLD) {
@@ -469,7 +502,13 @@ export const executeSwapWithSession = async (
     );
   }
 
-  const fromBalance = await readTokenBalance(intent.from, hybridDelegator, publicClient, nativeTokenAddress);
+  const fromBalance = await readTokenBalance(
+    intent.from,
+    hybridDelegator,
+    publicClient,
+    fallbackPublicClient,
+    nativeTokenAddress,
+  );
   if (fromBalance < amountIn) {
     const symbol = intent.from.symbol ?? nativeTokenSymbol ?? "token";
     throw createErrorFromCode("SIM_BALANCE_TOO_LOW", {
@@ -492,12 +531,14 @@ export const executeSwapWithSession = async (
     intent.to,
     hybridDelegator,
     publicClient,
+    fallbackPublicClient,
     nativeTokenAddress,
   );
   const outputBalanceBeforeSession = await readTokenBalance(
     intent.to,
     session.sessionKeyAddress,
     publicClient,
+    fallbackPublicClient,
     nativeTokenAddress,
   );
 
@@ -550,17 +591,19 @@ export const executeSwapWithSession = async (
 
   let txHash: Hex;
   try {
-    txHash = await redeemDelegations(
-      sessionWallet,
-      publicClient,
-      environment.DelegationManager as Address,
-      [
-        {
-          permissionContext: [session.delegation],
-          executions: [swapExecution],
-          mode: ExecutionMode.SingleDefault,
-        },
-      ],
+    txHash = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+      redeemDelegations(
+        sessionWallet,
+        client,
+        environment.DelegationManager as Address,
+        [
+          {
+            permissionContext: [session.delegation],
+            executions: [swapExecution],
+            mode: ExecutionMode.SingleDefault,
+          },
+        ],
+      ),
     );
   } catch (error) {
     const message = (error as Error)?.message ?? "";
@@ -571,7 +614,9 @@ export const executeSwapWithSession = async (
         cause: error,
       });
     }
-    const sessionKeyBalanceNow = await publicClient.getBalance({ address: session.sessionKeyAddress });
+    const sessionKeyBalanceNow = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+      client.getBalance({ address: session.sessionKeyAddress }),
+    );
     if (sessionKeyBalanceNow < SESSION_KEY_CRITICAL_THRESHOLD) {
       throw createErrorFromCode("SIM_BALANCE_TOO_LOW", {
         message: `Delegated swap failed because session key ${session.sessionKeyAddress} only has ${formatUnits(sessionKeyBalanceNow, 18)} MON. Fund the session key (≥0.1 MON) and retry.`,
@@ -582,13 +627,22 @@ export const executeSwapWithSession = async (
     throw error;
   }
 
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  const receipt = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    client.waitForTransactionReceipt({ hash: txHash }),
+  );
 
-  const outputAfterDelegator = await readTokenBalance(intent.to, hybridDelegator, publicClient, nativeTokenAddress);
+  const outputAfterDelegator = await readTokenBalance(
+    intent.to,
+    hybridDelegator,
+    publicClient,
+    fallbackPublicClient,
+    nativeTokenAddress,
+  );
   const outputAfterSession = await readTokenBalance(
     intent.to,
     session.sessionKeyAddress,
     publicClient,
+    fallbackPublicClient,
     nativeTokenAddress,
   );
 
@@ -647,6 +701,7 @@ export interface WrapConfig {
 
 export interface WrapDependencies {
   publicClient: PublicClient;
+  fallbackPublicClient?: PublicClient;
   sessionWalletFactory: (session: SessionDelegationInfo) => WalletClient;
   wrappedNativeAddress: Address;
   nativeTokenSymbol?: string;
@@ -659,7 +714,15 @@ export const wrapNativeWithSession = async (
   dependencies: WrapDependencies,
 ) => {
   const { session, environment, hybridDelegator, amountInput } = config;
-  const { publicClient, sessionWalletFactory, wrappedNativeAddress, nativeTokenSymbol, wrappedNativeSymbol, logger } =
+  const {
+    publicClient,
+    fallbackPublicClient,
+    sessionWalletFactory,
+    wrappedNativeAddress,
+    nativeTokenSymbol,
+    wrappedNativeSymbol,
+    logger,
+  } =
     dependencies;
 
   const amount = parseUnits(amountInput, 18);
@@ -677,7 +740,9 @@ export const wrapNativeWithSession = async (
     });
   }
 
-  const balance = await publicClient.getBalance({ address: hybridDelegator });
+  const balance = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    client.getBalance({ address: hybridDelegator }),
+  );
   if (balance < amount) {
     throw createErrorFromCode("SIM_BALANCE_TOO_LOW", {
       message: `HybridDelegator ${hybridDelegator} has insufficient ${nativeTokenSymbol ?? "MON"} balance (${formatUnits(balance, 18)}).`,
@@ -692,26 +757,32 @@ export const wrapNativeWithSession = async (
     callData: encodeFunctionData({ abi: WRAPPED_NATIVE_ABI, functionName: "deposit" }),
   });
 
-  const txHash = await redeemDelegations(
-    sessionWallet,
-    publicClient,
-    environment.DelegationManager as Address,
-    [
-      {
-        permissionContext: [session.delegation],
-        executions: [execution],
-        mode: ExecutionMode.SingleDefault,
-      },
-    ],
+  const txHash = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    redeemDelegations(
+      sessionWallet,
+      client,
+      environment.DelegationManager as Address,
+      [
+        {
+          permissionContext: [session.delegation],
+          executions: [execution],
+          mode: ExecutionMode.SingleDefault,
+        },
+      ],
+    ),
   );
 
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
-  const wrappedBalance = (await publicClient.readContract({
-    address: getAddress(wrappedNativeAddress),
-    abi: ERC20_ABI,
-    functionName: "balanceOf",
-    args: [hybridDelegator],
-  })) as bigint;
+  const receipt = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    client.waitForTransactionReceipt({ hash: txHash }),
+  );
+  const wrappedBalance = (await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    client.readContract({
+      address: getAddress(wrappedNativeAddress),
+      abi: ERC20_ABI,
+      functionName: "balanceOf",
+      args: [hybridDelegator],
+    }),
+  )) as bigint;
 
   emit(
     logger,
@@ -727,8 +798,15 @@ export const unwrapNativeWithSession = async (
   dependencies: WrapDependencies,
 ) => {
   const { session, environment, hybridDelegator, amountInput } = config;
-  const { publicClient, sessionWalletFactory, wrappedNativeAddress, nativeTokenSymbol, wrappedNativeSymbol, logger } =
-    dependencies;
+  const {
+    publicClient,
+    fallbackPublicClient,
+    sessionWalletFactory,
+    wrappedNativeAddress,
+    nativeTokenSymbol,
+    wrappedNativeSymbol,
+    logger,
+  } = dependencies;
 
   const amount = parseUnits(amountInput, 18);
   if (amount <= 0n) {
@@ -737,12 +815,14 @@ export const unwrapNativeWithSession = async (
     });
   }
 
-  const wrappedBalance = (await publicClient.readContract({
-    address: getAddress(wrappedNativeAddress),
-    abi: ERC20_ABI,
-    functionName: "balanceOf",
-    args: [hybridDelegator],
-  })) as bigint;
+  const wrappedBalance = (await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    client.readContract({
+      address: getAddress(wrappedNativeAddress),
+      abi: ERC20_ABI,
+      functionName: "balanceOf",
+      args: [hybridDelegator],
+    }),
+  )) as bigint;
 
   if (wrappedBalance < amount) {
     throw createErrorFromCode("SIM_BALANCE_TOO_LOW", {
@@ -762,20 +842,24 @@ export const unwrapNativeWithSession = async (
     }),
   });
 
-  const txHash = await redeemDelegations(
-    sessionWallet,
-    publicClient,
-    environment.DelegationManager as Address,
-    [
-      {
-        permissionContext: [session.delegation],
-        executions: [execution],
-        mode: ExecutionMode.SingleDefault,
-      },
-    ],
+  const txHash = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    redeemDelegations(
+      sessionWallet,
+      client,
+      environment.DelegationManager as Address,
+      [
+        {
+          permissionContext: [session.delegation],
+          executions: [execution],
+          mode: ExecutionMode.SingleDefault,
+        },
+      ],
+    ),
   );
 
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    client.waitForTransactionReceipt({ hash: txHash }),
+  );
 
   emit(
     logger,

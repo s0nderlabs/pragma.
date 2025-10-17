@@ -20,11 +20,16 @@ export const PIMLICO_BUNDLER_URL = buildPimlicoUrl(getEnvOptional("PIMLICO_BUNDL
 export const PIMLICO_PAYMASTER_URL = buildPimlicoUrl(getEnvOptional("PIMLICO_PAYMASTER_URL"));
 export const PIMLICO_SPONSORSHIP_POLICY_ID = getEnvOptional("PIMLICO_SPONSORSHIP_POLICY_ID");
 
-const DEFAULT_MONAD_RPC_URL = "https://testnet-rpc.monad.xyz";
+const DEFAULT_MONAD_EXECUTION_RPC_URL = "https://testnet-rpc.monad.xyz";
 const DEFAULT_MONAD_READ_RPC_URL = "https://monad-testnet.rpc.hypersync.xyz";
 const DEFAULT_HYPERSYNC_URL = "https://monad-testnet.hypersync.xyz";
 export const MONAD_CHAIN_ID = 10_143;
-export const MONAD_RPC_URL = getEnvOptional("MONAD_RPC_URL") ?? DEFAULT_MONAD_RPC_URL;
+export const MONAD_EXECUTION_RPC_URL =
+  getEnvOptional("MONAD_EXECUTION_RPC_URL") ??
+  getEnvOptional("MONAD_RPC_URL") ??
+  DEFAULT_MONAD_EXECUTION_RPC_URL;
+/** @deprecated Use MONAD_EXECUTION_RPC_URL instead. */
+export const MONAD_RPC_URL = MONAD_EXECUTION_RPC_URL;
 export const MONAD_READ_RPC_URL =
   getEnvOptional("MONAD_ENVIO_READ_RPC_URL") ?? DEFAULT_MONAD_READ_RPC_URL;
 export const MONAD_HYPERSYNC_URL = getEnvOptional("MONAD_HYPERSYNC_URL") ?? DEFAULT_HYPERSYNC_URL;

@@ -4,6 +4,7 @@ import { createReadOnlyPublicClient } from "@pragma/core";
 import type { Web3AuthBridge } from "./web3authServer.js";
 import {
   MONAD_RPC_URL,
+  MONAD_EXECUTION_RPC_URL,
   MONAD_READ_RPC_URL,
   MONAD_CHAIN_ID,
   MONAD_NATIVE_TOKEN_SYMBOL,
@@ -166,7 +167,7 @@ export const createMonadPublicClient = (): any =>
     : (createReadOnlyPublicClient({
         chain: monadTestnet,
         readUrl: MONAD_READ_RPC_URL,
-        fallbackUrl: MONAD_RPC_URL,
+        fallbackUrl: MONAD_READ_RPC_URL === MONAD_EXECUTION_RPC_URL ? undefined : MONAD_EXECUTION_RPC_URL,
       }) as any);
 
 export const createMonadExecutionClient = (): any =>
@@ -174,8 +175,8 @@ export const createMonadExecutionClient = (): any =>
     ? createFixturePublicClient()
     : (createReadOnlyPublicClient({
         chain: monadTestnet,
-        readUrl: MONAD_RPC_URL,
-        fallbackUrl: MONAD_RPC_URL,
+        readUrl: MONAD_EXECUTION_RPC_URL,
+        fallbackUrl: MONAD_EXECUTION_RPC_URL,
       }) as any);
 
 export const createWeb3AuthWalletClient = (bridge: Web3AuthBridge) =>

@@ -16,12 +16,13 @@ import {
   MONAD_WMON_ADDRESS,
   MONAD_WRAPPED_TOKEN_SYMBOL,
 } from "../config";
-import { createMonadPublicClient, monadChain } from "../clients";
+import { createMonadExecutionClient, createMonadPublicClient, monadChain } from "../clients";
 
 const wrappedNativeAddress = getAddress(MONAD_WMON_ADDRESS);
 
 const buildWrapDependencies = (logger?: ExecutionLogger): WrapDependencies => ({
   publicClient: createMonadPublicClient(),
+  fallbackPublicClient: createMonadExecutionClient(),
   sessionWalletFactory: (session) =>
     createSessionWallet(session, {
       chain: monadChain,

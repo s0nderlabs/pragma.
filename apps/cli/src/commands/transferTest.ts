@@ -8,7 +8,11 @@ import { loadTransferSession } from "../services/transferArtifacts.js";
 import { transferNativeWithSession, transferTokenWithSession } from "../services/transferEngine.js";
 import { wrapNativeWithSession } from "../services/swapEngine.js";
 import { createMonadPublicClient, monadChain } from "../services/web3authClients.js";
-import { MONAD_NATIVE_TOKEN_SYMBOL, MONAD_RPC_URL, PRAGMA_ADMIN_TEST_PK } from "../services/config.js";
+import {
+  MONAD_NATIVE_TOKEN_SYMBOL,
+  MONAD_EXECUTION_RPC_URL,
+  PRAGMA_ADMIN_TEST_PK,
+} from "../services/config.js";
 import type { AllowedToken } from "../services/monorailTokens.js";
 import { onboardingLogger } from "../utils/logger.js";
 
@@ -42,7 +46,7 @@ export const registerTransferTest = (program: Command) => {
       const adminAccount = privateKeyToAccount(PRAGMA_ADMIN_TEST_PK as Hex);
       const adminWallet = createWalletClient({
         chain: monadChain,
-        transport: http(MONAD_RPC_URL),
+        transport: http(MONAD_EXECUTION_RPC_URL),
         account: adminAccount,
       });
       const publicClient = createMonadPublicClient();

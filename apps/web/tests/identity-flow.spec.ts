@@ -135,7 +135,8 @@ test.describe("Connected account identity flow", () => {
 
     await page.getByTestId("account-nav-delegations").click();
     await expect(page.getByTestId("delegations-section")).toBeVisible();
-    await expect(page.getByText(/Tokens: MON, WMON/).first()).toBeVisible();
+    await expect(page.locator('[data-testid="delegations-section"]').getByText("MON", { exact: true }).first()).toBeVisible();
+    await expect(page.locator('[data-testid="delegations-section"]').getByText("WMON", { exact: true }).first()).toBeVisible();
 
     await page.keyboard.press("Escape");
 
@@ -153,7 +154,7 @@ test.describe("Connected account identity flow", () => {
     await page.getByRole("button", { name: "Connect account" }).click();
     await page.getByTestId("account-nav-delegations").click();
     await expect(page.getByTestId("delegations-section")).toBeVisible();
-    await expect(page.getByText(/No delegations stored yet/i)).toBeVisible();
+    await expect(page.getByText(/No active delegations found/i)).toBeVisible();
 
     expect(consoleErrors.some((text) => text.includes("400"))).toBeFalsy();
     expect(consoleErrors.some((text) => text.includes("Non-200"))).toBeFalsy();

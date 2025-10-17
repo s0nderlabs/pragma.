@@ -7,6 +7,7 @@ import {
   MONAD_CHAIN_ID,
   MONAD_NATIVE_TOKEN_SYMBOL,
   MONAD_READ_RPC_URL,
+  MONAD_EXECUTION_RPC_URL,
   MONAD_RPC_URL,
 } from "./config";
 
@@ -36,7 +37,14 @@ export const createMonadPublicClient = (): MonadPublicClient =>
   createReadOnlyPublicClient({
     chain: monadChain,
     readUrl: MONAD_READ_RPC_URL,
-    fallbackUrl: MONAD_RPC_URL,
+    fallbackUrl: MONAD_READ_RPC_URL === MONAD_EXECUTION_RPC_URL ? undefined : MONAD_EXECUTION_RPC_URL,
+  });
+
+export const createMonadExecutionClient = (): MonadPublicClient =>
+  createReadOnlyPublicClient({
+    chain: monadChain,
+    readUrl: MONAD_EXECUTION_RPC_URL,
+    fallbackUrl: MONAD_EXECUTION_RPC_URL,
   });
 
 export interface WalletWithAddress {

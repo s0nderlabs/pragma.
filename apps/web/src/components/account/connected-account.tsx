@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ClipboardCopy, Clock, ExternalLink, KeyRound, ShieldCheck, Sparkles } from "lucide-react";
+import { ClipboardCopy, ExternalLink, KeyRound, ShieldCheck, Sparkles } from "lucide-react";
 import { formatUnits, getAddress, type Address } from "viem";
 import type { Mode } from "@pragma/core/delegations/types";
 
@@ -20,7 +20,7 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import { loadChatSession } from "../../lib/chat/session";
-import { listActiveDelegations, listDelegations, type StoredDelegation } from "../../lib/storage/delegations";
+import { isDelegationExpired, listActiveDelegations, listDelegations, type StoredDelegation } from "../../lib/storage/delegations";
 import { listReceipts, type StoredReceipt } from "../../lib/storage/receipts";
 import { getActiveDelegator, setActiveDelegator, IDENTITY_EVENT } from "../../lib/storage/active-delegator";
 import { getOwnerDelegator } from "../../lib/storage/owner-delegators";
@@ -28,11 +28,15 @@ import { revokeDelegations } from "../../lib/onboarding/revoke";
 import { rotateHybridDelegatorSession } from "../../lib/onboarding/service";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Spinner } from "../ui/spinner";
-import { monadChain } from "../../lib/clients";
-import { MONAD_NATIVE_TOKEN_SYMBOL } from "../../lib/config";
+import { createMonadPublicClient, monadChain } from "../../lib/clients";
+import { MONAD_NATIVE_TOKEN_ADDRESS, MONAD_NATIVE_TOKEN_SYMBOL } from "../../lib/config";
 import { Dialog as NestedDialog, DialogContent as NestedDialogContent, DialogHeader as NestedDialogHeader, DialogTitle as NestedDialogTitle, DialogDescription as NestedDialogDescription, DialogBody as NestedDialogBody } from "../ui/dialog";
 
-const shortHex = (value?: string) => (value ? `${value.slice(0, 6)}…${value.slice(-4)}` : "—");
+const shortHex = (value?: string) => {
+  if (!value || value === "0x") return "—";
+  if (value.length <= 10) return value;
+  return `${value.slice(0, 6)}…${value.slice(-4)}`;
+};
 
 const formatExpiry = (expiresAt?: number) => {
   if (!expiresAt) return "—";
@@ -55,6 +59,63 @@ const formatTokenAmount = (value?: string | null, decimals?: number, symbol?: st
     return symbol ? `${value} ${symbol}` : value;
   }
 };
+
+type BalanceEntry = {
+  address: Address;
+  symbol: string;
+  amount: string;
+  raw: bigint;
+  decimals: number;
+};
+
+const formatBalanceValue = (raw: bigint, decimals: number): string => {
+  const formatted = formatUnits(raw, decimals);
+  const numeric = Number.parseFloat(formatted);
+  if (!Number.isFinite(numeric)) return formatted;
+  if (numeric >= 1) {
+    return numeric.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  }
+  if (numeric === 0) {
+    return "0";
+  }
+  return numeric.toPrecision(4);
+};
+
+const renderBalanceItems = (entries: BalanceEntry[], emptyLabel: string) => {
+  if (!entries || entries.length === 0) {
+    return <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">{emptyLabel}</p>;
+  }
+
+  const topEntries = entries.slice(0, 4);
+  return (
+    <ul className="space-y-1 text-sm text-[#1A1A1A] dark:text-[#F8F8FF]">
+      {topEntries.map((entry) => (
+        <li
+          key={`${entry.address}-${entry.symbol}`}
+          className="flex items-center justify-between gap-2 text-[#3F356F] dark:text-[#E4E3FF]"
+        >
+          <span className="font-medium">{entry.symbol}</span>
+          <span>{entry.amount}</span>
+        </li>
+      ))}
+      {entries.length > topEntries.length ? (
+        <li className="text-xs text-[#7A6FAF] dark:text-[#C7C3E8]">
+          + {entries.length - topEntries.length} more
+        </li>
+      ) : null}
+    </ul>
+  );
+};
+
+const ERC20_BALANCE_ABI = [
+  {
+    type: "function",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+] as const;
 
 const formatBasisPoints = (bps?: number) => {
   if (typeof bps !== "number") return "—";
@@ -111,6 +172,14 @@ export const ConnectedAccount = () => {
   const [receiptDetailOpen, setReceiptDetailOpen] = React.useState(false);
   const [selectedReceipt, setSelectedReceipt] = React.useState<StoredReceipt | null>(null);
   const [activeSection, setActiveSection] = React.useState<"overview" | "delegations" | "receipts">("overview");
+  const [balancesLoading, setBalancesLoading] = React.useState(false);
+  const [balancesError, setBalancesError] = React.useState<string | null>(null);
+  const [balanceEntries, setBalanceEntries] = React.useState<{ delegator: BalanceEntry[]; session: BalanceEntry[] }>({ delegator: [], session: [] });
+  const [showFundingTips, setShowFundingTips] = React.useState(false);
+  const [showDelegationHistory, setShowDelegationHistory] = React.useState(false);
+  const [showOnboardingPanel, setShowOnboardingPanel] = React.useState(false);
+  const [delegationDetailOpen, setDelegationDetailOpen] = React.useState(false);
+  const [selectedDelegationEntry, setSelectedDelegationEntry] = React.useState<StoredDelegation | null>(null);
 
   const walletAddress = identity.wallet?.address;
   const walletClient = identity.wallet?.walletClient;
@@ -145,6 +214,37 @@ export const ConnectedAccount = () => {
     });
     return Array.from(modes);
   }, [activeDelegations]);
+
+  const activeSwapDelegation = React.useMemo(() => {
+    const swapActive = activeDelegations.find((entry) => (entry.artifact.kind ?? "swap") === "swap");
+    if (swapActive) return swapActive;
+    return delegations.find((entry) => (entry.artifact.kind ?? "swap") === "swap") ?? null;
+  }, [activeDelegations, delegations]);
+
+  const allowedDelegationTokens = React.useMemo(
+    () => activeSwapDelegation?.artifact.allowedTokens ?? [],
+    [activeSwapDelegation],
+  );
+
+  const allowedTokenKey = React.useMemo(
+    () =>
+      allowedDelegationTokens
+        .map((token) => token.address?.toLowerCase?.() ?? "")
+        .filter(Boolean)
+        .sort()
+        .join("|"),
+    [allowedDelegationTokens],
+  );
+
+  const primaryDelegation = React.useMemo(
+    () => activeSwapDelegation ?? activeDelegations[0] ?? null,
+    [activeDelegations, activeSwapDelegation],
+  );
+
+  const handleOpenDelegationDetail = React.useCallback((entry: StoredDelegation) => {
+    setSelectedDelegationEntry(entry);
+    setDelegationDetailOpen(true);
+  }, []);
 
   const delegationCounts = React.useMemo(() => {
     const now = Math.floor(Date.now() / 1000);
@@ -323,6 +423,11 @@ export const ConnectedAccount = () => {
       setRotateError(null);
       setRotateSuccess(null);
       setIsRotating(false);
+      setShowFundingTips(false);
+      setShowDelegationHistory(false);
+      setShowOnboardingPanel(false);
+      setDelegationDetailOpen(false);
+      setSelectedDelegationEntry(null);
     }
   }, [open]);
 
@@ -348,6 +453,126 @@ export const ConnectedAccount = () => {
       }
     };
   }, [refreshSessionOverview]);
+
+  React.useEffect(() => {
+    if (!sessionDelegatorFull) {
+      setBalanceEntries({ delegator: [], session: [] });
+      return;
+    }
+
+    let cancelled = false;
+
+    const tokensMeta = (() => {
+      const map = new Map<string, { address: Address; symbol?: string; decimals: number; kind?: string }>();
+      try {
+        const nativeAddress = getAddress(MONAD_NATIVE_TOKEN_ADDRESS);
+        map.set(nativeAddress.toLowerCase(), {
+          address: nativeAddress,
+          symbol: MONAD_NATIVE_TOKEN_SYMBOL,
+          decimals: 18,
+          kind: "native",
+        });
+      } catch {
+        // ignore invalid native token address
+      }
+
+      allowedDelegationTokens.forEach((token) => {
+        if (!token?.address) return;
+        try {
+          const address = getAddress(token.address as Address);
+          if (map.has(address.toLowerCase())) return;
+          const decimalsCandidate = typeof token.decimals === "number" ? token.decimals : Number(token.decimals ?? 18);
+          map.set(address.toLowerCase(), {
+            address,
+            symbol: token.symbol ?? undefined,
+            decimals: Number.isFinite(decimalsCandidate) ? decimalsCandidate : 18,
+            kind: token.kind,
+          });
+        } catch {
+          // ignore malformed addresses
+        }
+      });
+
+      return Array.from(map.values());
+    })();
+
+    const client = createMonadPublicClient();
+
+    const fetchBalancesFor = async (owner: Address): Promise<BalanceEntry[]> => {
+      if (!owner || tokensMeta.length === 0) return [];
+      const results = await Promise.all(
+        tokensMeta.map(async (meta) => {
+          let raw = 0n;
+          try {
+            if (meta.kind === "native" || meta.address.toLowerCase() === MONAD_NATIVE_TOKEN_ADDRESS.toLowerCase()) {
+              raw = await client.getBalance({ address: owner });
+            } else {
+              raw = (await client.readContract({
+                address: meta.address,
+                abi: ERC20_BALANCE_ABI,
+                functionName: "balanceOf",
+                args: [owner],
+              })) as bigint;
+            }
+          } catch {
+            raw = 0n;
+          }
+
+          if (raw <= 0n) {
+            return null;
+          }
+
+          const decimals = Number.isFinite(meta.decimals) ? meta.decimals : 18;
+          const amount = formatBalanceValue(raw, decimals);
+
+          return {
+            address: meta.address,
+            symbol: meta.symbol ?? shortHex(meta.address),
+            amount,
+            raw,
+            decimals,
+          } satisfies BalanceEntry;
+        }),
+      );
+
+      return results
+        .filter((entry): entry is BalanceEntry => Boolean(entry))
+        .sort((left, right) => {
+          if (left.raw === right.raw) return 0;
+          return left.raw > right.raw ? -1 : 1;
+        });
+    };
+
+    const run = async () => {
+      setBalancesLoading(true);
+      setBalancesError(null);
+      try {
+        const delegatorAddress = getAddress(sessionDelegatorFull as Address);
+        const [delegatorBalances, sessionBalances] = await Promise.all([
+          fetchBalancesFor(delegatorAddress),
+          quickStatus.sessionKeyFull ? fetchBalancesFor(getAddress(quickStatus.sessionKeyFull as Address)) : Promise.resolve([]),
+        ]);
+        if (!cancelled) {
+          setBalanceEntries({ delegator: delegatorBalances, session: sessionBalances });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setBalanceEntries({ delegator: [], session: [] });
+          setBalancesError(describeError(error));
+        }
+      } finally {
+        if (!cancelled) {
+          setBalancesLoading(false);
+        }
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [allowedTokenKey, allowedDelegationTokens, quickStatus.sessionKeyFull, sessionDelegatorFull]);
 
   const handleCopy = React.useCallback((value?: string) => {
     if (!value || typeof navigator === "undefined" || !navigator.clipboard) return;
@@ -473,21 +698,19 @@ export const ConnectedAccount = () => {
           </div>
 
           {activeSection === "overview" ? (
-            <div className="space-y-6">
+            <div className="space-y-6" data-testid="overview-section">
               <div className="grid gap-4 lg:grid-cols-3">
                 <StatCard
                   icon={<Sparkles className="h-3.5 w-3.5" />}
                   label="Delegator"
                   value={sessionDelegatorLabel}
                   testId="connected-delegator"
-                  description={
-                    sessionDelegatorFull
-                      ? "Fund this account to settle swaps and transfers."
-                      : "Connect your wallet to derive a HybridDelegator."
-                  }
+                  description={sessionDelegatorFull ? "Settlement account for delegated actions." : "Connect to derive a HybridDelegator."}
                   actions={
                     <>
-                      <span className="truncate">{walletAddress ? `Owner ${shortHex(walletAddress)}` : "No owner connected"}</span>
+                      <span className="truncate text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+                        {walletAddress ? `Owner ${shortHex(walletAddress)}` : "No owner connected"}
+                      </span>
                       <Button
                         type="button"
                         size="icon"
@@ -508,26 +731,23 @@ export const ConnectedAccount = () => {
                   value={quickStatus.sessionKey}
                   testId="connected-session-key"
                   description={
-                    <div className="space-y-1">
+                    <div className="space-y-1 text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
                       <span data-testid="connected-session-expiry">Expiry {quickStatus.expiry}</span>
-                      <span>{quickStatus.mode !== "—" ? ` Mode ${quickStatus.mode}` : "Awaiting issuance"}</span>
+                      <span>{quickStatus.mode !== "—" ? `Mode ${quickStatus.mode}` : "Awaiting issuance"}</span>
                     </div>
                   }
                   actions={
-                    <>
-                      <span className="truncate">Top up ~0.5 MON for gas</span>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
-                        onClick={() => handleCopy(quickStatus.sessionKeyFull)}
-                        disabled={!quickStatus.sessionKeyFull}
-                        aria-label="Copy session key address"
-                      >
-                        <ClipboardCopy className="h-4 w-4" />
-                      </Button>
-                    </>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
+                      onClick={() => handleCopy(quickStatus.sessionKeyFull)}
+                      disabled={!quickStatus.sessionKeyFull}
+                      aria-label="Copy session key address"
+                    >
+                      <ClipboardCopy className="h-4 w-4" />
+                    </Button>
                   }
                 />
                 <StatCard
@@ -536,64 +756,77 @@ export const ConnectedAccount = () => {
                   value={quickStatus.smartAccount}
                   testId="connected-smart-account"
                   description={
-                    <div className="space-y-1">
-                      <span>{hasActiveDelegations ? "Delegations active and ready" : "Issue a delegation to activate"}</span>
-                      <span className="flex items-center gap-1 text-[11px] uppercase tracking-[0.2em] text-[#7A6FAF]/80 dark:text-[#C7C3E8]/80">
-                        <Clock className="h-3 w-3" /> Refreshed just now
-                      </span>
-                    </div>
+                    <span className="text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+                      {hasActiveDelegations ? "Delegations active" : "Issue a delegation to activate"}
+                    </span>
                   }
                 />
               </div>
 
-              <GlassPanel className="space-y-6">
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">Session controls</h3>
-                  <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/85">
-                    Rotate your session key or revoke delegations to reset guardrails before issuing new orders.
-                  </p>
+              <GlassPanel className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">Balances</h3>
+                  {balancesLoading ? <Spinner className="h-4 w-4 text-[#846FFA]" /> : null}
                 </div>
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7A6FAF] dark:text-[#C7C3E8]">Rotate session key</h4>
-                      <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/85">
-                        Issue a fresh session key if you need to refresh guardrails or recover from a compromised key.
-                      </p>
-                    </div>
-                    {rotateSuccess ? (
-                      <p className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-600 dark:text-emerald-400">{rotateSuccess}</p>
-                    ) : null}
-                    {rotateError ? (
-                      <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm text-destructive">{rotateError}</p>
-                    ) : null}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => void handleRotateSessionKey()}
-                      disabled={isRotating}
-                      className={cn(
-                        "inline-flex items-center gap-2 rounded-full border border-[#846FFA]/40 bg-gradient-to-r from-[#846FFA]/25 to-[#674CF9]/35 px-5 py-2 text-sm font-semibold text-[#3F356F] shadow-[0_10px_24px_rgba(132,111,250,0.25)] transition hover:opacity-90 dark:border-[#846FFA]/45 dark:text-[#F8F8FF]",
-                        isRotating && "opacity-60",
-                      )}
-                    >
-                      {isRotating ? "Rotating session key…" : "Rotate session key"}
-                    </Button>
+                {balancesError ? (
+                  <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+                    {balancesError}
+                  </p>
+                ) : null}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7A6FAF] dark:text-[#C7C3E8]">
+                      Delegator
+                    </h4>
+                    {renderBalanceItems(balanceEntries.delegator, "No balances recorded yet.")}
                   </div>
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7A6FAF] dark:text-[#C7C3E8]">Revoke delegations</h4>
-                      <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/85">
-                        Bump the HybridDelegator nonce to invalidate the selected mode’s delegations before reissuing.
-                      </p>
-                    </div>
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7A6FAF] dark:text-[#C7C3E8]">
+                      Session key
+                    </h4>
+                    {quickStatus.sessionKeyFull
+                      ? renderBalanceItems(balanceEntries.session, "Session key has no funds yet.")
+                      : <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">Issue a delegation to assign a session key.</p>}
+                  </div>
+                </div>
+              </GlassPanel>
+
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="default"
+                    onClick={() => setShowOnboardingPanel(true)}
+                    disabled={!connected}
+                    title={!connected ? "Connect via Web3Auth to issue a delegation" : undefined}
+                    className="rounded-full px-5 py-2 text-sm font-semibold shadow-[0_12px_28px_rgba(132,111,250,0.28)]"
+                  >
+                    Issue / Reissue delegation
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void handleRotateSessionKey()}
+                    disabled={!connected || isRotating}
+                    title={!connected ? "Connect via Web3Auth before rotating the session key" : undefined}
+                    className={cn(
+                      "rounded-full px-4 py-2 text-sm font-semibold",
+                      isRotating && "opacity-60",
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      {isRotating ? <Spinner className="h-4 w-4" /> : null}
+                      {isRotating ? "Rotating session key…" : "Rotate session key"}
+                    </span>
+                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
                     <Select
                       value={revokeModeValue}
                       onValueChange={(value) => setRevokeSelection(value as "auto" | Mode)}
-                      disabled={!hasActiveDelegations || availableModes.length <= 1}
+                      disabled={!connected || !hasActiveDelegations || availableModes.length <= 1}
                     >
-                      <SelectTrigger className="w-full rounded-full border border-[#846FFA]/30 bg-white/70 text-xs text-[#3F356F] shadow-sm transition dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/85">
-                        <SelectValue placeholder="Select mode" />
+                      <SelectTrigger className="w-40 rounded-full border border-[#846FFA]/30 bg-white/70 text-xs text-[#3F356F] shadow-sm transition dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/80">
+                        <SelectValue placeholder="All modes" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="auto">All modes</SelectItem>
@@ -601,151 +834,228 @@ export const ConnectedAccount = () => {
                         {availableModes.includes("normal") ? <SelectItem value="normal">Normal mode</SelectItem> : null}
                       </SelectContent>
                     </Select>
-                    {revokeSuccess ? (
-                      <p className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-600 dark:text-emerald-400">{revokeSuccess}</p>
-                    ) : null}
-                    {revokeError ? (
-                      <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm text-destructive">{revokeError}</p>
-                    ) : null}
                     {!revokePending ? (
                       <Button
                         type="button"
-                        variant="ghost"
-                        disabled={!hasActiveDelegations || isRevoking}
+                        variant="outline"
+                        disabled={!connected || !hasActiveDelegations || isRevoking}
                         onClick={() => {
                           setRevokePending(true);
                           setRevokeError(null);
                           setRevokeSuccess(null);
                         }}
                         className={cn(
-                          "inline-flex items-center justify-center gap-2 rounded-full border border-[#846FFA]/40 bg-white/70 px-5 py-2 text-sm font-semibold text-[#3F356F] shadow-sm transition hover:bg-[#846FFA]/12 dark:border-[#846FFA]/45 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/85 dark:hover:bg-[#846FFA]/20",
+                          "rounded-full px-4 py-2 text-sm font-semibold",
                           (!hasActiveDelegations || isRevoking) && "opacity-60",
                         )}
                       >
                         Revoke delegations
                       </Button>
                     ) : (
-                      <div className="rounded-[1.25rem] border border-destructive/40 bg-destructive/5 p-4">
-                        <p className="text-sm text-destructive">
-                          This will bump the HybridDelegator nonce and disable the selected mode’s delegation. Continue?
-                        </p>
-                        <div className="mt-3 flex items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            disabled={isRevoking}
-                            onClick={() => void handleRevoke()}
-                            className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold"
-                          >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          disabled={!connected || isRevoking}
+                          onClick={() => void handleRevoke()}
+                          className="rounded-full px-4 py-2 text-sm font-semibold"
+                        >
+                          <span className="flex items-center gap-2">
                             {isRevoking ? <Spinner className="h-4 w-4" /> : null}
                             Confirm revoke
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => {
-                              setRevokePending(false);
-                              setRevokeError(null);
-                              setRevokeSuccess(null);
-                            }}
-                            className="rounded-full px-4 py-2 text-sm font-semibold"
-                          >
-                            Cancel
-                          </Button>
-                        </div>
+                          </span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => {
+                            setRevokePending(false);
+                            setRevokeError(null);
+                            setRevokeSuccess(null);
+                          }}
+                          className="rounded-full px-4 py-2 text-sm font-semibold"
+                        >
+                          Cancel
+                        </Button>
                       </div>
                     )}
                   </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowFundingTips((value) => !value)}
+                    className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] hover:bg-[#846FFA]/15 dark:text-[#C7C3E8] dark:hover:bg-[#846FFA]/20"
+                  >
+                    {showFundingTips ? "Hide funding tips" : "Funding tips"}
+                  </Button>
                 </div>
-              </GlassPanel>
-
-              <GlassPanel>
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">Funding instructions</h3>
-                <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/85">
-                  <li>
-                    Copy the delegator address and fund it with the amount of MON you want available for swaps and transfers—the delegator holds the settlement balances. After sending MON, reopen this panel or run <code className="inline rounded bg-[#ECEBF2] px-1 py-0.5 text-xs text-[#1A1A1A] dark:bg-[#1E1E27] dark:text-[#F8F8FF]">delegation status</code> in chat to confirm the updated balance.
-                  </li>
-                  <li>
-                    Copy the session key address and send roughly <span className="font-medium text-[#1A1A1A] dark:text-[#F8F8FF]">0.5&nbsp;MON</span> to act as its gas tank for UserOperations. If either balance looks stale after funding, disconnect and reconnect so the session picks up the refreshed state.
-                  </li>
-                </ol>
-              </GlassPanel>
+                {rotateSuccess ? (
+                  <p className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-600 dark:text-emerald-400">
+                    {rotateSuccess}
+                  </p>
+                ) : null}
+                {rotateError ? (
+                  <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+                    {rotateError}
+                  </p>
+                ) : null}
+                {revokeSuccess ? (
+                  <p className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-600 dark:text-emerald-400">
+                    {revokeSuccess}
+                  </p>
+                ) : null}
+                {revokeError ? (
+                  <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+                    {revokeError}
+                  </p>
+                ) : null}
+                {showFundingTips ? (
+                  <div className="rounded-[1.25rem] border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#5C5C5C] shadow-sm dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#C7C3E8]/85">
+                    <ol className="list-decimal space-y-2 pl-5">
+                      <li>
+                        Fund the delegator with MON for swaps and transfers. After sending, reopen this panel or ask the chat console for an updated balance.
+                      </li>
+                      <li>
+                        Top up the session key (~0.5&nbsp;MON) so delegated transactions have gas. Reconnect if balances appear stale.
+                      </li>
+                    </ol>
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
           {activeSection === "delegations" ? (
             <div className="space-y-6" data-testid="delegations-section">
-              <GlassPanel className="grid gap-4 sm:grid-cols-3">
-                <div className="rounded-xl border border-white/40 bg-white/60 px-4 py-3 text-sm text-[#1A1A1A] shadow-sm dark:border-white/10 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
-                  <span className="block text-xs uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Active</span>
-                  <span className="mt-1 text-2xl font-semibold">{delegationCounts.active}</span>
-                </div>
-                <div className="rounded-xl border border-white/40 bg-white/60 px-4 py-3 text-sm text-[#1A1A1A] shadow-sm dark:border-white/10 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
-                  <span className="block text-xs uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Expired</span>
-                  <span className="mt-1 text-2xl font-semibold">{delegationCounts.expired}</span>
-                </div>
-                <div className="rounded-xl border border-white/40 bg-white/60 px-4 py-3 text-sm text-[#1A1A1A] shadow-sm dark:border-white/10 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
-                  <span className="block text-xs uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Revoked</span>
-                  <span className="mt-1 text-2xl font-semibold">{delegationCounts.revoked}</span>
-                </div>
-              </GlassPanel>
+              <div className="flex flex-wrap gap-2">
+                <span className="inline-flex items-center rounded-full border border-[#846FFA]/25 bg-white/65 px-3 py-1 text-xs font-semibold text-[#3F356F] dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF]">
+                  Active {delegationCounts.active}
+                </span>
+                <span className="inline-flex items-center rounded-full border border-[#846FFA]/25 bg-white/65 px-3 py-1 text-xs font-semibold text-[#3F356F] dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF]">
+                  Expired {delegationCounts.expired}
+                </span>
+                <span className="inline-flex items-center rounded-full border border-[#846FFA]/25 bg-white/65 px-3 py-1 text-xs font-semibold text-[#3F356F] dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF]">
+                  Revoked {delegationCounts.revoked}
+                </span>
+              </div>
 
-              <GlassPanel>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">Stored delegations</h3>
-                  <span className="text-xs text-[#7A6FAF] dark:text-[#C7C3E8]">{delegations.length} total</span>
-                </div>
-                <div className="mt-4 grid gap-3">
+              {primaryDelegation ? (
+                <GlassPanel className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">
+                        Active delegation
+                      </h3>
+                      <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+                        {primaryDelegation.artifact.mode === "safe" ? "Safe" : "Normal"} mode · Expires {formatExpiry(primaryDelegation.artifact.expiresAt)}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleOpenDelegationDetail(primaryDelegation)}
+                      className="rounded-full border border-[#846FFA]/30 px-3 py-1 text-xs font-semibold text-[#3F356F] hover:bg-[#846FFA]/12 dark:border-[#846FFA]/35 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/20"
+                    >
+                      View details
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(primaryDelegation.artifact.allowedTokens ?? [])
+                      .slice(0, 6)
+                      .map((token) => (
+                        <span
+                          key={`${primaryDelegation.id}-${token.address}`}
+                          className="inline-flex items-center rounded-full bg-[#846FFA]/10 px-3 py-1 text-xs font-semibold text-[#3F356F] dark:bg-[#846FFA]/20 dark:text-[#E4E3FF]"
+                        >
+                          {token.symbol ?? shortHex(token.address)}
+                        </span>
+                      ))}
+                    {(primaryDelegation.artifact.allowedTokens?.length ?? 0) > 6 ? (
+                      <span className="text-xs text-[#7A6FAF] dark:text-[#C7C3E8]">
+                        +{(primaryDelegation.artifact.allowedTokens?.length ?? 0) - 6} more
+                      </span>
+                    ) : null}
+                  </div>
+                </GlassPanel>
+              ) : (
+                <GlassPanel>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+                      No active delegations found. Issue one to enable swaps and transfers.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowOnboardingPanel(true)}
+                      className="rounded-full border border-[#846FFA]/30 px-3 py-1 text-xs font-semibold text-[#3F356F] hover:bg-[#846FFA]/12 dark:border-[#846FFA]/35 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/20"
+                    >
+                      Issue delegation
+                    </Button>
+                  </div>
+                </GlassPanel>
+              )}
+
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">History</h3>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowDelegationHistory((value) => !value)}
+                  className="rounded-full border border-[#846FFA]/25 px-3 py-1 text-xs font-semibold text-[#3F356F] hover:bg-[#846FFA]/12 dark:border-[#846FFA]/35 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/20"
+                >
+                  {showDelegationHistory ? "Hide history" : "Show history"}
+                </Button>
+              </div>
+
+              {showDelegationHistory ? (
+                <GlassPanel>
                   {delegations.length === 0 ? (
-                    <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">No delegations stored yet. Complete onboarding to issue a new delegation.</p>
+                    <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">No delegations stored.</p>
                   ) : (
-                    delegations.map((entry) => {
-                      const artifact = entry.artifact;
-                      const kind = (artifact.kind ?? "swap") === "swap" ? "Swap" : "Transfer";
-                      const tokens = (artifact.allowedTokens ?? []).map((token) => token.symbol ?? shortHex(token.address));
-                      const now = Math.floor(Date.now() / 1000);
-                      const isExpired = artifact.expiresAt ? now >= artifact.expiresAt : false;
-                      const isRevoked = Boolean(entry.revokedAt);
-                      const statusLabel = isRevoked ? "Revoked" : isExpired ? "Expired" : "Active";
-                      const statusTone = isRevoked
-                        ? "bg-destructive/15 text-destructive"
-                        : isExpired
-                          ? "bg-amber-500/15 text-amber-600"
-                          : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400";
-                      const revokeTimestamp = entry.revokedAt ? new Date(entry.revokedAt).toLocaleString() : null;
-                      return (
-                        <div key={entry.id} className="rounded-[1.25rem] border border-[#846FFA]/25 bg-white/65 px-4 py-3 text-sm shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <span className="font-medium text-[#1A1A1A] dark:text-[#F8F8FF]">
-                              {kind} delegation · {artifact.mode === "safe" ? "Safe" : "Normal"} mode
-                            </span>
-                            <div className="flex items-center gap-3">
-                              <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium", statusTone)}>
+                    <div className="space-y-2">
+                      {delegations.map((entry) => {
+                        const artifact = entry.artifact;
+                        const tokens = (artifact.allowedTokens ?? []).map((token) => token.symbol ?? shortHex(token.address));
+                        const now = Math.floor(Date.now() / 1000);
+                        const isExpired = artifact.expiresAt ? now >= artifact.expiresAt : false;
+                        const isRevoked = Boolean(entry.revokedAt);
+                        const statusLabel = isRevoked ? "Revoked" : isExpired ? "Expired" : "Active";
+                        const statusTone = isRevoked
+                          ? "bg-destructive/15 text-destructive"
+                          : isExpired
+                            ? "bg-amber-500/15 text-amber-600"
+                            : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400";
+
+                        return (
+                          <button
+                            key={entry.id}
+                            type="button"
+                            onClick={() => handleOpenDelegationDetail(entry)}
+                            className="w-full rounded-[1.25rem] border border-[#846FFA]/25 bg-white/65 px-4 py-3 text-left text-sm text-[#1A1A1A] shadow-sm transition hover:border-[#846FFA]/40 hover:bg-white/80 dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF] dark:hover:border-[#846FFA]/45 dark:hover:bg-[#1E1E27]/80"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="font-medium">
+                                {(artifact.kind ?? "swap") === "swap" ? "Swap" : "Transfer"} · {artifact.mode === "safe" ? "Safe" : "Normal"}
+                              </span>
+                              <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold", statusTone)}>
                                 {statusLabel}
                               </span>
-                              <span className="text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">Expires {formatExpiry(artifact.expiresAt)}</span>
                             </div>
-                          </div>
-                          {tokens.length > 0 ? (
-                            <p className="mt-2 text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
-                              Tokens: {tokens.join(", ")}
-                            </p>
-                          ) : null}
-                          {revokeTimestamp ? (
-                            <p className="mt-2 text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
-                              Revoked {revokeTimestamp}
-                            </p>
-                          ) : null}
-                        </div>
-                      );
-                    })
+                            <div className="mt-1 text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+                              Expires {formatExpiry(artifact.expiresAt)} · Tokens {tokens.slice(0, 4).join(", ")}
+                              {tokens.length > 4 ? `, +${tokens.length - 4} more` : ""}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   )}
-                </div>
-              </GlassPanel>
-
-              <GlassPanel className="p-0">
-                <OnboardingPanel onStatusUpdate={setQuickStatus} onRequestClose={() => setOpen(false)} />
-              </GlassPanel>
+                </GlassPanel>
+              ) : null}
             </div>
           ) : null}
 
@@ -823,6 +1133,123 @@ export const ConnectedAccount = () => {
         </DialogBody>
       </DialogContent>
     </Dialog>
+    <NestedDialog open={showOnboardingPanel} onOpenChange={setShowOnboardingPanel}>
+      <NestedDialogContent className="max-w-5xl overflow-hidden rounded-[2rem] border border-[#846FFA]/35 bg-white/90 p-0 shadow-[0_35px_80px_rgba(132,111,250,0.35)] backdrop-blur-2xl dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/95">
+        <NestedDialogHeader className="px-8 pb-4 pt-6">
+          <NestedDialogTitle className="text-lg font-semibold text-[#2F285F] dark:text-[#F8F8FF]">
+            Issue delegation
+          </NestedDialogTitle>
+          <NestedDialogDescription className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+            Configure guardrails, allowed tokens, and limits for your HybridDelegator.
+          </NestedDialogDescription>
+        </NestedDialogHeader>
+        <NestedDialogBody className="p-0">
+          <OnboardingPanel
+            onStatusUpdate={setQuickStatus}
+            onRequestClose={() => {
+              setShowOnboardingPanel(false);
+              setOpen(false);
+            }}
+          />
+        </NestedDialogBody>
+      </NestedDialogContent>
+    </NestedDialog>
+
+    <NestedDialog
+      open={delegationDetailOpen && Boolean(selectedDelegationEntry)}
+      onOpenChange={(next) => {
+        if (!next) {
+          setDelegationDetailOpen(false);
+          setSelectedDelegationEntry(null);
+        } else {
+          setDelegationDetailOpen(true);
+        }
+      }}
+    >
+      <NestedDialogContent className="max-w-3xl overflow-hidden rounded-[2rem] border border-[#846FFA]/35 bg-white/90 p-0 shadow-[0_30px_70px_rgba(132,111,250,0.32)] backdrop-blur-2xl dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/95">
+        <NestedDialogHeader className="px-8 pb-4 pt-6">
+          <NestedDialogTitle className="text-lg font-semibold text-[#2F285F] dark:text-[#F8F8FF]">
+            Delegation details
+          </NestedDialogTitle>
+          <NestedDialogDescription className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+            Review parameters for the selected delegation artifact.
+          </NestedDialogDescription>
+        </NestedDialogHeader>
+        <NestedDialogBody className="space-y-4 px-8 pb-8">
+          {selectedDelegationEntry ? (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-xl border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Mode</p>
+                  <p className="mt-1 text-base font-semibold">
+                    {(selectedDelegationEntry.artifact.mode ?? "safe") === "safe" ? "Safe" : "Normal"}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Status</p>
+                  <p className="mt-1 text-base font-semibold">
+                    {selectedDelegationEntry.revokedAt
+                      ? `Revoked · ${new Date(selectedDelegationEntry.revokedAt).toLocaleString()}`
+                      : isDelegationExpired(selectedDelegationEntry.artifact)
+                        ? "Expired"
+                        : "Active"}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Expires</p>
+                  <p className="mt-1 text-base font-semibold">{formatExpiry(selectedDelegationEntry.artifact.expiresAt)}</p>
+                </div>
+                <div className="rounded-xl border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Issued</p>
+                  <p className="mt-1 text-base font-semibold">{new Date(selectedDelegationEntry.createdAt).toLocaleString()}</p>
+                </div>
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Allowed tokens</h4>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(selectedDelegationEntry.artifact.allowedTokens ?? []).map((token) => (
+                    <span
+                      key={`${selectedDelegationEntry.id}-${token.address}`}
+                      className="inline-flex items-center rounded-full bg-[#846FFA]/10 px-3 py-1 text-xs font-semibold text-[#3F356F] dark:bg-[#846FFA]/20 dark:text-[#E4E3FF]"
+                    >
+                      {token.symbol ?? shortHex(token.address)}
+                    </span>
+                  ))}
+                  {(selectedDelegationEntry.artifact.allowedTokens?.length ?? 0) === 0 ? (
+                    <span className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">No tokens recorded.</span>
+                  ) : null}
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-xl border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Call limits</p>
+                  <p className="mt-1 text-base font-semibold">
+                    {selectedDelegationEntry.artifact.callsUnlimited || !selectedDelegationEntry.artifact.callLimit
+                      ? "Unlimited"
+                      : `${selectedDelegationEntry.artifact.callLimit} calls`}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Native cap</p>
+                  <p className="mt-1 text-base font-semibold">
+                    {selectedDelegationEntry.artifact.nativeTokenCapWei
+                      ? `${formatBalanceValue(BigInt(selectedDelegationEntry.artifact.nativeTokenCapWei), 18)} ${MONAD_NATIVE_TOKEN_SYMBOL}`
+                      : "Unlimited"}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Raw artifact</h4>
+                <pre className="mt-2 max-h-60 overflow-auto rounded-[1rem] bg-[#F4F3FF] p-4 text-xs text-[#2F285F] dark:bg-[#1E1E27] dark:text-[#E4E3FF]">
+{JSON.stringify(selectedDelegationEntry.artifact, null, 2)}
+                </pre>
+              </div>
+            </>
+          ) : null}
+        </NestedDialogBody>
+      </NestedDialogContent>
+    </NestedDialog>
+
     <NestedDialog
       open={receiptDetailOpen && Boolean(selectedReceipt)}
       onOpenChange={(next) => {

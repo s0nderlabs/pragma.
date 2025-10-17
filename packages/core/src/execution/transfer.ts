@@ -16,6 +16,7 @@ import type { AllowedToken } from "../monorail/tokens.js";
 import type { SessionDelegationInfo, DeleGatorEnv } from "../delegations/types.js";
 import { ERC20_ABI, type ExecutionLogger } from "./swap.js";
 import { createErrorFromCode } from "../errors/index.js";
+import { callWithRpcFallback } from "../utils/rpcFallback.js";
 
 const emit = (logger: ExecutionLogger | undefined, level: keyof ExecutionLogger, message: string) => {
   const fn = logger?.[level];
@@ -26,6 +27,7 @@ const emit = (logger: ExecutionLogger | undefined, level: keyof ExecutionLogger,
 
 export interface NativeTransferDependencies {
   publicClient: PublicClient;
+  fallbackPublicClient?: PublicClient;
   sessionWalletFactory: (session: SessionDelegationInfo) => WalletClient;
   nativeTokenSymbol?: string;
   logger?: ExecutionLogger;
@@ -72,7 +74,7 @@ export const transferNativeWithSession = async (
   dependencies: NativeTransferDependencies,
 ) => {
   const { session, environment, hybridDelegator, recipient, amountInput } = config;
-  const { publicClient, sessionWalletFactory, nativeTokenSymbol, logger } = dependencies;
+  const { publicClient, fallbackPublicClient, sessionWalletFactory, nativeTokenSymbol, logger } = dependencies;
 
   ensureSessionActive(session);
   const amount = parseEther(amountInput);
@@ -96,14 +98,18 @@ export const transferNativeWithSession = async (
     callData: "0x" as Hex,
   });
 
-  const txHash = await redeemDelegations(
-    sessionWallet,
-    publicClient,
-    environment.DelegationManager as Address,
-    [{ permissionContext: [session.delegation], executions: [execution], mode: ExecutionMode.SingleDefault }],
+  const txHash = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    redeemDelegations(
+      sessionWallet,
+      client,
+      environment.DelegationManager as Address,
+      [{ permissionContext: [session.delegation], executions: [execution], mode: ExecutionMode.SingleDefault }],
+    ),
   );
 
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  const receipt = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    client.waitForTransactionReceipt({ hash: txHash }),
+  );
   emit(
     logger,
     "success",
@@ -120,7 +126,8 @@ export const transferTokenWithSession = async (
   dependencies: TokenTransferDependencies,
 ) => {
   const { session, environment, hybridDelegator, token, recipient, amountInput } = config;
-  const { publicClient, sessionWalletFactory, nativeTokenAddress, nativeTokenSymbol, logger } = dependencies;
+  const { publicClient, fallbackPublicClient, sessionWalletFactory, nativeTokenAddress, nativeTokenSymbol, logger } =
+    dependencies;
 
   ensureSessionActive(session);
   if (!session.allowedTokens || session.allowedTokens.length === 0) {
@@ -156,12 +163,14 @@ export const transferTokenWithSession = async (
 
   const sessionWallet = sessionWalletFactory(session);
 
-  const balance = (await publicClient.readContract({
-    address: tokenAddress,
-    abi: ERC20_ABI,
-    functionName: "balanceOf",
-    args: [hybridDelegator],
-  })) as bigint;
+  const balance = (await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    client.readContract({
+      address: tokenAddress,
+      abi: ERC20_ABI,
+      functionName: "balanceOf",
+      args: [hybridDelegator],
+    }),
+  )) as bigint;
 
   if (balance < amount) {
     throw createErrorFromCode("SIM_BALANCE_TOO_LOW", {
@@ -178,14 +187,18 @@ export const transferTokenWithSession = async (
 
   const execution = createExecution({ target: tokenAddress, value: 0n, callData });
 
-  const txHash = await redeemDelegations(
-    sessionWallet,
-    publicClient,
-    environment.DelegationManager as Address,
-    [{ permissionContext: [session.delegation], executions: [execution], mode: ExecutionMode.SingleDefault }],
+  const txHash = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    redeemDelegations(
+      sessionWallet,
+      client,
+      environment.DelegationManager as Address,
+      [{ permissionContext: [session.delegation], executions: [execution], mode: ExecutionMode.SingleDefault }],
+    ),
   );
 
-  const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+  const receipt = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
+    client.waitForTransactionReceipt({ hash: txHash }),
+  );
   const symbol = token.symbol ?? token.address.slice(0, 6);
   emit(
     logger,

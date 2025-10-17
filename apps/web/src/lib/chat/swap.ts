@@ -20,7 +20,7 @@ import {
   MONAD_WRAPPED_TOKEN_SYMBOL,
   MONORAIL_AGGREGATOR_ADDRESS,
 } from "../config";
-import { createMonadPublicClient, monadChain } from "../clients";
+import { createMonadExecutionClient, createMonadPublicClient, monadChain } from "../clients";
 import { fetchMonorailQuote } from "../monorail/pathfinder";
 
 const routerAddress = getAddress(MONORAIL_AGGREGATOR_ADDRESS);
@@ -29,6 +29,7 @@ const wrappedNativeAddress = getAddress(MONAD_WMON_ADDRESS);
 
 const buildDependencies = (logger?: ExecutionLogger): SwapEngineDependencies => ({
   publicClient: createMonadPublicClient(),
+  fallbackPublicClient: createMonadExecutionClient(),
   sessionWalletFactory: (session) =>
     createSessionWallet(session, {
       chain: monadChain,

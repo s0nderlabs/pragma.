@@ -21,7 +21,7 @@ import { wrapNativeWithSession } from "../services/swapEngine.js";
 import { createMonadPublicClient, monadChain } from "../services/web3authClients.js";
 import {
   MONAD_NATIVE_TOKEN_SYMBOL,
-  MONAD_RPC_URL,
+  MONAD_EXECUTION_RPC_URL,
   MONAD_WMON_ADDRESS,
   MONAD_WRAPPED_TOKEN_SYMBOL,
   PRAGMA_ADMIN_TEST_PK,
@@ -58,7 +58,7 @@ export const registerTransferDualTest = (program: Command) => {
       const adminAccount = privateKeyToAccount(PRAGMA_ADMIN_TEST_PK as Hex);
       const adminWallet = createWalletClient({
         chain: monadChain,
-        transport: http(MONAD_RPC_URL),
+        transport: http(MONAD_EXECUTION_RPC_URL),
         account: adminAccount,
       });
       const publicClient = createMonadPublicClient();

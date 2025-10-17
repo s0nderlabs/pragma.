@@ -45,7 +45,7 @@ import {
   MONAD_NATIVE_TOKEN_SYMBOL,
   MONAD_WRAPPED_TOKEN_SYMBOL,
   MONAD_NATIVE_TOKEN_ADDRESS,
-  MONAD_RPC_URL,
+  MONAD_EXECUTION_RPC_URL,
   PRAGMA_ADMIN_TEST_PK,
 } from "./config.js";
 import {
@@ -957,7 +957,7 @@ const submitHybridDelegatorDeployment = async ({
         );
         return createWalletClient({
           chain: monadChain,
-          transport: http(MONAD_RPC_URL),
+          transport: http(MONAD_EXECUTION_RPC_URL),
           account: adminAccount,
         }) as unknown as WalletClientLike;
       }
@@ -1754,7 +1754,7 @@ export const setupHybridDelegatorTest = async (
   const rootAccount = privateKeyToAccount(rootPrivateKey);
   const walletClient = createWalletClient({
     chain: monadChain,
-    transport: http(MONAD_RPC_URL),
+    transport: http(MONAD_EXECUTION_RPC_URL),
     account: rootAccount,
   }) as unknown as WalletClientLike;
 

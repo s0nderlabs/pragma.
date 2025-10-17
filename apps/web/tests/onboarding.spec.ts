@@ -57,8 +57,9 @@ test.describe("Onboarding surface", () => {
     await expect(connectedButton).toBeVisible();
     await connectedButton.click();
 
-    await page.getByTestId("account-nav-delegations").click();
+    await page.getByRole("button", { name: "Issue / Reissue delegation" }).click();
 
+    await expect(page.getByTestId("onboarding-token-controls")).toBeVisible();
     await page.getByTestId("mode-option-normal").click();
 
     const tokenChips = page.locator('[data-testid="onboarding-token-controls"] label');

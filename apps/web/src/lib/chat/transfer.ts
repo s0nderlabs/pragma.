@@ -17,12 +17,13 @@ import {
   MONAD_NATIVE_TOKEN_SYMBOL,
   MONAD_RPC_URL,
 } from "../config";
-import { createMonadPublicClient, monadChain } from "../clients";
+import { createMonadExecutionClient, createMonadPublicClient, monadChain } from "../clients";
 
 const nativeTokenAddress = getAddress(MONAD_NATIVE_TOKEN_ADDRESS);
 
 const buildNativeDependencies = (logger?: ExecutionLogger): NativeTransferDependencies => ({
   publicClient: createMonadPublicClient(),
+  fallbackPublicClient: createMonadExecutionClient(),
   sessionWalletFactory: (session) =>
     createSessionWallet(session, {
       chain: monadChain,

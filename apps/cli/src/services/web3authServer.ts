@@ -7,7 +7,7 @@ const ZERO_SALT = "0x00000000000000000000000000000000000000000000000000000000000
 import {
   WEB3AUTH_CLIENT_ID,
   WEB3AUTH_NETWORK,
-  MONAD_RPC_URL,
+  MONAD_EXECUTION_RPC_URL,
   WEB3AUTH_BRIDGE_PORT,
 } from "./config.js";
 
@@ -434,7 +434,7 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
     </div>
     <script>
       const state = ${JSON.stringify(state)};
-      const defaultRpcUrl = ${JSON.stringify(MONAD_RPC_URL)};
+      const defaultRpcUrl = ${JSON.stringify(MONAD_EXECUTION_RPC_URL)};
       const desiredChainId = "0x279f";
 
       const setStatus = (text, isError = false) => {
@@ -779,7 +779,7 @@ const renderAuthPage = (state: string, authMode: "web3auth" | "metamask") => {
       const web3AuthNetwork = ${JSON.stringify(WEB3AUTH_NETWORK)};
 
       const desiredChainId = "0x279f";
-      const defaultRpcUrl = ${JSON.stringify(MONAD_RPC_URL)};
+      const defaultRpcUrl = ${JSON.stringify(MONAD_EXECUTION_RPC_URL)};
 
       const setStatus = (text, isError = false) => {
         const message = document.getElementById("message");

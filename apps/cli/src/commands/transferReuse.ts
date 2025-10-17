@@ -8,7 +8,11 @@ import { loadSwapSession } from "../services/swapArtifacts.js";
 import { transferNativeWithSession } from "../services/transferEngine.js";
 import type { Mode } from "../services/onboarding4337.js";
 import { createMonadPublicClient, monadChain } from "../services/web3authClients.js";
-import { MONAD_NATIVE_TOKEN_SYMBOL, MONAD_RPC_URL, PRAGMA_ADMIN_TEST_PK } from "../services/config.js";
+import {
+  MONAD_NATIVE_TOKEN_SYMBOL,
+  MONAD_EXECUTION_RPC_URL,
+  PRAGMA_ADMIN_TEST_PK,
+} from "../services/config.js";
 
 interface Options {
   delegator?: string;
@@ -42,7 +46,7 @@ export const registerTransferReuse = (program: Command) => {
       const adminAccount = privateKeyToAccount(PRAGMA_ADMIN_TEST_PK as Hex);
       const adminWallet = createWalletClient({
         chain: monadChain,
-        transport: http(MONAD_RPC_URL),
+        transport: http(MONAD_EXECUTION_RPC_URL),
         account: adminAccount,
       });
       const publicClient = createMonadPublicClient();

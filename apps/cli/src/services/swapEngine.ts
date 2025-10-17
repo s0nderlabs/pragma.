@@ -20,13 +20,13 @@ import {
   type DeleGatorEnv,
 } from "@pragma/core";
 
-import { createMonadPublicClient, monadChain } from "./web3authClients.js";
+import { createMonadExecutionClient, createMonadPublicClient, monadChain } from "./web3authClients.js";
 import { fetchMonorailQuote } from "./monorailPathfinder.js";
 import type { AllowedToken } from "./monorailTokens.js";
 import {
   MONAD_NATIVE_TOKEN_ADDRESS,
   MONAD_NATIVE_TOKEN_SYMBOL,
-  MONAD_RPC_URL,
+  MONAD_EXECUTION_RPC_URL,
   MONAD_WRAPPED_TOKEN_SYMBOL,
   MONAD_WMON_ADDRESS,
   MONORAIL_AGGREGATOR_ADDRESS,
@@ -56,11 +56,12 @@ const createLogger = (prefix?: string): ExecutionLogger => {
 const createSessionWalletFactory = () => (session: SessionDelegationInfo) =>
   createSessionWalletCore(session, {
     chain: monadChain,
-    rpcUrl: MONAD_RPC_URL,
+    rpcUrl: MONAD_EXECUTION_RPC_URL,
   });
 
 const buildSwapDependencies = (logPrefix?: string): SwapEngineDependencies => ({
   publicClient: createMonadPublicClient(),
+  fallbackPublicClient: createMonadExecutionClient(),
   sessionWalletFactory: createSessionWalletFactory(),
   quoteFetcher: fetchMonorailQuote,
   routerAddress: ROUTER_ADDRESS,
@@ -200,6 +201,7 @@ export const executeSwapWithSession = async (
 
 const buildWrapDependencies = (logPrefix?: string): WrapDependencies => ({
   publicClient: createMonadPublicClient(),
+  fallbackPublicClient: createMonadExecutionClient(),
   sessionWalletFactory: createSessionWalletFactory(),
   wrappedNativeAddress: WRAPPED_NATIVE_ADDRESS,
   nativeTokenSymbol: MONAD_NATIVE_TOKEN_SYMBOL,

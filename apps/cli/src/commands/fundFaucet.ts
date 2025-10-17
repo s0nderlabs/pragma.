@@ -7,7 +7,7 @@ import { loadDelegationArtifact, loadLatestActiveDelegation } from "../services/
 import { createMonadPublicClient, monadChain } from "../services/web3authClients.js";
 import { loadAllowedTokens } from "../services/monorailTokens.js";
 import { ERC20_ABI } from "@pragma/core";
-import { MONAD_RPC_URL } from "../services/config.js";
+import { MONAD_EXECUTION_RPC_URL } from "../services/config.js";
 
 export const registerFundFaucet = (program: Command) => {
   program
@@ -47,7 +47,7 @@ export const registerFundFaucet = (program: Command) => {
       const publicClient = createMonadPublicClient();
       const wallet = createWalletClient({
         chain: monadChain,
-        transport: http(MONAD_RPC_URL),
+        transport: http(MONAD_EXECUTION_RPC_URL),
         account: adminAccount,
       });
 

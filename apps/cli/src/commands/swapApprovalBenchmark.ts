@@ -9,7 +9,10 @@ import { createSessionWallet } from "@pragma/core";
 import { loadSwapSession, resolveSwapToken } from "../services/swapArtifacts.js";
 import { executeSwapWithSession } from "../services/swapEngine.js";
 import { createMonadExecutionClient, createMonadPublicClient, monadChain } from "../services/web3authClients.js";
-import { MONORAIL_AGGREGATOR_ADDRESS, MONAD_RPC_URL } from "../services/config.js";
+import {
+  MONORAIL_AGGREGATOR_ADDRESS,
+  MONAD_EXECUTION_RPC_URL,
+} from "../services/config.js";
 
 const ERC20_APPROVE_ABI = [
   {
@@ -67,7 +70,7 @@ const resetAllowance = async (
 
   if (allowance === 0n) return;
 
-  const sessionWallet = createSessionWallet(ctx.session, { chain: monadChain, rpcUrl: MONAD_RPC_URL });
+  const sessionWallet = createSessionWallet(ctx.session, { chain: monadChain, rpcUrl: MONAD_EXECUTION_RPC_URL });
   const callData = encodeFunctionData({
     abi: ERC20_APPROVE_ABI,
     functionName: "approve",

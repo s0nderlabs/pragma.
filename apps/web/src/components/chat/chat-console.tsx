@@ -26,12 +26,15 @@ import { cn } from "../../lib/utils";
 import { ConnectedAccount } from "../account/connected-account";
 import { ThemeToggle } from "../theme-toggle";
 
-const LoadingDots = ({ tone = "#846FFA" }: { tone?: string }) => (
-  <div data-testid="loading-dots" className="mt-3 flex items-center gap-1.5">
+const LoadingDots = ({ tone = "#846FFA", inline = false }: { tone?: string; inline?: boolean }) => (
+  <div
+    data-testid="loading-dots"
+    className={cn("flex items-center gap-1.5", inline ? undefined : "mt-3")}
+  >
     {[0, 120, 240].map((delay) => (
       <span
         key={delay}
-        className="h-2.5 w-2.5 rounded-full animate-bounce"
+        className="h-1.5 w-1.5 rounded-full animate-bounce"
         style={{ animationDelay: `${delay}ms`, backgroundColor: tone }}
       />
     ))}
@@ -88,13 +91,15 @@ const LogTimeline = ({ logs }: { logs: NonNullable<MessageBubbleProps["logs"]> }
 
 type MessageSegment =
   | { kind: "paragraph"; text: string }
-  | { kind: "list"; items: string[] };
+  | { kind: "list"; items: string[]; ordered?: boolean; start?: number };
 
 const parseMessageSegments = (content: string): MessageSegment[] => {
   const segments: MessageSegment[] = [];
   const lines = content.split("\n");
   let paragraphBuffer: string[] = [];
   let listBuffer: string[] = [];
+  let listType: "unordered" | "ordered" | null = null;
+  let listStart = 1;
 
   const commitParagraph = () => {
     if (paragraphBuffer.length === 0) return;
@@ -107,8 +112,15 @@ const parseMessageSegments = (content: string): MessageSegment[] => {
 
   const commitList = () => {
     if (listBuffer.length === 0) return;
-    segments.push({ kind: "list", items: listBuffer.map((item) => item.trim()) });
+    segments.push({
+      kind: "list",
+      items: listBuffer.map((item) => item.trim()),
+      ordered: listType === "ordered",
+      start: listType === "ordered" ? listStart : undefined,
+    });
     listBuffer = [];
+    listType = null;
+    listStart = 1;
   };
 
   for (const rawLine of lines) {
@@ -120,11 +132,33 @@ const parseMessageSegments = (content: string): MessageSegment[] => {
       continue;
     }
 
+    const orderedMatch = trimmed.match(/^(\d+)\.\s+/);
+
     if (/^- /.test(trimmed)) {
       if (paragraphBuffer.length > 0) {
         commitParagraph();
       }
+      if (listType !== "unordered") {
+        commitList();
+        listType = "unordered";
+      }
       listBuffer.push(trimmed.replace(/^- /, ""));
+      continue;
+    }
+
+    if (orderedMatch) {
+      if (paragraphBuffer.length > 0) {
+        commitParagraph();
+      }
+      const index = Number.parseInt(orderedMatch[1], 10);
+      if (listType !== "ordered") {
+        commitList();
+        listType = "ordered";
+        listStart = Number.isFinite(index) ? index : 1;
+      } else if (listBuffer.length === 0) {
+        listStart = Number.isFinite(index) ? index : 1;
+      }
+      listBuffer.push(trimmed.replace(/^\d+\.\s+/, ""));
       continue;
     }
 
@@ -147,6 +181,20 @@ const renderSegments = (segments: MessageSegment[], keyPrefix: string) => {
     if (segment.kind === "paragraph") {
       return <p key={`${keyPrefix}-paragraph-${index}`}>{segment.text}</p>;
     }
+    if (segment.ordered) {
+      const start = Number.isFinite(segment.start) ? segment.start ?? 1 : 1;
+      return (
+        <ol key={`${keyPrefix}-list-${index}`} className="ml-1 space-y-1 text-[#433B51] dark:text-[#EAE9FF]">
+          {segment.items.map((item, itemIndex) => (
+            <li key={`${keyPrefix}-list-${index}-item-${itemIndex}`} className="flex items-start gap-2">
+              <span className="font-semibold text-[#433B51] dark:text-[#EAE9FF]">{start + itemIndex}.</span>
+              <span className="flex-1">{item}</span>
+            </li>
+          ))}
+        </ol>
+      );
+    }
+
     return (
       <ul
         key={`${keyPrefix}-list-${index}`}
@@ -419,7 +467,10 @@ const MessageBubble = ({ role, content, status = "default", logs, presentation }
   }
 
   const statusMeta = getStatusMeta(status, presentation);
-  const showStatus = presentation?.type !== "insight" || status !== "default";
+  const showStatus =
+    status !== "loading" &&
+    presentation !== undefined &&
+    (presentation.type !== "insight" || status !== "default");
 
   return (
     <div className="flex w-full justify-start">
@@ -431,11 +482,17 @@ const MessageBubble = ({ role, content, status = "default", logs, presentation }
             {renderPresentation(presentation, content)}
           </>
         ) : (
-          <div className="flex flex-col gap-2 text-sm leading-relaxed text-[#1A120F] dark:text-[#EAE9FF]">
-            {renderSegments(parseMessageSegments(content), "system-default")}
-          </div>
+          status === "loading" ? (
+            <div className="flex items-center gap-2 text-sm leading-relaxed text-[#1A120F] dark:text-[#EAE9FF]">
+              <span>{content || "Thinking"}</span>
+              <LoadingDots inline tone="#846FFA" />
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2 text-sm leading-relaxed text-[#1A120F] dark:text-[#EAE9FF]">
+              {renderSegments(parseMessageSegments(content), "system-default")}
+            </div>
+          )
         )}
-        {status === "loading" && <LoadingDots />}
         {logs && logs.length > 0 && <LogTimeline logs={logs} />}
       </div>
     </div>

@@ -1235,7 +1235,7 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
     const statusId = appendMessage({
       id: nanoid(),
       role: "system",
-      content: "Analyzing intent…",
+      content: "Thinking",
       status: "loading",
     });
 

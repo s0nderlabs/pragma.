@@ -11,14 +11,14 @@ export default defineConfig({
     timeout: 15_000,
   },
   use: {
-    baseURL: "http://127.0.0.1:3010",
+    baseURL: "http://127.0.0.1:4310",
     headless: false,
     video: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: "pnpm --filter web exec next dev --turbopack --hostname 127.0.0.1 --port 3010",
-    url: "http://127.0.0.1:3010",
+    command: "pnpm --filter web exec next dev --turbopack --hostname 127.0.0.1 --port 4310",
+    url: "http://127.0.0.1:4310",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {

@@ -209,10 +209,17 @@ test.describe("Chat UI", () => {
 
     const receiptPanel = page.locator("[data-testid=system-message]").last();
     await expect(receiptPanel.locator("text=Swap Executed").first()).toBeVisible();
-    await expect(receiptPanel.locator("text=+ 200.12 USDC")).toBeVisible();
-    await expect(receiptPanel.locator("text=Plan hash")).toBeVisible();
-    await expect(receiptPanel.locator("text=Quote Q-123")).toBeVisible();
-    await expect(receiptPanel.getByRole("link", { name: /View on explorer/i })).toBeVisible();
+    await expect(
+      receiptPanel.locator("text=Executed swap 0.50 MON → 200.12 USDC.")
+    ).toBeVisible();
+    await expect(receiptPanel.locator("text=Minimum out: 198.00 USDC")).toBeVisible();
+    await expect(receiptPanel.locator("text=Slippage: 0.50%" )).toBeVisible();
+    await expect(receiptPanel.locator("text=Quote ID: Q-123")).toBeVisible();
+    await expect(receiptPanel.locator("text=Plan hash: 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")).toBeVisible();
+    await expect(receiptPanel.locator("text=Executed at")).toBeVisible();
+    await expect(
+      receiptPanel.locator("text=View on explorer").first()
+    ).toBeVisible();
   });
 
   test("renders swap quote card for pending confirmation", async ({ page }) => {
@@ -250,9 +257,12 @@ test.describe("Chat UI", () => {
 
     const quotePanel = page.locator("[data-testid=system-message]").last();
     await expect(quotePanel.locator("text=Swap Quote")).toBeVisible();
-    await expect(quotePanel.locator("text=Quote #Q-456")).toBeVisible();
-    await expect(quotePanel.locator("text=Minimum out")).toBeVisible();
-    await expect(quotePanel.locator("text=Slippage")).toBeVisible();
+    await expect(
+      quotePanel.locator("text=Swap 0.40 MON → 160.00 USDC.")
+    ).toBeVisible();
+    await expect(quotePanel.locator("text=Minimum out: 158.40 USDC")).toBeVisible();
+    await expect(quotePanel.locator("text=Slippage: 0.50%" )).toBeVisible();
+    await expect(quotePanel.locator("text=Quote ID: Q-456")).toBeVisible();
   });
 
   test("renders agent insight as a note", async ({ page }) => {

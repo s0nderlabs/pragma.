@@ -1,23 +1,13 @@
 "use client";
 
 import * as React from "react";
-import {
-  ArrowRightLeft,
-  ArrowUpRight,
-  CheckCircle2,
-  ExternalLink,
-  Info,
-  AlertTriangle,
-  Loader2,
-  Sparkles,
-} from "lucide-react";
+import { ArrowRightLeft, ArrowUpRight, CheckCircle2, Info, AlertTriangle, Loader2, Sparkles } from "lucide-react";
 
 import type {
   ChatMessagePresentation,
   InsightPresentation,
   SwapQuotePresentation,
   SwapReceiptPresentation,
-  TokenDisplaySummary,
 } from "../../hooks/useChatConsole";
 import { useChatConsole } from "../../hooks/useChatConsole";
 import { Button } from "../ui/button";
@@ -280,143 +270,52 @@ const getStatusMeta = (
   }
 };
 
-const TokenChip = ({ token, variant = "neutral" }: { token: TokenDisplaySummary; variant?: "neutral" | "from" | "to" }) => (
-  <span
-    className={cn(
-      "inline-flex min-w-[3rem] items-center justify-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide",
-      variant === "from" &&
-        "border-[#7564ff]/50 bg-[#7564ff]/15 text-[#4132d8] shadow-[0_6px_16px_rgba(117,100,255,0.2)] dark:border-[#7564ff]/40 dark:bg-[#7564ff]/25 dark:text-[#dad7ff]",
-      variant === "to" &&
-        "border-emerald-400/60 bg-emerald-400/15 text-emerald-700 shadow-[0_6px_16px_rgba(16,185,129,0.18)] dark:border-emerald-400/40 dark:bg-emerald-400/25 dark:text-emerald-200",
-      variant === "neutral" &&
-        "border-[#433B51]/20 bg-white/80 text-[#433B51] dark:border-white/10 dark:bg-white/10 dark:text-[#EAE9FF]",
-    )}
-  >
-    {token.symbol}
-  </span>
-);
-
-const QuoteStat = ({ label, value, tone = "default" }: { label: string; value: string; tone?: "default" | "positive" | "muted" }) => (
-  <div className="flex flex-col gap-1">
-    <span className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5BBB] dark:text-[#B7B2FF]">
-      {label}
-    </span>
-    <span
-      className={cn(
-        "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
-        tone === "positive" && "bg-emerald-400/20 text-emerald-600 dark:bg-emerald-400/20 dark:text-emerald-200",
-        tone === "muted" && "bg-[#433B51]/15 text-[#433B51] dark:bg-white/15 dark:text-[#EAE9FF]",
-        tone === "default" && "bg-white/80 text-[#433B51] shadow-sm dark:bg-white/12 dark:text-[#EAE9FF]",
-      )}
-    >
-      {value}
-    </span>
+const SwapQuoteNote = ({ presentation }: { presentation: SwapQuotePresentation }) => (
+  <div className="flex flex-col gap-3 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
+    <p>
+      Swap <strong>{presentation.amountIn} {presentation.from.symbol}</strong> → <strong>{presentation.expectedOut} {presentation.to.symbol}</strong>.
+    </p>
+    <ul className="ml-5 list-disc space-y-1 marker:text-[#6f63ff] dark:marker:text-[#cfcaff]">
+      <li>Minimum out: {presentation.minAmountOut} {presentation.to.symbol}</li>
+      <li>Slippage: {presentation.slippage}</li>
+      <li>Quote ID: {presentation.quoteId}</li>
+      <li>Prepared at {new Date(presentation.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</li>
+    </ul>
   </div>
 );
 
-const TokenPairRow = ({ from, to }: { from: TokenDisplaySummary; to: TokenDisplaySummary }) => (
-  <div className="flex flex-wrap items-center gap-3 text-xs">
-    <TokenChip token={from} variant="from" />
-    <ArrowRightLeft className="h-4 w-4 text-[#7364ff] dark:text-[#a79fff]" />
-    <TokenChip token={to} variant="to" />
+const SwapReceiptNote = ({ presentation }: { presentation: SwapReceiptPresentation }) => (
+  <div className="flex flex-col gap-3 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
+    <p>
+      Executed swap <strong>{presentation.amountIn} {presentation.from.symbol}</strong> → <strong>{presentation.amountOut} {presentation.to.symbol}</strong>.
+    </p>
+    <ul className="ml-5 list-disc space-y-1 marker:text-[#6f63ff] dark:marker:text-[#cfcaff]">
+      <li>Minimum out: {presentation.minAmountOut} {presentation.to.symbol}</li>
+      <li>Slippage: {presentation.slippageLabel}</li>
+      {presentation.quoteId ? <li>Quote ID: {presentation.quoteId}</li> : null}
+      {presentation.planHash ? <li>Plan hash: {presentation.planHash}</li> : null}
+      <li>Executed at {new Date(presentation.executedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</li>
+      {presentation.txHash ? (
+        <li>
+          Tx {presentation.txHash}
+          {presentation.explorerUrl ? (
+            <>
+              {" · "}
+              <a
+                className="underline decoration-dotted underline-offset-2 text-[#674CF9] dark:text-[#CFCBFF]"
+                href={presentation.explorerUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                View on explorer
+              </a>
+            </>
+          ) : null}
+        </li>
+      ) : null}
+    </ul>
   </div>
 );
-
-const SwapQuoteCard = ({ presentation }: { presentation: SwapQuotePresentation }) => (
-  <div className="space-y-4">
-    <TokenPairRow from={presentation.from} to={presentation.to} />
-    <div className="grid gap-4 text-sm md:grid-cols-2">
-      <QuoteStat label="Amount in" value={`${presentation.amountIn} ${presentation.from.symbol}`} tone="muted" />
-      <QuoteStat label="Expected out" value={`${presentation.expectedOut} ${presentation.to.symbol}`} tone="positive" />
-      <QuoteStat label="Minimum out" value={`${presentation.minAmountOut} ${presentation.to.symbol}`} />
-      <QuoteStat label="Slippage" value={presentation.slippage} />
-    </div>
-    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-wide text-[#6B5BBB] dark:text-[#B7B2FF]">
-      <span>Quote #{presentation.quoteId}</span>
-      <span>{new Date(presentation.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-    </div>
-  </div>
-);
-
-const SwapReceiptCard = ({ presentation }: { presentation: SwapReceiptPresentation }) => {
-  const executedLabel = new Date(presentation.executedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-  return (
-    <div className="space-y-4">
-      <TokenPairRow from={presentation.from} to={presentation.to} />
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-200">
-            Received
-          </span>
-          <span className="inline-flex items-center rounded-full bg-emerald-400/20 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-400/20 dark:text-emerald-200">
-            + {presentation.amountOut} {presentation.to.symbol}
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#6B5BBB] dark:text-[#B7B2FF]">
-            Sent
-          </span>
-          <span className="inline-flex items-center rounded-full bg-[#433B51]/15 px-3 py-1 text-xs font-semibold text-[#433B51] dark:bg-white/10 dark:text-[#EAE9FF]">
-            - {presentation.amountIn} {presentation.from.symbol}
-          </span>
-        </div>
-      </div>
-      <div className="grid gap-4 text-xs sm:grid-cols-2">
-        <div>
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#7A7196] dark:text-[#B7B2FF]/80">
-            Minimum out
-          </span>
-          <p className="text-sm font-medium text-[#1A120F] dark:text-[#EAE9FF]">
-            {presentation.minAmountOut} {presentation.to.symbol}
-          </p>
-        </div>
-        <div>
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#7A7196] dark:text-[#B7B2FF]/80">
-            Slippage
-          </span>
-          <p className="text-sm font-medium text-[#1A120F] dark:text-[#EAE9FF]">{presentation.slippageLabel}</p>
-        </div>
-        <div>
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-[#7A7196] dark:text-[#B7B2FF]/80">
-            Executed at
-          </span>
-          <p className="text-sm font-medium text-[#1A120F] dark:text-[#EAE9FF]">{executedLabel}</p>
-        </div>
-        {presentation.planHash && (
-          <div>
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-[#7A7196] dark:text-[#B7B2FF]/80">
-              Plan hash
-            </span>
-            <p className="text-sm font-medium text-[#1A120F] dark:text-[#EAE9FF]">{presentation.planHash}</p>
-          </div>
-        )}
-      </div>
-      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-        {presentation.txHash && presentation.explorerUrl ? (
-          <a
-            href={presentation.explorerUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-full bg-emerald-400/20 px-3 py-1 text-emerald-700 transition hover:bg-emerald-400/30 dark:bg-emerald-400/25 dark:text-emerald-200 dark:hover:bg-emerald-400/35"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-            View on explorer
-          </a>
-        ) : presentation.txHash ? (
-          <span className="inline-flex items-center rounded-full bg-[#433B51]/10 px-3 py-1 text-[#433B51] dark:bg-white/10 dark:text-[#EAE9FF]">
-            Tx {presentation.txHash}
-          </span>
-        ) : null}
-        {presentation.quoteId && (
-          <span className="inline-flex items-center rounded-full bg-[#846FFA]/15 px-3 py-1 text-[#4333B3] dark:bg-[#846FFA]/20 dark:text-[#DAD7FF]">
-            Quote {presentation.quoteId}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-};
 
 const AgentInsightNote = ({ presentation, content }: { presentation: InsightPresentation; content: string }) => {
   const body = (presentation.body ?? content).trim();
@@ -439,9 +338,9 @@ const renderPresentation = (presentation: ChatMessagePresentation | undefined, r
   if (!presentation) return null;
   switch (presentation.type) {
     case "swap_quote":
-      return <SwapQuoteCard presentation={presentation} />;
+      return <SwapQuoteNote presentation={presentation} />;
     case "swap_receipt":
-      return <SwapReceiptCard presentation={presentation} />;
+      return <SwapReceiptNote presentation={presentation} />;
     case "insight":
       return <AgentInsightNote presentation={presentation} content={rawContent} />;
     default:

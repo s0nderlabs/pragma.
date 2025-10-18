@@ -1,0 +1,98 @@
+# Page snapshot
+
+```yaml
+- generic:
+  - generic:
+    - main:
+      - generic:
+        - generic:
+          - generic:
+            - img
+          - generic:
+            - generic:
+              - heading [level=1]: Chat console
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic: Quick Mode
+                      - button: "Off"
+                    - button [expanded]:
+                      - img
+                      - text: Connected · 0x2222…2222
+                    - button:
+                      - img
+                      - generic: Toggle theme
+                  - generic:
+                    - generic:
+                      - generic: Open the Connected account menu to configure your delegation, then ask Pragma to execute swaps, transfers, wraps, or answer questions here.
+                  - generic:
+                    - generic:
+                      - textbox:
+                        - /placeholder: "Ask Pragma to swap, transfer, wrap, or explain capabilities. Example: swap 0.5 MON to USDC."
+                      - button [disabled]:
+                        - generic: Send
+                        - img
+                    - generic:
+                      - generic: Shift+Enter for a new line. Press Enter to send immediately.
+  - button "Open Next.js Dev Tools" [ref=e6] [cursor=pointer]:
+    - img [ref=e7]
+  - alert
+  - dialog "Connected account" [ref=e11]:
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - heading "Connected account" [level=2] [ref=e15]
+        - paragraph [ref=e16]: Manage your Web3Auth session, delegations, session key, and guardrails that power the chat console.
+      - generic [ref=e17]: Connected
+    - generic [ref=e18]:
+      - tablist [ref=e19]:
+        - tab "Overview" [active] [selected] [ref=e20]
+        - tab "Actions" [ref=e21]
+        - tab "Delegations" [ref=e22]
+        - tab "Receipts" [ref=e23]
+      - generic [ref=e24]:
+        - generic [ref=e26]:
+          - generic [ref=e27]:
+            - heading "Connection" [level=3] [ref=e28]
+            - paragraph [ref=e29]: Owner 0x1111…1111
+          - generic [ref=e30]:
+            - button "Reconnect" [ref=e31]:
+              - generic [ref=e32]: Reconnect
+            - button "Disconnect" [ref=e33]
+        - generic [ref=e34]:
+          - generic [ref=e35]:
+            - generic [ref=e36]:
+              - img [ref=e38]
+              - text: Delegator
+            - generic [ref=e40]: 0x2222…2222
+            - generic [ref=e41]: Settlement account for delegated actions.
+            - generic [ref=e42]:
+              - generic [ref=e43]: Owner 0x1111…1111
+              - button "Copy delegator address" [ref=e44]:
+                - img [ref=e45]
+          - generic [ref=e50]:
+            - generic [ref=e51]:
+              - img [ref=e53]
+              - text: Session key
+            - generic [ref=e56]: 0x3333…3333
+            - generic [ref=e58]:
+              - generic [ref=e59]: Expiry 10/19/2025, 3:56:14 PM
+              - text: Mode Normal
+            - button "Copy session key address" [ref=e61]:
+              - img [ref=e62]
+        - generic [ref=e67]:
+          - heading "Balances" [level=3] [ref=e69]
+          - generic [ref=e70]:
+            - generic [ref=e71]:
+              - heading "Delegator" [level=4] [ref=e72]
+              - list [ref=e73]:
+                - listitem [ref=e74]:
+                  - generic [ref=e75]: MON
+                  - generic [ref=e76]: "3.5134"
+            - generic [ref=e77]:
+              - heading "Session key" [level=4] [ref=e78]
+              - list [ref=e79]:
+                - listitem [ref=e80]:
+                  - generic [ref=e81]: MON
+                  - generic [ref=e82]: "0.5088"
+```

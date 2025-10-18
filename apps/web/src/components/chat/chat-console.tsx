@@ -609,22 +609,16 @@ const parsePortfolioInsight = (body: string): PortfolioInsightData => {
     }
 
     if (line.startsWith("Session key:")) {
-      const { value, rest } = extractValueAndRest(line.slice("Session key:".length));
-      const { primary, spillover } = normalizeValue(value);
-      data.sessionKey = primary;
+      const address = line.slice("Session key:".length).trim();
+      data.sessionKey = address;
       inSessionSection = true;
       collecting = null;
-      enqueueClauses(spillover);
-      enqueueClauses(splitClauses(rest));
       continue;
     }
 
     if (line.startsWith("Session holdings:")) {
-      const { value, rest } = extractValueAndRest(line.slice("Session holdings:".length));
-      const { primary, spillover } = normalizeValue(value);
-      data.sessionHoldings = primary;
-      enqueueClauses(spillover);
-      enqueueClauses(splitClauses(rest));
+      const value = line.slice("Session holdings:".length).trim();
+      data.sessionHoldings = value;
       continue;
     }
 
@@ -767,72 +761,87 @@ const InsightList = ({
 const PortfolioInsightView = ({ body }: { body: string }) => {
   const data = parsePortfolioInsight(body);
   return (
-    <div className="flex flex-col gap-4 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-col gap-1">
-          {data.delegator ? (
-            <div className="flex flex-col gap-1">
-              <span className="text-[11px] font-semibold tracking-[0.08em] text-[#433B51] dark:text-[#EAE9FF]/80">
-                Delegator
-              </span>
-              <code className="select-text rounded-md bg-[#433B51]/5 px-2 py-1 font-semibold tracking-wide text-[#1c1640] dark:bg-white/5 dark:text-[#EFEFFF]">
-                {data.delegator}
-              </code>
-            </div>
-          ) : null}
+    <div className="flex flex-col gap-5 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
+      <div className="flex flex-col gap-3">
+        {data.delegator ? (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#6f63ff] dark:text-[#cfcaff]">
+              Delegator
+            </span>
+            <code className="select-text font-mono text-sm font-medium tracking-tight text-[#674CF9] dark:text-[#cfcaff] border-b border-dotted border-[#846FFA]/30 pb-0.5 w-fit">
+              {data.delegator}
+            </code>
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-2">
           {data.mode ? (
-            <p>
-              <strong>Mode:</strong> {data.mode}
+            <p className="text-[13px]">
+              <span className="font-semibold text-[#6f63ff] dark:text-[#cfcaff]">Mode:</span>{" "}
+              <span className="font-medium">{data.mode}</span>
             </p>
           ) : null}
           {data.portfolioValue ? (
-            <p>
-              <strong>Portfolio value:</strong> {data.portfolioValue}
+            <p className="text-[13px]">
+              <span className="font-semibold text-[#6f63ff] dark:text-[#cfcaff]">Portfolio value:</span>{" "}
+              <span className="font-medium">{data.portfolioValue}</span>
             </p>
           ) : null}
-          <div className="flex flex-col gap-1">
-            <p className="font-semibold text-[#433B51] dark:text-[#EAE9FF]">Top balances:</p>
-            <InsightList
-              items={data.delegatorBalances}
-              emptyMessage={data.delegatorEmptyNote}
-            />
-          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 mt-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#433B51] dark:text-[#EAE9FF]/90">
+            Top balances
+          </p>
+          <InsightList
+            items={data.delegatorBalances}
+            emptyMessage={data.delegatorEmptyNote}
+          />
         </div>
       </div>
 
       {data.sessionKey ? (
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-col gap-1">
-            <span className="text-[11px] font-semibold tracking-[0.08em] text-[#433B51] dark:text-[#EAE9FF]/80">
-              Session key
-            </span>
-            <code className="select-text rounded-md bg-[#433B51]/5 px-2 py-1 font-semibold tracking-wide text-[#1c1640] dark:bg-white/5 dark:text-[#EFEFFF]">
-              {data.sessionKey}
-            </code>
-          </div>
-          {data.sessionHoldings ? (
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-semibold tracking-[0.1em] text-[#433B51] dark:text-[#EAE9FF]">
-                Session holdings
+        <>
+          <div className="border-t border-[#846FFA]/15 dark:border-[#846FFA]/20" />
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#6f63ff] dark:text-[#cfcaff]">
+                Session key
               </span>
-              <span className="font-medium text-[#2a2742] dark:text-[#EAE9FF]">
-                {data.sessionHoldings}
-              </span>
+              <code className="select-text font-mono text-sm font-medium tracking-tight text-[#674CF9] dark:text-[#cfcaff] border-b border-dotted border-[#846FFA]/30 pb-0.5 w-fit">
+                {data.sessionKey}
+              </code>
             </div>
-          ) : null}
-          <div className="flex flex-col gap-1">
-            <p className="font-semibold text-[#433B51] dark:text-[#EAE9FF]">Top balances:</p>
-            <InsightList
-              items={data.sessionBalances}
-              emptyMessage={data.sessionEmptyNote}
-            />
+
+            {data.sessionHoldings ? (
+              <p className="text-[13px]">
+                <span className="font-semibold text-[#6f63ff] dark:text-[#cfcaff]">Session holdings:</span>{" "}
+                <span className="font-medium">{data.sessionHoldings}</span>
+              </p>
+            ) : null}
+
+            <div className="flex flex-col gap-2 mt-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#433B51] dark:text-[#EAE9FF]/90">
+                Top balances
+              </p>
+              <InsightList
+                items={data.sessionBalances}
+                emptyMessage={data.sessionEmptyNote}
+              />
+            </div>
+
+            {data.sessionTopUpHint ? (
+              <p className="text-xs text-[#433B51] dark:text-[#EAE9FF]/80 italic">{data.sessionTopUpHint}</p>
+            ) : null}
           </div>
-          {data.sessionTopUpHint ? <p>{data.sessionTopUpHint}</p> : null}
-        </div>
+        </>
       ) : null}
 
       {data.warning ? (
-        <p className="text-xs text-amber-600 dark:text-amber-300">{data.warning}</p>
+        <div className="flex items-start gap-2 mt-1">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+          <p className="text-xs leading-relaxed text-amber-700 dark:text-amber-300 italic">{data.warning.replace(/^⚠\s*/, "")}</p>
+        </div>
       ) : null}
     </div>
   );
@@ -841,38 +850,45 @@ const PortfolioInsightView = ({ body }: { body: string }) => {
 const DelegationInsightView = ({ body }: { body: string }) => {
   const data = parseDelegationInsight(body);
   return (
-    <div className="flex flex-col gap-4 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
-      <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-5 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
+      <div className="flex flex-col gap-3">
         {data.delegator ? (
-          <p>
-            <strong>Delegator:</strong>{" "}
-            <span className="font-semibold text-[#2a2742] dark:text-[#EAE9FF]">
-              {data.delegator}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#6f63ff] dark:text-[#cfcaff]">
+              Delegator
             </span>
-          </p>
+            <code className="select-text font-mono text-sm font-medium tracking-tight text-[#674CF9] dark:text-[#cfcaff] border-b border-dotted border-[#846FFA]/30 pb-0.5 w-fit">
+              {data.delegator}
+            </code>
+          </div>
         ) : null}
         {data.mode ? (
-          <p>
-            <strong>Mode:</strong> {data.mode}
+          <p className="text-[13px]">
+            <span className="font-semibold text-[#6f63ff] dark:text-[#cfcaff]">Mode:</span>{" "}
+            <span className="font-medium">{data.mode}</span>
           </p>
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-1">
-        <p className="font-semibold text-[#433B51] dark:text-[#EAE9FF]">Limits:</p>
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#433B51] dark:text-[#EAE9FF]/90">
+          Limits
+        </p>
         {data.limits.length > 0 ? (
-          <ul className="ml-5 list-disc space-y-1 marker:text-[#6f63ff] dark:marker:text-[#cfcaff]">
+          <ul className="ml-5 list-disc space-y-1.5 marker:text-[#6f63ff] dark:marker:text-[#cfcaff]">
             {data.limits.map((entry, index) => (
-              <li key={`${entry}-${index}`}>{entry}</li>
+              <li key={`${entry}-${index}`} className="text-[13px]">{entry}</li>
             ))}
           </ul>
         ) : (
-          <p>No limit details available.</p>
+          <p className="text-xs italic text-[#433B51]/70 dark:text-[#EAE9FF]/60">No limit details available.</p>
         )}
       </div>
 
-      <div className="flex flex-col gap-1">
-        <p className="font-semibold text-[#433B51] dark:text-[#EAE9FF]">Allowed tokens:</p>
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#433B51] dark:text-[#EAE9FF]/90">
+          Allowed tokens
+        </p>
         <InsightList
           items={data.allowedTokens}
           emptyMessage="No allowed tokens recorded."
@@ -889,7 +905,7 @@ const AgentInsightNote = ({ presentation, content }: { presentation: InsightPres
   const Heading = () => (
     <div className="flex items-center gap-2 text-sm font-semibold text-[#6f63ff] dark:text-[#cfcaff]">
       <Sparkles className="h-4 w-4" />
-      <span>{presentation.heading}</span>
+      <span className="capitalize">{presentation.heading}</span>
     </div>
   );
 

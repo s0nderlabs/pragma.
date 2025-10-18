@@ -108,20 +108,48 @@ export const callAgent = async (
           throw new Error(event.message ?? "Agent streaming error");
         } else if (event.type === "done") {
           const bodyText = aggregated.trim();
+          // Parse title from first line if it looks like a heading (short line followed by blank line)
+          const lines = bodyText.split("\n");
+          const firstLine = (lines[0] || "").trim();
+          const secondLine = lines.length > 1 ? (lines[1] || "").trim() : null;
+          const isHeading = 
+            firstLine.length > 0 && 
+            firstLine.length < 60 && 
+            !firstLine.endsWith(":") && 
+            !firstLine.endsWith(".") &&
+            secondLine === "" && 
+            lines.length > 2;
+          const title = isHeading ? firstLine : "Pragma Insight";
+          const body = isHeading ? lines.slice(2).join("\n").trim() : bodyText;
+          
           return {
             type: "insight",
-            title: "Pragma Insight",
-            body: bodyText.length > 0 ? bodyText : "No additional insight is available for this request.",
+            title,
+            body: body.length > 0 ? body : "No additional insight is available for this request.",
           } satisfies AgentInsightResponse;
         }
       }
     }
 
     const bodyText = aggregated.trim();
+    // Parse title from first line if it looks like a heading (short line followed by blank line)
+    const lines = bodyText.split("\n");
+    const firstLine = (lines[0] || "").trim();
+    const secondLine = lines.length > 1 ? (lines[1] || "").trim() : null;
+    const isHeading = 
+      firstLine.length > 0 && 
+      firstLine.length < 60 && 
+      !firstLine.endsWith(":") && 
+      !firstLine.endsWith(".") &&
+      secondLine === "" && 
+      lines.length > 2;
+    const title = isHeading ? firstLine : "Pragma Insight";
+    const body = isHeading ? lines.slice(2).join("\n").trim() : bodyText;
+    
     return {
       type: "insight",
-      title: "Pragma Insight",
-      body: bodyText.length > 0 ? bodyText : "No additional insight is available for this request.",
+      title,
+      body: body.length > 0 ? body : "No additional insight is available for this request.",
     } satisfies AgentInsightResponse;
   }
 

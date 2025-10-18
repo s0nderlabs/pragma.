@@ -1268,6 +1268,7 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
       const allowedTokens = swapContext.session.allowedTokens ?? [];
 
       let streamedContent = "";
+      let hasSetInsightPresentation = false;
 
       const response = await callAgent(
         {
@@ -1281,11 +1282,33 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
         {
           onStream: (chunk) => {
             streamedContent += chunk;
-            updateMessage(statusId, (current) => ({
-              ...current,
-              content: streamedContent,
-              status: "default",
-            }));
+
+            // Set insight presentation immediately on first chunk to show "Pragma Insight" badge
+            if (!hasSetInsightPresentation && streamedContent.trim().length > 0) {
+              hasSetInsightPresentation = true;
+              updateMessage(statusId, (current) => ({
+                ...current,
+                content: streamedContent,
+                status: "default",
+                presentation: {
+                  type: "insight",
+                  heading: "Pragma Insight",
+                  body: streamedContent,
+                },
+              }));
+            } else {
+              updateMessage(statusId, (current) => ({
+                ...current,
+                content: streamedContent,
+                status: "default",
+                ...(hasSetInsightPresentation && current.presentation ? {
+                  presentation: {
+                    ...current.presentation,
+                    body: streamedContent,
+                  },
+                } : {}),
+              }));
+            }
           },
           onControl: (event: AgentControlEvent) => {
             if (event.type === "quick_mode") {

@@ -161,6 +161,14 @@ test.describe("Connected account identity flow", () => {
   });
 
   test("revokes delegations from the connected account modal", async ({ page }) => {
+    const consoleLogs: string[] = [];
+    page.on("console", (message) => {
+      const text = message.text();
+      if (text.includes("[Revoke]")) {
+        consoleLogs.push(text);
+      }
+    });
+
     await page.goto("/");
 
     await page.waitForFunction(() => {
@@ -186,19 +194,42 @@ test.describe("Connected account identity flow", () => {
 
     // Check Emergency Actions bar is visible
     await expect(page.getByText("Emergency Actions")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Revoke All" })).toBeVisible();
+    
+    // Verify Revoke All button is enabled (not disabled)
+    const revokeButton = page.getByRole("button", { name: /Revoke All/ });
+    await expect(revokeButton).toBeVisible();
+    await expect(revokeButton).toBeEnabled();
 
-    // Click Revoke All and confirm
-    await page.getByRole("button", { name: "Revoke All" }).click();
-    await page.getByRole("button", { name: "Confirm Revoke" }).click();
+    // Click Revoke All - should show confirmation panel
+    await revokeButton.click();
+    
+    // Verify confirmation panel appears
+    await expect(page.getByText(/Confirm Revoke All Delegations/i)).toBeVisible();
+    await expect(page.getByText(/This will revoke all active delegations/i)).toBeVisible();
 
-    await expect(page.getByText(/Delegations revoked/i)).toBeVisible();
+    // Click Confirm Revoke button
+    const confirmButton = page.getByRole("button", { name: "Confirm Revoke" });
+    await expect(confirmButton).toBeVisible();
+    await confirmButton.click();
 
+    // Wait for success message
+    await expect(page.getByText(/Delegations revoked/i)).toBeVisible({ timeout: 10000 });
+
+    // Verify console logs show revoke attempt
+    await page.waitForTimeout(500);
+    expect(consoleLogs.some(log => log.includes("Attempting to revoke delegations"))).toBeTruthy();
+
+    // Verify smart account status updates
     await expect.poll(async () => page.getByTestId("connected-smart-account").innerText()).toMatch(/Delegation revoked|Awaiting issuance|HybridDelegator ready/);
 
+    // Navigate to Delegations section to verify revoked status
     await page.getByTestId("account-nav-delegations").click();
     await expect(page.getByTestId("delegations-section")).toBeVisible();
     await expect(page.getByText(/Revoked/i).first()).toBeVisible();
+
+    // Verify delegation shows as revoked in history
+    await page.getByRole("button", { name: /Show history/ }).click();
+    await expect(page.getByText(/Revoked/).first()).toBeVisible();
   });
 
   test("rotates session key and reissues delegation", async ({ page }) => {

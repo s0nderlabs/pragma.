@@ -38,6 +38,7 @@ import {
 import { getOwnerDelegator } from "../../lib/storage/owner-delegators";
 import { revokeDelegations } from "../../lib/onboarding/revoke";
 import { rotateHybridDelegatorSession } from "../../lib/onboarding/service";
+import { setOwnerDelegator } from "../../lib/storage/owner-delegators";
 import { Spinner } from "../ui/spinner";
 import { createMonadPublicClient, monadChain } from "../../lib/clients";
 import {
@@ -224,9 +225,6 @@ export const ConnectedAccount = () => {
   }>({ delegator: [], session: [] });
   const [showDelegationHistory, setShowDelegationHistory] =
     React.useState(false);
-  const [delegationAction, setDelegationAction] = React.useState<
-    "rotate" | "revoke"
-  >("rotate");
   const [showReceiptsHistory, setShowReceiptsHistory] = React.useState(false);
   const [delegationDetailOpen, setDelegationDetailOpen] = React.useState(false);
   const [selectedDelegationEntry, setSelectedDelegationEntry] =
@@ -289,12 +287,8 @@ export const ConnectedAccount = () => {
     const swapActive = activeDelegations.find(
       (entry) => (entry.artifact.kind ?? "swap") === "swap"
     );
-    if (swapActive) return swapActive;
-    return (
-      delegations.find((entry) => (entry.artifact.kind ?? "swap") === "swap") ??
-      null
-    );
-  }, [activeDelegations, delegations]);
+    return swapActive ?? null;
+  }, [activeDelegations]);
 
   const allowedDelegationTokens = React.useMemo(
     () => activeSwapDelegation?.artifact.allowedTokens ?? [],
@@ -520,23 +514,6 @@ export const ConnectedAccount = () => {
   }, [availableModes, revokeSelection]);
 
   React.useEffect(() => {
-    if (
-      (!hasActiveDelegations || !connected) &&
-      delegationAction === "revoke"
-    ) {
-      setDelegationAction("rotate");
-    }
-  }, [connected, delegationAction, hasActiveDelegations]);
-
-  React.useEffect(() => {
-    if (delegationAction !== "revoke" && revokePending) {
-      setRevokePending(false);
-      setRevokeError(null);
-      setRevokeSuccess(null);
-    }
-  }, [delegationAction, revokePending]);
-
-  React.useEffect(() => {
     if (receipts.length <= 1 && showReceiptsHistory) {
       setShowReceiptsHistory(false);
     }
@@ -553,6 +530,10 @@ export const ConnectedAccount = () => {
       (ownerAddress ? getOwnerDelegator(ownerAddress) : undefined);
 
     if (!delegatorAddress) {
+      // Fallback: Load ALL delegations from storage
+      // This allows users to see and manage orphaned delegations
+      const allStoredDelegations = listDelegations();
+      
       if (ownerAddress) {
         setQuickStatus({
           ...defaultStatus,
@@ -560,14 +541,14 @@ export const ConnectedAccount = () => {
           delegatorFull: ownerAddress,
           smartAccount:
             identity.status === "connected"
-              ? "HybridDelegator not derived"
+              ? "HybridDelegator not derived (loading all stored delegations)"
               : "Awaiting connection",
         });
-        setDelegations([]);
-        setReceipts([]);
+        setDelegations(allStoredDelegations);
+        setReceipts(listReceipts(undefined, 10));
       } else {
         setQuickStatus(defaultStatus);
-        setDelegations([]);
+        setDelegations(allStoredDelegations);
         setReceipts([]);
       }
       return;
@@ -855,11 +836,24 @@ export const ConnectedAccount = () => {
       return;
     }
 
+    if (activeDelegations.length === 0) {
+      setRevokeError("No active delegations found. Refresh the page and try again.");
+      return;
+    }
+
     setIsRevoking(true);
     setRevokeError(null);
 
     try {
       const mode = revokeSelection === "auto" ? undefined : revokeSelection;
+      
+      console.log("[Revoke] Attempting to revoke delegations", {
+        mode,
+        owner: walletAddress,
+        activeDelegations: activeDelegations.length,
+        allDelegations: delegations.length,
+      });
+      
       const result = await revokeDelegations({
         walletClient,
         ownerAddress: walletAddress,
@@ -871,18 +865,33 @@ export const ConnectedAccount = () => {
         result.simulated
           ? "Delegations revoked in mock environment."
           : txLabel
-          ? `Delegations revoked (tx: ${txLabel})`
+          ? `Delegations revoked (tx: ${shortHex(txLabel)})`
           : "Delegations revoked."
       );
       setRevokePending(false);
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
       refreshSessionOverview();
     } catch (error) {
-      setRevokeError(describeError(error));
+      console.error("[Revoke] Failed to revoke delegations", error);
+      
+      const errorMessage = describeError(error);
+      const isRpcTransient = 
+        errorMessage.includes("Block requested not found") ||
+        errorMessage.includes("compute units per second") ||
+        errorMessage.includes("rate limit");
+      
+      if (isRpcTransient) {
+        setRevokeError("RPC temporarily unavailable. Please wait a moment and try again.");
+      } else {
+        setRevokeError(errorMessage);
+      }
+      
       setRevokeSuccess(null);
     } finally {
       setIsRevoking(false);
     }
-  }, [walletClient, walletAddress, revokeSelection, refreshSessionOverview]);
+  }, [walletClient, walletAddress, revokeSelection, refreshSessionOverview, activeDelegations, delegations]);
 
   const handleRotateSessionKey = React.useCallback(async () => {
     if (!walletClient || !walletAddress) {
@@ -902,6 +911,7 @@ export const ConnectedAccount = () => {
         `Session key rotated to ${shortHex(result.sessionKey.address)}.`
       );
       setActiveDelegator(result.delegator, walletAddress);
+      setOwnerDelegator(walletAddress, result.delegator);
       await refreshSessionOverview();
     } catch (error) {
       setRotateError(describeError(error));
@@ -1182,24 +1192,30 @@ export const ConnectedAccount = () => {
                         type="button"
                         variant="destructive"
                         size="sm"
-                        disabled={!connected || !hasActiveDelegations || isRevoking}
+                        disabled={!connected || (!hasActiveDelegations && delegations.length === 0) || isRevoking}
                         onClick={() => {
+                          console.log("[Revoke] Button clicked - opening confirmation panel");
                           setRevokePending(true);
                           setRevokeError(null);
                           setRevokeSuccess(null);
                         }}
-                        className="rounded-full px-4 py-2 text-xs font-semibold"
+                        className="rounded-full border border-red-600/40 px-4 py-2 text-xs font-semibold"
                         title={
                           !connected
-                            ? "Connect to revoke delegations"
+                            ? "Connect your wallet to revoke delegations"
+                            : delegations.length === 0
+                            ? "No delegations found in storage"
                             : !hasActiveDelegations
-                            ? "No active delegations to revoke"
+                            ? "All delegations are already revoked or expired"
                             : undefined
                         }
                       >
                         <span className="flex items-center gap-2">
                           {isRevoking ? <Spinner className="h-3 w-3" /> : null}
                           Revoke All
+                          {delegations.length > 0 && !hasActiveDelegations ? (
+                            <span className="text-xs opacity-75">({delegations.length} expired)</span>
+                          ) : null}
                         </span>
                       </Button>
 
@@ -1315,9 +1331,42 @@ export const ConnectedAccount = () => {
                   <GlassPanel className="space-y-3">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">
-                          Active delegation
-                        </h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">
+                            {(() => {
+                              const now = Math.floor(Date.now() / 1000);
+                              const isExpired = primaryDelegation.artifact.expiresAt && 
+                                               primaryDelegation.artifact.expiresAt <= now;
+                              const isRevoked = Boolean(primaryDelegation.revokedAt);
+                              
+                              if (isRevoked) return "Revoked delegation";
+                              if (isExpired) return "Expired delegation";
+                              return "Active delegation";
+                            })()}
+                          </h3>
+                          {(() => {
+                            const now = Math.floor(Date.now() / 1000);
+                            const isExpired = primaryDelegation.artifact.expiresAt && 
+                                             primaryDelegation.artifact.expiresAt <= now;
+                            const isRevoked = Boolean(primaryDelegation.revokedAt);
+                            
+                            const statusLabel = isRevoked ? "Revoked" : isExpired ? "Expired" : "Active";
+                            const statusTone = isRevoked
+                              ? "bg-destructive/15 text-destructive"
+                              : isExpired
+                              ? "bg-amber-500/15 text-amber-600"
+                              : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400";
+                            
+                            return (
+                              <span className={cn(
+                                "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold",
+                                statusTone
+                              )}>
+                                {statusLabel}
+                              </span>
+                            );
+                          })()}
+                        </div>
                         <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
                           {primaryDelegation.artifact.mode === "safe"
                             ? "Safe"
@@ -1373,7 +1422,6 @@ export const ConnectedAccount = () => {
                         size="sm"
                         onClick={() => {
                           setActiveSection("actions");
-                          setDelegationAction("rotate");
                         }}
                         className="rounded-full border border-[#846FFA]/30 px-3 py-1 text-xs font-semibold text-[#3F356F] hover:bg-[#846FFA]/12 dark:border-[#846FFA]/35 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/20"
                       >

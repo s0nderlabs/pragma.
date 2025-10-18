@@ -472,6 +472,7 @@ export const fetchDelegationNonce = async (handle: HybridDelegatorHandle) =>
 
 export const fetchHybridDelegatorOwner = async (
   handle: HybridDelegatorHandle,
+  retryCount = 0,
 ): Promise<Address | undefined> => {
   try {
     const owner = (await handle.publicClient.readContract({
@@ -480,7 +481,23 @@ export const fetchHybridDelegatorOwner = async (
       functionName: "owner",
     })) as Address;
     return getAddress(owner);
-  } catch {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const isTransientError = 
+      errorMessage.includes("Block requested not found") ||
+      errorMessage.includes("compute units") ||
+      errorMessage.includes("rate limit");
+    
+    if (isTransientError && retryCount < 2) {
+      console.log(`[Revoke] Transient RPC error, retrying... (attempt ${retryCount + 1}/2)`);
+      await new Promise(resolve => setTimeout(resolve, 500 * (retryCount + 1)));
+      return fetchHybridDelegatorOwner(handle, retryCount + 1);
+    }
+    
+    if (!isTransientError) {
+      console.warn("[Revoke] Failed to fetch delegator owner:", error);
+    }
+    
     return undefined;
   }
 };

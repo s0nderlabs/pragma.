@@ -22,3 +22,15 @@ docs/
 .wake/
 .vscode/
 UI-Template/
+
+# AI session documentation (debugging artifacts)
+*_FIX*.md
+*_SUMMARY.md
+*_UPDATES.md
+*_ENHANCEMENTS*.md
+RUN_*_TESTS.sh
+TEST_*.md
+
+# Test artifacts
+test-results/
+playwright-report/

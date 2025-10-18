@@ -116,11 +116,11 @@ export interface BalancesInsightOptions extends MonorailBalancesConfig {
 }
 
 const appendTopBalances = (lines: string[], balances: TokenBalance[]) => {
+  lines.push("Top balances:");
   if (balances.length === 0) {
     lines.push("No token balances detected.");
     return;
   }
-  lines.push("Top balances:");
   balances.slice(0, 10).forEach((balance) => {
     lines.push(`  • ${formatBalanceLine(balance)}`);
   });
@@ -328,13 +328,17 @@ export const buildBalancesInsight = async (
   }
 
   const lines: string[] = [];
-  lines.push(`Delegator: ${delegator}${mode ? ` (mode: ${mode})` : ""}`);
+  lines.push(`Delegator: ${delegator}`);
+  if (mode) {
+    lines.push(`Mode: ${mode}`);
+  }
   const delegatorMonTotal = sumMonValue(delegatorBalances);
   const totalMon = delegatorMonTotal > 0 ? delegatorMonTotal : Number.parseFloat(delegatorPortfolio.value ?? "0");
   const totalUsd = sumUsdValue(delegatorBalances);
   const monSummary = totalMon > 0 ? totalMon.toFixed(4) : "unknown";
   const usdSummary = totalUsd > 0 ? formatUsd(totalUsd) : undefined;
   lines.push(`Portfolio value: ${monSummary} MON${usdSummary ? ` (~$${usdSummary})` : ""}`);
+  lines.push("");
   appendTopBalances(lines, delegatorBalances);
 
   if (sessionKey) {
@@ -360,10 +364,12 @@ export const buildBalancesInsight = async (
         );
       }
     }
+    lines.push("");
     appendTopBalances(lines, sessionBalances);
 
     if (nativeBalance < lowSessionBalanceReminder) {
       const symbol = nativeTokenSymbol ?? "MON";
+      lines.push("");
       lines.push(
         `⚠ Session key ${symbol} balance is only ${formatUnits(nativeBalance, 18)} ${symbol}. Top up to at least ${formatUnits(lowSessionBalanceReminder, 18)} ${symbol} to ensure delegated actions succeed.`,
       );

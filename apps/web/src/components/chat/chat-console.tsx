@@ -83,6 +83,11 @@ type MessageSegment =
   | { kind: "paragraph"; text: string }
   | { kind: "list"; items: string[]; ordered?: boolean; start?: number };
 
+type InsightSection = {
+  heading?: string;
+  segments: MessageSegment[];
+};
+
 const parseMessageSegments = (content: string): MessageSegment[] => {
   const segments: MessageSegment[] = [];
   const lines = content.split("\n");
@@ -123,8 +128,9 @@ const parseMessageSegments = (content: string): MessageSegment[] => {
     }
 
     const orderedMatch = trimmed.match(/^(\d+)\.\s+/);
+    const bulletMatch = /^•\s+/.test(trimmed);
 
-    if (/^- /.test(trimmed)) {
+    if (/^- /.test(trimmed) || bulletMatch) {
       if (paragraphBuffer.length > 0) {
         commitParagraph();
       }
@@ -132,7 +138,7 @@ const parseMessageSegments = (content: string): MessageSegment[] => {
         commitList();
         listType = "unordered";
       }
-      listBuffer.push(trimmed.replace(/^- /, ""));
+      listBuffer.push(trimmed.replace(/^(-|•)\s+/, ""));
       continue;
     }
 
@@ -169,6 +175,27 @@ const renderSegments = (segments: MessageSegment[], keyPrefix: string) => {
   if (segments.length === 0) return null;
   return segments.map((segment, index) => {
     if (segment.kind === "paragraph") {
+      const colonIndex = segment.text.indexOf(":");
+      if (colonIndex > 0 && colonIndex < 80) {
+        const key = segment.text.slice(0, colonIndex).trim();
+        const value = segment.text.slice(colonIndex + 1).trim();
+        const normalizedKey = key.toLowerCase();
+        return (
+          <p key={`${keyPrefix}-paragraph-${index}`}>
+            <strong>{key}:</strong>
+            {value ? (
+              normalizedKey === "delegator" ? (
+                <>
+                  {" "}
+                  <span className="font-semibold text-[#2a2742] dark:text-[#EAE9FF]">{value}</span>
+                </>
+              ) : (
+                ` ${value}`
+              )
+            ) : null}
+          </p>
+        );
+      }
       return <p key={`${keyPrefix}-paragraph-${index}`}>{segment.text}</p>;
     }
     if (segment.ordered) {
@@ -195,6 +222,112 @@ const renderSegments = (segments: MessageSegment[], keyPrefix: string) => {
         ))}
       </ul>
     );
+  });
+};
+
+const splitInlineLabels = (line: string): string[] => {
+  const trimmed = line.trim();
+  if (trimmed.length === 0) return [];
+  if (/^[-•]/.test(trimmed)) return [trimmed];
+
+  const extras: string[] = [];
+  let working = trimmed.replace(/\((mode:\s*[^)]+)\)/gi, (_, group) => {
+    const value = group.replace(/^mode:\s*/i, "").trim();
+    if (value.length > 0) {
+      extras.push(`Mode: ${value}`);
+    }
+    return "";
+  });
+
+  working = working.replace(/\s{2,}/g, " ").trim();
+
+  const labelMatches = Array.from(working.matchAll(/(^|\s)([A-Z][A-Za-z0-9()/%+-]*(?:\s+[A-Za-z][A-Za-z0-9()/%+-]*)*):/g));
+
+  if (labelMatches.length === 0) {
+    return extras.length > 0 ? [working, "", ...extras] : [trimmed];
+  }
+
+  const parts: string[] = [];
+  labelMatches.forEach((match, index) => {
+    const leadingWhitespace = match[1].length;
+    const label = match[2];
+    const labelStart = (match.index ?? 0) + leadingWhitespace;
+    const valueStart = labelStart + label.length + 1;
+    const nextStart = index + 1 < labelMatches.length ? labelMatches[index + 1].index ?? working.length : working.length;
+    const value = working.slice(valueStart, nextStart).trim();
+
+    if (label.toLowerCase() === "session holdings") {
+      parts.push(`${label}:`);
+      if (value.length > 0) {
+        parts.push(value);
+      }
+      return;
+    }
+
+    parts.push(value.length > 0 ? `${label}: ${value}` : `${label}:`);
+  });
+
+  const result: string[] = [];
+  result.push(parts[0]);
+
+  extras.forEach((extra) => {
+    result.push("");
+    result.push(extra);
+  });
+
+  for (let index = 1; index < parts.length; index += 1) {
+    result.push("");
+    result.push(parts[index]);
+  }
+
+  return result;
+};
+
+const buildInsightSections = (body: string): InsightSection[] => {
+  const blocks = body
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter((block) => block.length > 0);
+
+  if (blocks.length === 0) {
+    return [{ heading: undefined, segments: parseMessageSegments(body) }];
+  }
+
+  return blocks.map((block) => {
+    const lines = block.split("\n");
+    let heading: string | undefined;
+    let detailLines = lines;
+
+    const headingMatch = lines[0]?.match(/^([^:]+):\s*(.*)$/);
+    if (headingMatch) {
+      heading = headingMatch[1].trim();
+      const remainder = headingMatch[2].trim();
+      detailLines = [
+        ...(remainder.length > 0 ? [remainder] : []),
+        ...lines.slice(1),
+      ];
+    }
+
+    const normalizedLines = detailLines.flatMap(splitInlineLabels);
+    const colonRegex = /^[A-Za-z][A-Za-z0-9\s()/%+-]*:\s*/;
+    const expandedLines: string[] = [];
+    normalizedLines.forEach((line, index) => {
+      expandedLines.push(line);
+      if (line && colonRegex.test(line) && !/^[-•]/.test(line)) {
+        const next = normalizedLines[index + 1];
+        if (typeof next !== "undefined" && next !== "") {
+          expandedLines.push("");
+        }
+      }
+    });
+
+    const sectionBody = expandedLines.join("\n");
+    const segments = parseMessageSegments(sectionBody);
+
+    return {
+      heading,
+      segments,
+    };
   });
 };
 
@@ -319,7 +452,19 @@ const SwapReceiptNote = ({ presentation }: { presentation: SwapReceiptPresentati
 
 const AgentInsightNote = ({ presentation, content }: { presentation: InsightPresentation; content: string }) => {
   const body = (presentation.body ?? content).trim();
-  const segments = parseMessageSegments(body);
+  const normalized = body
+    .replace(/\(mode:\s*([^)]+)\)/gi, "\nMode: $1")
+    .replace(/Session key:?\s*([^\n]+?)\s+(Session holdings:)/gi, "Session key: $1\n$2")
+    .replace(/(Session holdings:)\s*([^\n]+)/gi, "$1\n$2")
+    .replace(/(Limits:)\s*([^\n]+)/gi, (_match, label, value) => {
+      const pieces = value
+        .split(/,\s*/)
+        .map((piece) => piece.trim())
+        .filter((piece) => piece.length > 0);
+      if (pieces.length === 0) return `${label}`;
+      return `${label}\n${pieces.map((piece) => `- ${piece}`).join("\n")}`;
+    });
+  const sections = buildInsightSections(normalized);
 
   return (
     <div className="flex flex-col gap-2">
@@ -327,8 +472,23 @@ const AgentInsightNote = ({ presentation, content }: { presentation: InsightPres
         <Sparkles className="h-4 w-4" />
         <span>{presentation.heading}</span>
       </div>
-      <div className="flex flex-col gap-3 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
-        {segments.length === 0 ? <p>{body}</p> : renderSegments(segments, "insight")}
+      <div className="flex flex-col gap-4 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
+        {sections.length === 0 ? (
+          <p>{body}</p>
+        ) : (
+          sections.map((section, index) => (
+            <div key={`insight-section-${index}`} className="flex flex-col gap-2">
+              {section.heading ? (
+                <div className="text-xs font-semibold text-[#5A4DD4] dark:text-[#d0cbff]">
+                  {section.heading}
+                </div>
+              ) : null}
+              <div className="flex flex-col gap-2">
+                {renderSegments(section.segments, `insight-${index}`)}
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

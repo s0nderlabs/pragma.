@@ -180,8 +180,17 @@ test.describe("Connected account identity flow", () => {
     await expect(connectedButton).toBeVisible();
     await connectedButton.click();
 
-    await page.getByRole("button", { name: "Revoke delegations" }).click();
-    await page.getByRole("button", { name: "Confirm revoke" }).click();
+    // Navigate to Actions section
+    await page.getByTestId("account-nav-actions").click();
+    await expect(page.getByTestId("actions-section")).toBeVisible();
+
+    // Check Emergency Actions bar is visible
+    await expect(page.getByText("Emergency Actions")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Revoke All" })).toBeVisible();
+
+    // Click Revoke All and confirm
+    await page.getByRole("button", { name: "Revoke All" }).click();
+    await page.getByRole("button", { name: "Confirm Revoke" }).click();
 
     await expect(page.getByText(/Delegations revoked/i)).toBeVisible();
 
@@ -216,7 +225,16 @@ test.describe("Connected account identity flow", () => {
     const initialSessionKey = (await sessionKeyLocator.innerText()).trim();
     expect(initialSessionKey.length).toBeGreaterThan(0);
 
-    await page.getByRole("button", { name: "Rotate session key" }).click();
+    // Navigate to Actions section
+    await page.getByTestId("account-nav-actions").click();
+    await expect(page.getByTestId("actions-section")).toBeVisible();
+
+    // Check Emergency Actions bar and Rotate Key button
+    await expect(page.getByText("Emergency Actions")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Rotate Key" })).toBeVisible();
+
+    // Click Rotate Key button
+    await page.getByRole("button", { name: "Rotate Key" }).click();
 
     await expect.poll(async () => (await sessionKeyLocator.innerText()).trim()).not.toBe(initialSessionKey);
 
@@ -297,5 +315,46 @@ test.describe("Connected account identity flow", () => {
     await expect(page.getByTestId("receipt-detail-dialog")).toBeVisible();
     await expect(page.getByTestId("receipt-detail-dialog").getByRole("button", { name: "Close" })).toBeVisible();
     await page.getByTestId("receipt-detail-dialog").getByRole("button", { name: "Close" }).click();
+  });
+
+  test("displays Emergency Actions bar and OnboardingPanel in Actions section", async ({ page }) => {
+    await page.goto("/");
+
+    await page.waitForFunction(() => {
+      return typeof (window as unknown as { __PRAGMA_IDENTITY_MOCK__?: unknown }).__PRAGMA_IDENTITY_MOCK__ !== "undefined";
+    });
+
+    await page.evaluate(
+      ([owner, delegator]) => {
+        (window as unknown as {
+          __PRAGMA_IDENTITY_MOCK__?: { connect: (o: string, d?: string) => void };
+        }).__PRAGMA_IDENTITY_MOCK__?.connect(owner, delegator);
+      },
+      [OWNER_ADDRESS, DELEGATOR_ADDRESS],
+    );
+
+    const connectedButton = page.getByRole("button", { name: /Connected ·/ });
+    await expect(connectedButton).toBeVisible();
+    await connectedButton.click();
+
+    // Navigate to Actions section
+    await page.getByTestId("account-nav-actions").click();
+    await expect(page.getByTestId("actions-section")).toBeVisible();
+
+    // Verify Emergency Actions bar
+    await expect(page.getByText("Emergency Actions")).toBeVisible();
+    await expect(page.getByText(/Use these controls if your account is compromised/i)).toBeVisible();
+
+    // Verify both emergency buttons are present
+    await expect(page.getByRole("button", { name: "Revoke All" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Rotate Key" })).toBeVisible();
+
+    // Verify funding tips info icon is present (check for the tooltip trigger)
+    const fundingTipsButton = page.locator('button[title="Funding tips"]');
+    await expect(fundingTipsButton).toBeVisible();
+
+    // Verify OnboardingPanel is present in Actions section
+    await expect(page.getByText(/Safe mode|Normal mode/i)).toBeVisible();
+    await expect(page.getByText(/Issue Delegation|Reissue Delegation/i)).toBeVisible();
   });
 });

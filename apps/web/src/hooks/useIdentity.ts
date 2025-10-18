@@ -189,9 +189,22 @@ const initializeWeb3Auth = async (): Promise<Web3Auth> => {
     });
 
     instance.configureAdapter(openlogin);
-    await instance.initModal();
-    web3authInstance = instance;
-    return instance;
+
+    try {
+      console.log("[Web3Auth] Initializing modal with config:", {
+        clientId: WEB3AUTH_CLIENT_ID.slice(0, 10) + "...",
+        network: WEB3AUTH_NETWORK,
+        chainId: MONAD_CHAIN_ID,
+      });
+      await instance.initModal();
+      console.log("[Web3Auth] Modal initialized successfully");
+      web3authInstance = instance;
+      return instance;
+    } catch (error) {
+      console.error("[Web3Auth] Authorization/Initialization failed:", error);
+      console.error("[Web3Auth] Please verify your Web3Auth configuration and network settings");
+      throw error;
+    }
   })().catch((error) => {
     initPromise = null;
     throw error;
@@ -300,6 +313,21 @@ const connectIdentity = async (): Promise<WalletWithAddress> => {
     return walletClient;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+
+    // Check if user cancelled the Web3Auth modal
+    const isCancelled = message.toLowerCase().includes("user closed") ||
+                       message.toLowerCase().includes("user cancelled");
+
+    if (isCancelled) {
+      // User cancelled - return to ready state, don't treat as error
+      console.log("[Web3Auth] User cancelled connection modal");
+      setIdentitySnapshot({ status: "ready", error: undefined });
+      updateMockIdentityState("ready", walletRef?.address ?? null);
+      throw error; // Still throw so caller can handle if needed
+    }
+
+    // Real error - set error state
+    console.error("[Web3Auth] Connection failed:", message);
     setIdentitySnapshot({ status: "error", error: message });
     updateMockIdentityState("error", walletRef?.address ?? null);
     throw error;

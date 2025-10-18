@@ -650,6 +650,17 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
         });
       } catch (error) {
         const failureSummary = `Swap ${config.amountInput} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${config.intent.to.symbol ?? shortHex(config.intent.to.address)} failed`;
+        const errorMessage = parseError(error);
+
+        // Update message status to error to prevent UI freeze
+        // Clear presentation to ensure error message is displayed instead of quote
+        updateMessage(statusId, (current) => ({
+          ...current,
+          content: `${failureSummary}: ${errorMessage}`,
+          status: "error",
+          presentation: undefined,
+        }));
+
         recordSwapReceipt({
           type: "swap",
           status: "failed",
@@ -674,10 +685,12 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
           }),
           createdAt: startedAt,
           executedAt: Date.now(),
-          summary: `${failureSummary}: ${parseError(error)}`,
+          summary: `${failureSummary}: ${errorMessage}`,
           error: serializeError(error),
         });
-        throw error;
+
+        // Don't throw error - we've already updated the message status
+        // This prevents duplicate error handling in outer catch blocks
       } finally {
         updateMessage(statusId, (current) => ({ ...current, logs: current.logs ?? [] }));
       }
@@ -905,6 +918,7 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
         return;
       }
 
+      // Execute swap in quick mode - errors are handled gracefully in runSwapExecution
       await runSwapExecution(config, preview, statusId);
     },
     [

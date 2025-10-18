@@ -1,0 +1,100 @@
+# Page snapshot
+
+```yaml
+- generic:
+  - generic:
+    - main:
+      - generic:
+        - generic:
+          - generic:
+            - img
+          - generic:
+            - generic:
+              - heading [level=1]: Chat console
+              - generic:
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic: Quick Mode
+                      - button: "Off"
+                    - button [expanded]:
+                      - img
+                      - text: Connected · 0x2222…2222
+                    - button:
+                      - img
+                      - generic: Toggle theme
+                  - generic:
+                    - generic:
+                      - generic: Open the Connected account menu to configure your delegation, then ask Pragma to execute swaps, transfers, wraps, or answer questions here.
+                  - generic:
+                    - generic:
+                      - textbox:
+                        - /placeholder: "Ask Pragma to swap, transfer, wrap, or explain capabilities. Example: swap 0.5 MON to USDC."
+                      - button [disabled]:
+                        - generic: Send
+                        - img
+                    - generic:
+                      - generic: Shift+Enter for a new line. Press Enter to send immediately.
+  - button "Open Next.js Dev Tools" [ref=e6] [cursor=pointer]:
+    - img [ref=e7]
+  - alert
+  - dialog "Connected account" [ref=e11]:
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - heading "Connected account" [level=2] [ref=e15]
+        - paragraph [ref=e16]: Manage your Web3Auth session, delegations, session key, and guardrails that power the chat console.
+      - generic [ref=e17]: Connected
+    - generic [ref=e18]:
+      - tablist [ref=e19]:
+        - tab "Overview" [ref=e20]
+        - tab "Actions" [selected] [ref=e21]
+        - tab "Delegations" [ref=e22]
+        - tab "Receipts" [ref=e23]
+      - generic [ref=e24]:
+        - generic [ref=e25]:
+          - heading "Delegation Actions" [level=3] [ref=e26]
+          - paragraph [ref=e27]: Issue delegations and manage session keys
+        - generic [ref=e29]:
+          - generic [ref=e30]:
+            - img [ref=e31]
+            - generic [ref=e33]:
+              - paragraph [ref=e34]: Emergency Actions
+              - paragraph [ref=e35]: Use these controls if your account is compromised
+          - generic [ref=e36]:
+            - button "Revoke All" [active] [ref=e37]:
+              - generic [ref=e38]: Revoke All
+            - button "Rotate Key" [ref=e39]:
+              - generic [ref=e40]: Rotate Key
+            - button "Funding tips" [ref=e42]:
+              - img [ref=e43]
+        - generic [ref=e45]:
+          - generic [ref=e46]:
+            - generic [ref=e47]:
+              - generic [ref=e48]:
+                - heading "Delegation Mode" [level=3] [ref=e49]
+                - paragraph [ref=e50]: Single pair · 1hr expiry · Limited calls
+              - tablist [ref=e51]:
+                - button "Safe" [pressed] [ref=e52]
+                - button "Normal" [ref=e53]
+            - generic [ref=e54]:
+              - generic [ref=e56]:
+                - heading "Swap pair scope" [level=3] [ref=e57]
+                - paragraph [ref=e58]: Safe mode keeps swaps limited to a single token pair with a 1-hour expiry.
+              - generic [ref=e59]:
+                - generic [ref=e60]:
+                  - text: Token in
+                  - combobox [ref=e61]:
+                    - generic: Select source token
+                    - img [ref=e62]
+                  - combobox [ref=e64]
+                - generic [ref=e65]:
+                  - text: Token out
+                  - combobox [ref=e66]:
+                    - generic: Select destination token
+                    - img [ref=e67]
+                  - combobox [ref=e69]
+            - button "Advanced Options" [ref=e71]:
+              - img [ref=e72]
+              - text: Advanced Options
+          - button "Issue Delegation" [disabled]
+```

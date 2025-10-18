@@ -37,7 +37,7 @@ const SelectContent = React.forwardRef<React.ElementRef<typeof SelectPrimitive.C
       <SelectPrimitive.Content
         ref={ref}
         className={cn(
-          "z-50 max-h-64 min-w-[8rem] overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-md",
+          "z-50 max-h-64 min-w-[8rem] overflow-hidden rounded-xl border border-[#846FFA]/25 bg-white/95 backdrop-blur-md text-[#1A1A1A] shadow-xl dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/95 dark:text-[#F8F8FF]",
           "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
           "data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
           className,
@@ -45,13 +45,13 @@ const SelectContent = React.forwardRef<React.ElementRef<typeof SelectPrimitive.C
         position={position}
         {...props}
       >
-        <SelectPrimitive.ScrollUpButton className="flex cursor-default items-center justify-center py-1">
+        <SelectPrimitive.ScrollUpButton className="flex cursor-default items-center justify-center py-1 text-[#7A6FAF] dark:text-[#C7C3E8]">
           <ChevronUp className="h-4 w-4" />
         </SelectPrimitive.ScrollUpButton>
         <SelectPrimitive.Viewport className="p-1">
           {children}
         </SelectPrimitive.Viewport>
-        <SelectPrimitive.ScrollDownButton className="flex cursor-default items-center justify-center py-1">
+        <SelectPrimitive.ScrollDownButton className="flex cursor-default items-center justify-center py-1 text-[#7A6FAF] dark:text-[#C7C3E8]">
           <ChevronDown className="h-4 w-4" />
         </SelectPrimitive.ScrollDownButton>
       </SelectPrimitive.Content>
@@ -72,17 +72,17 @@ const SelectItem = React.forwardRef<React.ElementRef<typeof SelectPrimitive.Item
     <SelectPrimitive.Item
       ref={ref}
       className={cn(
-        "relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "relative flex w-full cursor-pointer select-none items-center rounded-lg px-8 py-2 text-sm outline-none transition-colors hover:bg-[#846FFA]/10 focus:bg-[#846FFA]/15 dark:hover:bg-[#846FFA]/15 dark:focus:bg-[#846FFA]/20 data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className,
       )}
       {...props}
     >
-      <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+      <span className="absolute left-2 flex h-4 w-4 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
-          <Check className="h-4 w-4" />
+          <Check className="h-4 w-4 text-[#846FFA] dark:text-[#C7C3E8]" />
         </SelectPrimitive.ItemIndicator>
       </span>
-      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      <SelectPrimitive.ItemText className="text-[#1A1A1A] dark:text-[#F8F8FF]">{children}</SelectPrimitive.ItemText>
     </SelectPrimitive.Item>
   ),
 );

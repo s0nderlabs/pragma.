@@ -17,6 +17,7 @@ out
 fixtures/
 
 AGENTS.md
+CLAUDE.md
 docs/
 .wake/
 .vscode/

@@ -110,3 +110,25 @@
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* Ensure Web3Auth modal renders above all other UI elements */
+#w3a-modal,
+[id^="w3a-"],
+[class*="web3auth"],
+[class*="openlogin"] {
+  z-index: 99999 !important;
+}
+
+/* Ensure Web3Auth container and iframe are above dialogs */
+#w3a-container,
+#w3a-iframe-container,
+iframe[id^="w3a-"] {
+  z-index: 99999 !important;
+}
+
+/* Ensure Web3Auth backdrop/overlay is also on top */
+[class*="w3a"][class*="overlay"],
+[class*="web3auth"][class*="overlay"],
+[class*="w3a"][class*="backdrop"] {
+  z-index: 99998 !important;
+}

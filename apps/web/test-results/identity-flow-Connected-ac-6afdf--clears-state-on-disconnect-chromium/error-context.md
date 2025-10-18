@@ -55,28 +55,25 @@
           - generic [ref=e27]:
             - heading "Connection" [level=3] [ref=e28]
             - paragraph [ref=e29]: Owner 0x1111…1111
-          - generic [ref=e30]:
-            - button "Reconnect" [ref=e31]:
-              - generic [ref=e32]: Reconnect
-            - button "Disconnect" [ref=e33]
-        - generic [ref=e34]:
-          - generic [ref=e35]:
-            - generic [ref=e36]:
-              - img [ref=e38]
+          - button "Disconnect" [ref=e31]
+        - generic [ref=e32]:
+          - generic [ref=e33]:
+            - generic [ref=e34]:
+              - img [ref=e36]
               - text: Delegator
-            - generic [ref=e40]: 0x2222…2222
-            - generic [ref=e41]: Settlement account for delegated actions.
-            - generic [ref=e42]:
-              - generic [ref=e43]: Owner 0x1111…1111
-              - button "Copy delegator address" [ref=e44]:
-                - img [ref=e45]
-          - generic [ref=e50]:
-            - generic [ref=e51]:
-              - img [ref=e53]
+            - generic [ref=e38]: 0x2222…2222
+            - generic [ref=e39]: Settlement account for delegated actions.
+            - generic [ref=e41]:
+              - generic [ref=e42]: Owner 0x1111…1111
+              - button "Copy delegator address" [ref=e43]:
+                - img [ref=e44]
+          - generic [ref=e49]:
+            - generic [ref=e50]:
+              - img [ref=e52]
               - text: Session key
-            - generic [ref=e56]: 0x3333…3333
-            - generic [ref=e58]:
-              - generic [ref=e59]: Expiry 10/19/2025, 3:56:14 PM
+            - generic [ref=e55]: 0x3333…3333
+            - generic [ref=e57]:
+              - generic [ref=e58]: Expiry 10/19/2025, 10:39:48 PM
               - text: Mode Normal
             - button "Copy session key address" [ref=e61]:
               - img [ref=e62]
@@ -87,12 +84,16 @@
               - heading "Delegator" [level=4] [ref=e72]
               - list [ref=e73]:
                 - listitem [ref=e74]:
-                  - generic [ref=e75]: MON
-                  - generic [ref=e76]: "3.5134"
-            - generic [ref=e77]:
-              - heading "Session key" [level=4] [ref=e78]
-              - list [ref=e79]:
-                - listitem [ref=e80]:
-                  - generic [ref=e81]: MON
-                  - generic [ref=e82]: "0.5088"
+                  - generic [ref=e75]:
+                    - generic [ref=e76]: ●
+                    - generic [ref=e77]: MON
+                  - generic [ref=e78]: "3.5134"
+            - generic [ref=e79]:
+              - heading "Session key" [level=4] [ref=e80]
+              - list [ref=e81]:
+                - listitem [ref=e82]:
+                  - generic [ref=e83]:
+                    - generic [ref=e84]: ●
+                    - generic [ref=e85]: MON
+                  - generic [ref=e86]: "0.5088"
 ```

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ClipboardCopy, ExternalLink, KeyRound, Sparkles } from "lucide-react";
+import { ClipboardCopy, ExternalLink, KeyRound, Sparkles, AlertTriangle } from "lucide-react";
 import { formatUnits, getAddress, type Address } from "viem";
 import type { Mode } from "@pragma/core/delegations/types";
 
@@ -38,13 +38,6 @@ import {
 import { getOwnerDelegator } from "../../lib/storage/owner-delegators";
 import { revokeDelegations } from "../../lib/onboarding/revoke";
 import { rotateHybridDelegatorSession } from "../../lib/onboarding/service";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
 import { Spinner } from "../ui/spinner";
 import { createMonadPublicClient, monadChain } from "../../lib/clients";
 import {
@@ -130,18 +123,21 @@ const renderBalanceItems = (entries: BalanceEntry[], emptyLabel: string) => {
 
   const topEntries = entries.slice(0, 4);
   return (
-    <ul className="space-y-1 text-sm text-[#1A1A1A] dark:text-[#F8F8FF]">
+    <ul className="space-y-2 text-sm text-[#1A1A1A] dark:text-[#F8F8FF]">
       {topEntries.map((entry) => (
         <li
           key={`${entry.address}-${entry.symbol}`}
-          className="flex items-center justify-between gap-2 text-[#3F356F] dark:text-[#E4E3FF]"
+          className="group flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-[#3F356F] transition hover:bg-white/60 dark:text-[#E4E3FF] dark:hover:bg-[#1E1E27]/40"
         >
-          <span className="font-medium">{entry.symbol}</span>
-          <span>{entry.amount}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[#846FFA] dark:text-[#DAD7FF]">●</span>
+            <span className="font-medium">{entry.symbol}</span>
+          </div>
+          <span className="font-semibold tabular-nums">{entry.amount}</span>
         </li>
       ))}
       {entries.length > topEntries.length ? (
-        <li className="text-xs text-[#7A6FAF] dark:text-[#C7C3E8]">
+        <li className="text-xs text-[#7A6FAF] dark:text-[#C7C3E8] pl-2">
           + {entries.length - topEntries.length} more
         </li>
       ) : null}
@@ -226,7 +222,6 @@ export const ConnectedAccount = () => {
     delegator: BalanceEntry[];
     session: BalanceEntry[];
   }>({ delegator: [], session: [] });
-  const [showFundingTips, setShowFundingTips] = React.useState(false);
   const [showDelegationHistory, setShowDelegationHistory] =
     React.useState(false);
   const [delegationAction, setDelegationAction] = React.useState<
@@ -490,11 +485,6 @@ export const ConnectedAccount = () => {
     { id: "receipts", label: "Receipts" },
   ];
 
-  const revokeModeValue = React.useMemo(() => {
-    if (revokeSelection === "auto") return "auto";
-    return revokeSelection;
-  }, [revokeSelection]);
-
   const hasActiveDelegations = activeDelegations.length > 0;
 
   const connectionStatusLabel = connected
@@ -678,7 +668,6 @@ export const ConnectedAccount = () => {
       setRotateError(null);
       setRotateSuccess(null);
       setIsRotating(false);
-      setShowFundingTips(false);
       setShowDelegationHistory(false);
       setDelegationDetailOpen(false);
       setSelectedDelegationEntry(null);
@@ -999,31 +988,44 @@ export const ConnectedAccount = () => {
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => {
-                          void identity.connect().catch((error) => {
-                            console.error("Web3Auth connection failed", error);
-                          });
-                        }}
-                        disabled={connectBusy}
-                        className={cn(
-                          "inline-flex items-center gap-2 rounded-full border border-[#846FFA]/40 bg-white/90 px-5 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#3F356F] shadow-[0_12px_30px_rgba(132,111,250,0.2)] transition hover:bg-[#846FFA]/18 hover:text-[#2F285F] dark:border-[#846FFA]/45 dark:bg-[#1E1E27]/70 dark:text-[#E4E3FF] dark:hover:bg-[#846FFA]/30",
-                          connectBusy && "opacity-60"
-                        )}
-                      >
-                        <span className="flex items-center gap-2">
-                          {connectBusy ? <Spinner className="h-3.5 w-3.5" /> : null}
-                          {connectLabel}
-                        </span>
-                      </Button>
+                      {!connected ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => {
+                            // Close the dialog first to prevent Radix overlay from blocking Web3Auth modal
+                            setOpen(false);
+
+                            // Wait for dialog to fully close before opening Web3Auth
+                            setTimeout(() => {
+                              void identity.connect().catch((error) => {
+                                // Silently handle user cancellation
+                                if (error instanceof Error && error.message.toLowerCase().includes("user closed")) {
+                                  console.log("[Web3Auth] User cancelled connection");
+                                  return;
+                                }
+                                console.error("Web3Auth connection failed", error);
+                              });
+                            }, 300);
+                          }}
+                          disabled={connectBusy}
+                          className={cn(
+                            "inline-flex items-center gap-2 rounded-full border border-[#846FFA]/40 bg-white/90 px-5 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#3F356F] shadow-[0_12px_30px_rgba(132,111,250,0.2)] transition hover:bg-[#846FFA]/18 hover:text-[#2F285F] dark:border-[#846FFA]/45 dark:bg-[#1E1E27]/70 dark:text-[#E4E3FF] dark:hover:bg-[#846FFA]/30",
+                            connectBusy && "opacity-60"
+                          )}
+                        >
+                          <span className="flex items-center gap-2">
+                            {connectBusy ? <Spinner className="h-3.5 w-3.5" /> : null}
+                            {connectLabel}
+                          </span>
+                        </Button>
+                      ) : null}
                       {showDisconnectButton ? (
                         <Button
                           type="button"
                           variant="ghost"
                           onClick={() => void identity.disconnect()}
-                          className="inline-flex items-center gap-2 rounded-full border border-transparent bg-white/55 px-5 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#5C5C5C] shadow-[0_10px_26px_rgba(169,159,226,0.22)] transition hover:bg-white/70 dark:bg-[#1E1E27]/60 dark:text-[#C7C3E8] dark:hover:bg-[#1E1E27]/75"
+                          className="inline-flex items-center gap-2 rounded-full border border-[#846FFA]/25 bg-white/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#5C5C5C] shadow-[0_8px_20px_rgba(132,111,250,0.12)] backdrop-blur-sm transition hover:border-[#846FFA]/35 hover:bg-white/85 hover:text-[#3F356F] dark:border-[#846FFA]/25 dark:bg-[#1E1E27]/70 dark:text-[#C7C3E8] dark:hover:border-[#846FFA]/35 dark:hover:bg-[#1E1E27]/85"
                         >
                           Disconnect
                         </Button>
@@ -1049,7 +1051,7 @@ export const ConnectedAccount = () => {
                         : "Connect to derive a HybridDelegator."
                     }
                     actions={
-                      <>
+                      <div className="flex items-center justify-between gap-3 w-full">
                         <span className="truncate text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
                           {walletAddress
                             ? `Owner ${shortHex(walletAddress)}`
@@ -1059,14 +1061,14 @@ export const ConnectedAccount = () => {
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
+                          className="h-8 w-8 shrink-0 rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
                           onClick={() => handleCopy(sessionDelegatorFull)}
                           disabled={!sessionDelegatorFull}
                           aria-label="Copy delegator address"
                         >
                           <ClipboardCopy className="h-4 w-4" />
                         </Button>
-                      </>
+                      </div>
                     }
                   />
                   <StatCard
@@ -1087,22 +1089,24 @@ export const ConnectedAccount = () => {
                       </div>
                     }
                     actions={
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
-                        onClick={() => handleCopy(quickStatus.sessionKeyFull)}
-                        disabled={!quickStatus.sessionKeyFull}
-                        aria-label="Copy session key address"
-                      >
-                        <ClipboardCopy className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center justify-end w-full">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 shrink-0 rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
+                          onClick={() => handleCopy(quickStatus.sessionKeyFull)}
+                          disabled={!quickStatus.sessionKeyFull}
+                          aria-label="Copy session key address"
+                        >
+                          <ClipboardCopy className="h-4 w-4" />
+                        </Button>
+                      </div>
                     }
                   />
               </div>
 
-                <GlassPanel className="space-y-4">
+                <GlassPanel className="space-y-5">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">
                       Balances
@@ -1116,8 +1120,8 @@ export const ConnectedAccount = () => {
                       {balancesError}
                     </p>
                   ) : null}
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
+                  <div className="grid gap-6 sm:grid-cols-2">
+                    <div className="space-y-3">
                       <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7A6FAF] dark:text-[#C7C3E8]">
                         Delegator
                       </h4>
@@ -1126,7 +1130,7 @@ export const ConnectedAccount = () => {
                         "No balances recorded yet."
                       )}
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <h4 className="text-xs font-semibold uppercase tracking-[0.18em] text-[#7A6FAF] dark:text-[#C7C3E8]">
                         Session key
                       </h4>
@@ -1148,239 +1152,121 @@ export const ConnectedAccount = () => {
 
             {activeSection === "actions" ? (
               <GlassPanel className="space-y-5" data-testid="actions-section">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">
-                      Delegation actions
-                    </h3>
-                    <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
-                      Rotate or revoke existing delegations and issue new
-                      guardrails from this panel.
-                    </p>
-                  </div>
-                  <div className="relative">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowFundingTips((value) => !value)}
-                      className="rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] hover:bg-[#846FFA]/15 dark:text-[#C7C3E8] dark:hover:bg-[#846FFA]/20"
-                    >
-                      Funding tips
-                    </Button>
-                    {showFundingTips ? (
-                      <>
-                        <div
-                          className="fixed inset-0 z-30"
-                          onClick={() => setShowFundingTips(false)}
-                          aria-hidden="true"
-                        />
-                        <div className="absolute right-0 top-full z-40 mt-2 w-80 rounded-[1.25rem] border border-[#846FFA]/25 bg-white/95 p-4 text-sm text-[#3F356F] shadow-xl dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/95 dark:text-[#DAD7FF]">
-                          <div className="flex items-start justify-between gap-3">
-                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">
-                              Funding tips
-                            </p>
-                            <button
-                              type="button"
-                              className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] hover:text-[#5C4ECF]"
-                              onClick={() => setShowFundingTips(false)}
-                            >
-                              Close
-                            </button>
-                          </div>
-                          <ol className="mt-3 list-decimal space-y-2 pl-5 text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/85">
-                            <li>
-                              Fund the delegator with MON for swaps and
-                              transfers. After sending, reopen this panel or ask
-                              the chat console for an updated balance.
-                            </li>
-                            <li>
-                              Top up the session key (~0.5&nbsp;MON) so
-                              delegated transactions have gas. Reconnect if
-                              balances appear stale.
-                            </li>
-                          </ol>
-                        </div>
-                      </>
-                    ) : null}
-                  </div>
+                {/* Header */}
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">
+                    Delegation Actions
+                  </h3>
+                  <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+                    Issue delegations and manage session keys
+                  </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="inline-flex items-center gap-1 rounded-full border border-[#846FFA]/30 bg-white/70 p-1 shadow-sm dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70">
-                    <button
-                      type="button"
-                      onClick={() => setDelegationAction("rotate")}
-                      aria-pressed={delegationAction === "rotate"}
-                      className={cn(
-                        "rounded-full px-4 py-2 text-sm font-semibold transition",
-                        delegationAction === "rotate"
-                          ? "bg-[#846FFA]/15 text-[#2F285F] dark:text-[#F8F8FF]"
-                          : "text-[#3F356F] hover:bg-[#846FFA]/12 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/20"
-                      )}
-                    >
-                      Rotate key
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDelegationAction("revoke")}
-                      aria-pressed={delegationAction === "revoke"}
-                      disabled={!connected || !hasActiveDelegations}
-                      className={cn(
-                        "rounded-full px-4 py-2 text-sm font-semibold transition",
-                        delegationAction === "revoke"
-                          ? "bg-[#846FFA]/15 text-[#2F285F] dark:text-[#F8F8FF]"
-                          : "text-[#3F356F] hover:bg-[#846FFA]/12 dark:text-[#DAD7FF] dark:hover	bg-[#846FFA]/20",
-                        (!connected || !hasActiveDelegations) &&
-                          "cursor-not-allowed opacity-60"
-                      )}
-                    >
-                      Revoke delegations
-                    </button>
-                  </div>
-
-                  {delegationAction === "revoke" &&
-                  availableModes.length > 1 ? (
-                    <Select
-                      value={revokeModeValue}
-                      onValueChange={(value) =>
-                        setRevokeSelection(value as "auto" | Mode)
-                      }
-                      disabled={
-                        !connected || !hasActiveDelegations || isRevoking
-                      }
-                    >
-                      <SelectTrigger className="w-44 rounded-full border border-[#846FFA]/30 bg-white/70 text-xs text-[#3F356F] shadow-sm transition hover:bg-white/80 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/80 dark:hover:bg-[#1E1E27]/80">
-                        <SelectValue placeholder="All modes" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="auto">All modes</SelectItem>
-                        {availableModes.includes("safe") ? (
-                          <SelectItem value="safe">Safe mode</SelectItem>
-                        ) : null}
-                        {availableModes.includes("normal") ? (
-                          <SelectItem value="normal">Normal mode</SelectItem>
-                        ) : null}
-                      </SelectContent>
-                    </Select>
-                  ) : null}
-
-                  {delegationAction === "revoke" &&
-                  availableModes.length <= 1 &&
-                  availableModes[0] ? (
-                    <span className="inline-flex items-center rounded-full border border-[#846FFA]/25 bg-white/70 px-3 py-1 text-xs font-semibold text-[#3F356F] dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF]">
-                      {availableModes[0] === "safe"
-                        ? "Safe mode only"
-                        : "Normal mode only"}
-                    </span>
-                  ) : null}
-                </div>
-
-                {delegationAction === "rotate" ? (
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.1rem] border border-[#846FFA]/25 bg-white/60 px-4 py-3 text-sm text-[#3F356F] shadow-sm dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF]">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-[#1A1A1A] dark:text-[#F8F8FF]">
-                        Rotate session key
-                      </p>
-                      <p className="text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
-                        Trigger a fresh session key for the active delegator.
-                      </p>
+                {/* Emergency Actions Bar */}
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 shadow-sm dark:border-amber-500/40 dark:bg-amber-500/10">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                          Emergency Actions
+                        </p>
+                        <p className="text-xs text-amber-800 dark:text-amber-200">
+                          Use these controls if your account is compromised
+                        </p>
+                      </div>
                     </div>
-                    <Button
-                      type="button"
-                      onClick={() => void handleRotateSessionKey()}
-                      disabled={!connected || isRotating}
-                      title={
-                        !connected
-                          ? "Connect via Web3Auth before rotating the session key"
-                          : undefined
-                      }
-                      className={cn(
-                        "rounded-full px-4 py-2 text-sm font-semibold text-[#3F356F] hover:bg-[#846FFA]/15 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25",
-                        isRotating &&
-                          "bg-[#846FFA]/15 text-[#2F285F] dark:text-[#F8F8FF]"
-                      )}
-                    >
-                      <span className="flex items-center gap-2">
-                        {isRotating ? <Spinner className="h-4 w-4" /> : null}
-                        {isRotating ? "Rotating…" : "Rotate key"}
-                      </span>
-                    </Button>
-                  </div>
-                ) : null}
 
-                {delegationAction === "revoke" && !revokePending ? (
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.1rem] border border-[#846FFA]/25 bg-white/60 px-4 py-3 text-sm text-[#3F356F] shadow-sm dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF]">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-[#1A1A1A] dark	text-[#F8F8FF]">
-                        Revoke delegations
-                      </p>
-                      <p className="text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
-                        Select the scope to revoke and confirm to remove
-                        existing guardrails.
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={
-                        !connected || !hasActiveDelegations || isRevoking
-                      }
-                      onClick={() => {
-                        setRevokePending(true);
-                        setRevokeError(null);
-                        setRevokeSuccess(null);
-                      }}
-                      className="rounded-full px-4 py-2 text-sm font-semibold"
-                    >
-                      Begin revoke
-                    </Button>
-                  </div>
-                ) : null}
-
-                {delegationAction === "revoke" && revokePending ? (
-                  <div className="flex flex-wrap items-center gap-3 rounded-[1.1rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-[#3F356F] shadow-sm dark	border-destructive/40 dark:bg-destructive/20 dark:text-[#F8F8FF]">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-[#1A1A1A] dark:text-[#F8F8FF]">
-                        Confirm revoke
-                      </p>
-                      <p className="text-xs">
-                        This will revoke{" "}
-                        {revokeSelection === "auto"
-                          ? "all active modes"
-                          : `${revokeSelection} mode`}{" "}
-                        and rotate the session key.
-                      </p>
-                    </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
                         type="button"
                         variant="destructive"
-                        disabled={!connected || isRevoking}
-                        onClick={() => void handleRevoke()}
-                        className="rounded-full px-4 py-2 text-sm font-semibold"
-                      >
-                        <span className="flex items-center gap-2">
-                          {isRevoking ? <Spinner className="h-4 w-4" /> : null}
-                          Proceed
-                        </span>
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
+                        size="sm"
+                        disabled={!connected || !hasActiveDelegations || isRevoking}
                         onClick={() => {
-                          setRevokePending(false);
+                          setRevokePending(true);
                           setRevokeError(null);
                           setRevokeSuccess(null);
                         }}
-                        className="rounded-full px-4 py-2 text-sm font-semibold"
+                        className="rounded-full px-4 py-2 text-xs font-semibold"
+                        title={
+                          !connected
+                            ? "Connect to revoke delegations"
+                            : !hasActiveDelegations
+                            ? "No active delegations to revoke"
+                            : undefined
+                        }
                       >
-                        Cancel
+                        <span className="flex items-center gap-2">
+                          {isRevoking ? <Spinner className="h-3 w-3" /> : null}
+                          Revoke All
+                        </span>
+                      </Button>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!connected || isRotating}
+                        onClick={() => void handleRotateSessionKey()}
+                        className="rounded-full border border-amber-600/40 bg-amber-500/20 px-4 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-500/30 dark:border-amber-500/50 dark:text-amber-100 dark:hover:bg-amber-500/25"
+                        title={
+                          !connected
+                            ? "Connect to rotate session key"
+                            : undefined
+                        }
+                      >
+                        <span className="flex items-center gap-2">
+                          {isRotating ? <Spinner className="h-3 w-3" /> : null}
+                          Rotate Key
+                        </span>
                       </Button>
                     </div>
                   </div>
-                ) : null}
 
+                  {/* Revoke Confirmation Panel */}
+                  {revokePending ? (
+                    <div className="mt-4 space-y-3 rounded-xl border border-destructive/30 bg-destructive/10 p-4 dark:border-destructive/40 dark:bg-destructive/20">
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-[#1A1A1A] dark:text-[#F8F8FF]">
+                          Confirm Revoke All Delegations
+                        </p>
+                        <p className="text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+                          This will revoke all active delegations and rotate the session key.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          disabled={!connected || isRevoking}
+                          onClick={() => void handleRevoke()}
+                          className="rounded-full px-4 py-2 text-xs font-semibold"
+                        >
+                          <span className="flex items-center gap-2">
+                            {isRevoking ? <Spinner className="h-3 w-3" /> : null}
+                            Confirm Revoke
+                          </span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setRevokePending(false);
+                            setRevokeError(null);
+                            setRevokeSuccess(null);
+                          }}
+                          className="rounded-full px-4 py-2 text-xs font-semibold"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* Success/Error Messages */}
                 {rotateSuccess ? (
                   <p className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-600 dark:text-emerald-400">
                     {rotateSuccess}
@@ -1402,13 +1288,12 @@ export const ConnectedAccount = () => {
                   </p>
                 ) : null}
 
-                <div className="border-t border-[#846FFA]/20 pt-4">
-                  <OnboardingPanel
-                    onStatusUpdate={setQuickStatus}
-                    showIdentityCard={false}
-                    showSummaryCards={false}
-                  />
-                </div>
+                {/* OnboardingPanel - Center Stage */}
+                <OnboardingPanel
+                  onStatusUpdate={setQuickStatus}
+                  showIdentityCard={false}
+                  showSummaryCards={false}
+                />
               </GlassPanel>
             ) : null}
 

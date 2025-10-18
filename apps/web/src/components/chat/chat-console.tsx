@@ -298,14 +298,30 @@ const buildInsightSections = (body: string): InsightSection[] => {
     let heading: string | undefined;
     let detailLines = lines;
 
-    const headingMatch = lines[0]?.match(/^([^:]+):\s*(.*)$/);
-    if (headingMatch) {
+    // Only treat first line as heading if it's short (< 60 chars), contains a colon, 
+    // and doesn't look like conversational text (no em-dash, no periods before colon)
+    const firstLine = lines[0] || "";
+    const headingMatch = firstLine.match(/^([^:]+):\s*(.*)$/);
+    if (headingMatch && firstLine.length < 60 && !firstLine.includes("—") && !firstLine.includes(".")) {
       heading = headingMatch[1].trim();
       const remainder = headingMatch[2].trim();
       detailLines = [
         ...(remainder.length > 0 ? [remainder] : []),
         ...lines.slice(1),
       ];
+    }
+    // Also detect standalone short lines as headings (e.g., "Simple breakdown")
+    else if (
+      firstLine.length > 0 &&
+      firstLine.length < 40 &&
+      !firstLine.includes(".") &&
+      !firstLine.includes("?") &&
+      !firstLine.includes("!") &&
+      lines.length > 1 &&
+      !/^[-•\d]/.test(firstLine) // Not a list item
+    ) {
+      heading = firstLine.trim();
+      detailLines = lines.slice(1);
     }
 
     const normalizedLines = detailLines.flatMap(splitInlineLabels);
@@ -450,28 +466,456 @@ const SwapReceiptNote = ({ presentation }: { presentation: SwapReceiptPresentati
   </div>
 );
 
+type PortfolioInsightData = {
+  delegator?: string;
+  mode?: string;
+  portfolioValue?: string;
+  delegatorBalances: string[];
+  delegatorEmptyNote?: string;
+  sessionKey?: string;
+  sessionHoldings?: string;
+  sessionBalances: string[];
+  sessionEmptyNote?: string;
+  sessionTopUpHint?: string;
+  warning?: string;
+};
+
+type DelegationInsightData = {
+  delegator?: string;
+  mode?: string;
+  limits: string[];
+  allowedTokens: string[];
+};
+
+const parsePortfolioInsight = (body: string): PortfolioInsightData => {
+  const queue = body
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  const data: PortfolioInsightData = {
+    delegatorBalances: [],
+    sessionBalances: [],
+  };
+  let inSessionSection = false;
+  let collecting: "delegator" | "session" | null = null;
+  const splitClauses = (text: string): string[] => {
+    const clauses: string[] = [];
+    const labelRegex = /([A-Za-z][A-Za-z0-9()\[\]\s/%+-]*?):/g;
+    let cursor = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = labelRegex.exec(text)) !== null) {
+      const start = match.index;
+      const label = match[1];
+
+      if (start > cursor) {
+        const prefix = text.slice(cursor, start).trim();
+        if (prefix.length > 0) {
+          clauses.push(prefix);
+        }
+      }
+
+      const valueStart = labelRegex.lastIndex;
+      const nextMatch = labelRegex.exec(text);
+      const valueEnd =
+        nextMatch && typeof nextMatch.index === "number" ? nextMatch.index : text.length;
+      const value = text.slice(valueStart, valueEnd).trim();
+
+      clauses.push(value.length > 0 ? `${label}: ${value}` : `${label}:`);
+
+      cursor = valueEnd;
+
+      if (nextMatch) {
+        labelRegex.lastIndex = nextMatch.index;
+      }
+    }
+
+    if (cursor < text.length) {
+      const suffix = text.slice(cursor).trim();
+      if (suffix.length > 0) {
+        clauses.push(suffix);
+      }
+    }
+
+    return clauses.filter((clause) => clause.length > 0);
+  };
+
+  const extractValueAndRest = (text: string) => {
+    const working = text.trim();
+    if (working.length === 0) {
+      return { value: "", rest: "" };
+    }
+    const nextLabelMatch = working.match(/\s+[A-Z][A-Za-z0-9\s]+:/);
+    if (nextLabelMatch && nextLabelMatch.index !== undefined) {
+      return {
+        value: working.slice(0, nextLabelMatch.index).trim(),
+        rest: working.slice(nextLabelMatch.index).trim(),
+      };
+    }
+    return { value: working, rest: "" };
+  };
+
+  const normalizeValue = (value: string) => {
+    const clauses = splitClauses(value);
+    if (clauses.length <= 1) {
+      return { primary: value.trim(), spillover: [] as string[] };
+    }
+    const [primary, ...spill] = clauses;
+    return {
+      primary: primary.trim(),
+      spillover: spill,
+    };
+  };
+
+  const enqueueClauses = (clauses: string[]) => {
+    if (clauses.length === 0) return;
+    clauses
+      .slice()
+      .reverse()
+      .forEach((clause) => queue.unshift(clause));
+  };
+
+  while (queue.length > 0) {
+    const rawLine = queue.shift() ?? "";
+    const line = rawLine.trim();
+    if (line.length === 0) continue;
+
+    if (line.startsWith("Delegator:")) {
+      const remainder = line.slice("Delegator:".length);
+      const { value, rest } = extractValueAndRest(remainder);
+      const { primary, spillover } = normalizeValue(value);
+      data.delegator = primary;
+      enqueueClauses(spillover);
+      enqueueClauses(splitClauses(rest));
+      continue;
+    }
+
+    if (line.startsWith("Mode:")) {
+      const { value, rest } = extractValueAndRest(line.slice("Mode:".length));
+      const { primary, spillover } = normalizeValue(value);
+      data.mode = primary;
+      enqueueClauses(spillover);
+      enqueueClauses(splitClauses(rest));
+      continue;
+    }
+
+    if (line.startsWith("Portfolio value:")) {
+      const { value, rest } = extractValueAndRest(line.slice("Portfolio value:".length));
+      const { primary, spillover } = normalizeValue(value);
+      data.portfolioValue = primary;
+      enqueueClauses(spillover);
+      enqueueClauses(splitClauses(rest));
+      continue;
+    }
+
+    if (line.startsWith("Session key:")) {
+      const { value, rest } = extractValueAndRest(line.slice("Session key:".length));
+      const { primary, spillover } = normalizeValue(value);
+      data.sessionKey = primary;
+      inSessionSection = true;
+      collecting = null;
+      enqueueClauses(spillover);
+      enqueueClauses(splitClauses(rest));
+      continue;
+    }
+
+    if (line.startsWith("Session holdings:")) {
+      const { value, rest } = extractValueAndRest(line.slice("Session holdings:".length));
+      const { primary, spillover } = normalizeValue(value);
+      data.sessionHoldings = primary;
+      enqueueClauses(spillover);
+      enqueueClauses(splitClauses(rest));
+      continue;
+    }
+
+    if (line.toLowerCase().startsWith("top balances")) {
+      collecting = inSessionSection ? "session" : "delegator";
+      continue;
+    }
+
+    if (line.startsWith("Top up to")) {
+      data.sessionTopUpHint = line;
+      continue;
+    }
+
+    if (line.startsWith("No token balances detected")) {
+      if (collecting === "delegator") {
+        data.delegatorEmptyNote = line;
+      } else if (collecting === "session") {
+        data.sessionEmptyNote = line;
+      }
+      continue;
+    }
+
+    if (line.startsWith("⚠")) {
+      data.warning = line;
+      continue;
+    }
+
+    if (collecting === "delegator") {
+      let entry = line;
+      if (entry.startsWith("•")) entry = entry.slice(1).trim();
+      if (entry.startsWith("-")) entry = entry.slice(1).trim();
+      if (entry.length > 0) {
+        data.delegatorBalances.push(entry);
+      }
+      continue;
+    }
+
+    if (collecting === "session") {
+      let entry = line;
+      if (entry.startsWith("•")) entry = entry.slice(1).trim();
+      if (entry.startsWith("-")) entry = entry.slice(1).trim();
+      if (entry.length > 0) {
+        data.sessionBalances.push(entry);
+      }
+      continue;
+    }
+
+    // If we reached here and the line still contains labeled clauses,
+    // break them up and reprocess.
+    const clauses = splitClauses(line);
+    if (clauses.length <= 1) {
+      if (collecting === "delegator") {
+        data.delegatorBalances.push(line);
+      } else if (collecting === "session") {
+        data.sessionBalances.push(line);
+      }
+      continue;
+    }
+
+    clauses
+      .reverse()
+      .forEach((clause) => queue.unshift(clause));
+  }
+
+  return data;
+};
+
+const parseDelegationInsight = (body: string): DelegationInsightData => {
+  const lines = body.split("\n");
+  const data: DelegationInsightData = {
+    limits: [],
+    allowedTokens: [],
+  };
+  let inAllowedTokens = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (line.length === 0) continue;
+
+    if (line.startsWith("Delegator:")) {
+      data.delegator = line.slice("Delegator:".length).trim();
+      continue;
+    }
+
+    if (line.startsWith("Mode:")) {
+      data.mode = line.slice("Mode:".length).trim();
+      continue;
+    }
+
+    if (line.startsWith("Limits:")) {
+      const value = line.slice("Limits:".length).trim();
+      value
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0)
+        .forEach((entry) => {
+          data.limits.push(entry);
+        });
+      continue;
+    }
+
+    if (line.startsWith("Allowed tokens:")) {
+      inAllowedTokens = true;
+      continue;
+    }
+
+    if (inAllowedTokens) {
+      let entry = line;
+      if (entry.startsWith("•")) entry = entry.slice(1).trim();
+      if (entry.startsWith("-")) entry = entry.slice(1).trim();
+      if (entry.length > 0) {
+        data.allowedTokens.push(entry);
+      }
+      continue;
+    }
+  }
+
+  return data;
+};
+
+const InsightList = ({
+  items,
+  emptyMessage,
+}: {
+  items: string[];
+  emptyMessage?: string;
+}) => {
+  if (items.length === 0) {
+    return emptyMessage ? <p>{emptyMessage}</p> : null;
+  }
+  return (
+    <ul className="ml-5 list-disc space-y-1 marker:text-[#6f63ff] dark:marker:text-[#cfcaff]">
+      {items.map((item, index) => (
+        <li key={`${item}-${index}`}>{item}</li>
+      ))}
+    </ul>
+  );
+};
+
+const PortfolioInsightView = ({ body }: { body: string }) => {
+  const data = parsePortfolioInsight(body);
+  return (
+    <div className="flex flex-col gap-4 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1">
+          {data.delegator ? (
+            <div className="flex flex-col gap-1">
+              <span className="text-[11px] font-semibold tracking-[0.08em] text-[#433B51] dark:text-[#EAE9FF]/80">
+                Delegator
+              </span>
+              <code className="select-text rounded-md bg-[#433B51]/5 px-2 py-1 font-semibold tracking-wide text-[#1c1640] dark:bg-white/5 dark:text-[#EFEFFF]">
+                {data.delegator}
+              </code>
+            </div>
+          ) : null}
+          {data.mode ? (
+            <p>
+              <strong>Mode:</strong> {data.mode}
+            </p>
+          ) : null}
+          {data.portfolioValue ? (
+            <p>
+              <strong>Portfolio value:</strong> {data.portfolioValue}
+            </p>
+          ) : null}
+          <div className="flex flex-col gap-1">
+            <p className="font-semibold text-[#433B51] dark:text-[#EAE9FF]">Top balances:</p>
+            <InsightList
+              items={data.delegatorBalances}
+              emptyMessage={data.delegatorEmptyNote}
+            />
+          </div>
+        </div>
+      </div>
+
+      {data.sessionKey ? (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1">
+            <span className="text-[11px] font-semibold tracking-[0.08em] text-[#433B51] dark:text-[#EAE9FF]/80">
+              Session key
+            </span>
+            <code className="select-text rounded-md bg-[#433B51]/5 px-2 py-1 font-semibold tracking-wide text-[#1c1640] dark:bg-white/5 dark:text-[#EFEFFF]">
+              {data.sessionKey}
+            </code>
+          </div>
+          {data.sessionHoldings ? (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-semibold tracking-[0.1em] text-[#433B51] dark:text-[#EAE9FF]">
+                Session holdings
+              </span>
+              <span className="font-medium text-[#2a2742] dark:text-[#EAE9FF]">
+                {data.sessionHoldings}
+              </span>
+            </div>
+          ) : null}
+          <div className="flex flex-col gap-1">
+            <p className="font-semibold text-[#433B51] dark:text-[#EAE9FF]">Top balances:</p>
+            <InsightList
+              items={data.sessionBalances}
+              emptyMessage={data.sessionEmptyNote}
+            />
+          </div>
+          {data.sessionTopUpHint ? <p>{data.sessionTopUpHint}</p> : null}
+        </div>
+      ) : null}
+
+      {data.warning ? (
+        <p className="text-xs text-amber-600 dark:text-amber-300">{data.warning}</p>
+      ) : null}
+    </div>
+  );
+};
+
+const DelegationInsightView = ({ body }: { body: string }) => {
+  const data = parseDelegationInsight(body);
+  return (
+    <div className="flex flex-col gap-4 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
+      <div className="flex flex-col gap-1">
+        {data.delegator ? (
+          <p>
+            <strong>Delegator:</strong>{" "}
+            <span className="font-semibold text-[#2a2742] dark:text-[#EAE9FF]">
+              {data.delegator}
+            </span>
+          </p>
+        ) : null}
+        {data.mode ? (
+          <p>
+            <strong>Mode:</strong> {data.mode}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <p className="font-semibold text-[#433B51] dark:text-[#EAE9FF]">Limits:</p>
+        {data.limits.length > 0 ? (
+          <ul className="ml-5 list-disc space-y-1 marker:text-[#6f63ff] dark:marker:text-[#cfcaff]">
+            {data.limits.map((entry, index) => (
+              <li key={`${entry}-${index}`}>{entry}</li>
+            ))}
+          </ul>
+        ) : (
+          <p>No limit details available.</p>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <p className="font-semibold text-[#433B51] dark:text-[#EAE9FF]">Allowed tokens:</p>
+        <InsightList
+          items={data.allowedTokens}
+          emptyMessage="No allowed tokens recorded."
+        />
+      </div>
+    </div>
+  );
+};
+
 const AgentInsightNote = ({ presentation, content }: { presentation: InsightPresentation; content: string }) => {
   const body = (presentation.body ?? content).trim();
-  const normalized = body
-    .replace(/\(mode:\s*([^)]+)\)/gi, "\nMode: $1")
-    .replace(/Session key:?\s*([^\n]+?)\s+(Session holdings:)/gi, "Session key: $1\n$2")
-    .replace(/(Session holdings:)\s*([^\n]+)/gi, "$1\n$2")
-    .replace(/(Limits:)\s*([^\n]+)/gi, (_match, label, value) => {
-      const pieces = value
-        .split(/,\s*/)
-        .map((piece) => piece.trim())
-        .filter((piece) => piece.length > 0);
-      if (pieces.length === 0) return `${label}`;
-      return `${label}\n${pieces.map((piece) => `- ${piece}`).join("\n")}`;
-    });
-  const sections = buildInsightSections(normalized);
+  const headingKey = presentation.heading.toLowerCase();
+
+  const Heading = () => (
+    <div className="flex items-center gap-2 text-sm font-semibold text-[#6f63ff] dark:text-[#cfcaff]">
+      <Sparkles className="h-4 w-4" />
+      <span>{presentation.heading}</span>
+    </div>
+  );
+
+  if (headingKey === "portfolio overview") {
+    return (
+      <div className="flex flex-col gap-3">
+        <Heading />
+        <PortfolioInsightView body={body} />
+      </div>
+    );
+  }
+
+  if (headingKey === "delegation summary") {
+    return (
+      <div className="flex flex-col gap-3">
+        <Heading />
+        <DelegationInsightView body={body} />
+      </div>
+    );
+  }
+
+  const sections = buildInsightSections(body);
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#6f63ff] dark:text-[#cfcaff]">
-        <Sparkles className="h-4 w-4" />
-        <span>{presentation.heading}</span>
-      </div>
+    <div className="flex flex-col gap-3">
+      <Heading />
       <div className="flex flex-col gap-4 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
         {sections.length === 0 ? (
           <p>{body}</p>
@@ -479,7 +923,7 @@ const AgentInsightNote = ({ presentation, content }: { presentation: InsightPres
           sections.map((section, index) => (
             <div key={`insight-section-${index}`} className="flex flex-col gap-2">
               {section.heading ? (
-                <div className="text-xs font-semibold text-[#5A4DD4] dark:text-[#d0cbff]">
+                <div className="text-sm font-semibold text-[#433B51] dark:text-[#EAE9FF]">
                   {section.heading}
                 </div>
               ) : null}

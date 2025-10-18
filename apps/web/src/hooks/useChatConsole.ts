@@ -1323,17 +1323,20 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
       if (response.type === "insight") {
         const finalBody = typeof response.body === "string" ? response.body : "";
         const combined = (finalBody || streamedContent || "No additional insight is available for this request.").trim();
+        const normalizedCombined = combined
+          .replace(/(Session key:[^\n]*?)\s+(Session holdings:)/g, "$1\n$2")
+          .replace(/(Session holdings:[^\n]*?)\s+(Top balances:)/g, "$1\n$2");
         updateMessage(statusId, (current) => ({
           ...current,
-          content: `${combined}${formatWarnings(response.warnings)}`,
+          content: `${normalizedCombined}${formatWarnings(response.warnings)}`,
           status: "default",
           presentation: {
             type: "insight",
             heading:
               typeof response.title === "string" && response.title.trim().length > 0
                 ? response.title.trim()
-                : "Pragma insight",
-            body: combined,
+                : "Pragma Insight",
+            body: normalizedCombined,
           },
         }));
         return;

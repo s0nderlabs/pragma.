@@ -1,13 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  ClipboardCopy,
-  ExternalLink,
-  KeyRound,
-  ShieldCheck,
-  Sparkles,
-} from "lucide-react";
+import { ClipboardCopy, ExternalLink, KeyRound, Sparkles } from "lucide-react";
 import { formatUnits, getAddress, type Address } from "viem";
 import type { Mode } from "@pragma/core/delegations/types";
 
@@ -994,19 +988,17 @@ export const ConnectedAccount = () => {
 
             {activeSection === "overview" ? (
               <div className="space-y-6" data-testid="overview-section">
-                <GlassPanel className="space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">
+                <GlassPanel className="space-y-4">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="space-y-1">
+                      <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#7A6FAF] dark:text-[#C7C3E8]">
                         Connection
                       </h3>
-                      <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
-                        {walletAddress
-                          ? `Owner ${shortHex(walletAddress)}`
-                          : "Web3Auth not connected"}
+                      <p className="text-base font-medium text-[#2F285F] dark:text-[#F8F8FF]">
+                        {walletAddress ? `Owner ${shortHex(walletAddress)}` : "Web3Auth not connected"}
                       </p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-3">
                       <Button
                         type="button"
                         variant="ghost"
@@ -1017,14 +1009,12 @@ export const ConnectedAccount = () => {
                         }}
                         disabled={connectBusy}
                         className={cn(
-                          "inline-flex items-center gap-2 rounded-full border border-[#846FFA]/35 bg-white/75 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#3F356F] shadow-sm transition hover:bg-[#846FFA]/15 dark:border-[#846FFA]/40 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/85 dark:hover:bg-[#846FFA]/25",
+                          "inline-flex items-center gap-2 rounded-full border border-[#846FFA]/40 bg-white/90 px-5 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#3F356F] shadow-[0_12px_30px_rgba(132,111,250,0.2)] transition hover:bg-[#846FFA]/18 hover:text-[#2F285F] dark:border-[#846FFA]/45 dark:bg-[#1E1E27]/70 dark:text-[#E4E3FF] dark:hover:bg-[#846FFA]/30",
                           connectBusy && "opacity-60"
                         )}
                       >
                         <span className="flex items-center gap-2">
-                          {connectBusy ? (
-                            <Spinner className="h-3.5 w-3.5" />
-                          ) : null}
+                          {connectBusy ? <Spinner className="h-3.5 w-3.5" /> : null}
                           {connectLabel}
                         </span>
                       </Button>
@@ -1033,7 +1023,7 @@ export const ConnectedAccount = () => {
                           type="button"
                           variant="ghost"
                           onClick={() => void identity.disconnect()}
-                          className="rounded-full border border-white/40 bg-white/65 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#5C5C5C] shadow-sm transition hover:bg-white/80 dark:border-white/10 dark:bg-[#1E1E27]/60 dark:text-[#C7C3E8]/85 dark:hover:bg-[#1E1E27]/75"
+                          className="inline-flex items-center gap-2 rounded-full border border-transparent bg-white/55 px-5 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#5C5C5C] shadow-[0_10px_26px_rgba(169,159,226,0.22)] transition hover:bg-white/70 dark:bg-[#1E1E27]/60 dark:text-[#C7C3E8] dark:hover:bg-[#1E1E27]/75"
                         >
                           Disconnect
                         </Button>
@@ -1047,7 +1037,7 @@ export const ConnectedAccount = () => {
                   ) : null}
                 </GlassPanel>
 
-                <div className="grid gap-4 lg:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <StatCard
                     icon={<Sparkles className="h-3.5 w-3.5" />}
                     label="Delegator"
@@ -1110,20 +1100,7 @@ export const ConnectedAccount = () => {
                       </Button>
                     }
                   />
-                  <StatCard
-                    icon={<ShieldCheck className="h-3.5 w-3.5" />}
-                    label="Smart account"
-                    value={quickStatus.smartAccount}
-                    testId="connected-smart-account"
-                    description={
-                      <span className="text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
-                        {hasActiveDelegations
-                          ? "Delegations active"
-                          : "Issue a delegation to activate"}
-                      </span>
-                    }
-                  />
-                </div>
+              </div>
 
                 <GlassPanel className="space-y-4">
                   <div className="flex items-center justify-between">

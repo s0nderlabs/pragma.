@@ -110,7 +110,7 @@ export const callAgent = async (
           const bodyText = aggregated.trim();
           return {
             type: "insight",
-            title: "pragma insight",
+            title: "Pragma Insight",
             body: bodyText.length > 0 ? bodyText : "No additional insight is available for this request.",
           } satisfies AgentInsightResponse;
         }
@@ -120,7 +120,7 @@ export const callAgent = async (
     const bodyText = aggregated.trim();
     return {
       type: "insight",
-      title: "pragma insight",
+      title: "Pragma Insight",
       body: bodyText.length > 0 ? bodyText : "No additional insight is available for this request.",
     } satisfies AgentInsightResponse;
   }

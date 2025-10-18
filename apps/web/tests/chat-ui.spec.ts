@@ -156,6 +156,48 @@ test.describe("Chat UI", () => {
     await expect(userBubble).toHaveClass(/from-\[#846FFA\]/);
   });
 
+  test("renders portfolio insight session balances on dedicated lines", async ({ page }) => {
+    await page.unroute("**/api/chat/respond");
+
+    const bodyLines = [
+      "Portfolio overview",
+      "",
+      `Delegator: ${DELEGATOR_ADDRESS}`,
+      "Mode: normal",
+      "Portfolio value: 0.4858 MON (~$1.82)",
+      "",
+      "Top balances:",
+      "  • MON: 0.4858 (~0.4858 MON)",
+      "",
+      `Session key: ${SESSION_KEY_ADDRESS}`,
+      "Session holdings: 0.1603 MON (~$0.60)",
+      "Top balances:",
+      "  • MON: 0.1603 (~0.1603 MON)",
+      "",
+    ];
+
+    await page.route("**/api/chat/respond", (route) => mockStream(route, bodyLines.join("\n")));
+
+    const textarea = page.getByPlaceholder(/Ask Pragma to swap/i);
+    await textarea.fill("show balances");
+    await textarea.press("Enter");
+
+    const sessionKeyCode = page.locator("code", { hasText: SESSION_KEY_ADDRESS });
+    await expect(sessionKeyCode).toHaveText(SESSION_KEY_ADDRESS);
+
+    const sessionHoldingsLabel = page.getByText("Session holdings", { exact: true });
+    await expect(sessionHoldingsLabel).toBeVisible();
+
+    const sessionHoldingsValue = sessionHoldingsLabel.locator("xpath=following-sibling::span").first();
+    await expect(sessionHoldingsValue).toHaveText("0.1603 MON (~$0.60)");
+
+    const sessionTopBalances = sessionHoldingsLabel
+      .locator("xpath=ancestor::div[contains(@class,'flex')][1]")
+      .locator("li")
+      .filter({ hasText: "0.1603 (~0.1603 MON)" });
+    await expect(sessionTopBalances).toHaveCount(1);
+  });
+
   test("displays loading pulse before system response completes", async ({ page }) => {
     await page.route("**/api/chat/respond", async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 250));

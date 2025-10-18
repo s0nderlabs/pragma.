@@ -218,7 +218,7 @@ export const createOpenAiInsight = (
       }
       return {
         type: "insight",
-        title: "pragma insight",
+        title: "Pragma Insight",
         body: text,
       } satisfies AgentInsightResult;
     } catch {
@@ -355,7 +355,7 @@ export const createOpenAiInsightStreamer = (
 
     return {
       type: "insight_stream",
-      title: "pragma insight",
+      title: "Pragma Insight",
       stream: generator,
       collect: async () => {
         try {

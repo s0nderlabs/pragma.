@@ -72,7 +72,7 @@ const setupMockIdentity = async (page: any) => {
   });
 
   await page.evaluate(
-    ([owner, delegator]) => {
+    ([owner, delegator]: [string, string]) => {
       (window as any).__PRAGMA_IDENTITY_MOCK__?.connect(owner, delegator);
     },
     [OWNER_ADDRESS, DELEGATOR_ADDRESS],
@@ -80,7 +80,7 @@ const setupMockIdentity = async (page: any) => {
 };
 
 const setupStorage = async (page: any, delegations: any[]) => {
-  await page.addInitScript((state: any) => {
+  await page.addInitScript((state: { owner: string; delegator: string; stored: any[] }) => {
     const { owner, delegator, stored } = state;
 
     const delegatorKey = delegator.toLowerCase();

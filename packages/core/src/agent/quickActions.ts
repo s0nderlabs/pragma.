@@ -190,13 +190,28 @@ export const buildHelpInsight = (): AgentInsightResult => ({
 export const buildAboutInsight = (): AgentInsightResult => ({
   type: "insight",
   title: "What is pragma",
-  body: "pragma is an on-chain intent engine that understands your intent and turns it into on-chain actions. Built by s0nderlabs, led by founder elpabl0.eth. More info at https://s0nderlabs.xyz.",
+  body: `pragma is an on-chain intent engine that turns natural language into executable transactions on Monad.
+
+How it works:
+• Parse natural language
+• Enforce delegation policies
+• Query Monorail for routing
+• Simulate and preview
+• Execute via session keys
+
+Built by: s0nderlabs, led by elpabl0.eth
+More info: https://s0nderlabs.xyz`,
 });
 
 export const buildBuildersInsight = (): AgentInsightResult => ({
   type: "insight",
   title: "Who built pragma",
-  body: "pragma is built by s0nderlabs, led by founder elpabl0.eth. You can learn more about the team and projects at https://s0nderlabs.xyz.",
+  body: `pragma is built by s0nderlabs, a team focused on intent-driven blockchain infrastructure.
+
+Founder: elpabl0.eth
+Mission: Making on-chain interactions feel natural through intents and delegations on Monad
+
+Learn more: https://s0nderlabs.xyz`,
 });
 
 export const buildQuickModeStatusInsight = (enabled: boolean): AgentInsightResult => ({

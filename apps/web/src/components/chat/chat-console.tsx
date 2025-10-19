@@ -88,6 +88,36 @@ type InsightSection = {
   segments: MessageSegment[];
 };
 
+const parseKeyTerms = (text: string, keyPrefix: string): React.ReactNode[] => {
+  const parts: React.ReactNode[] = [];
+  const keyTerms = ['pragma', 's0nderlabs']; // Terms to auto-bold
+
+  // Create regex that matches key terms case-insensitively
+  const regex = new RegExp(`\\b(${keyTerms.join('|')})\\b`, 'gi');
+
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let matchCount = 0;
+
+  while ((match = regex.exec(text)) !== null) {
+    // Add text before the match
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    // Add the bold term
+    parts.push(<strong key={`${keyPrefix}-term-${matchCount}`}>{match[1]}</strong>);
+    lastIndex = regex.lastIndex;
+    matchCount += 1;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : [text];
+};
+
 const parseMessageSegments = (content: string): MessageSegment[] => {
   const segments: MessageSegment[] = [];
   const lines = content.split("\n");
@@ -182,21 +212,23 @@ const renderSegments = (segments: MessageSegment[], keyPrefix: string) => {
         const normalizedKey = key.toLowerCase();
         return (
           <p key={`${keyPrefix}-paragraph-${index}`}>
-            <strong>{key}:</strong>
+            <strong>{key.replace(/\*\*/g, '')}:</strong>
             {value ? (
               normalizedKey === "delegator" ? (
                 <>
                   {" "}
-                  <span className="font-semibold text-[#2a2742] dark:text-[#EAE9FF]">{value}</span>
+                  <span className="font-semibold text-[#2a2742] dark:text-[#EAE9FF]">
+                    {parseKeyTerms(value, `${keyPrefix}-value-${index}`)}
+                  </span>
                 </>
               ) : (
-                ` ${value}`
+                <> {parseKeyTerms(value, `${keyPrefix}-value-${index}`)}</>
               )
             ) : null}
           </p>
         );
       }
-      return <p key={`${keyPrefix}-paragraph-${index}`}>{segment.text}</p>;
+      return <p key={`${keyPrefix}-paragraph-${index}`}>{parseKeyTerms(segment.text, `${keyPrefix}-p-${index}`)}</p>;
     }
     if (segment.ordered) {
       const start = Number.isFinite(segment.start) ? segment.start ?? 1 : 1;
@@ -205,7 +237,7 @@ const renderSegments = (segments: MessageSegment[], keyPrefix: string) => {
           {segment.items.map((item, itemIndex) => (
             <li key={`${keyPrefix}-list-${index}-item-${itemIndex}`} className="flex items-start gap-2">
               <span className="font-semibold text-[#433B51] dark:text-[#EAE9FF]">{start + itemIndex}.</span>
-              <span className="flex-1">{item}</span>
+              <span className="flex-1">{parseKeyTerms(item, `${keyPrefix}-ol-${index}-${itemIndex}`)}</span>
             </li>
           ))}
         </ol>
@@ -218,7 +250,7 @@ const renderSegments = (segments: MessageSegment[], keyPrefix: string) => {
         className="ml-5 list-disc space-y-1 marker:text-[#6f63ff] dark:marker:text-[#cfcaff]"
       >
         {segment.items.map((item, itemIndex) => (
-          <li key={`${keyPrefix}-list-${index}-item-${itemIndex}`}>{item}</li>
+          <li key={`${keyPrefix}-list-${index}-item-${itemIndex}`}>{parseKeyTerms(item, `${keyPrefix}-ul-${index}-${itemIndex}`)}</li>
         ))}
       </ul>
     );
@@ -752,12 +784,12 @@ const InsightList = ({
   emptyMessage?: string;
 }) => {
   if (items.length === 0) {
-    return emptyMessage ? <p>{emptyMessage}</p> : null;
+    return emptyMessage ? <p>{parseKeyTerms(emptyMessage, "empty-msg")}</p> : null;
   }
   return (
     <ul className="ml-5 list-disc space-y-1 marker:text-[#6f63ff] dark:marker:text-[#cfcaff]">
       {items.map((item, index) => (
-        <li key={`${item}-${index}`}>{item}</li>
+        <li key={`${item}-${index}`}>{parseKeyTerms(item, `insight-item-${index}`)}</li>
       ))}
     </ul>
   );
@@ -882,7 +914,7 @@ const DelegationInsightView = ({ body }: { body: string }) => {
         {data.limits.length > 0 ? (
           <ul className="ml-5 list-disc space-y-1.5 marker:text-[#6f63ff] dark:marker:text-[#cfcaff]">
             {data.limits.map((entry, index) => (
-              <li key={`${entry}-${index}`} className="text-[13px]">{entry}</li>
+              <li key={`${entry}-${index}`} className="text-[13px]">{parseKeyTerms(entry, `limit-${index}`)}</li>
             ))}
           </ul>
         ) : (
@@ -939,13 +971,13 @@ const AgentInsightNote = ({ presentation, content }: { presentation: InsightPres
       <Heading />
       <div className="flex flex-col gap-4 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
         {sections.length === 0 ? (
-          <p>{body}</p>
+          <p>{parseKeyTerms(body, "insight-body")}</p>
         ) : (
           sections.map((section, index) => (
             <div key={`insight-section-${index}`} className="flex flex-col gap-2">
               {section.heading ? (
                 <div className="text-sm font-semibold text-[#433B51] dark:text-[#EAE9FF]">
-                  {section.heading}
+                  {parseKeyTerms(section.heading, `insight-heading-${index}`)}
                 </div>
               ) : null}
               <div className="flex flex-col gap-2">

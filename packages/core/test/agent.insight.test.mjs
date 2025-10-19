@@ -379,4 +379,103 @@ test("Clarification: Should be ≤70 words when asking for missing params", asyn
   }
 });
 
+// =============================================================================
+// TEST SUITE: ARCHITECTURE ACCURACY
+// =============================================================================
+
+test("Architecture: 'How does pragma work behind the scenes?' should NOT mention relayers", async () => {
+  const insight = createOpenAiInsight();
+  const context = createTestContext(standardTokens);
+
+  const result = await insight("How does pragma work behind the scenes?", context);
+
+  assert.ok(result, "Should return a result");
+  const body = result.body || "";
+
+  console.log("\n📝 Test: How does pragma work behind the scenes?");
+  console.log(`Response (${countWords(body)} words):\n${body}\n`);
+
+  // Check for problematic architecture terms (but allow denial phrases like "do not use relayers")
+  const hasProblematicTerms = containsAny(body, [
+    "relayer auction", "relayer bid", "off-chain pool", "intent pool",
+    "solver competition", "MEV protection layer", "private mempool"
+  ]);
+
+  assert.equal(hasProblematicTerms, false, "Should NOT describe relayer auctions or off-chain pools");
+
+  const hasPipeline = containsAny(body, ["parse", "policy", "simulate", "session"]);
+  assert.ok(hasPipeline, "Should mention pipeline components");
+
+  // Verify it explicitly denies relayer-based architecture
+  const deniesRelayerModel = containsAny(body, ["no relayer", "not use relayer", "do not use relayer", "session key"]);
+  assert.ok(deniesRelayerModel, "Should clarify non-relayer execution model");
+});
+
+test("Architecture: 'Does pragma use relayers?' should clearly say NO", async () => {
+  const insight = createOpenAiInsight();
+  const context = createTestContext(standardTokens);
+
+  const result = await insight("Does pragma use relayers?", context);
+
+  assert.ok(result, "Should return a result");
+  const body = result.body || "";
+
+  console.log("\n📝 Test: Does pragma use relayers?");
+  console.log(`Response (${countWords(body)} words):\n${body}\n`);
+
+  const deniesRelayers = containsAny(body, ["no", "not", "directly", "session key"]);
+  assert.ok(deniesRelayers, "Should clearly deny using relayers");
+});
+
+test("Architecture: 'How are transactions executed?' should mention session keys", async () => {
+  const insight = createOpenAiInsight();
+  const context = createTestContext(standardTokens);
+
+  const result = await insight("How are transactions executed in pragma?", context);
+
+  assert.ok(result, "Should return a result");
+  const body = result.body || "";
+
+  console.log("\n📝 Test: How are transactions executed?");
+  console.log(`Response (${countWords(body)} words):\n${body}\n`);
+
+  const mentionsSessionKeys = containsAny(body, ["session", "DTK", "delegation", "sign"]);
+  assert.ok(mentionsSessionKeys, "Should explain session-key execution model");
+
+  const avoidsRelayers = !containsAny(body, ["relayer auction", "off-chain pool"]);
+  assert.ok(avoidsRelayers, "Should not describe relayer-based execution");
+});
+
+test("Architecture: 'What is Monorail?' should explain it routes, not pragma", async () => {
+  const insight = createOpenAiInsight();
+  const context = createTestContext(standardTokens);
+
+  const result = await insight("What is Monorail?", context);
+
+  assert.ok(result, "Should return a result");
+  const body = result.body || "";
+
+  console.log("\n📝 Test: What is Monorail?");
+  console.log(`Response (${countWords(body)} words):\n${body}\n`);
+
+  const mentionsAggregator = containsAny(body, ["aggregator", "route", "routing", "DEX"]);
+  assert.ok(mentionsAggregator, "Should explain Monorail as aggregator/router");
+});
+
+test("Architecture: 'What is plan_hash?' should explain verification", async () => {
+  const insight = createOpenAiInsight();
+  const context = createTestContext(standardTokens);
+
+  const result = await insight("What is plan_hash?", context);
+
+  assert.ok(result, "Should return a result");
+  const body = result.body || "";
+
+  console.log("\n📝 Test: What is plan_hash?");
+  console.log(`Response (${countWords(body)} words):\n${body}\n`);
+
+  const explainsPlanHash = containsAny(body, ["hash", "plan", "receipt", "verif"]);
+  assert.ok(explainsPlanHash, "Should explain plan_hash purpose");
+});
+
 console.log("\n✅ All tests completed!\n");

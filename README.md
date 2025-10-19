@@ -8,12 +8,12 @@ Pragma turns short natural-language requests into guarded swaps on the Monad tes
 
 ```mermaid
 flowchart LR
-  A[Intention<br/>"Swap 0.5 MON to USDC"] --> B[Intent Engine<br/>canonical intent]
-  B --> C[Policy & Safety<br/>Safe / Normal clamps]
-  C --> D[Routing & Quote<br/>Monorail Pathfinder]
-  D --> E[Simulation & Preview<br/>eth_call + minOut]
-  E --> F[Execution<br/>HybridDelegator + DTK caveats]
-  F --> G[Receipts & Observability<br/>English + JSON + plan_hash]
+  A["Intention<br/>Swap 0.5 MON to USDC"] --> B["Intent Engine<br/>canonical intent"]
+  B --> C["Policy & Safety<br/>Safe / Normal clamps"]
+  C --> D["Routing & Quote<br/>Monorail Pathfinder"]
+  D --> E["Simulation & Preview<br/>eth_call + minOut"]
+  E --> F["Execution<br/>HybridDelegator + DTK caveats"]
+  F --> G["Receipts & Observability<br/>English + JSON + plan_hash"]
 ```
 
 ---

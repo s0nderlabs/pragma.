@@ -190,10 +190,7 @@ export const buildHelpInsight = (): AgentInsightResult => ({
 export const buildAboutInsight = (): AgentInsightResult => ({
   type: "insight",
   title: "What is pragma",
-  body: [
-    "pragma is an AI-powered execution layer that understands your intent and turns it into on-chain actions — powered by MetaMask DTK, Monorail, and Envio, all running through verified contracts on Monad.",
-    "If you’d like a deeper dive into the system design or roadmap, just ask.",
-  ].join("\n"),
+  body: "pragma is an on-chain intent engine that understands your intent and turns it into on-chain actions. Built by s0nderlabs, led by founder elpabl0.eth. More info at https://s0nderlabs.xyz.",
 });
 
 export const buildBuildersInsight = (): AgentInsightResult => ({

@@ -230,6 +230,11 @@ const splitInlineLabels = (line: string): string[] => {
   if (trimmed.length === 0) return [];
   if (/^[-•]/.test(trimmed)) return [trimmed];
 
+  // If the line contains a URL or protocol-style colon (e.g., https://), treat it as plain text.
+  if (/https?:\/\//i.test(trimmed)) {
+    return [trimmed];
+  }
+
   const extras: string[] = [];
   let working = trimmed.replace(/\((mode:\s*[^)]+)\)/gi, (_, group) => {
     const value = group.replace(/^mode:\s*/i, "").trim();

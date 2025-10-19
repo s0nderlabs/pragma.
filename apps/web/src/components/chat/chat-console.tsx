@@ -1029,7 +1029,7 @@ const MessageBubble = ({ role, content, status = "default", logs, presentation }
     (presentation.type !== "insight" || status !== "default");
 
   return (
-    <div className="flex w-full justify-start">
+    <div className="flex w-full max-w-full justify-start">
       <div data-testid="system-message" className="flex w-full flex-col gap-3 text-left">
         {showStatus ? <StatusBadge {...statusMeta} /> : null}
         {presentation ? (
@@ -1124,15 +1124,14 @@ export const ChatConsole = () => {
         <h1 className="sr-only">Chat console</h1>
         <div
           data-testid="chat-shell"
-          className="relative overflow-hidden rounded-[2.5rem] border border-[#846FFA]/30 bg-white/55 p-[5px] shadow-[0_35px_90px_rgba(132,111,250,0.22)] backdrop-blur-[30px] before:pointer-events-none before:absolute before:-inset-8 before:-z-10 before:rounded-[2.7rem] before:bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.58)_0%,rgba(255,255,255,0.08)_64%,rgba(132,111,250,0)_85%),radial-gradient(circle_at_bottom_right,rgba(132,111,250,0.22)_18%,rgba(132,111,250,0)_74%)] before:opacity-95 before:blur-[24px] after:pointer-events-none after:absolute after:inset-0 after:rounded-[2.5rem] after:border after:border-white/20 after:opacity-70 after:bg-[radial-gradient(circle_at_center,rgba(132,111,250,0.12)_0%,rgba(132,111,250,0)_68%)] dark:border-[#846FFA]/35 dark:bg-[rgba(30,30,39,0.55)] dark:shadow-[0_40px_110px_rgba(0,0,0,0.45)] dark:before:bg-[radial-gradient(circle_at_top_left,rgba(132,111,250,0.28)_18%,rgba(132,111,250,0)_78%),radial-gradient(circle_at_bottom_right,rgba(132,111,250,0.26)_18%,rgba(132,111,250,0)_74%)] dark:after:border-white/10 dark:after:bg-[radial-gradient(circle_at_center,rgba(132,111,250,0.2)_0%,rgba(132,111,250,0)_72%)]"
+          className="relative overflow-hidden rounded-[1.5rem] md:rounded-[2.5rem] border border-[#846FFA]/30 bg-white/55 p-[3px] md:p-[5px] shadow-[0_35px_90px_rgba(132,111,250,0.22)] backdrop-blur-[30px] before:pointer-events-none before:absolute before:-inset-8 before:-z-10 before:rounded-[2.7rem] before:bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.58)_0%,rgba(255,255,255,0.08)_64%,rgba(132,111,250,0)_85%),radial-gradient(circle_at_bottom_right,rgba(132,111,250,0.22)_18%,rgba(132,111,250,0)_74%)] before:opacity-95 before:blur-[24px] after:pointer-events-none after:absolute after:inset-0 after:rounded-[2.5rem] after:border after:border-white/20 after:opacity-70 after:bg-[radial-gradient(circle_at_center,rgba(132,111,250,0.12)_0%,rgba(132,111,250,0)_68%)] dark:border-[#846FFA]/35 dark:bg-[rgba(30,30,39,0.55)] dark:shadow-[0_40px_110px_rgba(0,0,0,0.45)] dark:before:bg-[radial-gradient(circle_at_top_left,rgba(132,111,250,0.28)_18%,rgba(132,111,250,0)_78%),radial-gradient(circle_at_bottom_right,rgba(132,111,250,0.26)_18%,rgba(132,111,250,0)_74%)] dark:after:border-white/10 dark:after:bg-[radial-gradient(circle_at_center,rgba(132,111,250,0.2)_0%,rgba(132,111,250,0)_72%)]"
         >
           <div
-            className="flex flex-col rounded-[2.3rem] border border-[#846FFA]/24 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.68)_0%,rgba(255,255,255,0.5)_52%,rgba(255,255,255,0.62)_100%)] p-8 shadow-[0_20px_42px_rgba(26,26,26,0.06)] backdrop-blur-[32px] dark:border-[#846FFA]/30 dark:bg-[radial-gradient(circle_at_center,rgba(30,30,39,0.72)_0%,rgba(30,30,39,0.58)_55%,rgba(30,30,39,0.68)_100%)] dark:shadow-[0_30px_60px_rgba(0,0,0,0.55)]"
-            style={{ height: "min(700px, calc(100dvh - 240px))", minHeight: "400px" }}
+            className="flex flex-col rounded-[1.3rem] md:rounded-[2.3rem] border border-[#846FFA]/24 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.68)_0%,rgba(255,255,255,0.5)_52%,rgba(255,255,255,0.62)_100%)] p-4 md:p-8 shadow-[0_20px_42px_rgba(26,26,26,0.06)] backdrop-blur-[32px] dark:border-[#846FFA]/30 dark:bg-[radial-gradient(circle_at_center,rgba(30,30,39,0.72)_0%,rgba(30,30,39,0.58)_55%,rgba(30,30,39,0.68)_100%)] dark:shadow-[0_30px_60px_rgba(0,0,0,0.55)] [height:min(600px,calc(100dvh-160px))] [min-height:320px] md:[height:min(700px,calc(100dvh-240px))] md:[min-height:400px]"
           >
-            <div className="mb-6 flex w-full items-center justify-end gap-3">
-              <div className="flex items-center gap-2 rounded-full border border-[#1A1A1A]/12 bg-white/70 px-4 py-2 text-xs font-medium text-[#5C5C5C] shadow-sm dark:border-white/10 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/75">
-                <span className="text-[#5C5C5C] dark:text-[#F8F8FF]/80">Quick Mode</span>
+            <div className="mb-4 md:mb-6 flex w-full flex-row items-center justify-end gap-1.5 md:gap-3">
+              <div className="flex items-center gap-1.5 md:gap-2 rounded-full border border-[#1A1A1A]/12 bg-white/70 px-2.5 py-1 sm:px-3 md:px-4 md:py-2 text-xs font-medium text-[#5C5C5C] shadow-sm dark:border-white/10 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/75">
+                <span className="text-xs text-[#5C5C5C] dark:text-[#F8F8FF]/80"><span className="md:hidden">Quick</span><span className="hidden md:inline">Quick Mode</span></span>
                 <Button
                   type="button"
                   size="sm"
@@ -1140,7 +1139,7 @@ export const ChatConsole = () => {
                   onClick={() => setQuickMode((value) => !value)}
                   disabled={isSubmitting || isConfirming}
                   className={cn(
-                    "h-7 rounded-full border border-[#846FFA]/30 px-3 text-xs font-semibold transition dark:border-[#846FFA]/40",
+                    "h-7 rounded-full border border-[#846FFA]/30 px-2.5 md:px-3 text-xs font-semibold transition dark:border-[#846FFA]/40",
                     quickMode
                       ? "bg-gradient-to-br from-[#846FFA] to-[#674CF9] text-white shadow-[0_6px_18px_rgba(132,111,250,0.35)]"
                       : "bg-transparent text-[#846FFA] hover:bg-[#846FFA]/10 dark:hover:bg-[#846FFA]/15",
@@ -1160,7 +1159,7 @@ export const ChatConsole = () => {
                 className="flex h-full flex-col space-y-6 overflow-y-auto pr-2 scrollbar-hide"
               >
                 {messages.length === 0 ? (
-                  <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-[#1A1A1A]/12 bg-white/60 p-8 text-center text-sm text-[#5C5C5C] dark:border-white/10 dark:bg-[#1E1E27]/60 dark:text-[#E2E1FF]/70">
+                  <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-[#1A1A1A]/12 bg-white/60 p-4 md:p-8 text-center text-xs md:text-sm text-[#5C5C5C] dark:border-white/10 dark:bg-[#1E1E27]/60 dark:text-[#E2E1FF]/70">
                     Open the Connected account menu to configure your delegation, then ask Pragma to execute swaps, transfers, wraps, or answer questions here.
                   </div>
                 ) : (
@@ -1170,7 +1169,7 @@ export const ChatConsole = () => {
             </div>
 
             {pendingAction && (
-              <div className="mt-6 rounded-[1.5rem] border border-[#846FFA]/30 bg-[#846FFA]/10 p-4 text-sm text-[#2F285F] shadow-inner dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/80 dark:text-[#DAD7FF]">
+              <div className="mt-6 rounded-[1.5rem] border border-[#846FFA]/30 bg-[#846FFA]/10 p-3 md:p-4 text-sm text-[#2F285F] shadow-inner dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/80 dark:text-[#DAD7FF]">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold uppercase tracking-wide text-[#846FFA]">Confirmation required</p>
@@ -1206,13 +1205,13 @@ export const ChatConsole = () => {
             )}
 
             <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-3">
-              <div className="flex items-center gap-3 rounded-[1.5rem] border border-[#846FFA]/35 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(255,255,255,0.75))] px-4 py-3 shadow-[0_18px_40px_rgba(89,79,200,0.12)] backdrop-blur-xl dark:border-[#7364ff]/40 dark:bg-[linear-gradient(135deg,rgba(22,20,42,0.9),rgba(11,18,35,0.92))] dark:shadow-[0_28px_60px_rgba(9,14,40,0.55)]">
+              <div className="flex items-center gap-2 md:gap-3 rounded-[1.2rem] md:rounded-[1.5rem] border border-[#846FFA]/35 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(255,255,255,0.75))] px-3 md:px-4 py-2 md:py-3 shadow-[0_18px_40px_rgba(89,79,200,0.12)] backdrop-blur-xl dark:border-[#7364ff]/40 dark:bg-[linear-gradient(135deg,rgba(22,20,42,0.9),rgba(11,18,35,0.92))] dark:shadow-[0_28px_60px_rgba(9,14,40,0.55)]">
                 <textarea
                   ref={textareaRef}
                   placeholder={
                     loadingTokens
                       ? "Loading delegation context…"
-                      : "Ask Pragma to swap, transfer, wrap, or explain capabilities. Example: swap 0.5 MON to USDC."
+                      : "Ask Pragma to swap, transfer, wrap, or explain..."
                   }
                   disabled={isSubmitting}
                   onKeyDown={(event) => {
@@ -1249,7 +1248,7 @@ export const ChatConsole = () => {
                 </button>
               </div>
               <div className="flex items-center justify-between text-xs text-[#5C5C5C] dark:text-[#F8F8FF]/60">
-                <span>Shift+Enter for a new line. Press Enter to send immediately.</span>
+                <span><span className="md:hidden">Shift+Enter for new line</span><span className="hidden md:inline">Shift+Enter for a new line. Press Enter to send immediately.</span></span>
                 {loadingTokens && (
                   <div className="flex items-center gap-2 text-[#846FFA]">
                     <Spinner className="h-3.5 w-3.5" /> Preparing delegation context…

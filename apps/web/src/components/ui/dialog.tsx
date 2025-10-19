@@ -34,7 +34,7 @@ const DialogContent = React.forwardRef<React.ElementRef<typeof DialogPrimitive.C
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          "fixed left-1/2 top-1/2 z-50 w-full max-w-5xl -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border/80 bg-background p-0 shadow-xl outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-90 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-90 data-[state=open]:zoom-in-95",
+          "fixed left-1/2 top-1/2 z-50 w-[calc(100%-1rem)] md:w-full max-w-5xl -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border/80 bg-background p-0 shadow-xl outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-90 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-90 data-[state=open]:zoom-in-95",
           className,
         )}
         {...props}
@@ -47,7 +47,7 @@ const DialogContent = React.forwardRef<React.ElementRef<typeof DialogPrimitive.C
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("border-b border-border/60 px-6 py-4", className)} {...props} />
+  <div className={cn("border-b border-border/60 px-3 md:px-6 py-3 md:py-4", className)} {...props} />
 );
 
 const DialogTitle = React.forwardRef<React.ElementRef<typeof DialogPrimitive.Title>, React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>>(
@@ -69,7 +69,7 @@ const DialogDescription = React.forwardRef<React.ElementRef<typeof DialogPrimiti
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
 const DialogBody = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("max-h-[85vh] overflow-y-auto px-6 pb-6 pt-4", className)} {...props} />
+  <div className={cn("max-h-[85vh] overflow-y-auto px-3 md:px-6 pb-4 md:pb-6 pt-3 md:pt-4", className)} {...props} />
 );
 
 const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (

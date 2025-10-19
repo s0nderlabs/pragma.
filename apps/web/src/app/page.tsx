@@ -8,7 +8,7 @@ import { ChatConsole } from "../components/chat/chat-console";
 export default function Page() {
   return (
     <AppShell>
-      <section className="flex w-full flex-col items-center justify-center ">
+      <section className="flex w-full flex-col items-center justify-center px-3 md:px-0">
         <div className="relative h-32 w-72 sm:w-80">
           <Image
             src="/pragma.svg"

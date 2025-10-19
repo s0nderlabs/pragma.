@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ClipboardCopy, ExternalLink, KeyRound, Sparkles, AlertTriangle } from "lucide-react";
+import { ClipboardCopy, ExternalLink, KeyRound, Sparkles, AlertTriangle, X } from "lucide-react";
 import { formatUnits, getAddress, type Address } from "viem";
 import type { Mode } from "@pragma/core/delegations/types";
 
@@ -16,6 +16,7 @@ import { GlassPanel, StatCard } from "../ui/glass";
 import {
   Dialog,
   DialogBody,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -242,9 +243,6 @@ export const ConnectedAccount = () => {
   const displayAddress = connected
     ? sessionDelegatorFull ?? walletAddress
     : undefined;
-  const buttonLabel = connected
-    ? `Connected · ${displayAddress ? shortHex(displayAddress) : "—"}`
-    : "Connect account";
   const connectBusy =
     identity.status === "connecting" || identity.status === "initializing";
   const connectLabel =
@@ -936,17 +934,32 @@ export const ConnectedAccount = () => {
             )}
           >
             <KeyRound className="h-4 w-4" />
-            {buttonLabel}
+            {connected ? (
+              <>
+                <span className="md:hidden">Connected</span>
+                <span className="hidden md:inline">Connected · {displayAddress ? shortHex(displayAddress) : "—"}</span>
+              </>
+            ) : (
+              "Connect account"
+            )}
           </Button>
         </DialogTrigger>
         <DialogContent className="max-w-4xl overflow-hidden rounded-[2.5rem] border border-[#846FFA]/35 bg-gradient-to-br from-white/88 via-white/55 to-white/34 p-0 shadow-[0_38px_100px_rgba(132,111,250,0.32)] backdrop-blur-3xl dark:border-[#846FFA]/35 dark:bg-[linear-gradient(135deg,rgba(23,23,31,0.95)_0%,rgba(23,23,31,0.72)_55%,rgba(23,23,31,0.88)_100%)]">
-          <DialogHeader className="border-none px-8 pb-4 pt-8">
+          <DialogHeader className="relative border-none px-4 md:px-8 pb-3 md:pb-4 pt-6 md:pt-8">
+            {/* Mobile-only close button */}
+            <DialogClose
+              className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm transition-colors hover:bg-[#846FFA]/10 active:bg-[#846FFA]/20 dark:border-[#846FFA]/40 dark:bg-[#1E1E27]/70 dark:hover:bg-[#846FFA]/15 md:hidden"
+              aria-label="Close dialog"
+              data-testid="mobile-close-button"
+            >
+              <X className="h-5 w-5" />
+            </DialogClose>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="space-y-2">
-                <DialogTitle className="text-2xl font-semibold text-[#1A1A1A] dark:text-[#F8F8FF]">
+                <DialogTitle className="text-xl md:text-2xl font-semibold text-[#1A1A1A] dark:text-[#F8F8FF]">
                   Connected account
                 </DialogTitle>
-                <DialogDescription className="max-w-xl text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/85">
+                <DialogDescription className="max-w-xl text-xs md:text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/85">
                   Manage your Web3Auth session, delegations, session key, and
                   guardrails that power the chat console.
                 </DialogDescription>
@@ -961,7 +974,7 @@ export const ConnectedAccount = () => {
               </span>
             </div>
           </DialogHeader>
-          <DialogBody className="space-y-6 px-8 pb-8 pt-0">
+          <DialogBody className="space-y-6 px-4 md:px-8 pb-6 md:pb-8 pt-0">
             <div className="flex flex-wrap items-center gap-2" role="tablist">
               {sections.map((section) => (
                 <Button
@@ -986,8 +999,8 @@ export const ConnectedAccount = () => {
             </div>
 
             {activeSection === "overview" ? (
-              <div className="space-y-6" data-testid="overview-section">
-                <GlassPanel className="space-y-4">
+              <div className="space-y-4 md:space-y-6" data-testid="overview-section">
+                <GlassPanel className="space-y-3 md:space-y-4 p-4 md:p-6">
                   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div className="space-y-1">
                       <h3 className="text-xs font-semibold uppercase tracking-[0.24em] text-[#7A6FAF] dark:text-[#C7C3E8]">
@@ -1116,9 +1129,9 @@ export const ConnectedAccount = () => {
                   />
               </div>
 
-                <GlassPanel className="space-y-5">
+                <GlassPanel className="space-y-4 md:space-y-5 p-4 md:p-6">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">
+                    <h3 className="text-xs md:text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">
                       Balances
                     </h3>
                     {balancesLoading ? (
@@ -1161,10 +1174,10 @@ export const ConnectedAccount = () => {
             ) : null}
 
             {activeSection === "actions" ? (
-              <GlassPanel className="space-y-5" data-testid="actions-section">
+              <GlassPanel className="space-y-4 md:space-y-5 p-4 md:p-6" data-testid="actions-section">
                 {/* Header */}
                 <div>
-                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">
+                  <h3 className="text-xs md:text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">
                     Delegation Actions
                   </h3>
                   <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">

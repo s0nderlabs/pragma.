@@ -100,6 +100,27 @@
     font-weight: 300;
     letter-spacing: -0.01em;
   }
+
+  /* Mobile safe area insets for devices with notches */
+  @supports (padding: env(safe-area-inset-top)) {
+    body {
+      padding-top: max(0px, env(safe-area-inset-top));
+      padding-bottom: max(0px, env(safe-area-inset-bottom));
+    }
+  }
+
+  /* Mobile touch targets - desktop unaffected */
+  @media (max-width: 767px) {
+    button:not(.no-touch-target),
+    [role="button"]:not(.no-touch-target) {
+      min-height: 44px;
+    }
+
+    /* Disable tap highlight on mobile only */
+    button, [role="button"], a {
+      -webkit-tap-highlight-color: transparent;
+    }
+  }
 }
 
 .scrollbar-hide {

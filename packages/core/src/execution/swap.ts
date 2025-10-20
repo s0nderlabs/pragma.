@@ -16,6 +16,8 @@ import type { MonorailQuote, QuoteRequestParams } from "../monorail/pathfinder.j
 import { createErrorFromCode } from "../errors/index.js";
 import { callWithRpcFallback } from "../utils/rpcFallback.js";
 
+const WAIT_FOR_RECEIPT_TIMEOUT_MS = 5_000;
+
 export const ERC20_ABI = [
   {
     type: "function",
@@ -256,7 +258,7 @@ const ensureAllowance = async (
 
   if (strategy === "wait") {
     const receipt = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
-      client.waitForTransactionReceipt({ hash: txHash }),
+      client.waitForTransactionReceipt({ hash: txHash, timeout: WAIT_FOR_RECEIPT_TIMEOUT_MS }),
     );
     emit(
       logger,
@@ -265,7 +267,7 @@ const ensureAllowance = async (
     );
   } else {
     void callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
-      client.waitForTransactionReceipt({ hash: txHash }),
+      client.waitForTransactionReceipt({ hash: txHash, timeout: WAIT_FOR_RECEIPT_TIMEOUT_MS }),
     )
       .then((receipt) => {
         emit(
@@ -628,7 +630,7 @@ export const executeSwapWithSession = async (
   }
 
   const receipt = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
-    client.waitForTransactionReceipt({ hash: txHash }),
+    client.waitForTransactionReceipt({ hash: txHash, timeout: WAIT_FOR_RECEIPT_TIMEOUT_MS }),
   );
 
   const outputAfterDelegator = await readTokenBalance(
@@ -773,7 +775,7 @@ export const wrapNativeWithSession = async (
   );
 
   const receipt = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
-    client.waitForTransactionReceipt({ hash: txHash }),
+    client.waitForTransactionReceipt({ hash: txHash, timeout: WAIT_FOR_RECEIPT_TIMEOUT_MS }),
   );
   const wrappedBalance = (await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
     client.readContract({
@@ -858,7 +860,7 @@ export const unwrapNativeWithSession = async (
   );
 
   await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
-    client.waitForTransactionReceipt({ hash: txHash }),
+    client.waitForTransactionReceipt({ hash: txHash, timeout: WAIT_FOR_RECEIPT_TIMEOUT_MS }),
   );
 
   emit(

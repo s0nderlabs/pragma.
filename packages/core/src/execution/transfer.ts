@@ -18,6 +18,8 @@ import { ERC20_ABI, type ExecutionLogger } from "./swap.js";
 import { createErrorFromCode } from "../errors/index.js";
 import { callWithRpcFallback } from "../utils/rpcFallback.js";
 
+const WAIT_FOR_RECEIPT_TIMEOUT_MS = 5_000;
+
 const emit = (logger: ExecutionLogger | undefined, level: keyof ExecutionLogger, message: string) => {
   const fn = logger?.[level];
   if (typeof fn === "function") {
@@ -108,7 +110,7 @@ export const transferNativeWithSession = async (
   );
 
   const receipt = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
-    client.waitForTransactionReceipt({ hash: txHash }),
+    client.waitForTransactionReceipt({ hash: txHash, timeout: WAIT_FOR_RECEIPT_TIMEOUT_MS }),
   );
   emit(
     logger,
@@ -197,7 +199,7 @@ export const transferTokenWithSession = async (
   );
 
   const receipt = await callWithRpcFallback(publicClient, fallbackPublicClient, (client) =>
-    client.waitForTransactionReceipt({ hash: txHash }),
+    client.waitForTransactionReceipt({ hash: txHash, timeout: WAIT_FOR_RECEIPT_TIMEOUT_MS }),
   );
   const symbol = token.symbol ?? token.address.slice(0, 6);
   emit(

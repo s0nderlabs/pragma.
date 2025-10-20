@@ -55,7 +55,9 @@ Each transaction produces:
 - **English summary:** "Swap 0.1 MON → 0.2 USDC"
 - **JSON record:** Keyed by `plan_hash`, `tx_hash`, delegation nonce
 - **Agent telemetry:** Toggleable debug logs for troubleshooting
-- **HyperSync (future):** Real-time streaming for live updates (planned)
+- **HyperSync (future):** Real-time streaming for live updates (planned for future release)
+
+> **📍 Current Status:** Pragma uses **HyperRPC** (Envio's fast read-only endpoint) for balance queries and simulations. **HyperSync** (real-time streaming) is planned for a future release and currently disabled (`PRAGMA_DISABLE_HYPERSYNC=1` by default).
 
 ---
 

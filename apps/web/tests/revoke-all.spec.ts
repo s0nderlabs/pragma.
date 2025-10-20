@@ -214,7 +214,7 @@ test.describe("Revoke All Functionality", () => {
 
     // Delegations should still be active
     await page.getByTestId("account-nav-delegations").click();
-    await expect(page.getByText(/Active/i)).toBeVisible();
+    await expect(page.getByText(/Active/i).first()).toBeVisible();
   });
 
   test("should successfully revoke delegations and show success message", async ({ page }) => {

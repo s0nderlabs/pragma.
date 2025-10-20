@@ -2,6 +2,9 @@ import {
   ContractFunctionExecutionError,
   InvalidParamsRpcError,
   RpcRequestError,
+  TransactionNotFoundError,
+  TransactionReceiptNotFoundError,
+  WaitForTransactionReceiptTimeoutError,
   type PublicClient,
 } from "viem";
 
@@ -29,9 +32,29 @@ const isRpcParamError = (error: unknown): boolean => {
   return /invalid parameters were provided/i.test(message) || /block requested not found/i.test(message);
 };
 
+const isTimeoutError = (error: unknown): boolean => {
+  if (!error) return false;
+  if (error instanceof WaitForTransactionReceiptTimeoutError) return true;
+  const message = extractMessage(error);
+  return /timed out while waiting for transaction/i.test(message);
+};
+
+const isTransactionMissingError = (error: unknown): boolean => {
+  if (!error) return false;
+  if (error instanceof TransactionNotFoundError || error instanceof TransactionReceiptNotFoundError) {
+    return true;
+  }
+  const message = extractMessage(error);
+  return /transaction (receipt )?not found/i.test(message);
+};
+
 const shouldRetryWithFallback = (error: unknown): boolean => {
   const candidate = unwrapError(error);
-  return isRpcParamError(candidate);
+  return (
+    isRpcParamError(candidate) ||
+    isTimeoutError(candidate) ||
+    isTransactionMissingError(candidate)
+  );
 };
 
 export const callWithRpcFallback = async <T>(

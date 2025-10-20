@@ -17,6 +17,30 @@ const devices = [
 
 const desktop = { name: "Desktop", width: 1280, height: 720 };
 
+// Mock delegation for tests that require authentication
+const mockDelegation = {
+  artifactId: "test-artifact-1",
+  chainId: 41454,
+  mode: "swap" as const,
+  delegator: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1",
+  delegate: "0x1234567890123456789012345678901234567890",
+  authority: "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+  caveats: [],
+  salt: "0",
+  signature: "0x1234",
+  sessionKeyAddress: "0x1234567890123456789012345678901234567890",
+  expiresAt: Date.now() + 86400000,
+  callLimit: 10,
+  callsUnlimited: false,
+  sessionNonce: "0x0",
+  allowedTokens: [],
+  kind: "swap" as const,
+  transferMaxAmount: null,
+  pairAddresses: [],
+  perTokenCapsWei: {},
+  nativeTokenCapWei: null,
+};
+
 test.describe("Complete Mobile UI Tests", () => {
   test.describe("Quick Mode Button - Responsive Label", () => {
     test("should show 'Quick' label on iPhone SE (375px)", async ({ page }) => {
@@ -92,29 +116,6 @@ test.describe("Complete Mobile UI Tests", () => {
   });
 
   test.describe("Connected Account Modal - Mobile Responsiveness", () => {
-    const mockDelegation = {
-      artifactId: "test-artifact-1",
-      chainId: 41454,
-      mode: "swap" as const,
-      delegator: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1",
-      delegate: "0x1234567890123456789012345678901234567890",
-      authority: "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-      caveats: [],
-      salt: BigInt(0),
-      signature: "0x1234",
-      sessionKeyAddress: "0x1234567890123456789012345678901234567890",
-      expiresAt: Date.now() + 86400000,
-      callLimit: 10,
-      callsUnlimited: false,
-      sessionNonce: "0x0",
-      allowedTokens: [],
-      kind: "swap" as const,
-      transferMaxAmount: null,
-      pairAddresses: [],
-      perTokenCapsWei: {},
-      nativeTokenCapWei: null,
-    };
-
     test("should open modal properly on iPhone SE", async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 667 });
       await page.goto("/");

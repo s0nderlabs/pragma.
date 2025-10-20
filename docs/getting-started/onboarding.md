@@ -51,12 +51,14 @@ Call limits default to `DEFAULT_CALL_LIMITS` (`6` for Safe, `12` for Normal). Ov
 
 During onboarding the CLI:
 
-1. Generates a new session key pair (`@pragma/core`’s `generateSessionKey`) unless an existing secret is detected.
+1. Generates a new session key pair (`@pragma/core`'s `generateSessionKey`) unless an existing secret is detected.
 2. Builds a DTK delegation via `buildHybridScope` and `buildHybridCaveats`:
    - Caveats: `timestamp` (TTL), `limitedCalls` (unless disabled), `nonce`.
    - Scope: Monorail aggregator `aggregate`, ERC‑20 `approve`/`transfer`, and WMON `deposit`/`withdraw` when relevant.
 3. Requests a root signature through the chosen identity bridge (`signDelegation`).
-4. Optionally redeploys the HybridDelegator using Pimlico sponsorship if it does not exist yet.
+4. Optionally deploys the HybridDelegator using Pimlico sponsorship if it does not exist yet.
+
+> **⚠️ Important:** The HybridDelegator smart account is **deployed during delegation issuance**, not when you first connect your wallet. If the account doesn't exist on-chain yet, Pimlico sponsors the CREATE2 deployment automatically as part of the delegation signing process.
 
 ## 6. Artifact Storage
 

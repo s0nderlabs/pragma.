@@ -27,6 +27,7 @@ import { loadChatSession, type ChatSessionContext } from "../lib/chat/session";
 import { previewSwap, executeSwap } from "../lib/chat/swap";
 import { executeNativeTransfer, executeTokenTransfer } from "../lib/chat/transfer";
 import { executeWrap, executeUnwrap } from "../lib/chat/wrap";
+import { parseUserFriendlyError } from "../lib/errors";
 import {
   MONAD_NATIVE_TOKEN_SYMBOL,
   MONAD_WRAPPED_TOKEN_SYMBOL,
@@ -117,19 +118,6 @@ const ERC20_BALANCE_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
 ] as const;
-
-const parseError = (error: unknown): string => {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-  if (typeof error === "object" && error !== null && "message" in error) {
-    const candidate = (error as { message?: unknown }).message;
-    if (typeof candidate === "string" && candidate.length > 0) {
-      return candidate;
-    }
-  }
-  return String(error);
-};
 
 const formatTokenAmount = (amount: bigint, token: AllowedToken, decimalsOverride?: number) => {
   const decimals = decimalsOverride ?? toNumber(token.decimals);
@@ -650,7 +638,7 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
         });
       } catch (error) {
         const failureSummary = `Swap ${config.amountInput} ${config.intent.from.symbol ?? shortHex(config.intent.from.address)} → ${config.intent.to.symbol ?? shortHex(config.intent.to.address)} failed`;
-        const errorMessage = parseError(error);
+        const errorMessage = parseUserFriendlyError(error);
 
         // Update message status to error to prevent UI freeze
         // Clear presentation to ensure error message is displayed instead of quote
@@ -893,7 +881,7 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
           slippageBps,
           createdAt: Date.now(),
           previewedAt: Date.now(),
-          summary: `Swap preview failed: ${parseError(error)}`,
+          summary: `Swap preview failed: ${parseUserFriendlyError(error)}`,
           error: serializeError(error),
         });
         throw error;
@@ -1188,7 +1176,7 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
           break;
       }
     } catch (error) {
-      const message = parseError(error);
+      const message = parseUserFriendlyError(error);
       updateMessage(currentAction.statusId, (current) => ({
         ...current,
         content: `${current.content}\n\n${message}`,
@@ -1395,7 +1383,7 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
         status: "error",
       }));
     } catch (error) {
-      const message = parseError(error);
+      const message = parseUserFriendlyError(error);
       updateMessage(statusId, (current) => ({
         ...current,
         content: message,

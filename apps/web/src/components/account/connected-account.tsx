@@ -1,11 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { ClipboardCopy, ExternalLink, KeyRound, Sparkles, AlertTriangle, X } from "lucide-react";
+import {
+  ClipboardCopy,
+  ExternalLink,
+  KeyRound,
+  Sparkles,
+  AlertTriangle,
+  X,
+} from "lucide-react";
 import { formatUnits, getAddress, type Address } from "viem";
 import type { Mode } from "@pragma/core/delegations/types";
 
 import { useIdentity } from "../../hooks/useIdentity";
+import { useCallCounts } from "../../hooks/useCallCounts";
 import {
   OnboardingPanel,
   type QuickStatusSnapshot,
@@ -46,6 +54,7 @@ import {
   MONAD_NATIVE_TOKEN_ADDRESS,
   MONAD_NATIVE_TOKEN_SYMBOL,
 } from "../../lib/config";
+import { parseUserFriendlyError } from "../../lib/errors";
 import {
   Dialog as NestedDialog,
   DialogContent as NestedDialogContent,
@@ -182,19 +191,6 @@ const defaultStatus: QuickStatusSnapshot = {
   mode: "—",
 };
 
-const describeError = (error: unknown): string => {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-  if (typeof error === "object" && error && "message" in error) {
-    const candidate = (error as { message?: unknown }).message;
-    if (typeof candidate === "string") {
-      return candidate;
-    }
-  }
-  return String(error);
-};
-
 export const ConnectedAccount = () => {
   const identity = useIdentity();
   const [open, setOpen] = React.useState(false);
@@ -230,6 +226,16 @@ export const ConnectedAccount = () => {
   const [delegationDetailOpen, setDelegationDetailOpen] = React.useState(false);
   const [selectedDelegationEntry, setSelectedDelegationEntry] =
     React.useState<StoredDelegation | null>(null);
+
+  // Create public client for on-chain queries
+  const publicClient = React.useMemo(() => createMonadPublicClient(), []);
+
+  // Fetch on-chain call counts for selected delegation
+  const callCounts = useCallCounts({
+    publicClient,
+    artifact: selectedDelegationEntry?.artifact ?? null,
+    autoFetch: true,
+  });
 
   const walletAddress = identity.wallet?.address;
   const walletClient = identity.wallet?.walletClient;
@@ -531,7 +537,7 @@ export const ConnectedAccount = () => {
       // Fallback: Load ALL delegations from storage
       // This allows users to see and manage orphaned delegations
       const allStoredDelegations = listDelegations();
-      
+
       if (ownerAddress) {
         setQuickStatus({
           ...defaultStatus,
@@ -801,7 +807,7 @@ export const ConnectedAccount = () => {
       } catch (error) {
         if (!cancelled) {
           setBalanceEntries({ delegator: [], session: [] });
-          setBalancesError(describeError(error));
+          setBalancesError(parseUserFriendlyError(error));
         }
       } finally {
         if (!cancelled) {
@@ -835,7 +841,9 @@ export const ConnectedAccount = () => {
     }
 
     if (activeDelegations.length === 0) {
-      setRevokeError("No active delegations found. Refresh the page and try again.");
+      setRevokeError(
+        "No active delegations found. Refresh the page and try again."
+      );
       return;
     }
 
@@ -844,14 +852,14 @@ export const ConnectedAccount = () => {
 
     try {
       const mode = revokeSelection === "auto" ? undefined : revokeSelection;
-      
+
       console.log("[Revoke] Attempting to revoke delegations", {
         mode,
         owner: walletAddress,
         activeDelegations: activeDelegations.length,
         allDelegations: delegations.length,
       });
-      
+
       const result = await revokeDelegations({
         walletClient,
         ownerAddress: walletAddress,
@@ -867,29 +875,24 @@ export const ConnectedAccount = () => {
           : "Delegations revoked."
       );
       setRevokePending(false);
-      
-      await new Promise(resolve => setTimeout(resolve, 500));
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
       refreshSessionOverview();
     } catch (error) {
       console.error("[Revoke] Failed to revoke delegations", error);
-      
-      const errorMessage = describeError(error);
-      const isRpcTransient = 
-        errorMessage.includes("Block requested not found") ||
-        errorMessage.includes("compute units per second") ||
-        errorMessage.includes("rate limit");
-      
-      if (isRpcTransient) {
-        setRevokeError("RPC temporarily unavailable. Please wait a moment and try again.");
-      } else {
-        setRevokeError(errorMessage);
-      }
-      
+      setRevokeError(parseUserFriendlyError(error));
       setRevokeSuccess(null);
     } finally {
       setIsRevoking(false);
     }
-  }, [walletClient, walletAddress, revokeSelection, refreshSessionOverview, activeDelegations, delegations]);
+  }, [
+    walletClient,
+    walletAddress,
+    revokeSelection,
+    refreshSessionOverview,
+    activeDelegations,
+    delegations,
+  ]);
 
   const handleRotateSessionKey = React.useCallback(async () => {
     if (!walletClient || !walletAddress) {
@@ -912,7 +915,7 @@ export const ConnectedAccount = () => {
       setOwnerDelegator(walletAddress, result.delegator);
       await refreshSessionOverview();
     } catch (error) {
-      setRotateError(describeError(error));
+      setRotateError(parseUserFriendlyError(error));
       setRotateSuccess(null);
     } finally {
       setIsRotating(false);
@@ -937,7 +940,9 @@ export const ConnectedAccount = () => {
             {connected ? (
               <>
                 <span className="md:hidden">Connected</span>
-                <span className="hidden md:inline">Connected · {displayAddress ? shortHex(displayAddress) : "—"}</span>
+                <span className="hidden md:inline">
+                  Connected · {displayAddress ? shortHex(displayAddress) : "—"}
+                </span>
               </>
             ) : (
               "Connect account"
@@ -999,7 +1004,10 @@ export const ConnectedAccount = () => {
             </div>
 
             {activeSection === "overview" ? (
-              <div className="space-y-4 md:space-y-6" data-testid="overview-section">
+              <div
+                className="space-y-4 md:space-y-6"
+                data-testid="overview-section"
+              >
                 <GlassPanel className="space-y-3 md:space-y-4 p-4 md:p-6">
                   <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div className="space-y-1">
@@ -1007,7 +1015,9 @@ export const ConnectedAccount = () => {
                         Connection
                       </h3>
                       <p className="text-base font-medium text-[#2F285F] dark:text-[#F8F8FF]">
-                        {walletAddress ? `Owner ${shortHex(walletAddress)}` : "Web3Auth not connected"}
+                        {walletAddress
+                          ? `Owner ${shortHex(walletAddress)}`
+                          : "Web3Auth not connected"}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
@@ -1023,11 +1033,21 @@ export const ConnectedAccount = () => {
                             setTimeout(() => {
                               void identity.connect().catch((error) => {
                                 // Silently handle user cancellation
-                                if (error instanceof Error && error.message.toLowerCase().includes("user closed")) {
-                                  console.log("[Web3Auth] User cancelled connection");
+                                if (
+                                  error instanceof Error &&
+                                  error.message
+                                    .toLowerCase()
+                                    .includes("user closed")
+                                ) {
+                                  console.log(
+                                    "[Web3Auth] User cancelled connection"
+                                  );
                                   return;
                                 }
-                                console.error("Web3Auth connection failed", error);
+                                console.error(
+                                  "Web3Auth connection failed",
+                                  error
+                                );
                               });
                             }, 300);
                           }}
@@ -1038,7 +1058,9 @@ export const ConnectedAccount = () => {
                           )}
                         >
                           <span className="flex items-center gap-2">
-                            {connectBusy ? <Spinner className="h-3.5 w-3.5" /> : null}
+                            {connectBusy ? (
+                              <Spinner className="h-3.5 w-3.5" />
+                            ) : null}
                             {connectLabel}
                           </span>
                         </Button>
@@ -1127,7 +1149,7 @@ export const ConnectedAccount = () => {
                       </div>
                     }
                   />
-              </div>
+                </div>
 
                 <GlassPanel className="space-y-4 md:space-y-5 p-4 md:p-6">
                   <div className="flex items-center justify-between">
@@ -1174,7 +1196,10 @@ export const ConnectedAccount = () => {
             ) : null}
 
             {activeSection === "actions" ? (
-              <GlassPanel className="space-y-4 md:space-y-5 p-4 md:p-6" data-testid="actions-section">
+              <GlassPanel
+                className="space-y-4 md:space-y-5 p-4 md:p-6"
+                data-testid="actions-section"
+              >
                 {/* Header */}
                 <div>
                   <h3 className="text-xs md:text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">
@@ -1205,9 +1230,15 @@ export const ConnectedAccount = () => {
                         type="button"
                         variant="destructive"
                         size="sm"
-                        disabled={!connected || (!hasActiveDelegations && delegations.length === 0) || isRevoking}
+                        disabled={
+                          !connected ||
+                          (!hasActiveDelegations && delegations.length === 0) ||
+                          isRevoking
+                        }
                         onClick={() => {
-                          console.log("[Revoke] Button clicked - opening confirmation panel");
+                          console.log(
+                            "[Revoke] Button clicked - opening confirmation panel"
+                          );
                           setRevokePending(true);
                           setRevokeError(null);
                           setRevokeSuccess(null);
@@ -1227,7 +1258,9 @@ export const ConnectedAccount = () => {
                           {isRevoking ? <Spinner className="h-3 w-3" /> : null}
                           Revoke All
                           {delegations.length > 0 && !hasActiveDelegations ? (
-                            <span className="text-xs opacity-75">({delegations.length} expired)</span>
+                            <span className="text-xs opacity-75">
+                              ({delegations.length} expired)
+                            </span>
                           ) : null}
                         </span>
                       </Button>
@@ -1260,7 +1293,7 @@ export const ConnectedAccount = () => {
                           Confirm Revoke All Delegations
                         </p>
                         <p className="text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
-                          This will revoke all active delegations and rotate the session key.
+                          This will revoke all active delegations.
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -1273,7 +1306,9 @@ export const ConnectedAccount = () => {
                           className="rounded-full px-4 py-2 text-xs font-semibold"
                         >
                           <span className="flex items-center gap-2">
-                            {isRevoking ? <Spinner className="h-3 w-3" /> : null}
+                            {isRevoking ? (
+                              <Spinner className="h-3 w-3" />
+                            ) : null}
                             Confirm Revoke
                           </span>
                         </Button>
@@ -1348,10 +1383,13 @@ export const ConnectedAccount = () => {
                           <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]">
                             {(() => {
                               const now = Math.floor(Date.now() / 1000);
-                              const isExpired = primaryDelegation.artifact.expiresAt && 
-                                               primaryDelegation.artifact.expiresAt <= now;
-                              const isRevoked = Boolean(primaryDelegation.revokedAt);
-                              
+                              const isExpired =
+                                primaryDelegation.artifact.expiresAt &&
+                                primaryDelegation.artifact.expiresAt <= now;
+                              const isRevoked = Boolean(
+                                primaryDelegation.revokedAt
+                              );
+
                               if (isRevoked) return "Revoked delegation";
                               if (isExpired) return "Expired delegation";
                               return "Active delegation";
@@ -1359,22 +1397,31 @@ export const ConnectedAccount = () => {
                           </h3>
                           {(() => {
                             const now = Math.floor(Date.now() / 1000);
-                            const isExpired = primaryDelegation.artifact.expiresAt && 
-                                             primaryDelegation.artifact.expiresAt <= now;
-                            const isRevoked = Boolean(primaryDelegation.revokedAt);
-                            
-                            const statusLabel = isRevoked ? "Revoked" : isExpired ? "Expired" : "Active";
+                            const isExpired =
+                              primaryDelegation.artifact.expiresAt &&
+                              primaryDelegation.artifact.expiresAt <= now;
+                            const isRevoked = Boolean(
+                              primaryDelegation.revokedAt
+                            );
+
+                            const statusLabel = isRevoked
+                              ? "Revoked"
+                              : isExpired
+                              ? "Expired"
+                              : "Active";
                             const statusTone = isRevoked
                               ? "bg-destructive/15 text-destructive"
                               : isExpired
                               ? "bg-amber-500/15 text-amber-600"
                               : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400";
-                            
+
                             return (
-                              <span className={cn(
-                                "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold",
-                                statusTone
-                              )}>
+                              <span
+                                className={cn(
+                                  "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold",
+                                  statusTone
+                                )}
+                              >
                                 {statusLabel}
                               </span>
                             );
@@ -1772,12 +1819,68 @@ export const ConnectedAccount = () => {
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">
                       Call limits
                     </p>
-                    <p className="mt-1 text-base font-semibold">
-                      {selectedDelegationEntry.artifact.callsUnlimited ||
-                      !selectedDelegationEntry.artifact.callLimit
-                        ? "Unlimited"
-                        : `${selectedDelegationEntry.artifact.callLimit} calls`}
-                    </p>
+                    {callCounts.isUnlimited ? (
+                      <p className="mt-1 text-base font-semibold">Unlimited</p>
+                    ) : callCounts.isLoading ? (
+                      <div className="mt-2 flex items-center gap-2">
+                        <Spinner className="h-4 w-4" />
+                        <span className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+                          Fetching usage...
+                        </span>
+                      </div>
+                    ) : callCounts.error ? (
+                      <p className="mt-1 text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+                        {selectedDelegationEntry.artifact.callLimit
+                          ? `${selectedDelegationEntry.artifact.callLimit} calls (usage unavailable)`
+                          : "Unlimited"}
+                      </p>
+                    ) : callCounts.data ? (
+                      <div className="mt-2 space-y-2">
+                        <div className="flex items-baseline justify-between">
+                          <p className="text-base font-semibold">
+                            {callCounts.data.remaining.toString()} remaining
+                          </p>
+                          <p className="text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+                            {callCounts.data.used.toString()} /{" "}
+                            {callCounts.data.limit.toString()}
+                          </p>
+                        </div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-[#E8E5FF] dark:bg-[#2A2A35]">
+                          <div
+                            className={cn(
+                              "h-full transition-all duration-300",
+                              callCounts.data.percentage >= 80
+                                ? "bg-red-500"
+                                : callCounts.data.percentage >= 50
+                                ? "bg-yellow-500"
+                                : "bg-emerald-500"
+                            )}
+                            style={{
+                              width: `${callCounts.data.percentage}%`,
+                            }}
+                          />
+                        </div>
+                        {callCounts.data.remaining <= 2n &&
+                          callCounts.data.remaining > 0n && (
+                            <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+                              <AlertTriangle className="h-3 w-3" />
+                              <span>Low remaining calls</span>
+                            </div>
+                          )}
+                        {callCounts.data.remaining === 0n && (
+                          <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
+                            <AlertTriangle className="h-3 w-3" />
+                            <span>No calls remaining</span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-base font-semibold">
+                        {selectedDelegationEntry.artifact.callLimit
+                          ? `${selectedDelegationEntry.artifact.callLimit} calls`
+                          : "Unlimited"}
+                      </p>
+                    )}
                   </div>
                   <div className="rounded-xl border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">

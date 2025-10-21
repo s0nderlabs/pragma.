@@ -201,6 +201,31 @@ const initializeWeb3Auth = async (): Promise<Web3Auth> => {
       web3authInstance = instance;
       return instance;
     } catch (error) {
+      // Check if this is a session validation error (400) from Web3Auth
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const is400Error = errorMessage.includes("400") || errorMessage.includes("Non-200");
+      const isSessionError = errorMessage.toLowerCase().includes("session") ||
+                           errorMessage.toLowerCase().includes("token") ||
+                           errorMessage.toLowerCase().includes("invalid");
+
+      if (is400Error || isSessionError) {
+        // Expected error from expired/invalid Web3Auth session - handle gracefully
+        console.log("[Web3Auth] Session validation failed (likely expired token), clearing state");
+
+        // Try to clear Web3Auth's cached state
+        try {
+          await instance.clearCache();
+        } catch (clearError) {
+          // Ignore errors when clearing cache
+        }
+
+        // Set to ready state instead of error - user can reconnect
+        setIdentitySnapshot({ status: "ready", error: undefined });
+        web3authInstance = instance; // Store instance even if init failed
+        return instance;
+      }
+
+      // Real error - log and throw
       console.error("[Web3Auth] Authorization/Initialization failed:", error);
       console.error("[Web3Auth] Please verify your Web3Auth configuration and network settings");
       throw error;
@@ -245,8 +270,22 @@ const ensureBootstrap = () => {
       }
     } catch (error) {
       if (cancelled) return;
-      const message = error instanceof Error ? error.message : String(error);
-      setIdentitySnapshot({ status: "error", error: message });
+
+      // Check if this is a session validation error that was already handled
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const is400Error = errorMessage.includes("400") || errorMessage.includes("Non-200");
+      const isSessionError = errorMessage.toLowerCase().includes("session") ||
+                           errorMessage.toLowerCase().includes("token");
+
+      if (is400Error || isSessionError) {
+        // Session error already handled in initializeWeb3Auth, set to ready
+        console.log("[Web3Auth] Bootstrap handling session validation error gracefully");
+        setIdentitySnapshot({ status: "ready", error: undefined });
+      } else {
+        // Real error - set error state
+        const message = error instanceof Error ? error.message : String(error);
+        setIdentitySnapshot({ status: "error", error: message });
+      }
     }
   })();
 

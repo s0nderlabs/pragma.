@@ -14,7 +14,7 @@ import type { AllowedToken } from "../monorail/tokens.js";
 import type { SessionDelegationInfo, DeleGatorEnv } from "../delegations/types.js";
 import type { MonorailQuote, QuoteRequestParams } from "../monorail/pathfinder.js";
 import { createErrorFromCode } from "../errors/index.js";
-import { callWithRpcFallback } from "../utils/rpcFallback.js";
+import { callWithRpcFallback, callWithRetry } from "../utils/rpcFallback.js";
 
 const WAIT_FOR_RECEIPT_TIMEOUT_MS = 5_000;
 
@@ -325,12 +325,14 @@ export const previewSwapWithSession = async (
     });
   }
 
-  const fromBalance = await readTokenBalance(
-    intent.from,
-    hybridDelegator,
-    publicClient,
-    fallbackPublicClient,
-    nativeTokenAddress,
+  const fromBalance = await callWithRetry(() =>
+    readTokenBalance(
+      intent.from,
+      hybridDelegator,
+      publicClient,
+      fallbackPublicClient,
+      nativeTokenAddress,
+    ),
   );
   if (fromBalance < amountIn) {
     const symbol = intent.from.symbol ?? nativeTokenAddress.slice(0, 6);
@@ -435,7 +437,7 @@ const resolveApprovalStrategy = (config: SwapExecutionConfig): ApprovalStrategy 
   const env = process.env.PRAGMA_SWAP_APPROVAL_STRATEGY?.toLowerCase();
   if (env === "wait") return "wait";
   if (env === "fire-and-forget") return "fire-and-forget";
-  return "fire-and-forget";
+  return "wait"; // Wait for approval to prevent nonce race with swap tx
 };
 
 export const executeSwapWithSession = async (
@@ -504,12 +506,14 @@ export const executeSwapWithSession = async (
     );
   }
 
-  const fromBalance = await readTokenBalance(
-    intent.from,
-    hybridDelegator,
-    publicClient,
-    fallbackPublicClient,
-    nativeTokenAddress,
+  const fromBalance = await callWithRetry(() =>
+    readTokenBalance(
+      intent.from,
+      hybridDelegator,
+      publicClient,
+      fallbackPublicClient,
+      nativeTokenAddress,
+    ),
   );
   if (fromBalance < amountIn) {
     const symbol = intent.from.symbol ?? nativeTokenSymbol ?? "token";

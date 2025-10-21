@@ -1,6 +1,7 @@
 import { formatUnits } from "viem";
 
 import type { AmountSpecification } from "../intent/types.js";
+import { callWithRetry } from "../utils/rpcFallback.js";
 
 export interface ResolveAmountOptions {
   amount: AmountSpecification;
@@ -51,7 +52,7 @@ export const resolveAmountInput = async (options: ResolveAmountOptions): Promise
     return { amountInput: amount.value };
   }
 
-  const balance = await fetchBalance();
+  const balance = await callWithRetry(() => fetchBalance());
   if (balance <= 0n) {
     throw new Error("Delegated account balance is zero; unable to compute relative amount.");
   }

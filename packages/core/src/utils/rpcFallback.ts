@@ -57,6 +57,35 @@ const shouldRetryWithFallback = (error: unknown): boolean => {
   );
 };
 
+/**
+ * Retry a function with exponential backoff
+ * Useful for handling transient RPC sync lag (e.g., "Block requested not found")
+ */
+const retryWithBackoff = async <T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  baseDelay = 500,
+): Promise<T> => {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      const isLastAttempt = attempt === maxRetries;
+      const candidate = unwrapError(error);
+      const isTransient = isRpcParamError(candidate);
+
+      if (!isTransient || isLastAttempt) {
+        throw error;
+      }
+
+      // Exponential backoff: 500ms, 1000ms, 1500ms
+      const delay = baseDelay * (attempt + 1);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error("Retry logic failed"); // Should never reach
+};
+
 export const callWithRpcFallback = async <T>(
   primary: PublicClient,
   fallback: PublicClient | undefined,
@@ -71,3 +100,9 @@ export const callWithRpcFallback = async <T>(
     return task(fallback);
   }
 };
+
+/**
+ * Retry a function with exponential backoff (exported for balance checks)
+ * Handles RPC sync lag by retrying with increasing delays
+ */
+export const callWithRetry = retryWithBackoff;

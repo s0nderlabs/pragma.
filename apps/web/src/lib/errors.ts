@@ -69,6 +69,19 @@ export const parseUserFriendlyError = (error: unknown): string => {
     return "Transaction failed to execute. This may be due to insufficient gas, invalid parameters, or delegation restrictions. Please try again or reissue your delegation.";
   }
 
+  // Handle RPC sync lag (Alchemy testnet nodes behind latest state)
+  if (
+    rawMessage.includes("Block requested not found") ||
+    rawMessage.includes("Invalid parameters were provided to the RPC")
+  ) {
+    return "Network is syncing latest state. Please wait a moment and try again.";
+  }
+
+  // Handle zero balance on fresh delegation (state not yet propagated)
+  if (rawMessage.includes("Delegated account balance is zero")) {
+    return "Account balance not yet available. This usually resolves in 5-10 seconds. Please try again.";
+  }
+
   // Handle RPC rate limiting (Alchemy, Infura, etc.)
   if (
     rawMessage.includes("compute units") ||
@@ -117,6 +130,10 @@ export const parseUserFriendlyError = (error: unknown): string => {
     (rawMessage.toLowerCase().includes("nonce too low") ||
       rawMessage.toLowerCase().includes("nonce too high"))
   ) {
+    // If during swap execution (redeemDelegations), likely approval race condition
+    if (rawMessage.includes("redeemDelegations")) {
+      return "Token approval is still processing. Please wait a moment and try again.";
+    }
     return "Transaction nonce conflict. Please try again or refresh the page.";
   }
 

@@ -18,7 +18,7 @@ const DialogOverlay = React.forwardRef<React.ElementRef<typeof DialogPrimitive.O
     <DialogPrimitive.Overlay
       ref={ref}
       className={cn(
-        "fixed inset-0 z-40 bg-background/70 backdrop-blur-sm data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=open]:animate-in data-[state=open]:fade-in",
+        "fixed inset-0 z-40 bg-background/70 backdrop-blur-lg data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=open]:animate-in data-[state=open]:fade-in",
         className,
       )}
       {...props}
@@ -26,6 +26,20 @@ const DialogOverlay = React.forwardRef<React.ElementRef<typeof DialogPrimitive.O
   ),
 );
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
+
+const NestedDialogOverlay = React.forwardRef<React.ElementRef<typeof DialogPrimitive.Overlay>, React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>>(
+  ({ className, ...props }, ref) => (
+    <DialogPrimitive.Overlay
+      ref={ref}
+      className={cn(
+        "fixed inset-0 z-[60] bg-background/70 backdrop-blur-lg data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=open]:animate-in data-[state=open]:fade-in",
+        className,
+      )}
+      {...props}
+    />
+  ),
+);
+NestedDialogOverlay.displayName = "NestedDialogOverlay";
 
 const DialogContent = React.forwardRef<React.ElementRef<typeof DialogPrimitive.Content>, React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>>(
   ({ className, children, ...props }, ref) => (
@@ -46,8 +60,27 @@ const DialogContent = React.forwardRef<React.ElementRef<typeof DialogPrimitive.C
 );
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
+const NestedDialogContent = React.forwardRef<React.ElementRef<typeof DialogPrimitive.Content>, React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>>(
+  ({ className, children, ...props }, ref) => (
+    <DialogPortal>
+      <NestedDialogOverlay />
+      <DialogPrimitive.Content
+        ref={ref}
+        className={cn(
+          "fixed left-1/2 top-1/2 z-[70] w-[calc(100%-1rem)] md:w-full max-w-5xl -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border/80 bg-background p-0 shadow-xl outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-90 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-90 data-[state=open]:zoom-in-95",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  ),
+);
+NestedDialogContent.displayName = "NestedDialogContent";
+
 const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("border-b border-border/60 px-3 md:px-6 py-3 md:py-4", className)} {...props} />
+  <div className={cn("px-3 md:px-6 py-3 md:py-4 pb-5 md:pb-6", className)} {...props} />
 );
 
 const DialogTitle = React.forwardRef<React.ElementRef<typeof DialogPrimitive.Title>, React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>>(
@@ -69,7 +102,7 @@ const DialogDescription = React.forwardRef<React.ElementRef<typeof DialogPrimiti
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
 const DialogBody = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("max-h-[85vh] overflow-y-auto px-3 md:px-6 pb-4 md:pb-6 pt-3 md:pt-4", className)} {...props} />
+  <div className={cn("max-h-[85vh] overflow-y-auto px-3 md:px-6 pb-4 md:pb-6 pt-3 md:pt-4 will-change-scroll overscroll-behavior-contain [-webkit-overflow-scrolling:touch]", className)} {...props} />
 );
 
 const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
@@ -83,6 +116,8 @@ export {
   DialogClose,
   DialogOverlay,
   DialogContent,
+  NestedDialogOverlay,
+  NestedDialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,

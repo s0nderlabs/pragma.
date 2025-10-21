@@ -57,7 +57,7 @@ import {
 import { parseUserFriendlyError } from "../../lib/errors";
 import {
   Dialog as NestedDialog,
-  DialogContent as NestedDialogContent,
+  NestedDialogContent,
   DialogHeader as NestedDialogHeader,
   DialogTitle as NestedDialogTitle,
   DialogDescription as NestedDialogDescription,
@@ -341,10 +341,10 @@ export const ConnectedAccount = () => {
         typeof record.error === "string" ? record.error : null;
 
       const containerClasses = cn(
-        "group flex min-w-0 max-w-full w-full flex-col gap-3 overflow-hidden rounded-[1.25rem] border px-4 py-3 text-left shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#846FFA]/35",
+        "group flex min-w-0 max-w-full w-full flex-col gap-3 overflow-hidden rounded-[1.25rem] border px-4 py-3 text-left shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#846FFA]/35 [contain:layout_style_paint] transform-gpu",
         variant === "latest"
-          ? "border-[#846FFA]/35 bg-white/75 hover:border-[#846FFA]/45 hover:bg-white/90 dark:border-[#846FFA]/40 dark:bg-[#1E1E27]/75 dark:hover:border-[#846FFA]/50 dark:hover:bg-[#1E1E27]/85 shadow-md"
-          : "border-[#846FFA]/25 bg-white/60 hover:border-[#846FFA]/35 hover:bg-white/75 dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/65 dark:hover:border-[#846FFA]/40 dark:hover:bg-[#1E1E27]/75"
+          ? "border-[#846FFA]/35 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] backdrop-blur-xl hover:border-[#846FFA]/45 hover:bg-white/90 dark:border-[#846FFA]/40 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:hover:border-[#846FFA]/50 dark:hover:bg-[#1E1E27]/85 shadow-md"
+          : "border-[#846FFA]/25 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] backdrop-blur-xl hover:border-[#846FFA]/35 hover:bg-white/75 dark:border-[#846FFA]/30 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:hover:border-[#846FFA]/40 dark:hover:bg-[#1E1E27]/75"
       );
 
       return (
@@ -927,13 +927,13 @@ export const ConnectedAccount = () => {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button
-            variant="ghost"
-            size="sm"
             className={cn(
-              "gap-2 rounded-full border border-[hsla(var(--accent),0.35)] bg-white/50 px-4 py-2 text-xs font-semibold text-[#2F2F2F] shadow-none backdrop-blur-xl transition dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]",
+              "relative z-0 overflow-hidden gap-2 rounded-full border border-[#846FFA]/25 bg-gradient-to-br from-white/25 to-white/10 backdrop-blur-md px-4 py-2 text-xs font-semibold shadow-[inset_0_0_0_1px_rgba(255,255,255,0.3)] transition-all duration-200",
+              "before:absolute before:inset-0 before:-z-10 before:translate-y-[200%] before:scale-[2.5] before:rounded-[100%] before:bg-gradient-to-r before:from-[#856EFB]/55 before:to-[#856EFB]/75 before:transition-transform before:duration-700 before:content-[\"\"]",
+              "hover:before:translate-y-[0%] active:scale-[0.98]",
               connected
-                ? "text-[hsl(var(--accent))] hover:bg-white/60 dark:text-[#F8F8FF] dark:hover:bg-[#1E1E27]/85"
-                : "hover:bg-white/60 dark:hover:bg-[#1E1E27]/85"
+                ? "text-[#2F285F] hover:text-white dark:border-[#846FFA]/25 dark:from-[#846FFA]/12 dark:to-[#846FFA]/4 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:text-[#F8F8FF] dark:hover:text-white"
+                : "text-[#5C5C5C] hover:text-white dark:border-[#846FFA]/25 dark:from-[#846FFA]/12 dark:to-[#846FFA]/4 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)] dark:text-[#C7C3E8]/80 dark:hover:text-white"
             )}
           >
             <KeyRound className="h-4 w-4" />
@@ -953,7 +953,7 @@ export const ConnectedAccount = () => {
           <DialogHeader className="relative border-none px-4 md:px-8 pb-3 md:pb-4 pt-6 md:pt-8">
             {/* Mobile-only close button */}
             <DialogClose
-              className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm transition-colors hover:bg-[#846FFA]/10 active:bg-[#846FFA]/20 dark:border-[#846FFA]/40 dark:bg-[#1E1E27]/70 dark:hover:bg-[#846FFA]/15 md:hidden"
+              className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full border border-[#846FFA]/30 bg-white/70 backdrop-blur-lg text-[#846FFA] shadow-sm transition-colors hover:bg-[#846FFA]/10 active:bg-[#846FFA]/20 dark:border-[#846FFA]/40 dark:bg-[#1E1E27]/70 dark:hover:bg-[#846FFA]/15 md:hidden"
               aria-label="Close dialog"
               data-testid="mobile-close-button"
             >
@@ -995,7 +995,7 @@ export const ConnectedAccount = () => {
                     "rounded-full border border-transparent px-4 py-2 text-xs font-semibold transition",
                     activeSection === section.id
                       ? "border-[#846FFA]/40 bg-gradient-to-r from-[#846FFA]/30 to-[#674CF9]/35 text-[#2F285F] dark:text-[#F8F8FF]"
-                      : "bg-white/60 text-[#5C5C5C] hover:bg-white/80 dark:bg-[#1E1E27]/60 dark:text-[#C7C3E8]/80 dark:hover:bg-[#1E1E27]/75"
+                      : "bg-white/60 backdrop-blur-lg text-[#5C5C5C] hover:bg-white/80 dark:bg-[#1E1E27]/60 dark:text-[#C7C3E8]/80 dark:hover:bg-[#1E1E27]/75"
                   )}
                 >
                   {section.label}
@@ -1053,7 +1053,7 @@ export const ConnectedAccount = () => {
                           }}
                           disabled={connectBusy}
                           className={cn(
-                            "inline-flex items-center gap-2 rounded-full border border-[#846FFA]/40 bg-white/90 px-5 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#3F356F] shadow-[0_12px_30px_rgba(132,111,250,0.2)] transition hover:bg-[#846FFA]/18 hover:text-[#2F285F] dark:border-[#846FFA]/45 dark:bg-[#1E1E27]/70 dark:text-[#E4E3FF] dark:hover:bg-[#846FFA]/30",
+                            "inline-flex items-center gap-2 rounded-full border border-[#846FFA]/40 bg-white/90 backdrop-blur-lg px-5 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-[#3F356F] shadow-[0_12px_30px_rgba(132,111,250,0.2)] transition hover:bg-[#846FFA]/18 hover:text-[#2F285F] dark:border-[#846FFA]/45 dark:bg-[#1E1E27]/70 dark:text-[#E4E3FF] dark:hover:bg-[#846FFA]/30",
                             connectBusy && "opacity-60"
                           )}
                         >
@@ -1106,7 +1106,7 @@ export const ConnectedAccount = () => {
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 shrink-0 rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
+                          className="h-8 w-8 shrink-0 rounded-full border border-[#846FFA]/30 bg-white/70 backdrop-blur-lg text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
                           onClick={() => handleCopy(sessionDelegatorFull)}
                           disabled={!sessionDelegatorFull}
                           aria-label="Copy delegator address"
@@ -1139,7 +1139,7 @@ export const ConnectedAccount = () => {
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 shrink-0 rounded-full border border-[#846FFA]/30 bg-white/70 text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
+                          className="h-8 w-8 shrink-0 rounded-full border border-[#846FFA]/30 bg-white/70 backdrop-blur-lg text-[#846FFA] shadow-sm hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
                           onClick={() => handleCopy(quickStatus.sessionKeyFull)}
                           disabled={!quickStatus.sessionKeyFull}
                           aria-label="Copy session key address"
@@ -1211,7 +1211,7 @@ export const ConnectedAccount = () => {
                 </div>
 
                 {/* Emergency Actions Bar */}
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 shadow-sm dark:border-amber-500/40 dark:bg-amber-500/10">
+                <div className="rounded-xl border border-amber-500/30 bg-[linear-gradient(160deg,rgba(251,191,36,0.08)_0%,rgba(245,158,11,0.05)_100%)] backdrop-blur-xl p-4 shadow-[0_8px_16px_rgba(245,158,11,0.12)] dark:border-amber-500/40 dark:bg-[linear-gradient(160deg,rgba(251,191,36,0.12)_0%,rgba(245,158,11,0.08)_100%)]">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex items-start gap-3">
                       <AlertTriangle className="h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
@@ -1228,7 +1228,7 @@ export const ConnectedAccount = () => {
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
                         type="button"
-                        variant="destructive"
+                        variant="ghost"
                         size="sm"
                         disabled={
                           !connected ||
@@ -1243,7 +1243,7 @@ export const ConnectedAccount = () => {
                           setRevokeError(null);
                           setRevokeSuccess(null);
                         }}
-                        className="rounded-full border border-red-600/40 px-4 py-2 text-xs font-semibold"
+                        className="rounded-full border border-red-600/40 bg-red-500/20 px-4 py-2 text-xs font-semibold text-red-900 hover:bg-red-500/30 hover:scale-100 active:scale-100 backdrop-blur-md shadow-[0_2px_8px_rgba(220,38,38,0.15)] dark:border-red-500/50 dark:text-red-100 dark:hover:bg-red-500/25"
                         title={
                           !connected
                             ? "Connect your wallet to revoke delegations"
@@ -1270,7 +1270,7 @@ export const ConnectedAccount = () => {
                         size="sm"
                         disabled={!connected || isRotating}
                         onClick={() => void handleRotateSessionKey()}
-                        className="rounded-full border border-amber-600/40 bg-amber-500/20 px-4 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-500/30 dark:border-amber-500/50 dark:text-amber-100 dark:hover:bg-amber-500/25"
+                        className="rounded-full border border-amber-600/40 bg-amber-500/20 px-4 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-500/30 hover:scale-100 active:scale-100 backdrop-blur-md shadow-[0_2px_8px_rgba(245,158,11,0.15)] dark:border-amber-500/50 dark:text-amber-100 dark:hover:bg-amber-500/25"
                         title={
                           !connected
                             ? "Connect to rotate session key"
@@ -1287,7 +1287,7 @@ export const ConnectedAccount = () => {
 
                   {/* Revoke Confirmation Panel */}
                   {revokePending ? (
-                    <div className="mt-4 space-y-3 rounded-xl border border-destructive/30 bg-destructive/10 p-4 dark:border-destructive/40 dark:bg-destructive/20">
+                    <div className="mt-4 space-y-3 rounded-xl border border-red-600/40 bg-[linear-gradient(160deg,rgba(239,68,68,0.08)_0%,rgba(220,38,38,0.05)_100%)] p-4 backdrop-blur-xl shadow-[0_8px_16px_rgba(220,38,38,0.12)] dark:border-red-500/50 dark:bg-[linear-gradient(160deg,rgba(239,68,68,0.12)_0%,rgba(220,38,38,0.08)_100%)]">
                       <div className="space-y-1">
                         <p className="text-sm font-semibold text-[#1A1A1A] dark:text-[#F8F8FF]">
                           Confirm Revoke All Delegations
@@ -1299,11 +1299,11 @@ export const ConnectedAccount = () => {
                       <div className="flex flex-wrap items-center gap-2">
                         <Button
                           type="button"
-                          variant="destructive"
+                          variant="ghost"
                           size="sm"
                           disabled={!connected || isRevoking}
                           onClick={() => void handleRevoke()}
-                          className="rounded-full px-4 py-2 text-xs font-semibold"
+                          className="rounded-full border border-red-600/40 bg-red-500/20 px-4 py-2 text-xs font-semibold text-red-900 hover:bg-red-500/30 hover:scale-100 active:scale-100 backdrop-blur-md shadow-[0_2px_8px_rgba(220,38,38,0.15)] dark:border-red-500/50 dark:text-red-100 dark:hover:bg-red-500/25"
                         >
                           <span className="flex items-center gap-2">
                             {isRevoking ? (
@@ -1321,7 +1321,7 @@ export const ConnectedAccount = () => {
                             setRevokeError(null);
                             setRevokeSuccess(null);
                           }}
-                          className="rounded-full px-4 py-2 text-xs font-semibold"
+                          className="rounded-full px-4 py-2 text-xs font-semibold hover:bg-[#846FFA]/12 hover:scale-100 active:scale-100 dark:hover:bg-[#846FFA]/20"
                         >
                           Cancel
                         </Button>
@@ -1364,13 +1364,13 @@ export const ConnectedAccount = () => {
             {activeSection === "delegations" ? (
               <div className="space-y-6" data-testid="delegations-section">
                 <div className="flex flex-wrap gap-2">
-                  <span className="inline-flex items-center rounded-full border border-[#846FFA]/25 bg-white/65 px-3 py-1 text-xs font-semibold text-[#3F356F] dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF]">
+                  <span className="inline-flex items-center rounded-full border border-[#846FFA]/25 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] backdrop-blur-lg px-3 py-1 text-xs font-semibold text-[#3F356F] dark:border-[#846FFA]/35 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:text-[#DAD7FF]">
                     Active {delegationCounts.active}
                   </span>
-                  <span className="inline-flex items-center rounded-full border border-[#846FFA]/25 bg-white/65 px-3 py-1 text-xs font-semibold text-[#3F356F] dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF]">
+                  <span className="inline-flex items-center rounded-full border border-[#846FFA]/25 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] backdrop-blur-lg px-3 py-1 text-xs font-semibold text-[#3F356F] dark:border-[#846FFA]/35 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:text-[#DAD7FF]">
                     Expired {delegationCounts.expired}
                   </span>
-                  <span className="inline-flex items-center rounded-full border border-[#846FFA]/25 bg-white/65 px-3 py-1 text-xs font-semibold text-[#3F356F] dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF]">
+                  <span className="inline-flex items-center rounded-full border border-[#846FFA]/25 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] backdrop-blur-lg px-3 py-1 text-xs font-semibold text-[#3F356F] dark:border-[#846FFA]/35 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:text-[#DAD7FF]">
                     Revoked {delegationCounts.revoked}
                   </span>
                 </div>
@@ -1498,78 +1498,78 @@ export const ConnectedAccount = () => {
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowDelegationHistory((value) => !value)}
-                    className="rounded-full border border-[#846FFA]/25 px-3 py-1 text-xs font-semibold text-[#3F356F] hover:bg-[#846FFA]/12 dark:border-[#846FFA]/35 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/20"
+                    className="rounded-full border border-[#846FFA]/25 px-3 py-1 text-xs font-semibold text-[#3F356F] hover:bg-[#846FFA]/12 dark:border-[#846FFA]/35 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/20 hover:scale-100 active:scale-100"
                   >
                     {showDelegationHistory ? "Hide history" : "Show history"}
                   </Button>
                 </div>
 
                 {showDelegationHistory ? (
-                  <GlassPanel>
-                    {delegations.length === 0 ? (
+                  delegations.length === 0 ? (
+                    <GlassPanel>
                       <p className="text-sm text-[#5C5C5C] dark:text-[#C7C3E8]/80">
                         No delegations stored.
                       </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {delegations.map((entry) => {
-                          const artifact = entry.artifact;
-                          const tokens = (artifact.allowedTokens ?? []).map(
-                            (token) => token.symbol ?? shortHex(token.address)
-                          );
-                          const now = Math.floor(Date.now() / 1000);
-                          const isExpired = artifact.expiresAt
-                            ? now >= artifact.expiresAt
-                            : false;
-                          const isRevoked = Boolean(entry.revokedAt);
-                          const statusLabel = isRevoked
-                            ? "Revoked"
-                            : isExpired
-                            ? "Expired"
-                            : "Active";
-                          const statusTone = isRevoked
-                            ? "bg-destructive/15 text-destructive"
-                            : isExpired
-                            ? "bg-amber-500/15 text-amber-600"
-                            : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400";
+                    </GlassPanel>
+                  ) : (
+                    <div className="space-y-2">
+                      {delegations.map((entry) => {
+                        const artifact = entry.artifact;
+                        const tokens = (artifact.allowedTokens ?? []).map(
+                          (token) => token.symbol ?? shortHex(token.address)
+                        );
+                        const now = Math.floor(Date.now() / 1000);
+                        const isExpired = artifact.expiresAt
+                          ? now >= artifact.expiresAt
+                          : false;
+                        const isRevoked = Boolean(entry.revokedAt);
+                        const statusLabel = isRevoked
+                          ? "Revoked"
+                          : isExpired
+                          ? "Expired"
+                          : "Active";
+                        const statusTone = isRevoked
+                          ? "bg-destructive/15 text-destructive"
+                          : isExpired
+                          ? "bg-amber-500/15 text-amber-600"
+                          : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400";
 
-                          return (
-                            <button
-                              key={entry.id}
-                              type="button"
-                              onClick={() => handleOpenDelegationDetail(entry)}
-                              className="w-full rounded-[1.25rem] border border-[#846FFA]/25 bg-white/65 px-4 py-3 text-left text-sm text-[#1A1A1A] shadow-sm transition hover:border-[#846FFA]/40 hover:bg-white/80 dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF] dark:hover:border-[#846FFA]/45 dark:hover:bg-[#1E1E27]/80"
-                            >
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="font-medium">
-                                  {(artifact.kind ?? "swap") === "swap"
-                                    ? "Swap"
-                                    : "Transfer"}{" "}
-                                  ·{" "}
-                                  {artifact.mode === "safe" ? "Safe" : "Normal"}
-                                </span>
-                                <span
-                                  className={cn(
-                                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold",
-                                    statusTone
-                                  )}
-                                >
-                                  {statusLabel}
-                                </span>
-                              </div>
-                              <div className="mt-1 text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
-                                Expires {formatExpiry(artifact.expiresAt)} ·
-                                Tokens {tokens.slice(0, 4).join(", ")}
-                                {tokens.length > 4
-                                  ? `, +${tokens.length - 4} more`
-                                  : ""}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </GlassPanel>
+                        return (
+                          <button
+                            key={entry.id}
+                            type="button"
+                            onClick={() => handleOpenDelegationDetail(entry)}
+                            className="w-full rounded-[1.25rem] border border-[#846FFA]/25 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] backdrop-blur-xl px-4 py-3 text-left text-sm text-[#1A1A1A] shadow-sm transition hover:border-[#846FFA]/40 hover:bg-white/80 dark:border-[#846FFA]/30 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:text-[#F8F8FF] dark:hover:border-[#846FFA]/45 dark:hover:bg-[#1E1E27]/80 [contain:layout_style_paint] transform-gpu"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="font-medium">
+                                {(artifact.kind ?? "swap") === "swap"
+                                  ? "Swap"
+                                  : "Transfer"}{" "}
+                                ·{" "}
+                                {artifact.mode === "safe" ? "Safe" : "Normal"}
+                              </span>
+                              <span
+                                className={cn(
+                                  "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold",
+                                  statusTone
+                                )}
+                              >
+                                {statusLabel}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+                              Expires {formatExpiry(artifact.expiresAt)} ·
+                              Tokens {tokens.slice(0, 4).join(", ")}
+                              {tokens.length > 4
+                                ? `, +${tokens.length - 4} more`
+                                : ""}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )
                 ) : null}
               </div>
             ) : null}
@@ -1696,25 +1696,26 @@ export const ConnectedAccount = () => {
                   </GlassPanel>
                 )}
 
-                {showReceiptsHistory && receiptHistory.length > 0 ? (
-                  <GlassPanel className="space-y-2">
-                    {receiptHistory.map((entry) =>
-                      renderReceiptSummary(entry, "history")
-                    )}
-                  </GlassPanel>
-                ) : null}
-
                 {receiptHistory.length > 0 ? (
-                  <div className="flex justify-end pt-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-[#7A6FAF] dark:text-[#C7C3E8]"></h3>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       onClick={() => setShowReceiptsHistory((value) => !value)}
-                      className="rounded-full border border-[#846FFA]/25 px-3 py-1 text-xs font-semibold text-[#3F356F] hover:bg-[#846FFA]/12 dark:border-[#846FFA]/35 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/20"
+                      className="rounded-full border border-[#846FFA]/25 px-3 py-1 text-xs font-semibold text-[#3F356F] hover:bg-[#846FFA]/12 dark:border-[#846FFA]/35 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/20 hover:scale-100 active:scale-100"
                     >
                       {showReceiptsHistory ? "Hide history" : "Show history"}
                     </Button>
+                  </div>
+                ) : null}
+
+                {showReceiptsHistory && receiptHistory.length > 0 ? (
+                  <div className="space-y-2">
+                    {receiptHistory.map((entry) =>
+                      renderReceiptSummary(entry, "history")
+                    )}
                   </div>
                 ) : null}
               </div>
@@ -1734,7 +1735,7 @@ export const ConnectedAccount = () => {
           }
         }}
       >
-        <NestedDialogContent className="max-w-3xl overflow-hidden rounded-[2rem] border border-[#846FFA]/35 bg-white/90 p-0 shadow-[0_30px_70px_rgba(132,111,250,0.32)] backdrop-blur-2xl dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/95">
+        <NestedDialogContent className="max-w-3xl overflow-hidden rounded-[2rem] border border-[#846FFA]/35 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] p-0 shadow-[0_30px_70px_rgba(132,111,250,0.32)] backdrop-blur-2xl dark:border-[#846FFA]/35 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)]">
           <NestedDialogHeader className="px-8 pb-4 pt-6">
             <NestedDialogTitle className="text-lg font-semibold text-[#2F285F] dark:text-[#F8F8FF]">
               Delegation details
@@ -1747,7 +1748,7 @@ export const ConnectedAccount = () => {
             {selectedDelegationEntry ? (
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-xl border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
+                  <div className="rounded-xl border border-[#846FFA]/25 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] backdrop-blur-lg p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:text-[#F8F8FF]">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">
                       Mode
                     </p>
@@ -1758,7 +1759,7 @@ export const ConnectedAccount = () => {
                         : "Normal"}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
+                  <div className="rounded-xl border border-[#846FFA]/25 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] backdrop-blur-lg p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:text-[#F8F8FF]">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">
                       Status
                     </p>
@@ -1772,7 +1773,7 @@ export const ConnectedAccount = () => {
                         : "Active"}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
+                  <div className="rounded-xl border border-[#846FFA]/25 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] backdrop-blur-lg p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:text-[#F8F8FF]">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">
                       Expires
                     </p>
@@ -1780,7 +1781,7 @@ export const ConnectedAccount = () => {
                       {formatExpiry(selectedDelegationEntry.artifact.expiresAt)}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
+                  <div className="rounded-xl border border-[#846FFA]/25 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] backdrop-blur-lg p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:text-[#F8F8FF]">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">
                       Issued
                     </p>
@@ -1815,7 +1816,7 @@ export const ConnectedAccount = () => {
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-xl border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
+                  <div className="rounded-xl border border-[#846FFA]/25 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] backdrop-blur-lg p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:text-[#F8F8FF]">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">
                       Call limits
                     </p>
@@ -1882,7 +1883,7 @@ export const ConnectedAccount = () => {
                       </p>
                     )}
                   </div>
-                  <div className="rounded-xl border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
+                  <div className="rounded-xl border border-[#846FFA]/25 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] backdrop-blur-lg p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/30 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:text-[#F8F8FF]">
                     <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">
                       Native cap
                     </p>
@@ -1925,7 +1926,7 @@ export const ConnectedAccount = () => {
         {selectedReceipt ? (
           <NestedDialogContent
             data-testid="receipt-detail-dialog"
-            className="max-w-2xl space-y-6 rounded-[2.25rem] border border-[#846FFA]/35 bg-gradient-to-br from-white/90 via-white/65 to-white/35 p-8 shadow-[0_32px_90px_rgba(132,111,250,0.32)] backdrop-blur-3xl dark:border-[#846FFA]/35 dark:bg-[linear-gradient(140deg,rgba(17,17,24,0.94)_0%,rgba(17,17,24,0.72)_55%,rgba(17,17,24,0.88)_100%)]"
+            className="max-w-2xl space-y-6 rounded-[2.25rem] border border-[#846FFA]/35 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] p-8 shadow-[0_32px_90px_rgba(132,111,250,0.32)] backdrop-blur-3xl dark:border-[#846FFA]/35 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)]"
           >
             <NestedDialogHeader>
               <NestedDialogTitle className="text-lg font-semibold text-[#2F285F] dark:text-[#F8F8FF]">
@@ -1937,7 +1938,7 @@ export const ConnectedAccount = () => {
               </NestedDialogDescription>
             </NestedDialogHeader>
             <NestedDialogBody className="space-y-6">
-              <div className="rounded-[1.5rem] border border-[#846FFA]/25 bg-white/70 p-4 shadow-sm dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/75">
+              <div className="rounded-[1.5rem] border border-[#846FFA]/25 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] backdrop-blur-lg p-4 shadow-sm dark:border-[#846FFA]/35 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)]">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="space-y-1">
                     <p className="text-base font-semibold text-[#1A1A1A] dark:text-[#F8F8FF]">
@@ -1989,7 +1990,7 @@ export const ConnectedAccount = () => {
                         type="button"
                         size="icon"
                         variant="ghost"
-                        className="h-7 w-7 rounded-full border border-[#846FFA]/35 bg-white/75 text-[#846FFA] hover:bg-[#846FFA]/15 dark:border-[#846FFA]/40 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
+                        className="h-7 w-7 rounded-full border border-[#846FFA]/35 bg-[linear-gradient(160deg,rgba(255,255,255,0.85)_0%,rgba(246,242,255,0.62)_48%,rgba(236,229,255,0.38)_100%)] backdrop-blur-lg text-[#846FFA] hover:bg-[#846FFA]/15 dark:border-[#846FFA]/40 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.90)_0%,rgba(30,30,39,0.68)_52%,rgba(30,30,39,0.82)_100%)] dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
                         onClick={() =>
                           handleCopy(selectedReceipt.record.sessionKey)
                         }
@@ -2012,7 +2013,7 @@ export const ConnectedAccount = () => {
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7 rounded-full border border-[#846FFA]/35 bg-white/75 text-[#846FFA] hover:bg-[#846FFA]/15 dark:border-[#846FFA]/40 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
+                          className="h-7 w-7 rounded-full border border-[#846FFA]/35 bg-[linear-gradient(160deg,rgba(255,255,255,0.85)_0%,rgba(246,242,255,0.62)_48%,rgba(236,229,255,0.38)_100%)] backdrop-blur-lg text-[#846FFA] hover:bg-[#846FFA]/15 dark:border-[#846FFA]/40 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.90)_0%,rgba(30,30,39,0.68)_52%,rgba(30,30,39,0.82)_100%)] dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
                           onClick={() =>
                             handleCopy(selectedReceipt.record.quoteId ?? "")
                           }
@@ -2038,7 +2039,7 @@ export const ConnectedAccount = () => {
                           type="button"
                           size="icon"
                           variant="ghost"
-                          className="h-7 w-7 rounded-full border border-[#846FFA]/35 bg-white/75 text-[#846FFA] hover:bg-[#846FFA]/15 dark:border-[#846FFA]/40 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
+                          className="h-7 w-7 rounded-full border border-[#846FFA]/35 bg-[linear-gradient(160deg,rgba(255,255,255,0.85)_0%,rgba(246,242,255,0.62)_48%,rgba(236,229,255,0.38)_100%)] backdrop-blur-lg text-[#846FFA] hover:bg-[#846FFA]/15 dark:border-[#846FFA]/40 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.90)_0%,rgba(30,30,39,0.68)_52%,rgba(30,30,39,0.82)_100%)] dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
                           onClick={() =>
                             handleCopy(selectedReceipt.record.planHash ?? "")
                           }
@@ -2061,7 +2062,7 @@ export const ConnectedAccount = () => {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-3">
-                <div className="min-w-0 space-y-1 overflow-hidden rounded-[1.25rem] border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
+                <div className="min-w-0 space-y-1 overflow-hidden rounded-[1.25rem] border border-[#846FFA]/25 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] backdrop-blur-lg p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/35 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:text-[#F8F8FF]">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">
                     Amount in
                   </p>
@@ -2076,7 +2077,7 @@ export const ConnectedAccount = () => {
                     {selectedReceipt.record.tokenIn.address}
                   </p>
                 </div>
-                <div className="min-w-0 space-y-1 overflow-hidden rounded-[1.25rem] border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
+                <div className="min-w-0 space-y-1 overflow-hidden rounded-[1.25rem] border border-[#846FFA]/25 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] backdrop-blur-lg p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/35 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:text-[#F8F8FF]">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">
                     Minimum out
                   </p>
@@ -2091,7 +2092,7 @@ export const ConnectedAccount = () => {
                     {selectedReceipt.record.tokenOut.address}
                   </p>
                 </div>
-                <div className="min-w-0 space-y-1 overflow-hidden rounded-[1.25rem] border border-[#846FFA]/25 bg-white/65 p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]">
+                <div className="min-w-0 space-y-1 overflow-hidden rounded-[1.25rem] border border-[#846FFA]/25 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] backdrop-blur-lg p-4 text-sm text-[#1A1A1A] shadow-sm dark:border-[#846FFA]/35 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:text-[#F8F8FF]">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">
                     Actual out
                   </p>
@@ -2184,7 +2185,7 @@ export const ConnectedAccount = () => {
                 <Button
                   type="button"
                   variant="ghost"
-                  className="rounded-full border border-[#846FFA]/35 bg-white/70 px-4 py-2 text-sm font-semibold text-[#3F356F] shadow-sm transition hover:bg-[#846FFA]/15 dark:border-[#846FFA]/40 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
+                  className="rounded-full border border-[#846FFA]/35 bg-white/70 backdrop-blur-lg px-4 py-2 text-sm font-semibold text-[#3F356F] shadow-sm transition hover:bg-[#846FFA]/15 dark:border-[#846FFA]/40 dark:bg-[#1E1E27]/70 dark:text-[#DAD7FF] dark:hover:bg-[#846FFA]/25"
                   onClick={closeReceiptDetail}
                 >
                   Close

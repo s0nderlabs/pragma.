@@ -73,13 +73,17 @@ test.describe("Mobile Responsiveness", () => {
       }
     });
 
-    test("should show shortened Quick Mode label on mobile", async ({ page }) => {
+    test("should hide Quick Mode label on mobile", async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 667 }); // iPhone SE
       await page.goto("/");
 
-      // Mobile should show just "Quick"
-      const quickLabel = page.locator("text=Quick").first();
-      await expect(quickLabel).toBeVisible();
+      // Mobile should hide the "Quick Mode:" label to save space
+      const quickLabel = page.locator("text=Quick Mode:").first();
+      await expect(quickLabel).toBeHidden();
+
+      // But the toggle buttons should still be visible
+      const toggleButton = page.locator('button[role="tab"]').first();
+      await expect(toggleButton).toBeVisible();
     });
 
     test("should show shortened helper text on mobile", async ({ page }) => {

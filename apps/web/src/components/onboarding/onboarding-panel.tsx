@@ -4,6 +4,8 @@ import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { getAddress, parseEther, type Address } from "viem";
 import type { AllowedToken, Mode } from "@pragma/core";
+import { usePrefersReducedMotion } from "../../hooks/usePrefersReducedMotion";
+import { useCardTilt } from "../../hooks/useCardTilt";
 
 import { useIdentity } from "../../hooks/useIdentity";
 import { Button } from "../ui/button";
@@ -13,7 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Switch } from "../ui/switch";
 import { Checkbox } from "../ui/checkbox";
 import { Spinner } from "../ui/spinner";
-import { fetchAllowlist, initializeHybridDelegator, buildDelegationPlan, finalizeDelegations } from "../../lib/onboarding/service";
+import { GlassSlideTabs } from "../ui/glass-slide-tabs";
+import { initializeHybridDelegator, buildDelegationPlan, finalizeDelegations } from "../../lib/onboarding/service";
+import { fetchAllowlistCached, getCachedTokens } from "../../lib/onboarding/token-cache";
 import {
   MONAD_NATIVE_TOKEN_SYMBOL,
   MONAD_WRAPPED_TOKEN_SYMBOL,
@@ -52,15 +56,15 @@ type OnboardingState = "idle" | "loading" | "signing" | "completed" | "error";
 const DEFAULT_TRANSFER_MON = "1";
 
 const glassSectionClass =
-  "rounded-[1.25rem] border border-[#846FFA]/22 bg-white/65 p-5 shadow-sm dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/68";
+  "rounded-[1.25rem] border border-[#846FFA]/28 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] p-5 shadow-sm backdrop-blur-xl dark:border-[#846FFA]/35 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:shadow-[0_20px_40px_rgba(0,0,0,0.35)]";
 const chipBaseClass =
   "flex w-full items-center justify-between gap-3 rounded-[1.15rem] border px-3 py-2 transition-colors";
 const chipActiveClass =
   "border-[#846FFA]/50 bg-gradient-to-r from-[#846FFA]/18 to-[#674CF9]/24 shadow-sm dark:border-[#846FFA]/45 dark:from-[#846FFA]/20 dark:to-[#674CF9]/26";
 const chipInactiveClass =
-  "border-white/40 bg-white/52 hover:border-[#846FFA]/30 dark:border-white/10 dark:bg-[#1E1E27]/58 dark:hover:border-[#846FFA]/28";
+  "border-white/40 bg-white/52 backdrop-blur-lg hover:border-[#846FFA]/30 dark:border-white/10 dark:bg-[#1E1E27]/58 dark:hover:border-[#846FFA]/28";
 const segmentedContainerClass =
-  "inline-flex rounded-full border border-[#846FFA]/30 bg-white/60 p-1 text-sm shadow-sm dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70";
+  "inline-flex rounded-full border border-[#846FFA]/30 bg-white/60 backdrop-blur-lg p-1 text-sm shadow-sm dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70";
 const segmentedOptionBaseClass =
   "flex-1 whitespace-nowrap rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition";
 const segmentedOptionActiveClass =
@@ -91,6 +95,8 @@ export const OnboardingPanel = ({
   showSummaryCards = true,
 }: OnboardingPanelProps) => {
   const identity = useIdentity();
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const identityCardRef = useCardTilt<HTMLDivElement>();
   const [availableTokens, setAvailableTokens] = React.useState<AllowedToken[]>([]);
   const [mode, setMode] = React.useState<Mode>("safe");
   const [safeTokenA, setSafeTokenA] = React.useState<string>("");
@@ -208,13 +214,31 @@ export const OnboardingPanel = ({
   }, [activeDelegator, identity.status, identity.wallet]);
 
   const normalSelectionsInitialized = React.useRef(false);
+  const fetchingTokens = React.useRef(false);
 
   React.useEffect(() => {
-    let cancelled = false;
+    // Optimistically show cached tokens immediately if available
+    const cached = getCachedTokens();
+    if (cached && cached.length > 0) {
+      console.log(`[OnboardingPanel] Using ${cached.length} cached tokens immediately`);
+      setAvailableTokens(cached);
+      const defaults = cached.slice(0, 2);
+      if (defaults[0]) setSafeTokenA(defaults[0].address);
+      if (defaults[1]) setSafeTokenB(defaults[1].address);
+      if (!normalSelectionsInitialized.current) {
+        setNormalSelections(Object.fromEntries(cached.map((token) => [token.address, true])));
+        normalSelectionsInitialized.current = true;
+      }
+    }
+
+    if (fetchingTokens.current) return; // Prevent concurrent fetches
+
     const loadTokens = async () => {
+      fetchingTokens.current = true;
       try {
-        const tokens = await fetchAllowlist();
-        if (cancelled) return;
+        const tokens = await fetchAllowlistCached();
+        console.log(`[OnboardingPanel] fetchAllowlistCached returned ${tokens.length} tokens`);
+        console.log(`[OnboardingPanel] Setting availableTokens to ${tokens.length} tokens`);
         setAvailableTokens(tokens);
         const defaults = tokens.slice(0, 2);
         if (defaults[0]) setSafeTokenA(defaults[0].address);
@@ -226,12 +250,11 @@ export const OnboardingPanel = ({
         }
       } catch (error) {
         console.error("Failed to fetch token allowlist", error);
+      } finally {
+        fetchingTokens.current = false;
       }
     };
     void loadTokens();
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   React.useEffect(() => {
@@ -616,7 +639,7 @@ export const OnboardingPanel = ({
                 Token in
               </Label>
               <Select value={safeTokenA} onValueChange={setSafeTokenA}>
-                <SelectTrigger className="h-11 rounded-full border border-[#846FFA]/30 bg-white/70 text-sm text-[#1A1A1A] shadow-sm transition hover:bg-white/80 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/90 dark:hover:bg-[#1E1E27]/75">
+                <SelectTrigger className="h-11 rounded-full border border-[#846FFA]/30 bg-white/70 backdrop-blur-lg text-sm text-[#1A1A1A] shadow-sm transition hover:bg-white/80 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/90 dark:hover:bg-[#1E1E27]/75">
                   <SelectValue placeholder="Select source token" />
                 </SelectTrigger>
                 <SelectContent>
@@ -633,7 +656,7 @@ export const OnboardingPanel = ({
                 Token out
               </Label>
               <Select value={safeTokenB} onValueChange={setSafeTokenB}>
-                <SelectTrigger className="h-11 rounded-full border border-[#846FFA]/30 bg-white/70 text-sm text-[#1A1A1A] shadow-sm transition hover:bg-white/80 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/90 dark:hover:bg-[#1E1E27]/75">
+                <SelectTrigger className="h-11 rounded-full border border-[#846FFA]/30 bg-white/70 backdrop-blur-lg text-sm text-[#1A1A1A] shadow-sm transition hover:bg-white/80 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/90 dark:hover:bg-[#1E1E27]/75">
                   <SelectValue placeholder="Select destination token" />
                 </SelectTrigger>
                 <SelectContent>
@@ -651,7 +674,7 @@ export const OnboardingPanel = ({
     }
 
     return (
-      <div className={cn(glassSectionClass, "space-y-4")} data-testid="onboarding-token-controls">
+      <div className={cn(glassSectionClass, "space-y-4 overflow-hidden")} data-testid="onboarding-token-controls">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Allowlisted tokens</h3>
@@ -664,14 +687,15 @@ export const OnboardingPanel = ({
             size="sm"
             variant="ghost"
             onClick={() => toggleAllNormalTokens(!allNormalSelected)}
-            className="rounded-full border border-[#846FFA]/30 bg-white/70 px-3 py-1 text-xs font-semibold text-[#3F356F] shadow-sm transition hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/85 dark:hover:bg-[#846FFA]/25"
+            className="rounded-full border border-[#846FFA]/30 bg-white/70 backdrop-blur-lg px-3 py-1 text-xs font-semibold text-[#3F356F] shadow-sm transition hover:bg-[#846FFA]/15 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/85 dark:hover:bg-[#846FFA]/25"
           >
             {allNormalSelected ? "Deselect all" : "Select all"}
           </Button>
         </div>
-        <div className="max-h-64 space-y-2 overflow-x-hidden overflow-y-auto pr-1">
-          {/* Allowlist Tokens */}
-          {availableTokens.map((token) => {
+        <div className="max-h-64 min-h-0 flex-shrink-0 space-y-2 overflow-x-hidden overflow-y-auto pr-1 scroll-smooth">
+          <div className="space-y-2">
+            {/* Allowlist Tokens */}
+            {availableTokens.map((token) => {
             const selected = Boolean(normalSelections[token.address]);
             return (
               <label
@@ -732,6 +756,7 @@ export const OnboardingPanel = ({
                 </Button>
               </div>
             ))}
+          </div>
         </div>
 
         {/* Custom Token Input */}
@@ -758,7 +783,7 @@ export const OnboardingPanel = ({
                 }
               }}
               placeholder="0x..."
-              className="h-10 flex-1 rounded-full border border-[#846FFA]/30 bg-white/70 text-sm text-[#1A1A1A] placeholder:text-[#5C5C5C]/50 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF] dark:placeholder:text-[#C7C3E8]/40"
+              className="h-10 flex-1 rounded-full border border-[#846FFA]/30 bg-white/70 backdrop-blur-lg text-sm text-[#1A1A1A] placeholder:text-[#5C5C5C]/50 dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF] dark:placeholder:text-[#C7C3E8]/40"
             />
             <Button
               type="button"
@@ -781,7 +806,7 @@ export const OnboardingPanel = ({
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-5">
         {showIdentityCard ? (
-          <div className={cn(glassSectionClass, "space-y-4")}>
+          <div ref={identityCardRef} className={cn(glassSectionClass, "space-y-4")}>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h3 className="text-xs font-semibold uppercase tracking-[0.2em] text-[#7A6FAF] dark:text-[#C7C3E8]">Web3Auth identity</h3>
@@ -803,7 +828,7 @@ export const OnboardingPanel = ({
                 }}
                 disabled={connectButtonDisabled}
                 className={cn(
-                  "inline-flex items-center gap-2 rounded-full border border-[#846FFA]/35 bg-white/75 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#3F356F] shadow-sm transition hover:bg-[#846FFA]/15 dark:border-[#846FFA]/40 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/85 dark:hover:bg-[#846FFA]/25",
+                  "inline-flex items-center gap-2 rounded-full border border-[#846FFA]/35 bg-white/75 backdrop-blur-lg px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#3F356F] shadow-sm transition hover:bg-[#846FFA]/15 dark:border-[#846FFA]/40 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/85 dark:hover:bg-[#846FFA]/25",
                   connectButtonDisabled && "opacity-60",
                 )}
               >
@@ -820,7 +845,7 @@ export const OnboardingPanel = ({
                   type="button"
                   variant="ghost"
                   onClick={() => identity.disconnect()}
-                  className="rounded-full border border-white/40 bg-white/65 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#5C5C5C] shadow-sm transition hover:bg-white/80 dark:border-white/10 dark:bg-[#1E1E27]/60 dark:text-[#C7C3E8]/85 dark:hover:bg-[#1E1E27]/75"
+                  className="rounded-full border border-white/40 bg-white/65 backdrop-blur-lg px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[#5C5C5C] shadow-sm transition hover:bg-white/80 dark:border-white/10 dark:bg-[#1E1E27]/60 dark:text-[#C7C3E8]/85 dark:hover:bg-[#1E1E27]/75"
                 >
                   Disconnect
                 </Button>
@@ -844,26 +869,11 @@ export const OnboardingPanel = ({
                 : "Multiple tokens · 24hr expiry · Flexible"}
             </p>
           </div>
-          <div className={segmentedContainerClass} role="tablist">
-            <button
-              type="button"
-              data-testid="mode-option-safe"
-              className={cn(segmentedOptionBaseClass, mode === "safe" ? segmentedOptionActiveClass : segmentedOptionInactiveClass)}
-              onClick={() => setMode("safe")}
-              aria-pressed={mode === "safe"}
-            >
-              Safe
-            </button>
-            <button
-              type="button"
-              data-testid="mode-option-normal"
-              className={cn(segmentedOptionBaseClass, mode === "normal" ? segmentedOptionActiveClass : segmentedOptionInactiveClass)}
-              onClick={() => setMode("normal")}
-              aria-pressed={mode === "normal"}
-            >
-              Normal
-            </button>
-          </div>
+          <GlassSlideTabs
+            tabs={["Safe", "Normal"]}
+            activeIndex={mode === "safe" ? 0 : 1}
+            onChange={(idx) => setMode(idx === 0 ? "safe" : "normal")}
+          />
         </div>
 
         {renderTokenControls()}
@@ -872,14 +882,14 @@ export const OnboardingPanel = ({
           <button
             type="button"
             onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-            className="flex items-center gap-2 rounded-lg border border-[#846FFA]/25 bg-white/60 px-3 py-2 text-sm font-semibold text-[#7A6FAF] transition hover:border-[#846FFA]/40 hover:bg-[#846FFA]/10 dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/60 dark:text-[#C7C3E8] dark:hover:border-[#846FFA]/50 dark:hover:bg-[#846FFA]/15"
+            className="flex items-center gap-2 rounded-lg border border-[#846FFA]/25 bg-white/60 backdrop-blur-lg px-3 py-2 text-sm font-semibold text-[#7A6FAF] transition hover:border-[#846FFA]/40 hover:bg-[#846FFA]/10 dark:border-[#846FFA]/30 dark:bg-[#1E1E27]/60 dark:text-[#C7C3E8] dark:hover:border-[#846FFA]/50 dark:hover:bg-[#846FFA]/15"
           >
             <ChevronDown className={cn("h-4 w-4 transition-transform", showAdvancedOptions && "rotate-180")} />
             Advanced Options
           </button>
 
           {showAdvancedOptions ? (
-            <div className="space-y-4 rounded-xl border border-[#846FFA]/20 bg-white/50 p-4 dark:border-[#846FFA]/25 dark:bg-[#1E1E27]/50">
+            <div className={cn(glassSectionClass, "space-y-4")}>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <h4 className="text-xs font-semibold text-[#7A6FAF] dark:text-[#C7C3E8]">Call Limit</h4>
@@ -892,7 +902,7 @@ export const OnboardingPanel = ({
                       value={callLimit}
                       disabled={unlimitedCalls}
                       onChange={(event) => setCallLimit(event.target.value)}
-                      className="h-10 rounded-full border border-[#846FFA]/30 bg-white/70 text-sm dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70"
+                      className="h-10 rounded-full border border-[#846FFA]/30 bg-white/70 backdrop-blur-lg text-sm dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70"
                     />
                     <div className="flex items-center gap-2">
                       <Switch checked={unlimitedCalls} onCheckedChange={(checked) => setUnlimitedCalls(Boolean(checked))} />
@@ -912,7 +922,7 @@ export const OnboardingPanel = ({
                       value={transferAmount}
                       disabled={!enableTransfer}
                       onChange={(event) => setTransferAmount(event.target.value)}
-                      className="h-10 w-24 rounded-full border border-[#846FFA]/30 bg-white/70 text-sm dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70"
+                      className="h-10 w-24 rounded-full border border-[#846FFA]/30 bg-white/70 backdrop-blur-lg text-sm dark:border-[#846FFA]/35 dark:bg-[#1E1E27]/70"
                     />
                     <span className="text-xs text-[#5C5C5C] dark:text-[#C7C3E8]/80">{MONAD_NATIVE_TOKEN_SYMBOL}</span>
                   </div>

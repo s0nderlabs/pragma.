@@ -2,6 +2,9 @@
 
 import * as React from "react";
 import { ArrowRightLeft, ArrowUpRight, CheckCircle2, Info, AlertTriangle, Loader2, Sparkles } from "lucide-react";
+import { useGSAP } from "../../lib/animations/gsapClient";
+import gsap from "gsap";
+import { usePrefersReducedMotion } from "../../hooks/usePrefersReducedMotion";
 
 import type {
   ChatMessagePresentation,
@@ -12,24 +15,56 @@ import type {
 import { useChatConsole } from "../../hooks/useChatConsole";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
+import { GlassSlideTabs } from "../ui/glass-slide-tabs";
 import { cn } from "../../lib/utils";
 import { ConnectedAccount } from "../account/connected-account";
 import { ThemeToggle } from "../theme-toggle";
 
-const LoadingDots = ({ tone = "#846FFA", inline = false }: { tone?: string; inline?: boolean }) => (
-  <div
-    data-testid="loading-dots"
-    className={cn("flex items-center gap-1.5", inline ? undefined : "mt-3")}
-  >
-    {[0, 120, 240].map((delay) => (
-      <span
-        key={delay}
-        className="h-1.5 w-1.5 rounded-full animate-bounce"
-        style={{ animationDelay: `${delay}ms`, backgroundColor: tone }}
-      />
-    ))}
-  </div>
-);
+const LoadingDots = ({ tone = "#846FFA", inline = false }: { tone?: string; inline?: boolean }) => {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
+
+  useGSAP(() => {
+    if (!containerRef.current || prefersReducedMotion) return;
+
+    const dots = containerRef.current.querySelectorAll('.loading-dot');
+
+    // Create infinite wave animation
+    const timeline = gsap.timeline({ repeat: -1 });
+
+    dots.forEach((dot, index) => {
+      timeline.to(dot, {
+        scale: 1.3,
+        opacity: 1,
+        duration: 0.3,
+        ease: "power2.inOut",
+      }, index * 0.15);
+
+      timeline.to(dot, {
+        scale: 1,
+        opacity: 0.5,
+        duration: 0.3,
+        ease: "power2.inOut",
+      }, index * 0.15 + 0.3);
+    });
+  }, { scope: containerRef });
+
+  return (
+    <div
+      ref={containerRef}
+      data-testid="loading-dots"
+      className={cn("flex items-center gap-1.5", inline ? undefined : "mt-3")}
+    >
+      {[0, 1, 2].map((index) => (
+        <span
+          key={index}
+          className="loading-dot h-1.5 w-1.5 rounded-full"
+          style={{ backgroundColor: tone, opacity: 0.5 }}
+        />
+      ))}
+    </div>
+  );
+};
 
 interface MessageBubbleProps {
   role: "user" | "system";
@@ -457,7 +492,7 @@ const getStatusMeta = (
 };
 
 const SwapQuoteNote = ({ presentation }: { presentation: SwapQuotePresentation }) => (
-  <div className="flex flex-col gap-3 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
+  <div className="flex flex-col gap-3 text-sm md:text-base leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
     <p>
       Swap <strong>{presentation.amountIn} {presentation.from.symbol}</strong> → <strong>{presentation.expectedOut} {presentation.to.symbol}</strong>.
     </p>
@@ -471,7 +506,7 @@ const SwapQuoteNote = ({ presentation }: { presentation: SwapQuotePresentation }
 );
 
 const SwapReceiptNote = ({ presentation }: { presentation: SwapReceiptPresentation }) => (
-  <div className="flex flex-col gap-3 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
+  <div className="flex flex-col gap-3 text-sm md:text-base leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
     <p>
       Executed swap <strong>{presentation.amountIn} {presentation.from.symbol}</strong> → <strong>{presentation.amountOut} {presentation.to.symbol}</strong>.
     </p>
@@ -798,14 +833,14 @@ const InsightList = ({
 const PortfolioInsightView = ({ body }: { body: string }) => {
   const data = parsePortfolioInsight(body);
   return (
-    <div className="flex flex-col gap-5 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
+    <div className="flex flex-col gap-5 text-sm md:text-base leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
       <div className="flex flex-col gap-3">
         {data.delegator ? (
           <div className="flex flex-col gap-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#6f63ff] dark:text-[#cfcaff]">
               Delegator
             </span>
-            <code className="select-text font-mono text-sm font-medium tracking-tight text-[#674CF9] dark:text-[#cfcaff] border-b border-dotted border-[#846FFA]/30 pb-0.5 w-fit">
+            <code className="select-text font-mono text-xs sm:text-sm md:text-base font-medium tracking-tight text-[#674CF9] dark:text-[#cfcaff] border-b border-dotted border-[#846FFA]/30 pb-0.5 w-fit">
               {data.delegator}
             </code>
           </div>
@@ -813,13 +848,13 @@ const PortfolioInsightView = ({ body }: { body: string }) => {
 
         <div className="flex flex-col gap-2">
           {data.mode ? (
-            <p className="text-[13px]">
+            <p className="text-xs sm:text-sm md:text-base">
               <span className="font-semibold text-[#6f63ff] dark:text-[#cfcaff]">Mode:</span>{" "}
               <span className="font-medium">{data.mode}</span>
             </p>
           ) : null}
           {data.portfolioValue ? (
-            <p className="text-[13px]">
+            <p className="text-xs sm:text-sm md:text-base">
               <span className="font-semibold text-[#6f63ff] dark:text-[#cfcaff]">Portfolio value:</span>{" "}
               <span className="font-medium">{data.portfolioValue}</span>
             </p>
@@ -845,13 +880,13 @@ const PortfolioInsightView = ({ body }: { body: string }) => {
               <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#6f63ff] dark:text-[#cfcaff]">
                 Session key
               </span>
-              <code className="select-text font-mono text-sm font-medium tracking-tight text-[#674CF9] dark:text-[#cfcaff] border-b border-dotted border-[#846FFA]/30 pb-0.5 w-fit">
+              <code className="select-text font-mono text-xs sm:text-sm md:text-base font-medium tracking-tight text-[#674CF9] dark:text-[#cfcaff] border-b border-dotted border-[#846FFA]/30 pb-0.5 w-fit">
                 {data.sessionKey}
               </code>
             </div>
 
             {data.sessionHoldings ? (
-              <p className="text-[13px]">
+              <p className="text-xs sm:text-sm md:text-base">
                 <span className="font-semibold text-[#6f63ff] dark:text-[#cfcaff]">Session holdings:</span>{" "}
                 <span className="font-medium">{data.sessionHoldings}</span>
               </p>
@@ -887,20 +922,20 @@ const PortfolioInsightView = ({ body }: { body: string }) => {
 const DelegationInsightView = ({ body }: { body: string }) => {
   const data = parseDelegationInsight(body);
   return (
-    <div className="flex flex-col gap-5 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
+    <div className="flex flex-col gap-5 text-sm md:text-base leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
       <div className="flex flex-col gap-3">
         {data.delegator ? (
           <div className="flex flex-col gap-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#6f63ff] dark:text-[#cfcaff]">
               Delegator
             </span>
-            <code className="select-text font-mono text-sm font-medium tracking-tight text-[#674CF9] dark:text-[#cfcaff] border-b border-dotted border-[#846FFA]/30 pb-0.5 w-fit">
+            <code className="select-text font-mono text-xs sm:text-sm md:text-base font-medium tracking-tight text-[#674CF9] dark:text-[#cfcaff] border-b border-dotted border-[#846FFA]/30 pb-0.5 w-fit">
               {data.delegator}
             </code>
           </div>
         ) : null}
         {data.mode ? (
-          <p className="text-[13px]">
+          <p className="text-base">
             <span className="font-semibold text-[#6f63ff] dark:text-[#cfcaff]">Mode:</span>{" "}
             <span className="font-medium">{data.mode}</span>
           </p>
@@ -914,7 +949,7 @@ const DelegationInsightView = ({ body }: { body: string }) => {
         {data.limits.length > 0 ? (
           <ul className="ml-5 list-disc space-y-1.5 marker:text-[#6f63ff] dark:marker:text-[#cfcaff]">
             {data.limits.map((entry, index) => (
-              <li key={`${entry}-${index}`} className="text-[13px]">{parseKeyTerms(entry, `limit-${index}`)}</li>
+              <li key={`${entry}-${index}`} className="text-xs sm:text-sm md:text-base">{parseKeyTerms(entry, `limit-${index}`)}</li>
             ))}
           </ul>
         ) : (
@@ -969,7 +1004,7 @@ const AgentInsightNote = ({ presentation, content }: { presentation: InsightPres
   return (
     <div className="flex flex-col gap-3">
       <Heading />
-      <div className="flex flex-col gap-4 text-sm leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
+      <div className="flex flex-col gap-4 text-sm md:text-base leading-relaxed text-[#2a2742] dark:text-[#EAE9FF]">
         {sections.length === 0 ? (
           <p>{parseKeyTerms(body, "insight-body")}</p>
         ) : (
@@ -1007,14 +1042,42 @@ const renderPresentation = (presentation: ChatMessagePresentation | undefined, r
 
 const MessageBubble = ({ role, content, status = "default", logs, presentation }: MessageBubbleProps) => {
   const isUser = role === "user";
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const userBubbleRef = React.useRef<HTMLDivElement>(null);
+  const systemMessageRef = React.useRef<HTMLDivElement>(null);
+
+  // Animate user message entrance (slide from right)
+  useGSAP(() => {
+    if (!userBubbleRef.current || !isUser || prefersReducedMotion) return;
+
+    gsap.from(userBubbleRef.current, {
+      x: 20,
+      opacity: 0,
+      duration: 0.25,
+      ease: "power2.out",
+    });
+  }, { scope: userBubbleRef, dependencies: [isUser] });
+
+  // Animate agent/system message entrance (fade only)
+  useGSAP(() => {
+    if (!systemMessageRef.current || isUser || prefersReducedMotion) return;
+
+    gsap.from(systemMessageRef.current, {
+      opacity: 0,
+      duration: 0.25,
+      ease: "power1.out",
+    });
+  }, { scope: systemMessageRef, dependencies: [isUser] });
+
   if (isUser) {
     return (
       <div className="flex w-full justify-end">
         <div
+          ref={userBubbleRef}
           data-testid="user-message"
-          className="inline-flex max-w-[60%] overflow-hidden rounded-2xl border border-transparent bg-gradient-to-br from-[#846FFA] to-[#674CF9] px-4 py-2 text-xs font-medium text-white shadow-[0_3px_12px_rgba(0,0,0,0.1)]"
+          className="inline-flex max-w-[75%] sm:max-w-[60%] overflow-hidden rounded-full border border-transparent bg-gradient-to-br from-[#846FFA] to-[#674CF9] px-3 py-1.5 sm:px-4 sm:py-2 font-medium text-white shadow-[0_3px_12px_rgba(0,0,0,0.1)]"
         >
-          <div className="flex flex-col gap-2 text-sm leading-relaxed text-left">
+          <div className="flex flex-col gap-2 text-sm md:text-base leading-relaxed text-left">
             {renderSegments(parseMessageSegments(content), "user-message")}
           </div>
         </div>
@@ -1030,7 +1093,7 @@ const MessageBubble = ({ role, content, status = "default", logs, presentation }
 
   return (
     <div className="flex w-full max-w-full justify-start">
-      <div data-testid="system-message" className="flex w-full flex-col gap-3 text-left">
+      <div ref={systemMessageRef} data-testid="system-message" className="flex w-full flex-col gap-3 text-left">
         {showStatus ? <StatusBadge {...statusMeta} /> : null}
         {presentation ? (
           <>
@@ -1039,12 +1102,12 @@ const MessageBubble = ({ role, content, status = "default", logs, presentation }
           </>
         ) : (
           status === "loading" ? (
-            <div className="flex items-center gap-2 text-sm leading-relaxed text-[#1A120F] dark:text-[#EAE9FF]">
+            <div className="flex items-center gap-2 text-sm md:text-base leading-relaxed text-[#1A120F] dark:text-[#EAE9FF]">
               <span>{content || "Thinking"}</span>
               <LoadingDots inline tone="#846FFA" />
             </div>
           ) : (
-            <div className="flex flex-col gap-2 text-sm leading-relaxed text-[#1A120F] dark:text-[#EAE9FF]">
+            <div className="flex flex-col gap-2 text-sm md:text-base leading-relaxed text-[#1A120F] dark:text-[#EAE9FF]">
               {renderSegments(parseMessageSegments(content), "system-default")}
             </div>
           )
@@ -1082,13 +1145,12 @@ export const ChatConsole = () => {
     textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
   }, []);
 
+  // Auto-scroll to bottom on new messages
   React.useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    if (messages.length === 0) {
-      container.scrollTop = container.scrollHeight;
-      return;
-    }
+
+    // Scroll to bottom smoothly
     container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
@@ -1120,34 +1182,26 @@ export const ChatConsole = () => {
 
   return (
     <div className="flex w-full justify-center">
-      <div className="w-full max-w-4xl">
+      <div className="w-full max-w-5xl md:px-0">
         <h1 className="sr-only">Chat console</h1>
         <div
           data-testid="chat-shell"
           className="relative overflow-hidden rounded-[1.5rem] md:rounded-[2.5rem] border border-[#846FFA]/30 bg-white/55 p-[3px] md:p-[5px] shadow-[0_35px_90px_rgba(132,111,250,0.22)] backdrop-blur-[30px] before:pointer-events-none before:absolute before:-inset-8 before:-z-10 before:rounded-[2.7rem] before:bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.58)_0%,rgba(255,255,255,0.08)_64%,rgba(132,111,250,0)_85%),radial-gradient(circle_at_bottom_right,rgba(132,111,250,0.22)_18%,rgba(132,111,250,0)_74%)] before:opacity-95 before:blur-[24px] after:pointer-events-none after:absolute after:inset-0 after:rounded-[2.5rem] after:border after:border-white/20 after:opacity-70 after:bg-[radial-gradient(circle_at_center,rgba(132,111,250,0.12)_0%,rgba(132,111,250,0)_68%)] dark:border-[#846FFA]/35 dark:bg-[rgba(30,30,39,0.55)] dark:shadow-[0_40px_110px_rgba(0,0,0,0.45)] dark:before:bg-[radial-gradient(circle_at_top_left,rgba(132,111,250,0.28)_18%,rgba(132,111,250,0)_78%),radial-gradient(circle_at_bottom_right,rgba(132,111,250,0.26)_18%,rgba(132,111,250,0)_74%)] dark:after:border-white/10 dark:after:bg-[radial-gradient(circle_at_center,rgba(132,111,250,0.2)_0%,rgba(132,111,250,0)_72%)]"
         >
           <div
-            className="flex flex-col rounded-[1.3rem] md:rounded-[2.3rem] border border-[#846FFA]/24 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.68)_0%,rgba(255,255,255,0.5)_52%,rgba(255,255,255,0.62)_100%)] p-4 md:p-8 shadow-[0_20px_42px_rgba(26,26,26,0.06)] backdrop-blur-[32px] dark:border-[#846FFA]/30 dark:bg-[radial-gradient(circle_at_center,rgba(30,30,39,0.72)_0%,rgba(30,30,39,0.58)_55%,rgba(30,30,39,0.68)_100%)] dark:shadow-[0_30px_60px_rgba(0,0,0,0.55)] [height:min(600px,calc(100dvh-160px))] [min-height:320px] md:[height:min(700px,calc(100dvh-240px))] md:[min-height:400px]"
+            className="flex flex-col rounded-[1.3rem] md:rounded-[2.3rem] border border-[#846FFA]/24 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.68)_0%,rgba(255,255,255,0.5)_52%,rgba(255,255,255,0.62)_100%)] p-4 md:p-8 shadow-[0_20px_42px_rgba(26,26,26,0.06)] backdrop-blur-[32px] dark:border-[#846FFA]/30 dark:bg-[radial-gradient(circle_at_center,rgba(30,30,39,0.72)_0%,rgba(30,30,39,0.58)_55%,rgba(30,30,39,0.68)_100%)] dark:shadow-[0_30px_60px_rgba(0,0,0,0.55)] [height:min(650px,calc(100dvh-160px))] [min-height:320px] md:[height:min(800px,calc(100dvh-240px))] md:[min-height:400px]"
           >
             <div className="mb-4 md:mb-6 flex w-full flex-row items-center justify-end gap-1.5 md:gap-3">
-              <div className="flex items-center gap-1.5 md:gap-2 rounded-full border border-[#1A1A1A]/12 bg-white/70 px-2.5 py-1 sm:px-3 md:px-4 md:py-2 text-xs font-medium text-[#5C5C5C] shadow-sm dark:border-white/10 dark:bg-[#1E1E27]/70 dark:text-[#F8F8FF]/75">
-                <span className="text-xs text-[#5C5C5C] dark:text-[#F8F8FF]/80"><span className="md:hidden">Quick</span><span className="hidden md:inline">Quick Mode</span></span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setQuickMode((value) => !value)}
+              <div className="flex items-center gap-2">
+                <span className="hidden sm:inline text-xs font-medium text-[#5C5C5C] dark:text-[#C7C3E8]/80">
+                  Quick Mode:
+                </span>
+                <GlassSlideTabs
+                  tabs={["Off", "On"]}
+                  activeIndex={quickMode ? 1 : 0}
+                  onChange={(idx) => setQuickMode(idx === 1)}
                   disabled={isSubmitting || isConfirming}
-                  className={cn(
-                    "h-7 rounded-full border border-[#846FFA]/30 px-2.5 md:px-3 text-xs font-semibold transition dark:border-[#846FFA]/40",
-                    quickMode
-                      ? "bg-gradient-to-br from-[#846FFA] to-[#674CF9] text-white shadow-[0_6px_18px_rgba(132,111,250,0.35)]"
-                      : "bg-transparent text-[#846FFA] hover:bg-[#846FFA]/10 dark:hover:bg-[#846FFA]/15",
-                    (isSubmitting || isConfirming) && "opacity-60",
-                  )}
-                >
-                  {quickMode ? "On" : "Off"}
-                </Button>
+                />
               </div>
               <ConnectedAccount />
               <ThemeToggle />
@@ -1159,7 +1213,7 @@ export const ChatConsole = () => {
                 className="flex h-full flex-col space-y-6 overflow-y-auto pr-2 scrollbar-hide"
               >
                 {messages.length === 0 ? (
-                  <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-[#1A1A1A]/12 bg-white/60 p-4 md:p-8 text-center text-xs md:text-sm text-[#5C5C5C] dark:border-white/10 dark:bg-[#1E1E27]/60 dark:text-[#E2E1FF]/70">
+                  <div className="flex h-full items-center justify-center p-4 md:p-8 text-center text-sm md:text-base text-[#5C5C5C] dark:text-[#E2E1FF]/70">
                     Open the Connected account menu to configure your delegation, then ask Pragma to execute swaps, transfers, wraps, or answer questions here.
                   </div>
                 ) : (
@@ -1205,7 +1259,7 @@ export const ChatConsole = () => {
             )}
 
             <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-3">
-              <div className="flex items-center gap-2 md:gap-3 rounded-[1.2rem] md:rounded-[1.5rem] border border-[#846FFA]/35 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(255,255,255,0.75))] px-3 md:px-4 py-2 md:py-3 shadow-[0_18px_40px_rgba(89,79,200,0.12)] backdrop-blur-xl dark:border-[#7364ff]/40 dark:bg-[linear-gradient(135deg,rgba(22,20,42,0.9),rgba(11,18,35,0.92))] dark:shadow-[0_28px_60px_rgba(9,14,40,0.55)]">
+              <div className="group flex items-center gap-2 md:gap-3 rounded-full border border-[#846FFA]/25 bg-gradient-to-br from-[#846FFA]/18 to-[#846FFA]/6 backdrop-blur-md px-3 md:px-4 py-2 md:py-3 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.3)] transition-shadow dark:border-[#846FFA]/25 dark:from-[#846FFA]/12 dark:to-[#846FFA]/4 dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]">
                 <textarea
                   ref={textareaRef}
                   placeholder={
@@ -1220,7 +1274,7 @@ export const ChatConsole = () => {
                       event.currentTarget.form?.requestSubmit();
                     }
                   }}
-                  className="flex-1 resize-none bg-transparent text-sm text-[#1A1A1A] placeholder:text-[#5C5C5C]/70 outline-none dark:text-[#F8F8FF] dark:placeholder:text-[#F8F8FF]/55"
+                  className="flex-1 resize-none bg-transparent text-sm md:text-base text-[#1A1A1A] placeholder:text-[#5C5C5C]/70 outline-none dark:text-[#F8F8FF] dark:placeholder:text-[#F8F8FF]/55"
                   rows={1}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
@@ -1228,21 +1282,17 @@ export const ChatConsole = () => {
                 <button
                   type="submit"
                   disabled={disableSend}
-                  className={cn(
-                    "group inline-flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold transition bg-gradient-to-br from-[#846FFA] to-[#674CF9] text-white shadow-[0_4px_12px_rgba(132,111,250,0.3)]",
-                    disableSend
-                      ? "cursor-not-allowed opacity-50"
-                      : "hover:shadow-[0_6px_20px_rgba(132,111,250,0.35)]",
-                  )}
+                  className="group inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-br from-[#846FFA] to-[#674CF9] text-white px-4 py-2 sm:px-5 sm:py-2.5 text-sm sm:text-base font-semibold transition-transform active:scale-[0.985] disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {isSubmitting ? (
-                    <span className="flex items-center gap-2">
-                      <Spinner className="h-4 w-4" /> Sending…
+                    <span className="flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 animate-in zoom-in duration-200" />
+                      <span>Sent</span>
                     </span>
                   ) : (
                     <>
                       <span>Send</span>
-                      <ArrowUpRight className="h-4 w-4 transition group-active:-rotate-45" />
+                      <ArrowUpRight className="h-4 w-4 -mr-4 opacity-0 transition-all group-hover:-mr-0 group-hover:opacity-100 group-active:-rotate-45" />
                     </>
                   )}
                 </button>

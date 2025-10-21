@@ -22,7 +22,7 @@ import type {
 import { resolveAmountInput } from "@pragma/core/agent/amount";
 import { computeSwapPlanHash } from "@pragma/core/execution/plan";
 
-import { fetchAllowlist } from "../lib/onboarding/service";
+import { fetchAllowlistCached } from "../lib/onboarding/token-cache";
 import { loadChatSession, type ChatSessionContext } from "../lib/chat/session";
 import { previewSwap, executeSwap } from "../lib/chat/swap";
 import { executeNativeTransfer, executeTokenTransfer } from "../lib/chat/transfer";
@@ -376,7 +376,7 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
     const load = async () => {
       setLoadingTokens(true);
       try {
-        const tokens = await fetchAllowlist();
+        const tokens = await fetchAllowlistCached();
         if (!mounted) return;
         setAllowedTokens(tokens);
       } catch (error) {

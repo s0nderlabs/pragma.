@@ -9,7 +9,7 @@ export const GlassPanel = React.forwardRef<HTMLDivElement, React.HTMLAttributes<
     <div
       ref={ref}
       className={cn(
-        "rounded-[1.75rem] border border-[#846FFA]/28 bg-[linear-gradient(160deg,rgba(255,255,255,0.88)_0%,rgba(246,242,255,0.64)_48%,rgba(236,229,255,0.32)_100%)] px-7 py-6 shadow-[0_28px_70px_rgba(132,111,250,0.18)] backdrop-blur-[28px] dark:border-[#846FFA]/35 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.92)_0%,rgba(30,30,39,0.62)_52%,rgba(30,30,39,0.78)_100%)] dark:shadow-[0_34px_75px_rgba(0,0,0,0.45)]",
+        "rounded-[1.75rem] border border-[#846FFA]/28 bg-[linear-gradient(160deg,rgba(255,255,255,0.75)_0%,rgba(246,242,255,0.52)_48%,rgba(236,229,255,0.28)_100%)] px-7 py-6 shadow-[0_28px_70px_rgba(132,111,250,0.18)] backdrop-blur-xl dark:border-[#846FFA]/35 dark:bg-[linear-gradient(150deg,rgba(30,30,39,0.85)_0%,rgba(30,30,39,0.58)_52%,rgba(30,30,39,0.72)_100%)] dark:shadow-[0_34px_75px_rgba(0,0,0,0.45)]",
         className,
       )}
       {...props}

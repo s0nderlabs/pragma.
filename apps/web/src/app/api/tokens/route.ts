@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { AllowedToken, TokenCache, TokenCacheEntry } from "@pragma/core/monorail/tokens";
-import { buildAllowedTokens } from "@pragma/core/monorail/tokens";
+import { buildAllowedTokens, normalizeAllowedTokensList, sortAllowedTokens } from "@pragma/core/monorail/tokens";
 import { getAddress } from "viem";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -403,7 +403,18 @@ const TOKEN_METADATA = {
   wrappedNativeTokenAddress: wrappedTokenAddress,
 };
 
-export async function GET() {
+export async function GET(request: Request) {
+  // Support test-only query parameter to force fallback
+  const { searchParams } = new URL(request.url);
+  const forceFallback = searchParams.get("forceFallback") === "true";
+
+  if (forceFallback && process.env.NODE_ENV !== "production") {
+    const normalized = normalizeAllowedTokensList(FALLBACK_TOKENS);
+    const sorted = sortAllowedTokens(normalized);
+    console.log(`[Fallback] Forced fallback via query param, returning ${sorted.length} normalized fallback tokens`);
+    return NextResponse.json({ tokens: sorted, error: "forced_fallback_for_testing" });
+  }
+
   const dataApiUrl =
     process.env.MONORAIL_DATA_API_URL ??
     process.env.NEXT_PUBLIC_MONORAIL_DATA_API_URL ??
@@ -417,7 +428,10 @@ export async function GET() {
     process.env.NEXT_PUBLIC_MONORAIL_APP_ID;
 
   if (!apiKey) {
-    return NextResponse.json({ tokens: FALLBACK_TOKENS });
+    const normalized = normalizeAllowedTokensList(FALLBACK_TOKENS);
+    const sorted = sortAllowedTokens(normalized);
+    console.log(`[Fallback] No API key, returning ${sorted.length} normalized fallback tokens`);
+    return NextResponse.json({ tokens: sorted });
   }
 
   try {
@@ -427,11 +441,34 @@ export async function GET() {
       cache: memoryCache,
       tokenMetadata: TOKEN_METADATA,
     });
+
+    // Validate token completeness - fallback has 51 tokens, API should return at least that
+    const MINIMUM_EXPECTED_TOKENS = 51;
+    if (tokens.length < MINIMUM_EXPECTED_TOKENS) {
+      console.warn(
+        `[API] Incomplete token data: received ${tokens.length}, expected at least ${MINIMUM_EXPECTED_TOKENS}. Triggering fallback.`
+      );
+      throw new Error(`Incomplete token list: ${tokens.length} < ${MINIMUM_EXPECTED_TOKENS}`);
+    }
+
+    // Validate required token types are present
+    const hasNative = tokens.some((t) => t.kind === "native");
+    const hasWrapped = tokens.some((t) => t.kind === "wrappedNative");
+    if (!hasNative || !hasWrapped) {
+      console.warn("[API] Missing required token types (native or wrapped). Triggering fallback.");
+      throw new Error("Missing required native or wrapped native tokens");
+    }
+
+    console.log(`[API] Successfully validated ${tokens.length} tokens from Monorail`);
     return NextResponse.json({ tokens });
   } catch (error) {
     console.error("Failed to load Monorail tokens", error);
+    // Apply same normalization pipeline as success path
+    const normalized = normalizeAllowedTokensList(FALLBACK_TOKENS);
+    const sorted = sortAllowedTokens(normalized);
+    console.log(`[Fallback] Returning ${sorted.length} normalized fallback tokens`);
     return NextResponse.json({
-      tokens: FALLBACK_TOKENS,
+      tokens: sorted,
       error: "monorail_fetch_failed",
     });
   }

@@ -78,7 +78,18 @@ export const parseUserFriendlyError = (error: unknown): string => {
     return "Network provider is temporarily rate limited. Please wait a moment and try again.";
   }
 
+  // Handle 502 Bad Gateway (Monorail quote service or API gateway down)
+  if (rawMessage.includes("502") || rawMessage.toLowerCase().includes("bad gateway")) {
+    return "Swap service is temporarily unavailable. Please try again in a few moments.";
+  }
+
+  // Handle service unavailable
+  if (rawMessage.includes("503") || rawMessage.toLowerCase().includes("service unavailable")) {
+    return "Service temporarily unavailable. Please try again in a few moments.";
+  }
+
   // Handle network/connection errors
+  // NOTE: This must come AFTER 502/503 checks to avoid false positives
   if (
     rawMessage.toLowerCase().includes("network") ||
     rawMessage.toLowerCase().includes("connection") ||
@@ -107,11 +118,6 @@ export const parseUserFriendlyError = (error: unknown): string => {
       rawMessage.toLowerCase().includes("nonce too high"))
   ) {
     return "Transaction nonce conflict. Please try again or refresh the page.";
-  }
-
-  // Handle service unavailable
-  if (rawMessage.includes("503") || rawMessage.toLowerCase().includes("service unavailable")) {
-    return "Service temporarily unavailable. Please try again in a few moments.";
   }
 
   // Return raw message as fallback (but clean up common technical prefixes)

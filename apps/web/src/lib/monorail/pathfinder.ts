@@ -81,7 +81,8 @@ export const fetchMonorailQuote = async (params: QuoteRequestParams): Promise<Mo
     try {
       const body = (await response.json()) as { error?: string };
       if (body?.error) {
-        message = body.error;
+        // Preserve status code in message for proper error handling
+        message = `Monorail quote request failed (${response.status}): ${body.error}`;
       }
     } catch {
       // ignore JSON parse errors

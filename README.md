@@ -134,5 +134,4 @@ pnpm --filter web dev
 
 ---
 
-**License:** MIT
 **Version:** Horizon 1 (H1)

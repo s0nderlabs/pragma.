@@ -26,7 +26,7 @@
     "web3"
   ],
   "author": "",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "dependencies": {
     "@metamask/delegation-toolkit": "^0.13.0",
     "@privy-io/js-sdk-core": "^0.55.2",

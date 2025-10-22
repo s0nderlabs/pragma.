@@ -43,6 +43,7 @@ The CLI loads server-side configuration from `apps/cli/src/services/config.ts`. 
 | `WEB3AUTH_CLIENT_ID` (or `WEB3_AUTH_ID`) | Web3Auth application identifier for the embedded login bridge. |
 | `WEB3AUTH_CLIENT_SECRET` (or `WEB3_AUTH_SECRET`) | Web3Auth client secret used by the local bridge. |
 | `PIMLICO_API_KEY` | Access token for Pimlico's bundler/paymaster endpoints. |
+| `MONORAIL_APP_ID` | **Required for swap functionality.** Application ID for Monorail Pathfinder API. Without this, quote requests will fail. |
 | `PRAGMA_ADMIN_TEST_PK` | Private key used for the fallback faucet/onboarding helper (`onboarding/deploy` API route). |
 | `OPENAI_API_KEY` | OpenAI API key for agent insights and clarifications (powers gpt-5-mini responses in REPL and web app). |
 
@@ -54,7 +55,6 @@ The CLI loads server-side configuration from `apps/cli/src/services/config.ts`. 
 
 | Variable | Purpose |
 | --- | --- |
-| `MONORAIL_APP_ID` | Application ID for Monorail Pathfinder API. **Strongly recommended** - required for swap functionality; without it, quote requests will fail. |
 | `PIMLICO_CHAIN` (`monad-testnet`) | Chain slug used to build Pimlico URLs. |
 | `PIMLICO_BUNDLER_URL`, `PIMLICO_PAYMASTER_URL` | Override automatically generated Pimlico RPC URLs. |
 | `PIMLICO_SPONSORSHIP_POLICY_ID` | Pin a custom Pimlico sponsorship policy. |

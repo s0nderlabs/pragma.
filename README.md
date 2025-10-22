@@ -6,6 +6,8 @@
 
 Pragma turns short natural-language requests into guarded swaps on the Monad testnet. Horizon 1 (H1) focuses on **safe, delegated swaps** using MetaMask's Delegation Toolkit (DTK) and HybridDelegator (ERC-4337) smart accounts.
 
+> 🌐 **100% Client-Side**: Pragma runs entirely in your browser/terminal. No backend server stores your data or keys. Session keys live in localStorage (web) or ~/.pragma (CLI). All operations are direct: Browser → Monorail API (quotes) → HyperRPC (simulation) → Monad RPC (execution).
+
 ```mermaid
 flowchart LR
   A["Intention<br/>Swap 0.5 MON to USDC"] --> B["Intent Engine<br/>canonical intent"]
@@ -28,7 +30,7 @@ pnpm install
 
 # 2. Configure environment (see docs/getting-started/install.md for details)
 cp .env.example .env
-# Add: WEB3AUTH_CLIENT_ID, PIMLICO_API_KEY, PRAGMA_ADMIN_TEST_PK, OPENAI_API_KEY
+# Add: WEB3AUTH_CLIENT_ID, PIMLICO_API_KEY, MONORAIL_APP_ID, PRAGMA_ADMIN_TEST_PK, OPENAI_API_KEY
 
 # 3. Launch the REPL
 pnpm --filter @pragma/cli dev

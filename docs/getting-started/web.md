@@ -74,16 +74,36 @@ The web layer reads configuration from `NEXT_PUBLIC_*` variables. Mirror the CLI
 
 ### 📊 Token Management
 
-- **Token picker:** `/api/tokens` loads Monorail data API
-- **5-minute cache:** Falls back to MON/WMON if unavailable
-- **Allowlist + custom:** Support for user-provided ERC-20s
+- **Primary source:** `/api/tokens` loads Monorail Data API with comprehensive token metadata
+- **Validation:** Minimum 51-token threshold check ensures data completeness
+- **Fallback system:** Comprehensive 51-token list (MON, WMON, USDC, USDT, major DeFi tokens)
+  - Automatically activates when Monorail API is unavailable or returns incomplete data
+  - Ensures users never see partial/incomplete token lists
+  - Includes verified tokens with addresses, symbols, decimals, and logos
+- **Allowlist + custom:** Support for user-provided ERC-20s in Normal mode
 
 ### 🎛️ UI Features
 
-- **4-tab modal:** Overview, Actions, Delegations, Receipts
-- **Emergency controls:** Revoke All, Rotate Key (always visible)
+#### Connected Account Modal
+- **4-tab layout:** Overview, Actions, Delegations, Receipts
+- **Emergency controls:** Revoke All, Rotate Key (always visible in amber warning section)
 - **Delegation issuance:** Safe/Normal modes with visual token selection
-- **Quick mode:** Toggle confirmations on/off
+- **Glass morphism aesthetic:** Purple-tinted glass overlays with backdrop blur
+- **3D card tilt:** Subtle perspective effects on card hover
+
+#### Chat Interface
+- **Natural language input:** Type requests in plain English
+- **Quick Mode toggle:** Purple glass slide indicator (on/off)
+- **Streaming responses:** Real-time SSE for instant feedback
+- **Message animations:** GSAP-powered entrance effects (fade + slide)
+- **Loading states:** Smooth spinner with scale animations
+
+#### Micro-Interactions
+- **Button hover:** Subtle scale transforms + color transitions
+- **Input focus:** Purple glow effects (ring-purple-500)
+- **Checkbox spring:** Smooth check animations
+- **Preview cards:** Glass panels with purple gradient borders
+- **Performance optimized:** GPU-accelerated transitions (60fps scroll)
 
 > 💡 **Full UI walkthrough:** See [`/guides/web-ui-guide.md`](/guides/web-ui-guide.md)
 

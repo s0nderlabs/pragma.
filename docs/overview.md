@@ -10,6 +10,21 @@ title: Pragma Horizon 1 Overview
 
 ---
 
+## 🔑 What is MetaMask DTK?
+
+**MetaMask Delegation Toolkit (DTK)** is MetaMask's framework for EIP-7702/ERC-4337 delegations. It provides the smart contract infrastructure that enables secure, time-limited authority delegation:
+
+- **HybridDelegator**: ERC-4337 smart account for delegation-based execution (deployed via CREATE2)
+- **DelegationManager**: On-chain contract that enforces delegation rules and redeems delegated calls
+- **Caveat Enforcers**: On-chain guards that enforce restrictions:
+  - **Timestamp caveat**: Time-to-live (TTL) for delegation expiry
+  - **LimitedCalls caveat**: Maximum number of transactions allowed
+  - **Nonce caveat**: Enables instant revocation by bumping the nonce
+
+**Pragma USES these contracts** (doesn't deploy them) to enable session keys with strict safety rails. Learn more at [MetaMask Delegation Toolkit docs](https://docs.metamask.io/delegation-toolkit).
+
+---
+
 ## 🚀 What Ships in H1
 
 ### 🔐 HybridDelegator Onboarding (ERC-4337)
@@ -74,6 +89,24 @@ Choose your risk tolerance:
 | **Best for** | Testing, tight controls | Flexible trading, wraps/transfers |
 
 > **Note:** Both modes embed DTK `timestamp`, `limitedCalls`, and `nonce` caveats. Per-token and native caps are enforced off-chain by the swap engine.
+
+---
+
+## 💰 Who Pays Gas?
+
+Understanding gas payments is critical for using Pragma effectively:
+
+| Action | Who Pays | Cost | Notes |
+|--------|----------|------|-------|
+| **Create delegation** | Nobody | ✅ **FREE** | Off-chain EIP-712 signature, zero gas cost |
+| **Deploy HybridDelegator** | Pimlico (sponsored) | ✅ **FREE** | One-time CREATE2 deployment, sponsored by Pimlico |
+| **Swaps/Transfers/Wrap/Unwrap** | Session key | 💵 ~0.001-0.01 MON per tx | Session key must be funded with ~0.1-1 MON |
+| **Revoke delegations** | Main account | 💵 ~0.01 MON | Bumps nonce on-chain via UserOperation |
+
+**Key takeaways:**
+- ✅ **Setup is free**: Both delegation creation and HybridDelegator deployment cost zero gas
+- 💵 **Fund your session key**: Before executing swaps, ensure your session key has sufficient MON for gas
+- 🔄 **Revocation costs gas**: Main account pays a small fee to invalidate all active delegations
 
 ---
 

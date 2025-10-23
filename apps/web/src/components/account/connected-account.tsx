@@ -181,6 +181,14 @@ const stringifyError = (value: unknown) => {
   }
 };
 
+const chunkArray = <T,>(array: T[], size: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
+};
+
 const defaultStatus: QuickStatusSnapshot = {
   delegator: "Not connected",
   delegatorFull: undefined,
@@ -690,6 +698,7 @@ export const ConnectedAccount = () => {
 
     let cancelled = false;
 
+    // Build list of tokens to query (native MON + delegation-allowed tokens)
     const tokensMeta = (() => {
       const map = new Map<
         string,
@@ -738,46 +747,57 @@ export const ConnectedAccount = () => {
       owner: Address
     ): Promise<BalanceEntry[]> => {
       if (!owner || tokensMeta.length === 0) return [];
-      const results = await Promise.all(
-        tokensMeta.map(async (meta) => {
-          let raw = 0n;
-          try {
-            if (
-              meta.kind === "native" ||
-              meta.address.toLowerCase() ===
-                MONAD_NATIVE_TOKEN_ADDRESS.toLowerCase()
-            ) {
-              raw = await client.getBalance({ address: owner });
-            } else {
-              raw = (await client.readContract({
-                address: meta.address,
-                abi: ERC20_BALANCE_ABI,
-                functionName: "balanceOf",
-                args: [owner],
-              })) as bigint;
+
+      // Chunk tokens into batches of 25 to respect Ankr's batch size limit
+      const chunks = chunkArray(tokensMeta, 25);
+      const allResults: (BalanceEntry | null)[] = [];
+
+      // Process chunks sequentially to avoid batch size errors
+      for (const chunk of chunks) {
+        const chunkResults = await Promise.all(
+          chunk.map(async (meta) => {
+            let raw = 0n;
+            try {
+              if (
+                meta.kind === "native" ||
+                meta.address.toLowerCase() ===
+                  MONAD_NATIVE_TOKEN_ADDRESS.toLowerCase()
+              ) {
+                raw = await client.getBalance({ address: owner });
+              } else {
+                raw = (await client.readContract({
+                  address: meta.address,
+                  abi: ERC20_BALANCE_ABI,
+                  functionName: "balanceOf",
+                  args: [owner],
+                })) as bigint;
+              }
+            } catch (error) {
+              console.error(`Failed to fetch balance for ${meta.symbol ?? meta.address}:`, error);
+              raw = 0n;
             }
-          } catch {
-            raw = 0n;
-          }
 
-          if (raw <= 0n) {
-            return null;
-          }
+            if (raw <= 0n) {
+              return null;
+            }
 
-          const decimals = Number.isFinite(meta.decimals) ? meta.decimals : 18;
-          const amount = formatBalanceValue(raw, decimals);
+            const decimals = Number.isFinite(meta.decimals) ? meta.decimals : 18;
+            const amount = formatBalanceValue(raw, decimals);
 
-          return {
-            address: meta.address,
-            symbol: meta.symbol ?? shortHex(meta.address),
-            amount,
-            raw,
-            decimals,
-          } satisfies BalanceEntry;
-        })
-      );
+            return {
+              address: meta.address,
+              symbol: meta.symbol ?? shortHex(meta.address),
+              amount,
+              raw,
+              decimals,
+            } satisfies BalanceEntry;
+          })
+        );
 
-      return results
+        allResults.push(...chunkResults);
+      }
+
+      return allResults
         .filter((entry): entry is BalanceEntry => Boolean(entry))
         .sort((left, right) => {
           if (left.raw === right.raw) return 0;

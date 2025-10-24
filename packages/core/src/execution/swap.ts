@@ -13,6 +13,7 @@ import { ExecutionMode, type ExecutionStruct, contracts, createExecution, redeem
 import type { AllowedToken } from "../monorail/tokens.js";
 import type { SessionDelegationInfo, DeleGatorEnv } from "../delegations/types.js";
 import type { MonorailQuote, QuoteRequestParams } from "../monorail/pathfinder.js";
+import { patchMonorailMinOutput } from "../monorail/calldataPatcher.js";
 import { createErrorFromCode } from "../errors/index.js";
 import { callWithRpcFallback, callWithRetry } from "../utils/rpcFallback.js";
 
@@ -391,6 +392,15 @@ export const previewSwapWithSession = async (
     maxSlippageBps: slippageBps,
   });
 
+  // Patch Monorail's buggy calldata (API always uses 0.5% instead of user's slippage)
+  const patchResult = patchMonorailMinOutput(
+    initialQuote.transactionData,
+    initialQuote.rawOutput,
+    slippageBps
+  );
+  initialQuote.transactionData = patchResult.patchedCalldata;
+  initialQuote.rawMinOutput = patchResult.patchedMinOutput;
+
   const { quote, valueForSwap, execution: swapExecution } = applyQuote(initialQuote);
 
   const redeemCalldata = contracts.DelegationManager.encode.redeemDelegations({
@@ -567,6 +577,15 @@ export const executeSwapWithSession = async (
       maxSlippageBps: slippageBps,
     });
 
+    // Patch Monorail's buggy calldata (API always uses 0.5% instead of user's slippage)
+    const patchResult = patchMonorailMinOutput(
+      quote.transactionData,
+      quote.rawOutput,
+      slippageBps
+    );
+    quote.transactionData = patchResult.patchedCalldata;
+    quote.rawMinOutput = patchResult.patchedMinOutput;
+
     const isNativeInput = isNativeToken(intent.from, nativeTokenAddress);
     valueForSwap = quote.transactionValue;
     if (isNativeInput) {
@@ -613,10 +632,22 @@ export const executeSwapWithSession = async (
     );
   } catch (error) {
     const message = (error as Error)?.message ?? "";
+
+    // Handle Monorail aggregator slippage errors (now rare due to patching)
     if (/0x8199f5f3/i.test(message) || /SlippageExceeded/i.test(message)) {
       throw createErrorFromCode("EXEC_ROUTER_REVERT", {
         message:
           "Swap reverted with SlippageExceeded: the actual output dropped below the Monorail quote's minimum. Increase tolerance or refresh the quote.",
+        cause: error,
+      });
+    }
+
+    // Handle DEX router insufficient output errors (ZFRouter, StageSwap, etc.)
+    if (/INSUFFICIENT_OUTPUT_AMOUNT/i.test(message)) {
+      const routerMatch = message.match(/([\w]+Router|[\w]+Swap):/);
+      const routerName = routerMatch ? routerMatch[1] : "DEX router";
+      throw createErrorFromCode("EXEC_ROUTER_REVERT", {
+        message: `Swap failed due to high price impact on ${routerName}. The actual output would be less than your minimum (${slippageBps / 100}% slippage tolerance). Try: (1) Increase slippage to 5-10%, (2) Reduce swap amount, or (3) Wait and retry.`,
         cause: error,
       });
     }

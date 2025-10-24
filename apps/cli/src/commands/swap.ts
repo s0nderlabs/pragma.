@@ -7,7 +7,7 @@ import { executeSwapWithSession, SwapIntent, SwapToken, isNativeToken } from "..
 import { formatUnits } from "viem";
 import { loadSwapSession, resolveSwapToken } from "../services/swapArtifacts.js";
 
-const DEFAULT_SLIPPAGE_BPS = 50;
+const DEFAULT_SLIPPAGE_BPS = 500;
 
 const resolveToken = (input: string, tokens: AllowedToken[]): SwapToken => resolveSwapToken(input, tokens) as SwapToken;
 
@@ -22,7 +22,7 @@ export const registerSwap = (program: Command) => {
     .option("--delegator <address>", "HybridDelegator address when multiple artifacts exist")
     .option(
       "--slippage-bps <bps>",
-      `Slippage tolerance in basis points (default ${DEFAULT_SLIPPAGE_BPS} = 0.50%)`,
+      `Slippage tolerance in basis points (default ${DEFAULT_SLIPPAGE_BPS} = 5.00%)`,
     )
     .action(
       async ({

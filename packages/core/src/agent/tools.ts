@@ -58,7 +58,7 @@ const formatDelegationSummary = (delegation: DelegationContext): string[] => {
   const lines: string[] = [];
   lines.push(`Mode: ${delegation.mode}`);
   const limits: string[] = [];
-  const slippageBps = delegation.defaultSlippageBps ?? (delegation.mode === "safe" ? 50 : 100);
+  const slippageBps = delegation.defaultSlippageBps ?? (delegation.mode === "safe" ? 200 : 500);
   const deadlineMinutes =
     delegation.defaultDeadlineMinutes ?? (delegation.mode === "safe" ? 15 : 30);
   limits.push(`Default slippage ${slippageBps / 100}%`);

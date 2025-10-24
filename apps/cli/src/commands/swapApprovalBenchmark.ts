@@ -48,7 +48,7 @@ interface BenchmarkOptions {
 const DEFAULT_FROM = "WMON";
 const DEFAULT_TO = "USDC";
 const DEFAULT_AMOUNT = "0.05";
-const DEFAULT_SLIPPAGE_BPS = 100;
+const DEFAULT_SLIPPAGE_BPS = 500;
 
 const routerAddress = getAddress(MONORAIL_AGGREGATOR_ADDRESS);
 

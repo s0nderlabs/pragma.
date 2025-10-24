@@ -309,14 +309,14 @@ const previousMeaningfulToken = (tokens: string[], startIndex: number): string |
   return undefined;
 };
 
-const DEFAULT_SLIPPAGE_SAFE_BPS = 25;
-const DEFAULT_SLIPPAGE_NORMAL_BPS = 50;
+const DEFAULT_SLIPPAGE_SAFE_BPS = 200; // 2%
+const DEFAULT_SLIPPAGE_NORMAL_BPS = 500; // 5%
 const DEFAULT_DEADLINE_SAFE_MIN = 15;
 const DEFAULT_DEADLINE_NORMAL_MIN = 15;
 const MIN_DEADLINE_SAFE_MIN = 1;
 const MIN_DEADLINE_NORMAL_MIN = 1;
-const MAX_SLIPPAGE_SAFE_BPS = 25; // 0.25%
-const MAX_SLIPPAGE_NORMAL_BPS = 50; // 0.5%
+const MAX_SLIPPAGE_SAFE_BPS = 500; // 5%
+const MAX_SLIPPAGE_NORMAL_BPS = 1000; // 10%
 const MAX_DEADLINE_SAFE_MIN = 15;
 const MAX_DEADLINE_NORMAL_MIN = 30;
 

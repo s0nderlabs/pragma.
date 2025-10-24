@@ -334,13 +334,25 @@ export const loadLatestActiveDelegation = async (
     if (expiry && expiry <= now) continue;
     if (!artifact.sessionKeyPrivateKey) continue;
     const resolvedEntry = { ...entry, delegator: artifactDelegator };
-    if (normalizedFilter) {
-      return resolvedEntry;
-    }
     candidates.push(resolvedEntry);
   }
 
-  if (normalizedFilter) {
+  // Sort candidates by nonce (higher = newer after revocations), then by expiry time
+  candidates.sort((a, b) => {
+    // Primary sort: by nonce (higher nonce = more recent delegation after revocations)
+    const nonceA = BigInt(a.artifact.sessionNonce ?? "0x0");
+    const nonceB = BigInt(b.artifact.sessionNonce ?? "0x0");
+    if (nonceA !== nonceB) {
+      return nonceB > nonceA ? 1 : -1;
+    }
+
+    // Secondary sort: by expiry timestamp (later expiry = newer delegation)
+    const expiryA = a.artifact.expiresAt ?? 0;
+    const expiryB = b.artifact.expiresAt ?? 0;
+    return expiryB - expiryA;
+  });
+
+  if (normalizedFilter && candidates.length === 0) {
     const kindLabel = kindFilter ? `${kindFilter} ` : "";
     throw new Error(
       `No active ${kindLabel}delegation artifacts found for ${normalizedFilter}. Issue a new delegation before continuing.`,
@@ -352,7 +364,8 @@ export const loadLatestActiveDelegation = async (
     throw new Error(`No active ${kindLabel}delegation artifacts found. Issue a new delegation before continuing.`);
   }
 
-  if (candidates.length > 1) {
+  // Only check for multiple delegators when user didn't specify which one to use
+  if (!normalizedFilter && candidates.length > 1) {
     const addresses = candidates
       .map((entry) => entry.delegator ?? entry.artifact.delegation.delegator)
       .join(", ");
@@ -361,6 +374,7 @@ export const loadLatestActiveDelegation = async (
     );
   }
 
+  // Return the first candidate (sorted to be the latest by nonce, then expiry)
   return candidates[0];
 };
 

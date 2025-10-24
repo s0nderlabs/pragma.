@@ -54,7 +54,7 @@ export const resolveAmountInput = async (options: ResolveAmountOptions): Promise
 
   const balance = await callWithRetry(() => fetchBalance());
   if (balance <= 0n) {
-    throw new Error("Delegated account balance is zero; unable to compute relative amount.");
+    throw new Error("Cannot compute 'max' or 'all' amount: account has zero balance for this token. Please specify an exact amount or check your token balance.");
   }
 
   if (amount.kind === "max") {

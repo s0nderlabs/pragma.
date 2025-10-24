@@ -845,7 +845,7 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
         fetchBalance: () => fetchTokenBalance(fromToken, context.delegator),
       });
       const amountInput = amountResolution.amountInput;
-      const slippageBps = intent.slippageBps ?? 50;
+      const slippageBps = intent.slippageBps ?? 500;
 
       const config: SwapExecutionConfig = {
         session: context.session,

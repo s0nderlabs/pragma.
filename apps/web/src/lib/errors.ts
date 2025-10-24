@@ -56,6 +56,13 @@ export const parseUserFriendlyError = (error: unknown): string => {
     return "Transaction value exceeds the delegation limit. Please reduce the amount or reissue with higher limits.";
   }
 
+  // Handle DEX router insufficient output errors (after Monorail patch fixed the bug)
+  if (rawMessage.includes("INSUFFICIENT_OUTPUT_AMOUNT")) {
+    const routerMatch = rawMessage.match(/([\w]+Router|[\w]+Swap):/);
+    const routerName = routerMatch ? routerMatch[1] : "DEX router";
+    return `Swap failed due to high price impact on ${routerName}. The market moved against you or the route has high slippage. Try: (1) Increase slippage tolerance to 5-10%, (2) Reduce swap amount, or (3) Wait a moment and retry.`;
+  }
+
   // Handle generic revert with extracted reason
   const revertReasonMatch = rawMessage.match(/reverted with the following reason:\s*([^\n]+)/i);
   if (revertReasonMatch && revertReasonMatch[1]) {
@@ -77,9 +84,9 @@ export const parseUserFriendlyError = (error: unknown): string => {
     return "Network is syncing latest state. Please wait a moment and try again.";
   }
 
-  // Handle zero balance on fresh delegation (state not yet propagated)
-  if (rawMessage.includes("Delegated account balance is zero")) {
-    return "Account balance not yet available. This usually resolves in 5-10 seconds. Please try again.";
+  // Handle zero balance when computing max/all amounts
+  if (rawMessage.includes("zero balance for this token") || rawMessage.includes("Delegated account balance is zero")) {
+    return "It looks like you don't have any balance for this token. Please check your token balance. If you just received tokens, wait 5-10 seconds for the network to sync, then try again.";
   }
 
   // Handle RPC rate limiting (Alchemy, Infura, etc.)

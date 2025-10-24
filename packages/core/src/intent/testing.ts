@@ -24,7 +24,7 @@ export const createDelegationContext = (
   nativeTokenSymbol: "MON",
   nativeTokenAddress: ZERO_ADDRESS,
   wrappedNativeSymbol: "WMON",
-  defaultSlippageBps: mode === "safe" ? 50 : 100,
+  defaultSlippageBps: mode === "safe" ? 200 : 500,
   defaultDeadlineMinutes: mode === "safe" ? 15 : 30,
 });
 

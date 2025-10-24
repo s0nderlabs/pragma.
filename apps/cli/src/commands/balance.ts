@@ -5,15 +5,18 @@ import { getAddress } from "viem";
 import { loadLatestActiveDelegation } from "../services/delegationArtifacts.js";
 import {
   fetchWalletBalances,
+  fetchWalletBalancesRPC,
   fetchPortfolioValue,
   normalizeBalances,
   formatTokenDisplay,
 } from "../services/monorailBalances.js";
+import { loadAllowedTokens } from "../services/monorailTokens.js";
 
 interface BalanceOptions {
   delegator?: string;
   address?: string;
   json?: boolean;
+  indexer?: boolean; // Use Monorail indexer (fast but may be stale)
 }
 
 export const registerBalance = (program: Command) => {
@@ -23,7 +26,8 @@ export const registerBalance = (program: Command) => {
     .option("--delegator <address>", "HybridDelegator to inspect (default: latest active)")
     .option("--address <address>", "Specific address to query instead of a delegation")
     .option("--json", "Output raw JSON response")
-    .action(async ({ delegator, address, json }: BalanceOptions) => {
+    .option("--indexer", "Use Monorail indexer (fast but may be stale, default: RPC)")
+    .action(async ({ delegator, address, json, indexer }: BalanceOptions) => {
       let targetAddress: `0x${string}`;
       let source = "delegator";
 
@@ -36,8 +40,14 @@ export const registerBalance = (program: Command) => {
       }
 
       try {
+        // Use RPC by default for real-time accuracy, indexer only if explicitly requested
+        const fetchMethod = indexer ? fetchWalletBalances : fetchWalletBalancesRPC;
+
+        // Load token list for RPC queries (indexer doesn't need it)
+        const tokens = indexer ? undefined : await loadAllowedTokens();
+
         const [rawBalances, portfolio] = await Promise.all([
-          fetchWalletBalances(targetAddress),
+          indexer ? fetchMethod(targetAddress) : fetchMethod(targetAddress, tokens),
           fetchPortfolioValue(targetAddress),
         ]);
 

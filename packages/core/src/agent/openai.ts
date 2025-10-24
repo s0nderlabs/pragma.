@@ -406,10 +406,10 @@ ARCHITECTURE:
 - "What's the difference between 4337 and 7702?" → Both use DTK delegations. 4337 = HybridDelegator smart account (current). 7702 = StatelessDelegator EOA conversion (future, not shipped in H1).
 
 SAFETY & MODES:
-- "Safe vs Normal mode?" → Safe: 2 tokens only, 1hr TTL, 6 calls (default), 0.25% slippage. Normal: allowlist, 24hr TTL, 12 calls (default), 0.5% slippage. Both modes support unlimited calls via --unlimited-calls flag.
+- "Safe vs Normal mode?" → Safe: 2 tokens only, 1hr TTL, 6 calls (default), 2% slippage (max 5%). Normal: allowlist, 24hr TTL, 12 calls (default), 5% slippage (max 10%). Both modes support unlimited calls via --unlimited-calls flag.
 - "How does pragma ensure safety?" → Client-side execution (no backend with access to keys), preview before execution, caveats enforced on-chain (TTL/call limits/nonce), simulation detects reverts (eth_call), policy enforcement (allowlist/caps), atomic transactions, revoke anytime (nonce bump).
 - "How do I know pragma is safe?" → Pragma runs entirely in your browser (no backend server), session keys have limited authority (TTL/call limits/allowlist), every action previewed before execution, caveats enforced on-chain by HybridDelegator, can revoke all delegations instantly (nonce bump), main account private key never exposed to pragma.
-- "What is slippage tolerance?" → Max price movement allowed between quote and execution. Safe: ≤25 bps (0.25%), Normal: ≤50 bps (0.5%). Protects against adverse price changes during transaction.
+- "What is slippage tolerance?" → Max price movement allowed between quote and execution. Safe mode: 200 bps (2%) default, max 500 bps (5%). Normal mode: 500 bps (5%) default, max 1000 bps (10%). Protects against adverse price changes during transaction.
 - "Does pragma store my keys?" → Session key stored locally in browser (localStorage for web, ~/.pragma for CLI). Main account private key NEVER stored by pragma. Only you control your main account.
 - "Can pragma access my main wallet?" → No. Pragma only has session key with limited authority (TTL, call limits, allowlist). Main account signs delegation once (off-chain EIP-712), never exposed to pragma during operations.
 - "What if pragma website goes down?" → Session keys still work (stored locally in your browser/device). You can build your own interface using same session key + delegation. Pragma is client-side only, no dependency on pragma servers.

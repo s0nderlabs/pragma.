@@ -59,11 +59,14 @@ const createSessionWalletFactory = () => (session: SessionDelegationInfo) =>
     rpcUrl: MONAD_EXECUTION_RPC_URL,
   });
 
-const buildSwapDependencies = (logPrefix?: string): SwapEngineDependencies => ({
+const buildSwapDependencies = (
+  logPrefix?: string,
+  quoteFetcherOverride?: typeof fetchMonorailQuote
+): SwapEngineDependencies => ({
   publicClient: createMonadPublicClient(),
   fallbackPublicClient: createMonadExecutionClient(),
   sessionWalletFactory: createSessionWalletFactory(),
-  quoteFetcher: fetchMonorailQuote,
+  quoteFetcher: quoteFetcherOverride ?? fetchMonorailQuote,
   routerAddress: ROUTER_ADDRESS,
   nativeTokenAddress: NATIVE_TOKEN_ADDRESS,
   wrappedNativeAddress: WRAPPED_NATIVE_ADDRESS,
@@ -75,13 +78,14 @@ const buildSwapDependencies = (logPrefix?: string): SwapEngineDependencies => ({
 export const previewSwapWithSession = async (
   config: SwapExecutionConfig,
 ): Promise<SwapPreviewResult> => {
-  const dependencies = buildSwapDependencies(config.logPrefix);
+  const dependencies = buildSwapDependencies(config.logPrefix, config.quoteFetcherOverride);
   return previewSwapWithSessionCore(config, dependencies);
 };
 
 export interface SwapExecutionConfig extends CoreSwapExecutionConfig {
   logPrefix?: string;
   artifactPath?: string;
+  quoteFetcherOverride?: typeof fetchMonorailQuote;
 }
 
 const getTokenDecimals = (token: AllowedToken & { decimals?: number }): number =>
@@ -185,7 +189,10 @@ export const executeSwapWithSession = async (
     consumeTokenCaps(config, amountInWei);
     return result;
   }
-  const result = await executeSwapWithSessionCore(config, buildSwapDependencies(config.logPrefix));
+  const result = await executeSwapWithSessionCore(
+    config,
+    buildSwapDependencies(config.logPrefix, config.quoteFetcherOverride)
+  );
   consumeTokenCaps(config, result.amountIn);
 
   if (!isFixtureMode() && config.artifactPath) {

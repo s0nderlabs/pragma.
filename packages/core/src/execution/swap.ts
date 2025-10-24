@@ -399,7 +399,10 @@ export const previewSwapWithSession = async (
     slippageBps
   );
   initialQuote.transactionData = patchResult.patchedCalldata;
-  initialQuote.rawMinOutput = patchResult.patchedMinOutput;
+  // Only update rawMinOutput if patching actually succeeded (i.e., it was a valid Monorail call)
+  if (patchResult.tradesPatched > 0) {
+    initialQuote.rawMinOutput = patchResult.patchedMinOutput;
+  }
 
   const { quote, valueForSwap, execution: swapExecution } = applyQuote(initialQuote);
 
@@ -584,7 +587,10 @@ export const executeSwapWithSession = async (
       slippageBps
     );
     quote.transactionData = patchResult.patchedCalldata;
-    quote.rawMinOutput = patchResult.patchedMinOutput;
+    // Only update rawMinOutput if patching actually succeeded (i.e., it was a valid Monorail call)
+    if (patchResult.tradesPatched > 0) {
+      quote.rawMinOutput = patchResult.patchedMinOutput;
+    }
 
     const isNativeInput = isNativeToken(intent.from, nativeTokenAddress);
     valueForSwap = quote.transactionValue;

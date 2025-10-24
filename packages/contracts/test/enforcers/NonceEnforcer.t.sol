@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT AND Apache-2.0
 pragma solidity 0.8.23;
 
-import { Test } from "forge-std/Test.sol";
-import { ModeCode, ModeLib } from "@erc7579/lib/ModeLib.sol";
+import {Test} from "forge-std/Test.sol";
+import {ModeCode, ModeLib} from "@erc7579/lib/ModeLib.sol";
 
-import { NonceEnforcer } from "../../src/enforcers/NonceEnforcer.sol";
+import {NonceEnforcer} from "../../src/enforcers/NonceEnforcer.sol";
 
 contract NonceEnforcerTest is Test {
     NonceEnforcer internal enforcer;

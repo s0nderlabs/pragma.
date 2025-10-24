@@ -22,7 +22,7 @@ const delegationContext = {
   nativeTokenAddress: "0x0000000000000000000000000000000000000000",
   wrappedNativeSymbol: "WMON",
   wrappedNativeAddress: "0x0000000000000000000000000000000000000001",
-  defaultSlippageBps: 100,
+  defaultSlippageBps: 1500, // 15% - exceeds MAX_SLIPPAGE_NORMAL_BPS (1000) to trigger clamping
   defaultDeadlineMinutes: 30,
   nowSeconds: 1_700_000_000,
   chainId: 10_143,

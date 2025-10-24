@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT AND Apache-2.0
 pragma solidity 0.8.23;
 
-import { Test } from "forge-std/Test.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { DelegationManager } from "@delegation-framework/DelegationManager.sol";
-import { IDeleGatorCore } from "@delegation-framework/interfaces/IDeleGatorCore.sol";
-import { Delegation, Caveat } from "@delegation-framework/utils/Types.sol";
-import { ModeCode, ModeLib } from "@erc7579/lib/ModeLib.sol";
-import { ExecutionLib } from "@erc7579/lib/ExecutionLib.sol";
+import {Test} from "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {DelegationManager} from "@delegation-framework/DelegationManager.sol";
+import {IDeleGatorCore} from "@delegation-framework/interfaces/IDeleGatorCore.sol";
+import {Delegation, Caveat} from "@delegation-framework/utils/Types.sol";
+import {ModeCode, ModeLib} from "@erc7579/lib/ModeLib.sol";
+import {ExecutionLib} from "@erc7579/lib/ExecutionLib.sol";
 
-import { TimestampEnforcer } from "../../src/enforcers/TimestampEnforcer.sol";
-import { LimitedCallsEnforcer } from "../../src/enforcers/LimitedCallsEnforcer.sol";
-import { NonceEnforcer } from "../../src/enforcers/NonceEnforcer.sol";
-import { ERC20TransferAmountEnforcer } from "../../src/enforcers/ERC20TransferAmountEnforcer.sol";
-import { NativeTokenTransferAmountEnforcer } from "../../src/enforcers/NativeTokenTransferAmountEnforcer.sol";
+import {TimestampEnforcer} from "../../src/enforcers/TimestampEnforcer.sol";
+import {LimitedCallsEnforcer} from "../../src/enforcers/LimitedCallsEnforcer.sol";
+import {NonceEnforcer} from "../../src/enforcers/NonceEnforcer.sol";
+import {ERC20TransferAmountEnforcer} from "../../src/enforcers/ERC20TransferAmountEnforcer.sol";
+import {NativeTokenTransferAmountEnforcer} from "../../src/enforcers/NativeTokenTransferAmountEnforcer.sol";
 
 contract DelegationManagerIntegrationTest is Test {
     DelegationManager internal manager;
@@ -46,9 +46,7 @@ contract DelegationManagerIntegrationTest is Test {
         uint256 nativeSpend = 0.25 ether;
 
         bytes memory execution = ExecutionLib.encodeSingle(
-            TOKEN,
-            nativeSpend,
-            abi.encodeWithSelector(IERC20.transfer.selector, RECIPIENT, erc20Amount)
+            TOKEN, nativeSpend, abi.encodeWithSelector(IERC20.transfer.selector, RECIPIENT, erc20Amount)
         );
 
         (bytes[] memory contexts, ModeCode[] memory modes, bytes[] memory executions, bytes32 delegationHash) =
@@ -59,11 +57,7 @@ contract DelegationManagerIntegrationTest is Test {
         assertEq(delegator.lastCaller(), address(manager), "executor should be manager");
         assertEq(ModeCode.unwrap(delegator.lastMode()), ModeCode.unwrap(defaultMode), "mode should match");
         assertEq(delegator.lastCallData(), execution, "execution calldata should match");
-        assertEq(
-            limitedCallsEnforcer.callCounts(address(manager), delegationHash),
-            1,
-            "limited calls should increment"
-        );
+        assertEq(limitedCallsEnforcer.callCounts(address(manager), delegationHash), 1, "limited calls should increment");
         assertEq(
             erc20Enforcer.spentMap(address(manager), delegationHash),
             erc20Amount,
@@ -83,9 +77,7 @@ contract DelegationManagerIntegrationTest is Test {
         uint256 nativeSpend = 0.1 ether;
 
         bytes memory execution = ExecutionLib.encodeSingle(
-            TOKEN,
-            nativeSpend,
-            abi.encodeWithSelector(IERC20.transfer.selector, RECIPIENT, erc20Amount)
+            TOKEN, nativeSpend, abi.encodeWithSelector(IERC20.transfer.selector, RECIPIENT, erc20Amount)
         );
 
         (bytes[] memory contexts, ModeCode[] memory modes, bytes[] memory executions, bytes32 delegationHash) =
@@ -97,18 +89,11 @@ contract DelegationManagerIntegrationTest is Test {
         manager.redeemDelegations(contexts, modes, executions);
 
         assertEq(
-            limitedCallsEnforcer.callCounts(address(manager), delegationHash),
-            1,
-            "call count should remain capped"
+            limitedCallsEnforcer.callCounts(address(manager), delegationHash), 1, "call count should remain capped"
         );
     }
 
-    function _buildExecutionContext(
-        uint256 callLimit,
-        uint256 erc20Limit,
-        uint256 nativeLimit,
-        bytes memory execution
-    )
+    function _buildExecutionContext(uint256 callLimit, uint256 erc20Limit, uint256 nativeLimit, bytes memory execution)
         internal
         view
         returns (bytes[] memory contexts, ModeCode[] memory modes, bytes[] memory executions, bytes32 delegationHash)
@@ -119,22 +104,12 @@ contract DelegationManagerIntegrationTest is Test {
             terms: abi.encodePacked(uint128(0), uint128(block.timestamp + 1 hours)),
             args: bytes("")
         });
-        caveats[1] = Caveat({
-            enforcer: address(limitedCallsEnforcer),
-            terms: abi.encodePacked(callLimit),
-            args: bytes("")
-        });
-        caveats[2] = Caveat({
-            enforcer: address(nonceEnforcer),
-            terms: abi.encodePacked(uint256(0)),
-            args: bytes("")
-        });
-        caveats[3] = Caveat({
-            enforcer: address(erc20Enforcer),
-            terms: abi.encodePacked(TOKEN, erc20Limit),
-            args: bytes("")
-        });
-        caveats[4] = Caveat({ enforcer: address(nativeEnforcer), terms: abi.encode(nativeLimit), args: bytes("") });
+        caveats[1] =
+            Caveat({enforcer: address(limitedCallsEnforcer), terms: abi.encodePacked(callLimit), args: bytes("")});
+        caveats[2] = Caveat({enforcer: address(nonceEnforcer), terms: abi.encodePacked(uint256(0)), args: bytes("")});
+        caveats[3] =
+            Caveat({enforcer: address(erc20Enforcer), terms: abi.encodePacked(TOKEN, erc20Limit), args: bytes("")});
+        caveats[4] = Caveat({enforcer: address(nativeEnforcer), terms: abi.encode(nativeLimit), args: bytes("")});
 
         Delegation[] memory delegations = new Delegation[](1);
         delegations[0].delegate = address(this);

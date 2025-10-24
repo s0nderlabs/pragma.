@@ -37,6 +37,7 @@ pnpm --filter @pragma/cli dev
 ```
 
 **Try these commands:**
+
 ```bash
 pragma onboard:4337              # Deploy smart account + issue delegation
 pragma swap --amount 0.1 --from MON --to USDC
@@ -44,7 +45,6 @@ pragma receipts                  # View transaction history
 ```
 
 > 💡 **Tip:** The REPL understands natural language! Try "swap half my MON to USDC" or "what's in my delegation?"
-
 
 ### Web Chat (Browser)
 
@@ -63,24 +63,26 @@ pnpm --filter web dev
 
 ## 🏗️ What You Get
 
-| Feature | Description |
-|---------|-------------|
-| **🔐 Smart Accounts** | HybridDelegator (ERC-4337) with CREATE2 deployment |
-| **💬 Natural Language** | "swap 0.5 MON to USDC" → executed swap |
-| **🛡️ Safety Modes** | Safe (pair-locked, 1hr) or Normal (multi-token, 24hr) |
-| **🔄 Delegation Management** | Revoke all, rotate keys, granular token controls |
-| **📊 Full Preview** | See quote, slippage, gas before every swap |
-| **📝 Receipt Trail** | English summaries + JSON records keyed by `plan_hash` |
+| Feature                      | Description                                           |
+| ---------------------------- | ----------------------------------------------------- |
+| **🔐 Smart Accounts**        | HybridDelegator (ERC-4337) with CREATE2 deployment    |
+| **💬 Natural Language**      | "swap 0.5 MON to USDC" → executed swap                |
+| **🛡️ Safety Modes**          | Safe (pair-locked, 1hr) or Normal (multi-token, 24hr) |
+| **🔄 Delegation Management** | Revoke all, rotate keys, granular token controls      |
+| **📊 Full Preview**          | See quote, slippage, gas before every swap            |
+| **📝 Receipt Trail**         | English summaries + JSON records keyed by `plan_hash` |
 
 <details>
 <summary>🔍 Technical Details</summary>
 
 ### Architecture
+
 - **Chain:** Monad testnet (chain_id = 10143)
 - **Monorepo:** TypeScript workspace with CLI, Web, and Core packages
 - **Stateless:** No database—everything reconstructed from artifacts
 
 ### Key Components
+
 - **Intent Engine:** Parses natural language → canonical intents (with gpt-5-mini enhancement)
 - **Routing:** Monorail Pathfinder for optimal swap paths
 - **Execution:** MetaMask DTK + Pimlico bundler for gasless UserOperations
@@ -93,18 +95,21 @@ pnpm --filter web dev
 ## 📚 Documentation
 
 ### Getting Started
+
 - [🔧 Installation & Environment Setup](docs/getting-started/install.md)
 - [🎮 CLI Basics (REPL vs Commands)](docs/getting-started/cli.md)
 - [💻 Web Console Guide](docs/getting-started/web.md)
 - [🚪 Onboarding Flow](docs/getting-started/onboarding.md)
 
 ### Core Concepts
+
 - [📖 System Overview](docs/overview.md)
 - [🔄 Swap Flow Walkthrough](docs/flows/swap.md)
 - [🧠 Intent Engine Deep Dive](docs/system-layers/intent-engine.md)
 - [🛡️ Policy & Safety](docs/system-layers/policy-and-safety.md)
 
 ### Reference
+
 - [⚡ CLI Command Reference](docs/reference/cli-reference.md)
 - [🔌 API Reference](docs/reference/api-reference.md)
 - [⚙️ Provider Configuration](docs/appendix/providers.md)
@@ -114,13 +119,13 @@ pnpm --filter web dev
 
 ## 🛠️ Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| **Frontend** | Next.js 15, React 19, Tailwind CSS 4 |
-| **Backend** | Node.js, TypeScript, pnpm workspaces |
-| **Blockchain** | viem, wagmi, MetaMask DTK |
+| Layer              | Technology                                                                  |
+| ------------------ | --------------------------------------------------------------------------- |
+| **Frontend**       | Next.js 15, React 19, Tailwind CSS 4                                        |
+| **Backend**        | Node.js, TypeScript, pnpm workspaces                                        |
+| **Blockchain**     | viem, wagmi, MetaMask DTK                                                   |
 | **Infrastructure** | Pimlico (bundler/paymaster), Monorail (routing), Envio (HyperRPC/HyperSync) |
-| **AI** | OpenAI gpt-5-mini (agent insights) |
+| **AI**             | OpenAI gpt-5-mini (agent insights)                                          |
 
 > 📖 **Details:** See [Architecture Reference](docs/reference/architecture.md) for implementation specifics.
 

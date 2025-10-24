@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT AND Apache-2.0
 pragma solidity 0.8.23;
 
-import { Test } from "forge-std/Test.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ModeCode, ModeLib } from "@erc7579/lib/ModeLib.sol";
-import { ExecutionLib } from "@erc7579/lib/ExecutionLib.sol";
+import {Test} from "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ModeCode, ModeLib} from "@erc7579/lib/ModeLib.sol";
+import {ExecutionLib} from "@erc7579/lib/ExecutionLib.sol";
 
-import { ERC20TransferAmountEnforcer } from "../../src/enforcers/ERC20TransferAmountEnforcer.sol";
+import {ERC20TransferAmountEnforcer} from "../../src/enforcers/ERC20TransferAmountEnforcer.sol";
 
 contract ERC20TransferAmountEnforcerTest is Test {
     ERC20TransferAmountEnforcer internal enforcer;
@@ -27,17 +27,13 @@ contract ERC20TransferAmountEnforcerTest is Test {
     function testBeforeHookAllowsWithinAllowance() public {
         bytes memory terms = _encodeTerms(100 ether);
         bytes memory callData = ExecutionLib.encodeSingle(
-            TOKEN,
-            0,
-            abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(40 ether))
+            TOKEN, 0, abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(40 ether))
         );
 
         enforcer.beforeHook(terms, bytes(""), defaultMode, callData, DELEGATION_HASH, address(0), recipient);
 
         callData = ExecutionLib.encodeSingle(
-            TOKEN,
-            0,
-            abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(60 ether))
+            TOKEN, 0, abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(60 ether))
         );
 
         enforcer.beforeHook(terms, bytes(""), defaultMode, callData, DELEGATION_HASH, address(0), recipient);
@@ -46,17 +42,13 @@ contract ERC20TransferAmountEnforcerTest is Test {
     function testBeforeHookRevertsWhenAllowanceExceeded() public {
         bytes memory terms = _encodeTerms(50 ether);
         bytes memory callData = ExecutionLib.encodeSingle(
-            TOKEN,
-            0,
-            abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(30 ether))
+            TOKEN, 0, abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(30 ether))
         );
 
         enforcer.beforeHook(terms, bytes(""), defaultMode, callData, DELEGATION_HASH, address(0), recipient);
 
         callData = ExecutionLib.encodeSingle(
-            TOKEN,
-            0,
-            abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(25 ether))
+            TOKEN, 0, abi.encodeWithSelector(IERC20.transfer.selector, recipient, uint256(25 ether))
         );
 
         vm.expectRevert("ERC20TransferAmountEnforcer:allowance-exceeded");

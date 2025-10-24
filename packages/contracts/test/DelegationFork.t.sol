@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT AND Apache-2.0
 pragma solidity 0.8.23;
 
-import { Test } from "forge-std/Test.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Test} from "forge-std/Test.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import { DelegationManager } from "@delegation-framework/DelegationManager.sol";
-import { Delegation, Caveat } from "@delegation-framework/utils/Types.sol";
-import { ModeCode, ModeLib } from "@erc7579/lib/ModeLib.sol";
-import { ExecutionLib } from "@erc7579/lib/ExecutionLib.sol";
+import {DelegationManager} from "@delegation-framework/DelegationManager.sol";
+import {Delegation, Caveat} from "@delegation-framework/utils/Types.sol";
+import {ModeCode, ModeLib} from "@erc7579/lib/ModeLib.sol";
+import {ExecutionLib} from "@erc7579/lib/ExecutionLib.sol";
 
 interface INonceEnforcer {
     function incrementNonce(address delegationManager) external;
@@ -99,15 +99,11 @@ contract DelegationForkTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function testSafeMode_SwapExactInputSingle_PairPinned() public {
-        bytes memory swapCalldata = _prepareSwap(
-            address(safeTokenIn),
-            address(safeTokenOut),
-            10 ether,
-            9 ether,
-            block.timestamp + 15 minutes
-        );
+        bytes memory swapCalldata =
+            _prepareSwap(address(safeTokenIn), address(safeTokenOut), 10 ether, 9 ether, block.timestamp + 15 minutes);
 
-        uint256 quoted = quoter.quoteExactInputSingle(address(safeTokenIn), address(safeTokenOut), POOL_FEE, 10 ether, 0);
+        uint256 quoted =
+            quoter.quoteExactInputSingle(address(safeTokenIn), address(safeTokenOut), POOL_FEE, 10 ether, 0);
         assertEq(quoted, 9 ether, "quote mismatch");
 
         Caveat[] memory caveats = _safeModeCaveats(address(safeTokenIn), address(safeTokenOut));
@@ -119,13 +115,8 @@ contract DelegationForkTest is Test {
     }
 
     function testSafeMode_SwapExactInputSingle_WethOut() public {
-        bytes memory swapCalldata = _prepareSwap(
-            address(safeTokenIn),
-            WETH_SEPOLIA,
-            5 ether,
-            4 ether,
-            block.timestamp + 10 minutes
-        );
+        bytes memory swapCalldata =
+            _prepareSwap(address(safeTokenIn), WETH_SEPOLIA, 5 ether, 4 ether, block.timestamp + 10 minutes);
 
         Caveat[] memory caveats = _safeModeCaveats(address(safeTokenIn), WETH_SEPOLIA);
 
@@ -136,9 +127,7 @@ contract DelegationForkTest is Test {
     function testSafeMode_Erc20TransferWithinCap() public {
         Caveat[] memory caveats = _erc20TransferCaveats(address(safeTokenIn), 20 ether);
         bytes memory execution = ExecutionLib.encodeSingle(
-            address(safeTokenIn),
-            0,
-            abi.encodeWithSelector(IERC20.transfer.selector, address(0xBEEF), 10 ether)
+            address(safeTokenIn), 0, abi.encodeWithSelector(IERC20.transfer.selector, address(0xBEEF), 10 ether)
         );
 
         vm.expectCall(address(safeTokenIn), abi.encodeWithSelector(IERC20.transfer.selector, address(0xBEEF), 10 ether));
@@ -150,9 +139,7 @@ contract DelegationForkTest is Test {
     function testSafeMode_Erc20TransferAboveCapReverts() public {
         Caveat[] memory caveats = _erc20TransferCaveats(address(safeTokenIn), 5 ether);
         bytes memory execution = ExecutionLib.encodeSingle(
-            address(safeTokenIn),
-            0,
-            abi.encodeWithSelector(IERC20.transfer.selector, address(0xBEEF), 6 ether)
+            address(safeTokenIn), 0, abi.encodeWithSelector(IERC20.transfer.selector, address(0xBEEF), 6 ether)
         );
 
         _expectDelegationRevert(caveats, execution);
@@ -160,7 +147,9 @@ contract DelegationForkTest is Test {
 
     function testSafeMode_RevertTTLExpired() public {
         Caveat[] memory caveats = _safeModeCaveats(address(safeTokenIn), address(safeTokenOut));
-        bytes memory swapCalldata = _routerCalldata(address(safeTokenIn), address(safeTokenOut), 1 ether, 0.9 ether, block.timestamp + 5 minutes);
+        bytes memory swapCalldata = _routerCalldata(
+            address(safeTokenIn), address(safeTokenOut), 1 ether, 0.9 ether, block.timestamp + 5 minutes
+        );
 
         vm.warp(block.timestamp + SAFE_TTL + 1);
         _expectDelegationRevert(caveats, _routerExecution(swapCalldata));
@@ -168,13 +157,8 @@ contract DelegationForkTest is Test {
 
     function testSafeMode_RevertLimitedCallsExceeded() public {
         Caveat[] memory caveats = _safeModeCaveats(address(safeTokenIn), address(safeTokenOut));
-        bytes memory swapCalldata = _prepareSwap(
-            address(safeTokenIn),
-            address(safeTokenOut),
-            1 ether,
-            0.9 ether,
-            block.timestamp + 30 minutes
-        );
+        bytes memory swapCalldata =
+            _prepareSwap(address(safeTokenIn), address(safeTokenOut), 1 ether, 0.9 ether, block.timestamp + 30 minutes);
         bytes32 hash = _executeDelegation(caveats, _routerExecution(swapCalldata));
         assertEq(limitedCalls.callCounts(DELEGATION_MANAGER, hash), 1, "safe limit count");
 
@@ -183,13 +167,8 @@ contract DelegationForkTest is Test {
 
     function testSafeMode_RevertNonceMismatch() public {
         Caveat[] memory caveats = _safeModeCaveats(address(safeTokenIn), address(safeTokenOut));
-        bytes memory swapCalldata = _prepareSwap(
-            address(safeTokenIn),
-            address(safeTokenOut),
-            1 ether,
-            0.9 ether,
-            block.timestamp + 30 minutes
-        );
+        bytes memory swapCalldata =
+            _prepareSwap(address(safeTokenIn), address(safeTokenOut), 1 ether, 0.9 ether, block.timestamp + 30 minutes);
         vm.prank(address(delegator));
         nonceEnforcer.incrementNonce(DELEGATION_MANAGER);
         _expectDelegationRevert(caveats, _routerExecution(swapCalldata));
@@ -205,13 +184,8 @@ contract DelegationForkTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function testNormalMode_SwapExactInputSingle_PinsTokenOut() public {
-        bytes memory swapCalldata = _prepareSwap(
-            address(normalTokenIn),
-            address(normalTokenOut),
-            8 ether,
-            7 ether,
-            block.timestamp + 1 days
-        );
+        bytes memory swapCalldata =
+            _prepareSwap(address(normalTokenIn), address(normalTokenOut), 8 ether, 7 ether, block.timestamp + 1 days);
 
         Caveat[] memory caveats = _normalModeCaveats(address(normalTokenOut));
 
@@ -222,13 +196,8 @@ contract DelegationForkTest is Test {
     }
 
     function testNormalMode_SwapExactInputSingle_WethOut() public {
-        bytes memory swapCalldata = _prepareSwap(
-            address(normalTokenIn),
-            WETH_SEPOLIA,
-            4 ether,
-            3 ether,
-            block.timestamp + 12 hours
-        );
+        bytes memory swapCalldata =
+            _prepareSwap(address(normalTokenIn), WETH_SEPOLIA, 4 ether, 3 ether, block.timestamp + 12 hours);
 
         Caveat[] memory caveats = _normalModeCaveats(WETH_SEPOLIA);
 
@@ -239,19 +208,21 @@ contract DelegationForkTest is Test {
     function testNormalMode_Erc20TransferWithinCap() public {
         Caveat[] memory caveats = _erc20TransferCaveats(address(normalTokenIn), 40 ether);
         bytes memory execution = ExecutionLib.encodeSingle(
-            address(normalTokenIn),
-            0,
-            abi.encodeWithSelector(IERC20.transfer.selector, address(0xCAFE), 30 ether)
+            address(normalTokenIn), 0, abi.encodeWithSelector(IERC20.transfer.selector, address(0xCAFE), 30 ether)
         );
 
-        vm.expectCall(address(normalTokenIn), abi.encodeWithSelector(IERC20.transfer.selector, address(0xCAFE), 30 ether));
+        vm.expectCall(
+            address(normalTokenIn), abi.encodeWithSelector(IERC20.transfer.selector, address(0xCAFE), 30 ether)
+        );
         _executeDelegation(caveats, execution);
         assertEq(normalTokenIn.balanceOf(address(0xCAFE)), 30 ether, "normal transfer");
     }
 
     function testNormalMode_RevertTTLExpired() public {
         Caveat[] memory caveats = _normalModeCaveats(address(normalTokenOut));
-        bytes memory swapCalldata = _routerCalldata(address(normalTokenIn), address(normalTokenOut), 1 ether, 0.8 ether, block.timestamp + 1 hours);
+        bytes memory swapCalldata = _routerCalldata(
+            address(normalTokenIn), address(normalTokenOut), 1 ether, 0.8 ether, block.timestamp + 1 hours
+        );
 
         vm.warp(block.timestamp + NORMAL_TTL + 1);
         _expectDelegationRevert(caveats, _routerExecution(swapCalldata));
@@ -259,13 +230,8 @@ contract DelegationForkTest is Test {
 
     function testNormalMode_RevertLimitedCallsExceeded() public {
         Caveat[] memory caveats = _normalModeCaveats(address(normalTokenOut));
-        bytes memory swapCalldata = _prepareSwap(
-            address(normalTokenIn),
-            address(normalTokenOut),
-            1 ether,
-            0.8 ether,
-            block.timestamp + 1 days
-        );
+        bytes memory swapCalldata =
+            _prepareSwap(address(normalTokenIn), address(normalTokenOut), 1 ether, 0.8 ether, block.timestamp + 1 days);
         bytes32 hash = _executeDelegation(caveats, _routerExecution(swapCalldata));
         _executeDelegation(caveats, _routerExecution(swapCalldata));
         _executeDelegation(caveats, _routerExecution(swapCalldata));
@@ -276,13 +242,8 @@ contract DelegationForkTest is Test {
 
     function testNormalMode_RevertNonceMismatch() public {
         Caveat[] memory caveats = _normalModeCaveats(address(normalTokenOut));
-        bytes memory swapCalldata = _prepareSwap(
-            address(normalTokenIn),
-            address(normalTokenOut),
-            1 ether,
-            0.8 ether,
-            block.timestamp + 1 days
-        );
+        bytes memory swapCalldata =
+            _prepareSwap(address(normalTokenIn), address(normalTokenOut), 1 ether, 0.8 ether, block.timestamp + 1 days);
         vm.prank(address(delegator));
         nonceEnforcer.incrementNonce(DELEGATION_MANAGER);
         _expectDelegationRevert(caveats, _routerExecution(swapCalldata));
@@ -314,13 +275,11 @@ contract DelegationForkTest is Test {
                              HELPERS
     //////////////////////////////////////////////////////////////*/
 
-    function _buildParams(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn,
-        uint256 minOut,
-        uint256 deadline
-    ) internal view returns (ISwapRouter.ExactInputSingleParams memory params) {
+    function _buildParams(address tokenIn, address tokenOut, uint256 amountIn, uint256 minOut, uint256 deadline)
+        internal
+        view
+        returns (ISwapRouter.ExactInputSingleParams memory params)
+    {
         params = ISwapRouter.ExactInputSingleParams({
             tokenIn: tokenIn,
             tokenOut: tokenOut,
@@ -348,14 +307,12 @@ contract DelegationForkTest is Test {
         vm.mockCall(SWAP_ROUTER, swapCalldata, abi.encode(amountOut));
     }
 
-    function _prepareSwap(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn,
-        uint256 amountOut,
-        uint256 deadline
-    ) internal returns (bytes memory swapCalldata) {
-        ISwapRouter.ExactInputSingleParams memory params = _buildParams(tokenIn, tokenOut, amountIn, amountOut, deadline);
+    function _prepareSwap(address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut, uint256 deadline)
+        internal
+        returns (bytes memory swapCalldata)
+    {
+        ISwapRouter.ExactInputSingleParams memory params =
+            _buildParams(tokenIn, tokenOut, amountIn, amountOut, deadline);
         _mockQuoteAndSwap(params, amountOut);
         swapCalldata = abi.encodeWithSelector(EXACT_INPUT_SINGLE_SELECTOR, params);
     }
@@ -363,30 +320,38 @@ contract DelegationForkTest is Test {
     function _timestampCaveat(uint256 ttl) internal view returns (Caveat memory) {
         uint128 afterThreshold = 0;
         uint128 beforeThreshold = uint128(block.timestamp + ttl);
-        return Caveat({ enforcer: TIMESTAMP_ENFORCER, terms: abi.encodePacked(afterThreshold, beforeThreshold), args: bytes("") });
+        return Caveat({
+            enforcer: TIMESTAMP_ENFORCER,
+            terms: abi.encodePacked(afterThreshold, beforeThreshold),
+            args: bytes("")
+        });
     }
 
     function _limitedCallsCaveat(uint256 limit) internal pure returns (Caveat memory) {
-        return Caveat({ enforcer: LIMITED_CALLS_ENFORCER, terms: abi.encodePacked(limit), args: bytes("") });
+        return Caveat({enforcer: LIMITED_CALLS_ENFORCER, terms: abi.encodePacked(limit), args: bytes("")});
     }
 
     function _nonceCaveat(uint256 nonceValue) internal pure returns (Caveat memory) {
-        return Caveat({ enforcer: NONCE_ENFORCER, terms: abi.encodePacked(nonceValue), args: bytes("") });
+        return Caveat({enforcer: NONCE_ENFORCER, terms: abi.encodePacked(nonceValue), args: bytes("")});
     }
 
     function _allowedTargetCaveat() internal pure returns (Caveat memory) {
-        return Caveat({ enforcer: ALLOWED_TARGETS_ENFORCER, terms: abi.encodePacked(SWAP_ROUTER), args: bytes("") });
+        return Caveat({enforcer: ALLOWED_TARGETS_ENFORCER, terms: abi.encodePacked(SWAP_ROUTER), args: bytes("")});
     }
 
     function _allowedMethodCaveat() internal pure returns (Caveat memory) {
-        return Caveat({ enforcer: ALLOWED_METHODS_ENFORCER, terms: abi.encodePacked(EXACT_INPUT_SINGLE_SELECTOR), args: bytes("") });
+        return Caveat({
+            enforcer: ALLOWED_METHODS_ENFORCER,
+            terms: abi.encodePacked(EXACT_INPUT_SINGLE_SELECTOR),
+            args: bytes("")
+        });
     }
 
     function _calldataPin(address value, uint256 wordIndex) internal pure returns (Caveat memory) {
         uint256 offset = 4 + wordIndex * 32;
         bytes memory expected = abi.encodePacked(bytes32(uint256(uint160(value))));
         bytes memory terms = abi.encodePacked(bytes32(offset), expected);
-        return Caveat({ enforcer: ALLOWED_CALLDATA_ENFORCER, terms: terms, args: bytes("") });
+        return Caveat({enforcer: ALLOWED_CALLDATA_ENFORCER, terms: terms, args: bytes("")});
     }
 
     function _safeModeCaveats(address tokenIn, address tokenOut) internal view returns (Caveat[] memory caveats) {
@@ -414,23 +379,22 @@ contract DelegationForkTest is Test {
         caveats = new Caveat[](3);
         caveats[0] = _timestampCaveat(SAFE_TTL);
         caveats[1] = _limitedCallsCaveat(2);
-        caveats[2] = Caveat({ enforcer: ERC20_TRANSFER_AMOUNT_ENFORCER, terms: abi.encodePacked(token, cap), args: bytes("") });
+        caveats[2] =
+            Caveat({enforcer: ERC20_TRANSFER_AMOUNT_ENFORCER, terms: abi.encodePacked(token, cap), args: bytes("")});
     }
 
     function _nativeTransferCaveats(uint256 cap, uint256 callLimit) internal view returns (Caveat[] memory caveats) {
         caveats = new Caveat[](3);
         caveats[0] = _timestampCaveat(SAFE_TTL);
         caveats[1] = _limitedCallsCaveat(callLimit);
-        caveats[2] = Caveat({ enforcer: NATIVE_TRANSFER_AMOUNT_ENFORCER, terms: abi.encode(cap), args: bytes("") });
+        caveats[2] = Caveat({enforcer: NATIVE_TRANSFER_AMOUNT_ENFORCER, terms: abi.encode(cap), args: bytes("")});
     }
 
-    function _routerCalldata(
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn,
-        uint256 minOut,
-        uint256 deadline
-    ) internal view returns (bytes memory) {
+    function _routerCalldata(address tokenIn, address tokenOut, uint256 amountIn, uint256 minOut, uint256 deadline)
+        internal
+        view
+        returns (bytes memory)
+    {
         ISwapRouter.ExactInputSingleParams memory params = _buildParams(tokenIn, tokenOut, amountIn, minOut, deadline);
         return abi.encodeWithSelector(EXACT_INPUT_SINGLE_SELECTOR, params);
     }
@@ -466,7 +430,10 @@ contract DelegationForkTest is Test {
         executions[0] = execution;
     }
 
-    function _executeDelegation(Caveat[] memory caveats, bytes memory execution) internal returns (bytes32 delegationHash) {
+    function _executeDelegation(Caveat[] memory caveats, bytes memory execution)
+        internal
+        returns (bytes32 delegationHash)
+    {
         bytes[] memory contexts;
         ModeCode[] memory modes;
         bytes[] memory executions;
@@ -476,10 +443,11 @@ contract DelegationForkTest is Test {
     }
 
     function _expectDelegationRevert(Caveat[] memory caveats, bytes memory execution) internal {
-        (bytes[] memory contexts, ModeCode[] memory modes, bytes[] memory executions,) = _buildDelegationPayload(caveats, execution);
+        (bytes[] memory contexts, ModeCode[] memory modes, bytes[] memory executions,) =
+            _buildDelegationPayload(caveats, execution);
         try manager.redeemDelegations(contexts, modes, executions) {
             fail("expected delegation to revert");
-        } catch { }
+        } catch {}
     }
 }
 
@@ -497,7 +465,9 @@ contract MockERC20 is IERC20 {
         decimals = _decimals;
     }
 
-    function totalSupply() external pure override returns (uint256) { return 0; }
+    function totalSupply() external pure override returns (uint256) {
+        return 0;
+    }
 
     function transfer(address to, uint256 amount) external override returns (bool) {
         balanceOf[msg.sender] -= amount;
@@ -519,15 +489,21 @@ contract MockERC20 is IERC20 {
         return true;
     }
 
-    function mint(address to, uint256 amount) external { balanceOf[to] += amount; }
+    function mint(address to, uint256 amount) external {
+        balanceOf[to] += amount;
+    }
 }
 
 contract MockDelegator {
     using ExecutionLib for bytes;
 
-    function executeFromExecutor(ModeCode, bytes calldata executionCalldata) external payable returns (bytes[] memory returnData) {
+    function executeFromExecutor(ModeCode, bytes calldata executionCalldata)
+        external
+        payable
+        returns (bytes[] memory returnData)
+    {
         (address target, uint256 value, bytes memory data) = executionCalldata.decodeSingle();
-        (bool success, bytes memory result) = target.call{ value: value }(data);
+        (bool success, bytes memory result) = target.call{value: value}(data);
         require(success, "MockDelegator:execution-failed");
         returnData = new bytes[](1);
         returnData[0] = result;

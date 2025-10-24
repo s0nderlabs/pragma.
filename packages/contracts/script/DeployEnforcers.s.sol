@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT AND Apache-2.0
 pragma solidity 0.8.23;
 
-import { Script } from "forge-std/Script.sol";
-import { console2 } from "forge-std/console2.sol";
+import {Script} from "forge-std/Script.sol";
+import {console2} from "forge-std/console2.sol";
 
 import {TimestampEnforcer} from "../src/enforcers/TimestampEnforcer.sol";
 import {LimitedCallsEnforcer} from "../src/enforcers/LimitedCallsEnforcer.sol";
@@ -43,7 +43,7 @@ contract DeployEnforcers is Script {
         address predicted = vm.computeCreate2Address(salt, keccak256(creationCode), deployer);
 
         if (predicted.code.length == 0) {
-            TimestampEnforcer instance = new TimestampEnforcer{ salt: salt }();
+            TimestampEnforcer instance = new TimestampEnforcer{salt: salt}();
             require(address(instance) == predicted, "TimestampEnforcer: address mismatch");
             return address(instance);
         }
@@ -57,7 +57,7 @@ contract DeployEnforcers is Script {
         address predicted = vm.computeCreate2Address(salt, keccak256(creationCode), deployer);
 
         if (predicted.code.length == 0) {
-            LimitedCallsEnforcer instance = new LimitedCallsEnforcer{ salt: salt }();
+            LimitedCallsEnforcer instance = new LimitedCallsEnforcer{salt: salt}();
             require(address(instance) == predicted, "LimitedCallsEnforcer: address mismatch");
             return address(instance);
         }
@@ -71,7 +71,7 @@ contract DeployEnforcers is Script {
         address predicted = vm.computeCreate2Address(salt, keccak256(creationCode), deployer);
 
         if (predicted.code.length == 0) {
-            NonceEnforcer instance = new NonceEnforcer{ salt: salt }();
+            NonceEnforcer instance = new NonceEnforcer{salt: salt}();
             require(address(instance) == predicted, "NonceEnforcer: address mismatch");
             return address(instance);
         }
@@ -85,7 +85,7 @@ contract DeployEnforcers is Script {
         address predicted = vm.computeCreate2Address(salt, keccak256(creationCode), deployer);
 
         if (predicted.code.length == 0) {
-            ERC20TransferAmountEnforcer instance = new ERC20TransferAmountEnforcer{ salt: salt }();
+            ERC20TransferAmountEnforcer instance = new ERC20TransferAmountEnforcer{salt: salt}();
             require(address(instance) == predicted, "ERC20TransferAmountEnforcer: address mismatch");
             return address(instance);
         }
@@ -99,7 +99,7 @@ contract DeployEnforcers is Script {
         address predicted = vm.computeCreate2Address(salt, keccak256(creationCode), deployer);
 
         if (predicted.code.length == 0) {
-            NativeTokenTransferAmountEnforcer instance = new NativeTokenTransferAmountEnforcer{ salt: salt }();
+            NativeTokenTransferAmountEnforcer instance = new NativeTokenTransferAmountEnforcer{salt: salt}();
             require(address(instance) == predicted, "NativeTokenTransferAmountEnforcer: address mismatch");
             return address(instance);
         }

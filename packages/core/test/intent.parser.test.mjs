@@ -168,3 +168,51 @@ test("raises deadlines below the minimum to the policy floor", () => {
   assert.ok(outcome.meta?.policyEnforcements?.some((item) => item.key === "deadlineSeconds" && item.reason === "clamped_min"));
   assert.ok(outcome.warnings.some((warning) => warning.includes("below the minimum")));
 });
+
+test("accepts 'max slippage' keyword in normal mode", () => {
+  const outcome = parseIntent("swap 0.1 mon to usdc with max slippage", delegationContext);
+  assert.equal(outcome.type, "success");
+  assert.equal(outcome.intent.slippageBps, 1000); // 10% in normal mode
+  assert.ok(outcome.meta?.policyEnforcements?.some((item) => item.key === "slippageBps" && item.reason === "user_requested_max"));
+});
+
+test("accepts 'maximum slippage' keyword in normal mode", () => {
+  const outcome = parseIntent("swap 0.1 mon to usdc with maximum slippage", delegationContext);
+  assert.equal(outcome.type, "success");
+  assert.equal(outcome.intent.slippageBps, 1000); // 10% in normal mode
+  assert.ok(outcome.meta?.policyEnforcements?.some((item) => item.key === "slippageBps" && item.reason === "user_requested_max"));
+});
+
+test("accepts 'highest slippage' keyword in normal mode", () => {
+  const outcome = parseIntent("swap 0.1 mon to usdc with highest slippage", delegationContext);
+  assert.equal(outcome.type, "success");
+  assert.equal(outcome.intent.slippageBps, 1000); // 10% in normal mode
+  assert.ok(outcome.meta?.policyEnforcements?.some((item) => item.key === "slippageBps" && item.reason === "user_requested_max"));
+});
+
+test("accepts 'max tolerance' keyword in normal mode", () => {
+  const outcome = parseIntent("swap 0.1 mon to usdc with max tolerance", delegationContext);
+  assert.equal(outcome.type, "success");
+  assert.equal(outcome.intent.slippageBps, 1000); // 10% in normal mode
+  assert.ok(outcome.meta?.policyEnforcements?.some((item) => item.key === "slippageBps" && item.reason === "user_requested_max"));
+});
+
+test("accepts 'maximum tolerance' keyword in normal mode", () => {
+  const outcome = parseIntent("swap 0.1 mon to usdc with maximum tolerance", delegationContext);
+  assert.equal(outcome.type, "success");
+  assert.equal(outcome.intent.slippageBps, 1000); // 10% in normal mode
+  assert.ok(outcome.meta?.policyEnforcements?.some((item) => item.key === "slippageBps" && item.reason === "user_requested_max"));
+});
+
+test("respects safe mode max slippage limit when using 'max slippage' keyword", () => {
+  const safeContext = {
+    ...delegationContext,
+    mode: "safe",
+    allowedTokens: [nativeToken, usdcToken],
+    pairAddresses: [nativeToken.address, usdcToken.address],
+  };
+  const outcome = parseIntent("swap 0.1 mon to usdc with max slippage", safeContext);
+  assert.equal(outcome.type, "success");
+  assert.equal(outcome.intent.slippageBps, 500); // 5% in safe mode
+  assert.ok(outcome.meta?.policyEnforcements?.some((item) => item.key === "slippageBps" && item.reason === "user_requested_max"));
+});

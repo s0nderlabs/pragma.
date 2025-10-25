@@ -352,8 +352,22 @@ const gatherNumericMatches = (utterance: NormalizedUtterance): NumberWithIndex[]
   return matches;
 };
 
+const extractMaxSlippageKeyword = (utterance: NormalizedUtterance): boolean => {
+  const patterns = [
+    /\b(max|maximum|highest)\s+(slippage|tolerance)\b/i,
+  ];
+  return patterns.some((p) => p.test(utterance.normalized));
+};
+
 const extractSlippageBps = (utterance: NormalizedUtterance): { value?: number; usedIndices: Set<number> } => {
   const used = new Set<number>();
+
+  // Check for "max slippage" / "maximum slippage" / "highest slippage" / "max tolerance" / "maximum tolerance"
+  if (extractMaxSlippageKeyword(utterance)) {
+    // Return -1 as a special marker to indicate "use maximum allowed slippage"
+    return { value: -1, usedIndices: used };
+  }
+
   const patterns = [
     /(?:slippage|tolerance)\s*(\d+(?:\.\d+)?)\s*%/,
     /(\d+(?:\.\d+)?)\s*%\s*(?:slippage|tolerance)/,
@@ -486,6 +500,42 @@ const parseSlots = (utterance: NormalizedUtterance): ParsedSlots => {
     if (MAX_KEYWORDS.has(token)) {
       adoptAmount({ kind: "max" }, AMOUNT_PRIORITY.max, "max amount");
       continue;
+    }
+
+    // Check for multi-word fraction keywords (e.g., "three quarters", "two thirds")
+    if (nextRaw) {
+      const twoWordPhrase = `${token} ${nextRaw}`;
+      if (FRACTION_KEYWORDS.has(twoWordPhrase)) {
+        const fraction = FRACTION_KEYWORDS.get(twoWordPhrase)!;
+        const amountToken = nextMeaningfulToken(tokens, i + 2) ?? candidateToken ?? candidateTokenIn;
+        if (!amountToken) {
+          adoptAmount(
+            {
+              kind: "fraction",
+              numerator: Math.round(fraction * 1000),
+              denominator: 1000,
+            },
+            AMOUNT_PRIORITY.fraction,
+            "fraction amount",
+          );
+          i += 1; // Skip the next token since we consumed it
+          continue;
+        }
+        const denominator = 1_000_000;
+        const numerator = Math.round(fraction * denominator);
+        adoptAmount(
+          {
+            kind: "fraction",
+            numerator,
+            denominator,
+          },
+          AMOUNT_PRIORITY.fraction,
+          "fraction amount",
+        );
+        candidateToken ??= amountToken;
+        i += 1; // Skip the next token since we consumed it
+        continue;
+      }
     }
 
     if (FRACTION_KEYWORDS.has(token)) {
@@ -630,10 +680,15 @@ const clampPolicyValues = (
   const slippageRequested = slots.slippageBps;
   let slippage = slippageRequested ?? defaultSlippage;
   let slippageReason: PolicyEnforcement["reason"] | undefined = slippageRequested === undefined ? "default" : undefined;
-  if (slippageRequested === undefined) {
+
+  // Check if user requested max slippage (marker value -1)
+  if (slippageRequested === -1) {
+    slippage = maxSlippage;
+    slippageReason = "user_requested_max";
+    defaultsApplied.push("slippage_user_requested_max");
+  } else if (slippageRequested === undefined) {
     defaultsApplied.push("slippage_default");
-  }
-  if (slippage > maxSlippage) {
+  } else if (slippage > maxSlippage) {
     const requestedPct = slippage / 100;
     const maxPct = maxSlippage / 100;
     warnings.push(`Slippage ${requestedPct}% exceeds policy limit (${maxPct}%). Clamped to ${maxPct}%.`);
@@ -642,8 +697,7 @@ const clampPolicyValues = (
     if (!defaultsApplied.includes("slippage_clamped_max")) {
       defaultsApplied.push("slippage_clamped_max");
     }
-  }
-  if (slippage < 0) {
+  } else if (slippage < 0) {
     warnings.push("Slippage cannot be negative. Using 0 bps.");
     slippage = 0;
     slippageReason = "normalized_negative";

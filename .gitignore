@@ -32,6 +32,7 @@ UI-Template/
 RUN_*_TESTS.sh
 TEST_*.md
 .claude/
+validate_monorail_slippage_bug.sh
 
 # Test artifacts
 test-results/

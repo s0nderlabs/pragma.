@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev:cli": "pnpm --filter @pragma/cli dev",
+    "dev:web": "pnpm --filter web dev",
     "build:cli": "pnpm --filter @pragma/cli build",
     "pragma": "node ./apps/cli/dist/index.js",
     "dev": "pnpm -r dev",

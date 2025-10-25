@@ -87,7 +87,7 @@ export interface PolicyEnforcement {
   requested?: number;
   applied: number;
   limit?: number;
-  reason: "default" | "clamped_max" | "clamped_min" | "normalized_negative";
+  reason: "default" | "clamped_max" | "clamped_min" | "normalized_negative" | "user_requested_max";
   unit: "bps" | "seconds";
 }
 

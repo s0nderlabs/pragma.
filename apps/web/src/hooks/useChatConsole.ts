@@ -178,23 +178,92 @@ type PendingAction =
       resolvedDisplay: string;
     };
 
-const describeIntent = (intent: CanonicalIntent): string => {
+const describeIntent = async (
+  intent: CanonicalIntent,
+  context: ChatSessionContext,
+  fetchTokenBalance: (token: AllowedToken, owner: Address) => Promise<bigint>,
+  fetchNativeBalance: (owner: Address) => Promise<bigint>,
+): Promise<string> => {
+  const resolveAndFormatAmount = async (
+    amount: AmountSpecification,
+    token: AllowedToken & { decimals: number },
+  ): Promise<string> => {
+    if (amount.kind === "fraction") {
+      try {
+        const amountResolution = await resolveAmountInput({
+          amount,
+          tokenDecimals: token.decimals,
+          fetchBalance: () => fetchTokenBalance(token, context.delegator),
+        });
+        return formatUnits(BigInt(amountResolution.amountInput), token.decimals);
+      } catch {
+        // Fallback to friendly fraction description if balance fetch fails
+        const ratio = amount.numerator / amount.denominator;
+        if (Math.abs(ratio - 0.5) < 0.001) return "half";
+        if (Math.abs(ratio - 0.25) < 0.001) return "quarter";
+        if (Math.abs(ratio - 0.75) < 0.001) return "three-quarters";
+        if (Math.abs(ratio - 1 / 3) < 0.001) return "third";
+        if (Math.abs(ratio - 2 / 3) < 0.001) return "two-thirds";
+        return `${amount.numerator}/${amount.denominator}`;
+      }
+    }
+    return summarizeAmount(amount);
+  };
+
+  const resolveAndFormatNativeAmount = async (amount: AmountSpecification, decimals: number): Promise<string> => {
+    if (amount.kind === "fraction") {
+      try {
+        const amountResolution = await resolveAmountInput({
+          amount,
+          tokenDecimals: decimals,
+          fetchBalance: () => fetchNativeBalance(context.delegator),
+        });
+        return formatUnits(BigInt(amountResolution.amountInput), decimals);
+      } catch {
+        // Fallback to friendly fraction description if balance fetch fails
+        const ratio = amount.numerator / amount.denominator;
+        if (Math.abs(ratio - 0.5) < 0.001) return "half";
+        if (Math.abs(ratio - 0.25) < 0.001) return "quarter";
+        if (Math.abs(ratio - 0.75) < 0.001) return "three-quarters";
+        if (Math.abs(ratio - 1 / 3) < 0.001) return "third";
+        if (Math.abs(ratio - 2 / 3) < 0.001) return "two-thirds";
+        return `${amount.numerator}/${amount.denominator}`;
+      }
+    }
+    return summarizeAmount(amount);
+  };
+
   switch (intent.action) {
     case "swap": {
       const typed = intent as SwapIntentFields;
-      const amount = summarizeAmount(typed.amount);
+      const amount = await resolveAndFormatAmount(typed.amount, typed.tokenIn);
       return `swap ${amount} ${typed.tokenIn.symbol ?? shortHex(typed.tokenIn.address)} to ${typed.tokenOut.symbol ?? shortHex(typed.tokenOut.address)}`;
     }
     case "transfer": {
       const typed = intent as TransferIntentFields;
-      const amount = summarizeAmount(typed.amount);
-      const symbol = typed.token ? typed.token.symbol ?? shortHex(typed.token.address) : MONAD_NATIVE_TOKEN_SYMBOL;
-      return `transfer ${amount} ${symbol} to ${typed.recipient ?? "?"}`;
+      if (typed.token) {
+        const amount = await resolveAndFormatAmount(typed.amount, typed.token);
+        return `transfer ${amount} ${typed.token.symbol ?? shortHex(typed.token.address)} to ${typed.recipient ?? "?"}`;
+      } else {
+        // Native token transfer
+        const amount = await resolveAndFormatNativeAmount(typed.amount, 18); // MON has 18 decimals
+        return `transfer ${amount} ${MONAD_NATIVE_TOKEN_SYMBOL} to ${typed.recipient ?? "?"}`;
+      }
     }
-    case "wrap":
-      return `wrap ${summarizeAmount((intent as WrapIntentFields).amount)} ${MONAD_NATIVE_TOKEN_SYMBOL}`;
-    case "unwrap":
-      return `unwrap ${summarizeAmount((intent as WrapIntentFields).amount)} ${MONAD_WRAPPED_TOKEN_SYMBOL}`;
+    case "wrap": {
+      const amount = await resolveAndFormatNativeAmount((intent as WrapIntentFields).amount, 18);
+      return `wrap ${amount} ${MONAD_NATIVE_TOKEN_SYMBOL}`;
+    }
+    case "unwrap": {
+      const wrappedToken: AllowedToken & { decimals: number } = {
+        kind: "erc20",
+        address: getAddress(MONAD_WMON_ADDRESS),
+        symbol: MONAD_WRAPPED_TOKEN_SYMBOL,
+        decimals: 18,
+      };
+      const amount = await resolveAndFormatAmount((intent as WrapIntentFields).amount, wrappedToken);
+      return `unwrap ${amount} ${MONAD_WRAPPED_TOKEN_SYMBOL}`;
+    }
     case "delegation_issue":
       return "delegation issuance";
     default:
@@ -1323,7 +1392,7 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
 
       if (response.type === "intent") {
         const intent = response.intent as CanonicalIntent;
-        const summary = describeIntent(intent);
+        const summary = await describeIntent(intent, swapContext, fetchTokenBalance, fetchNativeBalance);
         updateMessage(statusId, (current) => ({
           ...current,
           content: `Recognized intent: ${summary}${formatWarnings(response.warnings)}`,
@@ -1397,6 +1466,8 @@ const selectStoredDelegator = React.useCallback((): Address | undefined => {
     appendMessage,
     draft,
     effectiveTokens,
+    fetchNativeBalance,
+    fetchTokenBalance,
     handleIntent,
     isSubmitting,
     quickMode,

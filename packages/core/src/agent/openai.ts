@@ -90,8 +90,9 @@ PRAGMA SYSTEM KNOWLEDGE:
 - Delegations: MetaMask Delegation Toolkit (DTK) grants session keys time-limited authority with caveats (timestamp, call limits, nonce).
 - HybridDelegator: ERC-4337 smart account controlled by session keys—no repeated signatures needed.
 - Two safety modes:
-  • Safe: Pair-locked (2 tokens only), 1hr TTL, 6 calls max, ≤0.25% slippage
-  • Normal: Multi-token allowlist, 24hr TTL, 12 calls max, ≤0.5% slippage
+  • Safe: Pair-locked (2 tokens only), 1hr TTL, 6 calls max, default 2% slippage (max 5%)
+  • Normal: Multi-token allowlist, 24hr TTL, 12 calls max, default 5% slippage (max 10%)
+  • Users can say "with max slippage" to automatically use mode-specific maximum
 - Monorail: DEX aggregator providing optimal swap routing, price quotes, and token data on Monad.
 - Every action previews first: balance check + simulation + validation before execution.
 - Users can revoke delegations anytime via the Connected account modal or CLI.

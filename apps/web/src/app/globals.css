@@ -33,32 +33,31 @@
 
 .dark {
   color-scheme: dark;
-  --background: 225 17% 8%;
-  --foreground: 240 100% 98%;
-  --card: 235 15% 14%;
-  --card-foreground: 240 100% 98%;
-  --popover: 235 15% 14%;
-  --popover-foreground: 240 100% 98%;
-  --primary: var(--accent);
-  --primary-foreground: 240 100% 98%;
-  --secondary: 235 15% 18%;
-  --secondary-foreground: 240 100% 98%;
-  --muted: 235 12% 22%;
-  --muted-foreground: 240 20% 78%;
+  --background: 240 10% 4%;
+  --foreground: 210 40% 98%;
+  --card: 240 10% 4%;
+  --card-foreground: 210 40% 98%;
+  --popover: 240 10% 4%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 222 81% 56%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 240 6% 15%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 240 4% 14%;
+  --muted-foreground: 0 0% 65%;
   --accent-h: 249;
   --accent-s: 93%;
   --accent-l: 60%;
   --accent: var(--accent-h) var(--accent-s) var(--accent-l);
   --accent-strong: 249 95% 54%;
-  --accent-soft: 249 100% 70%;
+  --accent-soft: var(--accent-h) calc(var(--accent-s) * 0.9) 70%;
   --accent-rgb: 132, 111, 250;
-  --accent-ambient: 132 111 250 / 0.2;
-  --accent-foreground: 240 100% 98%;
+  --accent-foreground: 210 40% 98%;
   --destructive: 0 63% 45%;
   --destructive-foreground: 0 0% 100%;
-  --border: 229 14% 24%;
-  --input: 229 14% 24%;
-  --ring: var(--accent);
+  --border: 240 4% 18%;
+  --input: 240 4% 18%;
+  --ring: 222 81% 56%;
 }
 
 @theme inline {
@@ -100,27 +99,6 @@
     font-weight: 300;
     letter-spacing: -0.01em;
   }
-
-  /* Mobile safe area insets for devices with notches */
-  @supports (padding: env(safe-area-inset-top)) {
-    body {
-      padding-top: max(0px, env(safe-area-inset-top));
-      padding-bottom: max(0px, env(safe-area-inset-bottom));
-    }
-  }
-
-  /* Mobile touch targets - desktop unaffected */
-  @media (max-width: 767px) {
-    button:not(.no-touch-target),
-    [role="button"]:not(.no-touch-target) {
-      min-height: 44px;
-    }
-
-    /* Disable tap highlight on mobile only */
-    button, [role="button"], a {
-      -webkit-tap-highlight-color: transparent;
-    }
-  }
 }
 
 .scrollbar-hide {
@@ -130,26 +108,4 @@
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
-}
-
-/* Ensure Web3Auth modal renders above all other UI elements */
-#w3a-modal,
-[id^="w3a-"],
-[class*="web3auth"],
-[class*="openlogin"] {
-  z-index: 99999 !important;
-}
-
-/* Ensure Web3Auth container and iframe are above dialogs */
-#w3a-container,
-#w3a-iframe-container,
-iframe[id^="w3a-"] {
-  z-index: 99999 !important;
-}
-
-/* Ensure Web3Auth backdrop/overlay is also on top */
-[class*="w3a"][class*="overlay"],
-[class*="web3auth"][class*="overlay"],
-[class*="w3a"][class*="backdrop"] {
-  z-index: 99998 !important;
 }

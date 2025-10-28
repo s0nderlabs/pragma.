@@ -104,8 +104,74 @@ export default function H2Test2Page() {
           className="switcher"
           aria-label="Theme switcher"
           {...{ 'c-previous': previousOption }}
+          style={{
+            backdropFilter: `blur(8px) url(#${switcherFilterId}) saturate(var(--saturation))`,
+            WebkitBackdropFilter: `blur(8px) url(#${switcherFilterId}) saturate(var(--saturation))`,
+          }}
         >
           <legend className="switcher__legend">Choose theme</legend>
+
+          {/* SVG Filter - MUST render BEFORE options for CSS to work */}
+          <div className="switcher__filter" aria-hidden="true">
+            <svg>
+              <filter
+                id={switcherFilterId}
+                primitiveUnits="objectBoundingBox"
+                colorInterpolationFilters="sRGB"
+                x="0%"
+                y="0%"
+                width="100%"
+                height="100%"
+              >
+                <feImage
+                  result="map"
+                  width="100%"
+                  height="100%"
+                  x="0"
+                  y="0"
+                  preserveAspectRatio="none"
+                  href={FILTER_MAP_DATA_URI}
+                />
+                <feGaussianBlur in="SourceGraphic" stdDeviation="0.04" result="blur" />
+                <feDisplacementMap
+                  in="blur"
+                  in2="map"
+                  scale="0.5"
+                  xChannelSelector="R"
+                  yChannelSelector="G"
+                />
+              </filter>
+              <filter
+                id={togglerFilterId}
+                primitiveUnits="objectBoundingBox"
+                colorInterpolationFilters="sRGB"
+                x="0%"
+                y="0%"
+                width="100%"
+                height="100%"
+              >
+                <feImage
+                  result="map"
+                  width="100%"
+                  height="100%"
+                  x="0"
+                  y="0"
+                  preserveAspectRatio="none"
+                  href={FILTER_MAP_DATA_URI}
+                />
+                <feGaussianBlur in="SourceGraphic" stdDeviation="0.01" result="blur" />
+                <feDisplacementMap
+                  in="blur"
+                  in2="map"
+                  scale="0.5"
+                  xChannelSelector="R"
+                  yChannelSelector="G"
+                />
+              </filter>
+            </svg>
+          </div>
+
+          {/* Theme Options - Render AFTER SVG filter */}
           {THEME_OPTIONS.map(({ value, option, label, Icon }) => (
             <label
               key={value}
@@ -124,46 +190,6 @@ export default function H2Test2Page() {
               <Icon />
             </label>
           ))}
-          <div className="switcher__filter" aria-hidden="true">
-            <svg>
-              <filter id={switcherFilterId} primitiveUnits="objectBoundingBox">
-                <feImage
-                  result="map"
-                  width="100%"
-                  height="100%"
-                  x="0"
-                  y="0"
-                  href={FILTER_MAP_DATA_URI}
-                />
-                <feGaussianBlur in="SourceGraphic" stdDeviation="0.04" result="blur" />
-                <feDisplacementMap
-                  in="blur"
-                  in2="map"
-                  scale="0.5"
-                  xChannelSelector="R"
-                  yChannelSelector="G"
-                />
-              </filter>
-              <filter id={togglerFilterId} primitiveUnits="objectBoundingBox">
-                <feImage
-                  result="map"
-                  width="100%"
-                  height="100%"
-                  x="0"
-                  y="0"
-                  href={FILTER_MAP_DATA_URI}
-                />
-                <feGaussianBlur in="SourceGraphic" stdDeviation="0.01" result="blur" />
-                <feDisplacementMap
-                  in="blur"
-                  in2="map"
-                  scale="0.5"
-                  xChannelSelector="R"
-                  yChannelSelector="G"
-                />
-              </filter>
-            </svg>
-          </div>
         </fieldset>
 
         <article className="article">
@@ -377,8 +403,7 @@ export default function H2Test2Page() {
           border: none;
           border-radius: 99em;
           background-color: color-mix(in srgb, var(--c-glass) 12%, transparent);
-          backdrop-filter: blur(8px) url(#${switcherFilterId}) saturate(var(--saturation));
-          -webkit-backdrop-filter: blur(8px) saturate(var(--saturation));
+          /* backdrop-filter moved to inline styles for proper dynamic ID handling */
           box-shadow:
             inset 0 0 0 1px color-mix(in srgb, var(--c-light) calc(var(--glass-reflex-light) * 10%), transparent),
             inset 1.8px 3px 0px -2px color-mix(in srgb, var(--c-light) calc(var(--glass-reflex-light) * 90%), transparent),
@@ -424,8 +449,11 @@ export default function H2Test2Page() {
 
         .switcher__filter {
           position: absolute;
-          width: 0;
-          height: 0;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          opacity: 0;
+          pointer-events: none;
           z-index: -1;
         }
 

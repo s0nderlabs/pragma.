@@ -17,7 +17,7 @@ type ThemeOption = {
   value: Theme
   option: '1' | '2' | '3'
   label: string
-  Icon: () => JSX.Element
+  Icon: () => React.JSX.Element
 }
 
 const LightIcon = () => (

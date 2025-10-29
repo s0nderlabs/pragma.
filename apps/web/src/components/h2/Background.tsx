@@ -1,17 +1,13 @@
-import Image from 'next/image'
+import Iridescence from '@/components/Iridescence'
 
 export default function Background() {
   return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute inset-0"
-    >
-      <Image
-        src="/4k-scenery.jpg"
-        alt="4K Scenery Background"
-        fill
-        priority
-        className="object-cover"
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-0 w-full h-full">
+      <Iridescence
+        color={[0.5, 0.6, 0.8]}
+        speed={1.0}
+        amplitude={0.1}
+        mouseReact={true}
       />
     </div>
   )

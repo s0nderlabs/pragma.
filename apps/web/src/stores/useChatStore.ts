@@ -24,6 +24,8 @@ interface ChatState {
   conversations: Conversation[]
   activeConversationId: string | null
   isThinking: boolean
+  yoloMode: boolean
+  quickMode: boolean
 
   // Actions
   createConversation: () => string
@@ -32,6 +34,8 @@ interface ChatState {
   deleteConversation: (id: string) => void
   setThinking: (thinking: boolean) => void
   clearActiveConversation: () => void
+  toggleYoloMode: () => void
+  toggleQuickMode: () => void
 }
 
 export const useChatStore = create<ChatState>()(
@@ -40,6 +44,8 @@ export const useChatStore = create<ChatState>()(
       conversations: [],
       activeConversationId: null,
       isThinking: false,
+      yoloMode: false,
+      quickMode: false,
 
       createConversation: () => {
         const id = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
@@ -69,7 +75,7 @@ export const useChatStore = create<ChatState>()(
       },
 
       addMessage: (message) => {
-        const { activeConversationId, conversations } = get()
+        const { activeConversationId } = get()
 
         if (!activeConversationId) {
           // Create new conversation if none exists
@@ -119,13 +125,23 @@ export const useChatStore = create<ChatState>()(
       clearActiveConversation: () => {
         set({ activeConversationId: null })
       },
+
+      toggleYoloMode: () => {
+        set((state) => ({ yoloMode: !state.yoloMode }))
+      },
+
+      toggleQuickMode: () => {
+        set((state) => ({ quickMode: !state.quickMode }))
+      },
     }),
     {
       name: 'pragma:chat',
-      // Only persist conversations, not UI state
+      // Persist conversations and mode settings
       partialize: (state) => ({
         conversations: state.conversations,
         activeConversationId: state.activeConversationId,
+        yoloMode: state.yoloMode,
+        quickMode: state.quickMode,
       }),
     }
   )

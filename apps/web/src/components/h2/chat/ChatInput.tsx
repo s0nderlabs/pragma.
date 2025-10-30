@@ -5,10 +5,7 @@ import { useThemeStore } from '@/stores/useThemeStore'
 import { useChatStore } from '@/stores/useChatStore'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import { Send, Settings } from 'lucide-react'
-
-interface ChatInputProps {
-  onSettingsClick?: () => void
-}
+import { ModePopover } from './ModePopover'
 
 /**
  * ChatInput Component
@@ -16,11 +13,13 @@ interface ChatInputProps {
  * Auto-resize textarea with send button and settings gear.
  * Design: Glass morphism input bar at bottom of chat.
  */
-export function ChatInput({ onSettingsClick }: ChatInputProps) {
+export function ChatInput() {
   const { theme } = useThemeStore()
   const { addMessage, isThinking, activeConversationId, createConversation } = useChatStore()
   const [input, setInput] = useState('')
+  const [modePopoverOpen, setModePopoverOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const gearButtonRef = useRef<HTMLButtonElement>(null)
 
   // Auto-resize textarea
   useEffect(() => {
@@ -101,7 +100,14 @@ Would you like to know more about any specific feature?`,
 
   return (
     <div className="px-4 pt-4 pb-8 flex justify-center">
-      <div className="w-full max-w-4xl">
+      <div className="w-full max-w-4xl relative">
+        {/* Mode Popover */}
+        <ModePopover
+          isOpen={modePopoverOpen}
+          onClose={() => setModePopoverOpen(false)}
+          anchorRef={gearButtonRef}
+        />
+
         <LiquidGlassPanel
           theme={theme}
           className="rounded-[24px] p-3 flex items-center gap-2"
@@ -111,9 +117,10 @@ Would you like to know more about any specific feature?`,
         >
         {/* Settings Gear */}
         <button
-          onClick={onSettingsClick}
+          ref={gearButtonRef}
+          onClick={() => setModePopoverOpen(!modePopoverOpen)}
           className="flex-shrink-0 p-2 rounded-lg hover:bg-white/10 transition-colors"
-          aria-label="Settings"
+          aria-label="Mode settings"
         >
           <Settings className="w-5 h-5 opacity-60" />
         </button>

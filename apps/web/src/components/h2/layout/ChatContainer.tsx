@@ -97,13 +97,13 @@ export function ChatContainer() {
         </LiquidGlassPanel>
       </button>
 
-      <LiquidGlassPanel
+      {/* <LiquidGlassPanel
         theme={theme}
         className="h-full rounded-none"
         blurAmount={8}
         displacementScale={0.5}
         stdDeviation={0.04}
-      >
+      > */}
         <div className="flex h-full relative overflow-hidden">
           {/* Sidebar Section (always rendered, width animated) */}
           <div
@@ -129,7 +129,7 @@ export function ChatContainer() {
             />
 
             {/* Chat Input */}
-            <ChatInput onSettingsClick={() => setSettingsMenuOpen(!settingsMenuOpen)} />
+            <ChatInput />
           </div>
 
           {/* Mobile Backdrop (when sidebar open) */}
@@ -140,7 +140,7 @@ export function ChatContainer() {
             />
           )}
         </div>
-      </LiquidGlassPanel>
+      {/* </LiquidGlassPanel> */}
     </div>
   )
 }

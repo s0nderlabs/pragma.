@@ -5,14 +5,14 @@ import { useThemeStore } from '@/stores/useThemeStore'
 export default function Background() {
   const { theme } = useThemeStore()
 
-  // Static gradient using Monad brand colors - no animation
+  // Static gradient using soft lavender tones - no animation
   const gradientStyle = theme === 'pragma-light'
     ? {
-        background: 'radial-gradient(ellipse at 50% 40%, #F5F3FF 0%, #FBFAF9 100%)',
+        background: 'radial-gradient(ellipse at 50% 40%, #E8E5F5 0%, #F2F0F9 100%)',
       }
     : {
-        // Much more subtle dark mode - almost black with gentle purple hint
-        background: 'radial-gradient(ellipse at 50% 40%, #1a1028 0%, #0E100F 100%)',
+        // Deep lavender dark mode with purple undertones
+        background: 'radial-gradient(ellipse at 50% 40%, #2B243D 0%, #1C1628 100%)',
       }
 
   return (

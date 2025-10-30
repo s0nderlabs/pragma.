@@ -12,7 +12,7 @@ interface ThemeState {
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
-      theme: 'pragma-light',
+      theme: 'pragma-dark',
       toggleTheme: () =>
         set((state) => ({
           theme: state.theme === 'pragma-light' ? 'pragma-dark' : 'pragma-light',

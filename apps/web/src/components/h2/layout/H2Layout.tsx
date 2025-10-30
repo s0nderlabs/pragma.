@@ -27,6 +27,9 @@ export function H2Layout() {
     <div
       className="relative min-h-screen overflow-hidden"
       data-theme={theme}
+      style={{
+        color: theme === 'pragma-light' ? '#224' : '#e1e1e1',
+      }}
     >
       {/* Background - Iridescence shader (z-0) */}
       <Background />

@@ -60,7 +60,33 @@ export function ChatInput({ onSettingsClick }: ChatInputProps) {
         useChatStore.getState().setThinking(false)
         addMessage({
           role: 'ai',
-          content: 'This is a mock AI response. The LangChain agent integration will be added in the next phase.',
+          content: `I can help you with that! Here's what I found:
+
+## Key Features
+
+1. **Swap tokens** - Best prices across Monad DEXs
+2. **Stake MON** - Earn rewards with aPriori liquid staking
+3. **NFT trading** - Buy and sell on Poply marketplace
+
+### Example Commands
+
+You can try commands like:
+- \`swap 10 USDC to MON\`
+- \`stake 100 MON\`
+- \`buy cheapest NFT from collection ABC\`
+
+> **Note:** The LangChain agent integration will be added in the next phase.
+
+\`\`\`typescript
+// Example code block
+const swap = await monorail.getBestQuote({
+  tokenIn: 'USDC',
+  tokenOut: 'MON',
+  amount: parseUnits('10', 6)
+})
+\`\`\`
+
+Would you like to know more about any specific feature?`,
         })
       }, 2000)
     }, 500)

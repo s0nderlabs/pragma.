@@ -24,7 +24,6 @@ export function LiquidGlassFilter({
         <filter
           id={filterId}
           primitiveUnits="objectBoundingBox"
-          colorInterpolationFilters="sRGB"
           x="-200%"
           y="-200%"
           width="500%"

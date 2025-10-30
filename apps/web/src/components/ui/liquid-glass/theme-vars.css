@@ -20,8 +20,8 @@
   --liquid-glass-content: #e1e1e1;
   --liquid-glass-action: #03d5ff;
   --liquid-glass-bg: #111118;
-  --liquid-glass-reflex-dark: 2;
-  --liquid-glass-reflex-light: 0.3;
+  --liquid-glass-reflex-dark: 1;
+  --liquid-glass-reflex-light: 1;
   --liquid-glass-saturation: 150%;
 }
 
@@ -38,23 +38,23 @@
 
 /* Pragma H2-specific themes (purple/blue palette) */
 [data-theme='pragma-dark'] {
-  --liquid-glass-color: #a78bfa;
-  --liquid-glass-light: #c4b5fd;
-  --liquid-glass-dark: #1e1b4b;
-  --liquid-glass-content: #e0e7ff;
+  --liquid-glass-color: #bbbbbc;
+  --liquid-glass-light: #fff;
+  --liquid-glass-dark: #000;
+  --liquid-glass-content: #e1e1e1;
   --liquid-glass-bg: #0f172a;
-  --liquid-glass-reflex-dark: 2.5;
-  --liquid-glass-reflex-light: 0.4;
-  --liquid-glass-saturation: 160%;
+  --liquid-glass-reflex-dark: 1;
+  --liquid-glass-reflex-light: 1;
+  --liquid-glass-saturation: 150%;
 }
 
 [data-theme='pragma-light'] {
-  --liquid-glass-color: #818cf8;
-  --liquid-glass-light: #eef2ff;
-  --liquid-glass-dark: #312e81;
-  --liquid-glass-content: #1e1b4b;
+  --liquid-glass-color: #bbbbbc;
+  --liquid-glass-light: #fff;
+  --liquid-glass-dark: #000;
+  --liquid-glass-content: #224;
   --liquid-glass-bg: #f8fafc;
-  --liquid-glass-reflex-dark: 0.8;
-  --liquid-glass-reflex-light: 1.2;
-  --liquid-glass-saturation: 140%;
+  --liquid-glass-reflex-dark: 1;
+  --liquid-glass-reflex-light: 1;
+  --liquid-glass-saturation: 150%;
 }

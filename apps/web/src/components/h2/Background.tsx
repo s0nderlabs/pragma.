@@ -1,32 +1,25 @@
 'use client'
 
-import Iridescence from '@/components/Iridescence'
 import { useThemeStore } from '@/stores/useThemeStore'
 
 export default function Background() {
   const { theme } = useThemeStore()
 
-  // Theme-specific color configurations
-  const config = theme === 'pragma-light'
+  // Static gradient using Monad brand colors - no animation
+  const gradientStyle = theme === 'pragma-light'
     ? {
-        color: [0.75, 0.82, 0.92] as [number, number, number], // Bright soft purple-blue
-        speed: 0.8,
-        amplitude: 0.12,
+        background: 'radial-gradient(ellipse at 50% 40%, #F5F3FF 0%, #FBFAF9 100%)',
       }
     : {
-        color: [0.35, 0.45, 0.75] as [number, number, number], // Deep purple-blue
-        speed: 1.0,
-        amplitude: 0.1,
+        // Much more subtle dark mode - almost black with gentle purple hint
+        background: 'radial-gradient(ellipse at 50% 40%, #1a1028 0%, #0E100F 100%)',
       }
 
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 z-0 w-full h-full">
-      <Iridescence
-        color={config.color}
-        speed={config.speed}
-        amplitude={config.amplitude}
-        mouseReact={true}
-      />
-    </div>
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 z-0 w-full h-full"
+      style={gradientStyle}
+    />
   )
 }

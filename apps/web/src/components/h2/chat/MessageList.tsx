@@ -5,7 +5,7 @@ import { useChatStore } from '@/stores/useChatStore'
 import { UserMessage } from './UserMessage'
 import { AIMessage } from './AIMessage'
 import { SystemMessage } from './SystemMessage'
-import { LoadingAnimation } from './LoadingAnimation'
+import { ThinkingIndicator } from './ThinkingIndicator'
 import { MessageSquare } from 'lucide-react'
 
 /**
@@ -61,7 +61,7 @@ export function MessageList() {
           }
         })}
 
-        {isThinking && <LoadingAnimation />}
+        {isThinking && <ThinkingIndicator />}
 
         {/* Scroll anchor */}
         <div ref={messagesEndRef} />

@@ -100,7 +100,7 @@ Would you like to know more about any specific feature?`,
   }
 
   return (
-    <div className="p-4 flex justify-center">
+    <div className="px-4 pt-4 pb-8 flex justify-center">
       <div className="w-full max-w-4xl">
         <LiquidGlassPanel
           theme={theme}

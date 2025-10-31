@@ -165,6 +165,38 @@ export const runPragmaH2Repl = async (options: H2AgentReplOptions = {}): Promise
         break;
       }
 
+      // Detect yolo/quick mode keywords in natural language
+      const lowerLine = line.toLowerCase();
+
+      // Enable quick mode
+      if (!quickMode && (
+        lowerLine.includes(" yolo") ||
+        lowerLine.includes("yolo ") ||
+        lowerLine === "yolo" ||
+        lowerLine.includes("quick mode") ||
+        lowerLine.includes("enable quick") ||
+        lowerLine.includes("skip confirmation") ||
+        lowerLine.includes("just do it")
+      )) {
+        quickMode = true;
+        console.log(chalk.yellow("⚡ Quick mode enabled - executing immediately without confirmation\n"));
+      }
+
+      // Disable quick mode
+      if (quickMode && (
+        lowerLine.includes("disable quick") ||
+        lowerLine.includes("turn off quick") ||
+        lowerLine.includes("turn off yolo") ||
+        lowerLine.includes("disable yolo") ||
+        lowerLine.includes("normal mode") ||
+        lowerLine.includes("stop quick") ||
+        lowerLine.includes("exit yolo") ||
+        lowerLine.includes("exit quick")
+      )) {
+        quickMode = false;
+        console.log(chalk.gray("Quick mode disabled - you will be asked to confirm before execution\n"));
+      }
+
       // Add user message to history
       messages.push(["user", line]);
 

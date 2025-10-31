@@ -100,10 +100,11 @@ export const swapTool = tool(
       const protocolFeeAmount = (quote.rawOutput * BigInt(PROTOCOL_FEE_BPS)) / BigInt(10000);
       const finalOutputAmount = quote.rawOutput - protocolFeeAmount;
 
-      // Format amounts for display
-      const outputFormatted = quote.outputFormatted || formatUnits(quote.rawOutput, 18);
-      const feeFormatted = formatUnits(protocolFeeAmount, 18);
-      const finalOutputFormatted = formatUnits(finalOutputAmount, 18);
+      // Format amounts for display using actual token decimals
+      const toTokenDecimals = resolvedToToken.decimals || 18;
+      const outputFormatted = quote.outputFormatted || formatUnits(quote.rawOutput, toTokenDecimals);
+      const feeFormatted = formatUnits(protocolFeeAmount, toTokenDecimals);
+      const finalOutputFormatted = formatUnits(finalOutputAmount, toTokenDecimals);
 
       // Extract route names for display
       const routeNames = quote.routes?.map((r) => r.toSymbol || "unknown") || [];

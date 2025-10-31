@@ -98,8 +98,12 @@
   },
   "dependencies": {
     "@envio-dev/hypersync-client": "^0.6.6",
+    "@langchain/core": "^1.0.2",
+    "@langchain/openai": "^1.0.0",
     "@metamask/delegation-toolkit": "^0.13.0",
+    "langchain": "^1.0.2",
     "openai": "^5.23.2",
-    "viem": "^2.37.9"
+    "viem": "^2.37.9",
+    "zod": "^4.1.12"
   }
 }

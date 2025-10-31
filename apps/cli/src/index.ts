@@ -79,6 +79,7 @@ const { registerTransferToken } = await import("./commands/transferToken.js");
 const { registerReceipts } = await import("./commands/receipts.js");
 const { registerDev } = await import("./commands/dev.js");
 const { registerShell } = await import("./commands/shell.js");
+const { registerH2 } = await import("./commands/h2.js");
 
 registerOnboard4337(program);
 registerSwap(program);
@@ -102,6 +103,7 @@ registerTransferToken(program);
 registerReceipts(program);
 registerDev(program);
 registerShell(program);
+registerH2(program);
 
 program
   .command("help")

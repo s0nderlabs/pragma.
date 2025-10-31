@@ -5,6 +5,7 @@ import { useChatStore } from '@/stores/useChatStore'
 import { UserMessage } from './UserMessage'
 import { AIMessage } from './AIMessage'
 import { SystemMessage } from './SystemMessage'
+import { QuoteMessage } from './QuoteMessage'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { MessageSquare } from 'lucide-react'
 
@@ -56,6 +57,8 @@ export function MessageList() {
               return <AIMessage key={message.id} message={message} />
             case 'system':
               return <SystemMessage key={message.id} message={message} />
+            case 'quote':
+              return <QuoteMessage key={message.id} message={message} />
             default:
               return null
           }

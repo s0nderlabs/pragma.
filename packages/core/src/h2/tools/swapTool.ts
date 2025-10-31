@@ -1,7 +1,7 @@
 /**
  * Swap Tool
  *
- * Implements token swaps using Monorail DEX aggregator with 0.5% protocol fee.
+ * Implements token swaps using Monorail DEX aggregator. No protocol fee (FREE during testing).
  */
 
 import { tool } from "langchain";
@@ -20,7 +20,8 @@ import { createErrorFromCode } from "../../errors/index.js";
 // Configuration
 // ============================================================================
 
-const PROTOCOL_FEE_BPS = 50; // 0.5% = 50 basis points
+// TODO: Protocol fee disabled until FeeEnforcer caveat is implemented
+// const PROTOCOL_FEE_BPS = 50; // 0.5% = 50 basis points
 
 /**
  * Get Monorail configuration from environment
@@ -96,14 +97,13 @@ export const swapTool = tool(
       const monorailConfig = getMonorailConfig();
       const quote = await fetchMonorailQuote(quoteParams, monorailConfig);
 
-      // Calculate protocol fee (0.5% of output)
-      const protocolFeeAmount = (quote.rawOutput * BigInt(PROTOCOL_FEE_BPS)) / BigInt(10000);
-      const finalOutputAmount = quote.rawOutput - protocolFeeAmount;
+      // TODO: Protocol fee calculation removed until FeeEnforcer caveat is implemented
+      // Using full Monorail output (no fee subtraction)
+      const finalOutputAmount = quote.rawOutput;
 
       // Format amounts for display using actual token decimals
       const toTokenDecimals = resolvedToToken.decimals || 18;
       const outputFormatted = quote.outputFormatted || formatUnits(quote.rawOutput, toTokenDecimals);
-      const feeFormatted = formatUnits(protocolFeeAmount, toTokenDecimals);
       const finalOutputFormatted = formatUnits(finalOutputAmount, toTokenDecimals);
 
       // Extract route names for display
@@ -114,7 +114,6 @@ export const swapTool = tool(
 • From: ${amount} ${fromToken} (${fromTokenAddress})
 • To: ~${finalOutputFormatted} ${toToken} (${toTokenAddress})
 • Price Impact: ${quote.compoundImpact || "unknown"}%
-• Protocol Fee: ${feeFormatted} ${toToken} (0.5%)
 • Route: ${routeNames.join(" → ") || "Direct"}
 • Gas Estimate: ${quote.gasEstimate ? formatUnits(quote.gasEstimate, 18) : "unknown"} MON
 • Quote ID: ${quote.quoteId}`;
@@ -132,7 +131,7 @@ export const swapTool = tool(
 Key Features:
 - Best price aggregation across multiple DEXs
 - Automatic routing optimization
-- 0.5% Pragma protocol fee applies
+- No protocol fee (FREE swaps during testing)
 - Gas-efficient execution
 - Supports token symbols (ETH, USDC) and addresses (0x...)
 

@@ -20,9 +20,9 @@ export interface ReadClientConfig {
 const buildTransport = (url: string, transportConfig?: HttpTransportConfig) =>
   http(url, {
     batch: true,
-    retryCount: transportConfig?.retryCount ?? 2,
-    retryDelay: transportConfig?.retryDelay ?? 150,
-    timeout: transportConfig?.timeout ?? 20_000,
+    retryCount: transportConfig?.retryCount ?? 3,
+    retryDelay: transportConfig?.retryDelay ?? 300,
+    timeout: transportConfig?.timeout ?? 120_000, // 120s for slow RPCs
   });
 
 /**

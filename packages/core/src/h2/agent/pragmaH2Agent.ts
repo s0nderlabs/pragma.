@@ -69,12 +69,13 @@ export function createPragmaH2Agent(config: PragmaH2AgentConfig = {}): ReturnTyp
 
   // Initialize ChatOpenAI model
   // IMPORTANT: Using gpt-5-mini as specified
-  // Note: gpt-5-mini only supports temperature=1 (default)
   const model = new ChatOpenAI({
     model: config.model || "gpt-5-mini",
     apiKey,
     streaming: true, // Enable streaming for real-time updates
     useResponsesApi: true, // Use OpenAI Responses API instead of Chat Completions API
+    timeout: 60000, // 60 second timeout to prevent hanging
+    maxRetries: 2, // Retry failed requests to handle intermittent errors
   });
 
   // Create agent using LangChain 1.0 pattern

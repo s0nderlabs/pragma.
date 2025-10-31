@@ -9,15 +9,15 @@ import chalk from "chalk";
 
 import { createPragmaH2Agent, PRAGMA_H2_SYSTEM_PROMPT } from "@pragma/core";
 import { loadAllowedTokens } from "./monorailTokens.js";
-
-// ============================================================================
-// Types
-// ============================================================================
+import { logoutH2Session, type SessionState } from "./sessionStore.js";
 
 export interface H2AgentReplOptions {
   apiKey?: string;
   quickMode?: boolean;
   userAddress?: string;
+  sessionData?: SessionState; // For Phase 3+: delegation/execution
+  web3authBridge?: any; // Bridge for signing delegations (required for execution)
+  publicClient?: any; // Viem public client for balance checks and RPC calls
 }
 
 // ============================================================================
@@ -59,6 +59,8 @@ const handleMetaCommand = async (
   state: {
     quickMode: boolean;
     setQuickMode: (value: boolean) => void;
+    userAddress?: string;
+    sessionData?: SessionState;
   }
 ): Promise<MetaCommandResult> => {
   const cmd = command.toLowerCase().trim();
@@ -67,15 +69,21 @@ const handleMetaCommand = async (
     case "/help":
     case "/h":
       console.log(chalk.bold("\nPragma H2 Agent - Commands\n"));
+      console.log(chalk.cyan("Session Commands:"));
+      console.log("  /account, /whoami  - Show current account and session info");
+      console.log("  /logout            - Logout and clear session");
+      console.log("");
       console.log(chalk.cyan("Meta Commands:"));
-      console.log("  /help, /h       - Show this help message");
-      console.log("  /quick          - Toggle quick mode (yolo mode - execute immediately)");
-      console.log("  /exit, /q       - Exit the REPL");
+      console.log("  /help, /h          - Show this help message");
+      console.log("  /quick             - Toggle quick mode (yolo mode - execute immediately)");
+      console.log("  /exit, /q          - Exit the REPL");
       console.log("");
       console.log(chalk.cyan("Exit Commands:"));
       console.log("  exit, quit, q, :q, bye");
       console.log("");
       console.log(chalk.cyan("Example Queries:"));
+      console.log("  what account am I using?");
+      console.log("  show all my balances");
       console.log("  swap 0.1 MON to DAK");
       console.log("  wrap 0.5 MON");
       console.log("  unwrap 0.5 WMON");
@@ -93,6 +101,55 @@ const handleMetaCommand = async (
         console.log(chalk.gray("Quick mode disabled - you will be asked to confirm"));
       }
       return "continue";
+
+    case "/account":
+    case "/whoami":
+      console.log(chalk.bold("\n📋 Your Account Information\n"));
+      if (!state.userAddress) {
+        console.log(chalk.yellow("No active session found."));
+        console.log(chalk.gray("Please restart the CLI to connect your wallet.\n"));
+        return "continue";
+      }
+
+      console.log(chalk.cyan("Smart Account (HybridDelegator):"));
+      console.log(`  ${state.userAddress}`);
+      console.log("");
+
+      if (state.sessionData) {
+        if (state.sessionData.ownerAddress) {
+          console.log(chalk.cyan("Owner Address (Web3Auth):"));
+          console.log(`  ${state.sessionData.ownerAddress}`);
+          console.log("");
+        }
+
+        if (state.sessionData.sessionKeyAddress) {
+          console.log(chalk.cyan("Session Key (Ephemeral):"));
+          console.log(`  ${state.sessionData.sessionKeyAddress}`);
+          console.log("");
+        }
+
+        if (state.sessionData.chainId) {
+          const chainName = state.sessionData.chainId === 10143 ? "Monad Testnet" : `Chain ${state.sessionData.chainId}`;
+          console.log(chalk.cyan("Network:"));
+          console.log(`  ${chainName} (Chain ID: ${state.sessionData.chainId})`);
+          console.log("");
+        }
+      }
+
+      console.log(chalk.gray("All transactions execute from your Smart Account.\n"));
+      return "continue";
+
+    case "/logout":
+      console.log(chalk.yellow("\n⚠️  Logging out and clearing session...\n"));
+      try {
+        await logoutH2Session();
+        console.log(chalk.green("✓ Session cleared successfully"));
+        console.log(chalk.gray("Session keys preserved for reuse on next login."));
+        console.log(chalk.gray("Run 'pragma h2' again to create a new session.\n"));
+      } catch (error) {
+        console.error(chalk.red(`Failed to clear session: ${(error as Error).message}\n`));
+      }
+      return "exit";
 
     case "/exit":
     case "/q":
@@ -129,14 +186,23 @@ export const runPragmaH2Repl = async (options: H2AgentReplOptions = {}): Promise
   // Create agent
   const agent = createPragmaH2Agent({ apiKey: options.apiKey });
 
-  // Initialize conversation history
-  const messages: Array<[string, string]> = [["system", PRAGMA_H2_SYSTEM_PROMPT]];
-
   // State
   let quickMode = options.quickMode ?? false;
   const setQuickMode = (value: boolean) => {
     quickMode = value;
   };
+
+  // Initialize conversation history with actual userAddress and mode injected
+  const modeInstructions = quickMode
+    ? "YOU ARE IN QUICK MODE - Execute all operations immediately WITHOUT asking for confirmation. For wrap/unwrap/transfer: call the tool immediately. For swaps: call getSwapQuote, then IMMEDIATELY call executeSwap with the quote ID. Example: 'I'll swap 0.005 MON to USDC...' [call getSwapQuote] [immediately call executeSwap] 'Done! Tx: 0x...'"
+    : "YOU ARE IN NORMAL MODE - Ask for user confirmation BEFORE executing. For wrap/unwrap/transfer: ask first, then execute. For swaps: call getSwapQuote, show quote details, then wait for explicit approval ('yes', 'execute', 'proceed') before calling executeSwap. Example: 'Quote ready... Proceed?' → wait for 'yes' → [call executeSwap]";
+
+  const systemPrompt = PRAGMA_H2_SYSTEM_PROMPT
+    .replace(/\[userAddress from context\]/g, userAddress)
+    .replace(/\[userAddress\]/g, userAddress)
+    .replace(/\[EXECUTION_MODE\]/g, modeInstructions);
+
+  const messages: Array<[string, string]> = [["system", systemPrompt]];
 
   // Main loop
   while (true) {
@@ -154,7 +220,12 @@ export const runPragmaH2Repl = async (options: H2AgentReplOptions = {}): Promise
 
       // Handle meta commands
       if (line.startsWith("/")) {
-        const result = await handleMetaCommand(line, { quickMode, setQuickMode });
+        const result = await handleMetaCommand(line, {
+          quickMode,
+          setQuickMode,
+          userAddress,
+          sessionData: options.sessionData,
+        });
         if (result === "exit") break;
         continue;
       }
@@ -200,6 +271,19 @@ export const runPragmaH2Repl = async (options: H2AgentReplOptions = {}): Promise
       // Add user message to history
       messages.push(["user", line]);
 
+      // Update system prompt with current mode
+      const modeInstructions = quickMode
+        ? "YOU ARE IN QUICK MODE - Execute all operations immediately WITHOUT asking for confirmation. For wrap/unwrap/transfer: call the tool immediately. For swaps: call getSwapQuote, then IMMEDIATELY call executeSwap with the quote ID. Example: 'I'll swap 0.005 MON to USDC...' [call getSwapQuote] [immediately call executeSwap] 'Done! Tx: 0x...'"
+        : "YOU ARE IN NORMAL MODE - Ask for user confirmation BEFORE executing. For wrap/unwrap/transfer: ask first, then execute. For swaps: call getSwapQuote, show quote details, then wait for explicit approval ('yes', 'execute', 'proceed') before calling executeSwap. Example: 'Quote ready... Proceed?' → wait for 'yes' → [call executeSwap]";
+
+      const updatedSystemPrompt = PRAGMA_H2_SYSTEM_PROMPT
+        .replace(/\[userAddress from context\]/g, userAddress)
+        .replace(/\[userAddress\]/g, userAddress)
+        .replace(/\[EXECUTION_MODE\]/g, modeInstructions);
+
+      // Always update system message (first in array) with current mode
+      messages[0] = ["system", updatedSystemPrompt];
+
       // Stream agent response with token-level streaming
       const stream = await agent.streamEvents(
         { messages },
@@ -209,6 +293,9 @@ export const runPragmaH2Repl = async (options: H2AgentReplOptions = {}): Promise
             userAddress,
             allowedTokens,
             quickMode,
+            publicClient: options.publicClient,
+            sessionData: options.sessionData,
+            web3authBridge: options.web3authBridge,
           },
         }
       );
@@ -222,7 +309,7 @@ export const runPragmaH2Repl = async (options: H2AgentReplOptions = {}): Promise
       const flushBuffer = (force = false) => {
         const elapsed = Date.now() - lastChunkTime;
         if (force || (buffer.length > 0 && elapsed >= IMMEDIATE_THRESHOLD_MS)) {
-          process.stdout.write(chalk.blue(buffer));
+          process.stdout.write(chalk(buffer));
           buffer = "";
           lastChunkTime = Date.now();
         }
@@ -310,10 +397,19 @@ export const runPragmaH2Repl = async (options: H2AgentReplOptions = {}): Promise
       }
       console.log(""); // Blank line after response
     } catch (error) {
-      console.error(chalk.red(`\n❌ Error: ${(error as Error).message}\n`));
-      if (process.env.DEBUG) {
-        console.error(chalk.gray((error as Error).stack));
+      const err = error as Error;
+      console.error(chalk.red(`\n❌ Error: ${err.message}\n`));
+
+      // Show error type for better debugging of intermittent issues
+      if (err.name && err.name !== "Error") {
+        console.error(chalk.gray(`   Type: ${err.name}`));
       }
+
+      if (process.env.DEBUG) {
+        console.error(chalk.gray(`   Stack: ${err.stack}`));
+        console.error(chalk.gray(`   Full error:`), error);
+      }
+
       // Remove failed user message from history
       if (messages[messages.length - 1]?.[0] === "user") {
         messages.pop();

@@ -6,8 +6,12 @@
 
 import { Command } from "commander";
 import chalk from "chalk";
+import { createPublicClient, http } from "viem";
 
 import { runPragmaH2Repl } from "../services/h2AgentLoop.js";
+import { loadSessionState, isH2SessionComplete } from "../services/sessionStore.js";
+import { runH2Onboarding } from "../services/h2Onboarding.js";
+import { monadChain } from "../services/web3authClients.js";
 
 // ============================================================================
 // H2 Command Options
@@ -39,12 +43,75 @@ export async function h2Command(options: H2CommandOptions = {}) {
       process.exit(1);
     }
 
-    // Launch REPL
-    await runPragmaH2Repl({
-      apiKey,
-      quickMode: options.quick,
-      userAddress: options.address,
-    });
+    // Check session state - always run onboarding for production (can't persist Web3Auth yet)
+    let sessionState = await loadSessionState();
+    let web3authBridge: any = undefined;
+
+    // If user provided --address, use that (for testing)
+    // Otherwise, run onboarding to get fresh Web3Auth login
+    if (!options.address) {
+      // Check if we have existing keys (will be reused)
+      if (isH2SessionComplete(sessionState) && !sessionState.requireOnboard) {
+        console.log(chalk.gray(`\n✓ Existing session found: ${sessionState.delegator}`));
+        console.log(chalk.gray("Re-authenticating with Web3Auth (will reuse existing keys)...\n"));
+      } else {
+        console.log(chalk.yellow("\n⚠️  H2 session not found or incomplete\n"));
+      }
+
+      // Run onboarding (will reuse HybridDelegator and session key if they exist)
+      const onboardingResult = await runH2Onboarding();
+      const bridge = onboardingResult.bridge; // Capture bridge to keep alive
+      web3authBridge = onboardingResult.bridge; // Use bridge for delegation signing
+
+      // Reload session state after onboarding
+      sessionState = await loadSessionState();
+
+      if (!isH2SessionComplete(sessionState)) {
+        throw new Error("Onboarding completed but session state is still incomplete");
+      }
+
+      console.log(chalk.gray("\nStarting H2 REPL...\n"));
+
+      // Create publicClient for balance checks and RPC calls
+      const rpcUrl = process.env.MONAD_EXECUTION_RPC_URL || "https://rpc.ankr.com/monad_testnet";
+      const publicClient = createPublicClient({
+        chain: monadChain,
+        transport: http(rpcUrl),
+      });
+
+      // Launch REPL with session data - bridge stays alive during session
+      try {
+        await runPragmaH2Repl({
+          apiKey,
+          quickMode: options.quick,
+          userAddress: options.address || sessionState.delegator,
+          sessionData: options.address ? undefined : sessionState,
+          web3authBridge,
+          publicClient,
+        });
+      } finally {
+        // Clean up bridge when REPL exits
+        if (bridge?.shutdown) {
+          await bridge.shutdown();
+        }
+      }
+    } else {
+      // --address mode (test mode without onboarding)
+      const rpcUrl = process.env.MONAD_EXECUTION_RPC_URL || "https://rpc.ankr.com/monad_testnet";
+      const publicClient = createPublicClient({
+        chain: monadChain,
+        transport: http(rpcUrl),
+      });
+
+      await runPragmaH2Repl({
+        apiKey,
+        quickMode: options.quick,
+        userAddress: options.address || sessionState.delegator,
+        sessionData: options.address ? undefined : sessionState,
+        web3authBridge,
+        publicClient,
+      });
+    }
   } catch (error) {
     console.error(chalk.red(`\n❌ Error: ${(error as Error).message}\n`));
     if (process.env.DEBUG) {

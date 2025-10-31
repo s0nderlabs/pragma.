@@ -33,6 +33,8 @@ RUN_*_TESTS.sh
 TEST_*.md
 .claude/
 validate_monorail_slippage_bug.sh
+test-h2-*.sh
+H2_TEST_RESULTS.md
 
 # Test artifacts
 test-results/

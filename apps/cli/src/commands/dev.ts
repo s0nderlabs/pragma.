@@ -8,6 +8,7 @@ import { registerSwapReuse } from "./swapExisting.js";
 import { registerTransferReuse } from "./transferReuse.js";
 import { registerTransferTest } from "./transferTest.js";
 import { registerTransferDualTest } from "./transferDualTest.js";
+import { registerH2DevCommand } from "./h2Dev.js";
 import { printCommandSummary } from "../utils/help.js";
 
 export const registerDev = (program: Command) => {
@@ -22,6 +23,9 @@ export const registerDev = (program: Command) => {
   registerTransferReuse(dev);
   registerTransferTest(dev);
   registerTransferDualTest(dev);
+
+  // H2 dev command
+  registerH2DevCommand(dev);
 
   dev
     .command("help")

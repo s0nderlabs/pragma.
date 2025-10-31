@@ -3,13 +3,23 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type MessageRole = 'user' | 'ai' | 'system'
+export type MessageRole = 'user' | 'ai' | 'system' | 'quote'
 
 export interface Message {
   id: string
   role: MessageRole
   content: string
   timestamp: number
+  // Optional: Quote data for quote messages
+  quoteData?: {
+    quote: any // MonorailQuote type
+    fromToken: string
+    toToken: string
+    fromAmount: string
+    protocolFee: string
+    onConfirm?: () => Promise<void>
+    onCancel?: () => void
+  }
 }
 
 export interface Conversation {

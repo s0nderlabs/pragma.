@@ -239,6 +239,22 @@ export const ERROR_DEFINITIONS: DefinitionRecord = {
     retriable: true,
     defaultMessage: "Failed to build user operation.",
   },
+  EXECUTION_ERROR: {
+    code: "EXECUTION_ERROR",
+    class: "Execution",
+    module: "Execution",
+    severity: "error",
+    retriable: true,
+    defaultMessage: "Execution encountered an error.",
+  },
+  EXECUTION_FAILED: {
+    code: "EXECUTION_FAILED",
+    class: "Execution",
+    module: "Execution",
+    severity: "error",
+    retriable: false,
+    defaultMessage: "Execution failed.",
+  },
   INTERNAL_ASSERTION_FAILED: {
     code: "INTERNAL_ASSERTION_FAILED",
     class: "Infra",
@@ -375,6 +391,14 @@ export const ERROR_DEFINITIONS: DefinitionRecord = {
     retriable: true,
     defaultMessage: "Pathfinder could not find a route.",
   },
+  QUOTE_PREPARATION_ERROR: {
+    code: "QUOTE_PREPARATION_ERROR",
+    class: "Simulation",
+    module: "Routing",
+    severity: "error",
+    retriable: true,
+    defaultMessage: "Failed to prepare quote data.",
+  },
   QUOTE_RPC_ERROR: {
     code: "QUOTE_RPC_ERROR",
     class: "Infra",
@@ -446,6 +470,54 @@ export const ERROR_DEFINITIONS: DefinitionRecord = {
     severity: "error",
     retriable: false,
     defaultMessage: "Session key information is invalid or missing.",
+  },
+  SESSION_INCOMPLETE: {
+    code: "SESSION_INCOMPLETE",
+    class: "Infra",
+    module: "Common",
+    severity: "fatal",
+    retriable: false,
+    defaultMessage: "Session data is incomplete. Missing required fields.",
+  },
+  SESSION_KEY_LOW_BALANCE: {
+    code: "SESSION_KEY_LOW_BALANCE",
+    class: "Execution",
+    module: "Execution",
+    severity: "error",
+    retriable: true,
+    defaultMessage: "Session key balance too low for execution.",
+  },
+  INSUFFICIENT_BALANCE: {
+    code: "INSUFFICIENT_BALANCE",
+    class: "Execution",
+    module: "Execution",
+    severity: "error",
+    retriable: false,
+    defaultMessage: "Insufficient balance for operation.",
+  },
+  TOKEN_NOT_FOUND: {
+    code: "TOKEN_NOT_FOUND",
+    class: "Intent",
+    module: "Intent",
+    severity: "error",
+    retriable: false,
+    defaultMessage: "Token not found in allowed list.",
+  },
+  TOKEN_NOT_IN_ALLOWLIST: {
+    code: "TOKEN_NOT_IN_ALLOWLIST",
+    class: "Policy",
+    module: "Intent",
+    severity: "error",
+    retriable: false,
+    defaultMessage: "Token is not in the allowlist.",
+  },
+  INVALID_ADDRESS: {
+    code: "INVALID_ADDRESS",
+    class: "Intent",
+    module: "Intent",
+    severity: "error",
+    retriable: false,
+    defaultMessage: "Invalid address format.",
   },
   SIM_ALLOWANCE_TOO_LOW: {
     code: "SIM_ALLOWANCE_TOO_LOW",
@@ -616,6 +688,22 @@ export const createErrorFromCode = (
   options: CreateErrorFromCodeOptions = {},
 ): PragmaError => {
   const definition = ERROR_DEFINITIONS[code];
+
+  // Defensive check: if error definition doesn't exist, create a generic error
+  if (!definition) {
+    console.warn(`[Pragma] Unknown error code: ${code}. Please add it to ERROR_DEFINITIONS.`);
+    return createError({
+      code,
+      message: options.message ?? `Unknown error: ${code}`,
+      class: options.class ?? "Execution",
+      module: options.module ?? "Common",
+      retriable: options.retriable ?? false,
+      severity: options.severity ?? "error",
+      context: options.context,
+      cause: options.cause,
+    });
+  }
+
   const message = options.message ?? definition.defaultMessage;
   return createError({
     code,

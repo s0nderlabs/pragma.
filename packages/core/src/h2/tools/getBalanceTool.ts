@@ -85,10 +85,19 @@ export const getBalanceTool = tool(
         // Helper function to safely convert balance to BigInt
         const safeBalanceToBigInt = (balanceStr: string, decimals: number): bigint => {
           try {
-            return BigInt(balanceStr);
+            const balance = BigInt(balanceStr);
+            // ERC20 balances cannot be negative (uint256 is unsigned) - clamp to 0
+            if (balance < 0n) {
+              return 0n;
+            }
+            return balance;
           } catch {
             try {
-              return parseUnits(balanceStr, decimals);
+              const balance = parseUnits(balanceStr, decimals);
+              if (balance < 0n) {
+                return 0n;
+              }
+              return balance;
             } catch {
               return BigInt(0);
             }
@@ -151,6 +160,42 @@ export const getBalanceTool = tool(
       });
 
       if (!targetBalance) {
+        // Special handling for WMON - fetch directly from contract if not in Monorail data
+        if (tokenNormalized === "WMON") {
+          const WMON_ADDRESS = "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701";
+          const ERC20_ABI = [{
+            type: "function",
+            name: "balanceOf",
+            stateMutability: "view",
+            inputs: [{ name: "account", type: "address" }],
+            outputs: [{ name: "", type: "uint256" }]
+          }] as const;
+
+          if (!publicClient) {
+            return `You have 0 WMON. Unable to fetch WMON balance (public client not available).`;
+          }
+
+          try {
+            const wmonBalance = await publicClient.readContract({
+              address: getAddress(WMON_ADDRESS),
+              abi: ERC20_ABI,
+              functionName: "balanceOf",
+              args: [getAddress(userAddress)],
+            }) as bigint;
+
+            // Blockchain balances should never be negative, but validate anyway
+            if (wmonBalance < 0n) {
+              return `Unable to fetch valid WMON balance (blockchain returned invalid value).`;
+            }
+
+            const balanceFormatted = formatUnits(wmonBalance, 18);
+            return `You have ${balanceFormatted} WMON`;
+          } catch (error) {
+            console.error("[getBalance] Failed to fetch WMON balance directly:", error);
+            return `Unable to fetch WMON balance from blockchain. Error: ${(error as Error).message}`;
+          }
+        }
+
         // Token not found - return zero balance
         return `You have 0 ${token}. This token was not found in your wallet. You may not own any ${token}, or it may not be a valid token on Monad.`;
       }
@@ -162,10 +207,17 @@ export const getBalanceTool = tool(
       try {
         // Try direct BigInt conversion (for wei strings like "1000000000000000000")
         balanceBigInt = BigInt(balanceWei);
+        // Validate non-negative (ERC20 uint256 cannot be negative) - clamp to 0
+        if (balanceBigInt < 0n) {
+          balanceBigInt = 0n;
+        }
       } catch {
         // If it fails (decimal string like "3.5"), use parseUnits to preserve full precision
         try {
           balanceBigInt = parseUnits(balanceWei, targetBalance.decimals);
+          if (balanceBigInt < 0n) {
+            balanceBigInt = 0n;
+          }
         } catch {
           // If parseUnits also fails (invalid format), default to 0
           balanceBigInt = BigInt(0);

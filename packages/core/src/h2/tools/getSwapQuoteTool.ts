@@ -99,6 +99,50 @@ export const getSwapQuoteTool = tool(
       const toTokenAddress = resolvedToToken.address;
       const senderAddress = getAddress(userAddress as Address);
 
+      // Validate user has sufficient balance (fail fast before calling Monorail)
+      const publicClient = config?.configurable?.publicClient;
+      if (!publicClient) {
+        throw createErrorFromCode("CONFIG_MISSING", {
+          message: "Public client is required but not provided in context.",
+          context: { field: "publicClient" },
+        });
+      }
+
+      const fromTokenDecimals = resolvedFromToken.decimals || 18;
+      const amountWei = parseUnits(amount, fromTokenDecimals);
+      let userBalance: bigint;
+
+      if (resolvedFromToken.kind === "native") {
+        // Native MON token - use getBalance
+        userBalance = await publicClient.getBalance({
+          address: senderAddress
+        });
+      } else {
+        // ERC20 token - use balanceOf
+        const ERC20_ABI = [{
+          type: "function",
+          name: "balanceOf",
+          stateMutability: "view",
+          inputs: [{ name: "account", type: "address" }],
+          outputs: [{ name: "", type: "uint256" }]
+        }] as const;
+
+        userBalance = await publicClient.readContract({
+          address: getAddress(fromTokenAddress),
+          abi: ERC20_ABI,
+          functionName: "balanceOf",
+          args: [senderAddress],
+        }) as bigint;
+      }
+
+      // Fail fast if insufficient balance
+      if (userBalance < amountWei) {
+        const availableFormatted = formatUnits(userBalance, fromTokenDecimals);
+        throw createErrorFromCode("INSUFFICIENT_BALANCE", {
+          message: `Insufficient ${fromToken} balance. Required: ${amount}, Available: ${availableFormatted}`,
+        });
+      }
+
       // Prepare quote request
       const quoteParams: QuoteRequestParams = {
         fromToken: fromTokenAddress,
@@ -119,7 +163,6 @@ export const getSwapQuoteTool = tool(
 
       // Format amounts for display
       const toTokenDecimals = resolvedToToken.decimals || 18;
-      const fromTokenDecimals = resolvedFromToken.decimals || 18;
       const finalOutputFormatted = formatUnits(finalOutputAmount, toTokenDecimals);
 
       // Generate and store quote

@@ -10,6 +10,7 @@
 
 import { type Hex, type Address, createWalletClient, http, parseEther, formatEther, getAddress } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
+import { createBundlerClient } from "viem/account-abstraction";
 import { toMetaMaskSmartAccount, Implementation } from "@metamask/delegation-toolkit";
 import chalk from "chalk";
 import ora from "ora";
@@ -17,7 +18,7 @@ import os from "os";
 import fs from "fs";
 
 import { createMonadPublicClient, monadChain } from "./web3authClients.js";
-import { PRAGMA_ADMIN_TEST_PK } from "./config.js";
+import { PRAGMA_ADMIN_TEST_PK, PIMLICO_BUNDLER_URL } from "./config.js";
 import { saveH2Session, getOrCreateH2SessionKey, type H2SessionData } from "./sessionStore.js";
 import { createDirectPKBridge, type H2Bridge } from "./h2Bridge.js";
 
@@ -54,6 +55,10 @@ export interface H2TestContext {
   publicClient: any;
   /** Session state (saved to file) */
   sessionState: H2SessionData;
+  /** Smart account instance from DTK (for UserOp-based session key funding) */
+  smartAccount: any;
+  /** Bundler client (for UserOp-based session key funding) */
+  bundlerClient: any;
 }
 
 export interface H2TestSetupOptions {
@@ -111,6 +116,13 @@ export async function setupH2TestEnvironment(
 
     const rootAccount = privateKeyToAccount(rootPrivateKey);
     const publicClient = createMonadPublicClient();
+
+    // Create bundler client for UserOp-based session key funding
+    const bundlerClient = createBundlerClient({
+      chain: monadChain,
+      transport: http(PIMLICO_BUNDLER_URL),
+      client: publicClient,
+    });
 
     spinner.succeed(`Root account: ${chalk.cyan(rootAccount.address)}`);
 
@@ -324,6 +336,8 @@ export async function setupH2TestEnvironment(
       walletClient,
       publicClient,
       sessionState,
+      smartAccount, // For UserOp-based session key funding
+      bundlerClient, // For UserOp-based session key funding
     };
   } catch (error) {
     spinner.fail(chalk.red("Failed to setup test environment"));

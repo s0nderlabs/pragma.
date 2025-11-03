@@ -19,6 +19,8 @@ import type {
   SessionKeyFundingResult,
 } from "./types.js";
 import { SessionKeyFundingError } from "./types.js";
+import { fundSessionKeyViaUserOp } from "./sessionKeyFundingUserOp.js";
+import { fundSessionKeyViaDelegation } from "./sessionKeyFundingDelegation.js";
 
 // ============================================================================
 // Constants
@@ -76,13 +78,13 @@ export async function checkSessionKeyBalance(
  * This function transfers MON from the user's smart account (HybridDelegator)
  * to the session key address to cover gas costs for future transactions.
  *
- * **H2 Approach:** Uses a simple native token transfer through the smart account.
- * The owner signs the transaction via Web3Auth/Bridge, and the smart account
- * executes it without requiring a delegation.
+ * **Two-Phase Approach:**
+ * - Initial funding (0 MON): Uses UserOp via bundler (no gas needed from session key)
+ * - Refill funding (< 0.1 MON): Uses ephemeral delegation (session key pays gas from remaining balance)
  *
  * @param config - Funding configuration
  * @param publicClient - Viem public client
- * @param web3authBridge - Bridge with sendTransaction method
+ * @param web3authBridge - Bridge with signTypedData method (used for delegation signing)
  * @returns Funding result with transaction hash and new balance
  *
  * @throws {SessionKeyFundingError} If funding fails
@@ -93,9 +95,13 @@ export async function checkSessionKeyBalance(
  *   {
  *     smartAccountAddress: "0x...",
  *     sessionKeyAddress: "0x...",
+ *     sessionKeyPrivateKey: "0x...",  // For delegation signing
+ *     ownerAddress: "0x...",          // For delegation signing
  *     chainId: 10207,
  *     rpcUrl: "https://testnet.monad.xyz/",
  *     delegationManager: "0x...",
+ *     smartAccount: smartAccount,      // For UserOp (initial funding)
+ *     bundlerClient: bundlerClient,    // For UserOp (initial funding)
  *   },
  *   publicClient,
  *   web3authBridge
@@ -108,7 +114,7 @@ export async function checkSessionKeyBalance(
 export async function fundSessionKey(
   config: SessionKeyFundingConfig,
   publicClient: PublicClient,
-  web3authBridge: any, // Web3AuthBridge or direct PK bridge
+  web3authBridge: any, // Web3AuthBridge or direct PK bridge (used for refills only)
 ): Promise<SessionKeyFundingResult> {
   try {
     // Get current balance before funding
@@ -138,42 +144,57 @@ export async function fundSessionKey(
       );
     }
 
-    // Send funding transaction
-    // The bridge should handle signing and sending through the smart account
-    let txHash: Hex;
+    // Route based on session key balance:
+    // - 0 MON (initial funding) → Use UserOp (no gas needed from session key)
+    // - > 0 but < 0.1 MON (refill) → Use delegation (session key pays gas)
 
-    if (web3authBridge.sendTransaction) {
-      // Web3Auth/Privy bridge with sendTransaction method
-      const result = await web3authBridge.sendTransaction({
-        from: config.smartAccountAddress,
-        to: config.sessionKeyAddress,
-        value: `0x${SESSION_KEY_FUNDING_AMOUNT.toString(16)}`,
-        data: "0x",
+    if (balanceBefore === 0n) {
+      // INITIAL FUNDING: Use UserOp approach
+      if (!config.smartAccount || !config.bundlerClient) {
+        throw new SessionKeyFundingError(
+          "Initial session key funding requires smartAccount and bundlerClient. " +
+          "These are needed to create and submit UserOp for funding."
+        );
+      }
+
+      const result = await fundSessionKeyViaUserOp({
+        smartAccountAddress: config.smartAccountAddress,
+        sessionKeyAddress: config.sessionKeyAddress,
+        smartAccount: config.smartAccount,
+        bundlerClient: config.bundlerClient,
+        publicClient,
       });
-      txHash = result.hash || result.transactionHash || result;
-    } else {
-      // Direct PK bridge (test mode) - needs wallet client
+
+      return {
+        txHash: result.transactionHash || result.userOpHash,
+        newBalance: result.newBalance,
+        fundedAmount: result.fundedAmount,
+      };
+    }
+
+    // REFILL FUNDING: Use delegation approach
+    // Session key has > 0 but < 0.1 MON - use delegation pattern
+    if (!config.sessionKeyPrivateKey || !config.ownerAddress) {
       throw new SessionKeyFundingError(
-        "Session key funding requires a bridge with sendTransaction capability"
+        "Refill funding requires sessionKeyPrivateKey and ownerAddress. " +
+        "These are needed to create and sign ephemeral delegation."
       );
     }
 
-    // Wait for confirmation
-    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
-
-    if (receipt.status !== "success") {
-      throw new SessionKeyFundingError("Funding transaction reverted");
-    }
-
-    // Get new balance
-    const balanceAfter = await publicClient.getBalance({
-      address: config.sessionKeyAddress
+    const result = await fundSessionKeyViaDelegation({
+      smartAccountAddress: config.smartAccountAddress,
+      sessionKeyAddress: config.sessionKeyAddress,
+      sessionKeyPrivateKey: config.sessionKeyPrivateKey,
+      ownerAddress: config.ownerAddress,
+      chainId: config.chainId,
+      publicClient,
+      web3authBridge,
     });
 
     return {
-      txHash,
-      newBalance: balanceAfter,
-      fundedAmount: balanceAfter - balanceBefore,
+      txHash: result.transactionHash,
+      newBalance: result.newBalance,
+      fundedAmount: result.fundedAmount,
     };
   } catch (error) {
     if (error instanceof SessionKeyFundingError) {

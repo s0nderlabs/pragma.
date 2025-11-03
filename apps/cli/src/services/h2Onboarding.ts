@@ -4,9 +4,10 @@
  * Simplified onboarding for H2 - no persistent delegation creation.
  * Just deploy HybridDelegator and generate session key.
  *
- * Key Differences from H1:
+ * Key Features:
+ * - HybridDelegator deployment via UserOp with Pimlico paymaster sponsorship
+ * - Works with unfunded Web3Auth/Privy EOA wallets (no MON required)
  * - NO delegation creation during onboarding
- * - Simpler flow (auth → deploy → session key → save)
  * - Session key stored in session state (not separate files)
  * - Delegations created just-in-time per transaction (ephemeral)
  */
@@ -23,6 +24,10 @@ import {
 } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import {
+  createBundlerClient,
+  formatUserOperationRequest,
+} from "viem/account-abstraction";
+import {
   toMetaMaskSmartAccount,
   Implementation,
 } from "@metamask/delegation-toolkit";
@@ -31,6 +36,7 @@ import { startWeb3AuthBridge } from "./web3authServer.js";
 import { startPrivyBridge } from "./privyBridgeServer.js";
 import { createMonadPublicClient, createWalletClientFromBridge, monadChain } from "./web3authClients.js";
 import { saveH2Session, getOrCreateH2SessionKey, type H2SessionData } from "./sessionStore.js";
+import { sponsorUserOperation, type PimlicoSponsorship } from "./pimlico.js";
 import {
   PIMLICO_BUNDLER_URL,
   PRAGMA_IDENTITY_PROVIDER,
@@ -50,6 +56,8 @@ export interface H2OnboardingResult {
   sessionKeyPrivateKey: Hex;
   walletClient: any; // viem WalletClient
   bridge: any; // Web3Auth/Privy bridge - must stay alive for signing
+  smartAccount: any; // DTK smart account instance (for UserOp-based session key funding)
+  bundlerClient: any; // Bundler client (for UserOp-based session key funding)
 }
 
 // ============================================================================
@@ -75,35 +83,204 @@ const isSmartAccountDeployed = async ({
 };
 
 /**
- * Deploy HybridDelegator via direct transaction
+ * Deploy HybridDelegator via sponsored UserOp
+ * Uses Pimlico paymaster to sponsor deployment (user doesn't need MON in EOA)
  */
 const deployHybridDelegator = async ({
   smartAccount,
-  walletClient,
+  bundlerClient,
   publicClient,
+  hybridDelegator,
 }: {
   smartAccount: any;
-  walletClient: any;
+  bundlerClient: ReturnType<typeof createBundlerClient>;
   publicClient: ReturnType<typeof createMonadPublicClient>;
+  hybridDelegator: Address;
 }): Promise<Hex> => {
-  if (!walletClient?.sendTransaction) {
-    throw new Error("Wallet client required for HybridDelegator deployment");
-  }
-
   const factoryArgs = await smartAccount.getFactoryArgs?.();
   if (!factoryArgs) {
-    throw new Error("Unable to fetch factory args for HybridDelegator");
+    throw new Error("Unable to fetch factory args for HybridDelegator deployment");
   }
 
-  const txParams = {
-    to: getAddress(factoryArgs.factory),
-    data: factoryArgs.factoryData,
-    value: 0n,
+  // Get nonce
+  const nonce = (await smartAccount.getNonce?.()) ?? 0n;
+
+  // Get initial gas price estimates from public client
+  const feeEstimates = await publicClient.estimateFeesPerGas().catch(() => undefined);
+  const gasPrice = await publicClient.getGasPrice();
+  let maxPriorityFeePerGas = feeEstimates?.maxPriorityFeePerGas ?? gasPrice;
+  let maxFeePerGas = feeEstimates?.maxFeePerGas ?? gasPrice + maxPriorityFeePerGas;
+
+  // Override with Pimlico's recommended gas prices (required for paymaster sponsorship)
+  const extendedBundler = bundlerClient as ReturnType<typeof createBundlerClient> & {
+    request: <T = unknown>(
+      args: { method: string; params: unknown[] },
+      options?: { retryCount?: number },
+    ) => Promise<T>;
   };
 
-  const txHash = await walletClient.sendTransaction(txParams);
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
-  return txHash;
+  try {
+    const suggestion = (await extendedBundler.request(
+      {
+        method: "pimlico_getUserOperationGasPrice",
+        params: [],
+      },
+      { retryCount: 0 },
+    )) as
+      | {
+          fast?: { maxFeePerGas: Hex; maxPriorityFeePerGas: Hex };
+          standard?: { maxFeePerGas: Hex; maxPriorityFeePerGas: Hex };
+          slow?: { maxFeePerGas: Hex; maxPriorityFeePerGas: Hex };
+        }
+      | undefined;
+
+    const recommended = suggestion?.fast ?? suggestion?.standard ?? suggestion?.slow;
+    if (recommended) {
+      maxFeePerGas = BigInt(recommended.maxFeePerGas);
+      maxPriorityFeePerGas = BigInt(recommended.maxPriorityFeePerGas);
+    }
+  } catch {
+    // Falls back to public client estimates if Pimlico call fails
+  }
+
+  // Build base UserOp
+  // Define type explicitly since smartAccount is typed as any
+  interface SignableUserOperation {
+    sender: Address;
+    nonce: bigint;
+    factory: Address;
+    factoryData: Hex;
+    callData: Hex;
+    callGasLimit: bigint;
+    verificationGasLimit: bigint;
+    preVerificationGas: bigint;
+    maxFeePerGas: bigint;
+    maxPriorityFeePerGas: bigint;
+    signature: Hex;
+    paymaster?: Address;
+    paymasterData?: Hex;
+    paymasterPostOpGasLimit?: bigint;
+    paymasterVerificationGasLimit?: bigint;
+  }
+
+  const baseUserOp: SignableUserOperation = {
+    sender: hybridDelegator,
+    nonce,
+    factory: getAddress(factoryArgs.factory),
+    factoryData: factoryArgs.factoryData,
+    callData: "0x" as Hex,
+    callGasLimit: 0n,
+    verificationGasLimit: 0n,
+    preVerificationGas: 0n,
+    maxFeePerGas,
+    maxPriorityFeePerGas,
+    signature: "0x" as Hex,
+  };
+
+  const buildSponsorRequest = (op: SignableUserOperation) =>
+    formatUserOperationRequest({
+      ...op,
+      paymaster: undefined,
+      paymasterData: undefined,
+      signature: "0x" as Hex,
+    } as any);
+
+  const applySponsorshipToUserOp = (target: SignableUserOperation, update: PimlicoSponsorship) => {
+    if (update.callGasLimit && update.callGasLimit > 0n) {
+      target.callGasLimit = update.callGasLimit;
+    }
+    if (update.verificationGasLimit && update.verificationGasLimit > 0n) {
+      target.verificationGasLimit = update.verificationGasLimit;
+    }
+    if (update.preVerificationGas && update.preVerificationGas > 0n) {
+      target.preVerificationGas = update.preVerificationGas;
+    }
+    if (update.paymasterPostOpGasLimit) {
+      Object.assign(target, { paymasterPostOpGasLimit: update.paymasterPostOpGasLimit });
+    }
+    if (update.paymasterVerificationGasLimit) {
+      Object.assign(target, {
+        paymasterVerificationGasLimit: update.paymasterVerificationGasLimit,
+      });
+    }
+
+    if (update.paymaster) {
+      Object.assign(target, {
+        paymaster: update.paymaster,
+        paymasterData: update.paymasterData ?? ("0x" as Hex),
+      });
+    } else {
+      Object.assign(target, {
+        paymaster: `0x${update.paymasterAndData.slice(2, 42)}` as Hex,
+        paymasterData: `0x${update.paymasterAndData.slice(42)}` as Hex,
+      });
+    }
+  };
+
+  const userOp: SignableUserOperation = { ...baseUserOp };
+
+  // Get initial sponsorship
+  const sponsorship = await sponsorUserOperation({
+    userOperation: buildSponsorRequest(baseUserOp),
+    entryPoint: smartAccount.entryPoint.address,
+  });
+  applySponsorshipToUserOp(userOp, sponsorship);
+
+  // Apply fallback gas limits if needed
+  const FALLBACK_VERIFICATION_GAS_LIMIT = 200000n;
+  const FALLBACK_PRE_VERIFICATION_GAS = 50000n;
+
+  if (!userOp.verificationGasLimit || userOp.verificationGasLimit === 0n) {
+    userOp.verificationGasLimit = FALLBACK_VERIFICATION_GAS_LIMIT;
+  }
+  if (!userOp.preVerificationGas || userOp.preVerificationGas === 0n) {
+    userOp.preVerificationGas = FALLBACK_PRE_VERIFICATION_GAS;
+  }
+
+  // Sign UserOp
+  const signature = await smartAccount.signUserOperation(userOp);
+  const rpcUserOperation = formatUserOperationRequest({
+    ...userOp,
+    signature,
+  } as any);
+
+  // Send UserOp via bundler
+  const userOpHash = (await bundlerClient.request(
+    {
+      method: "eth_sendUserOperation",
+      params: [rpcUserOperation, smartAccount.entryPoint.address],
+    },
+    { retryCount: 0 },
+  )) as Hex;
+
+  // Wait for receipt with timeout
+  const USER_OPERATION_WAIT_TIMEOUT_MS = 60000; // 60 seconds
+  const waitWithTimeout = <T>(promise: Promise<T>): Promise<T> =>
+    new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`Timed out waiting ${USER_OPERATION_WAIT_TIMEOUT_MS}ms for deployment`));
+      }, USER_OPERATION_WAIT_TIMEOUT_MS);
+      promise
+        .then((value) => {
+          clearTimeout(timer);
+          resolve(value);
+        })
+        .catch((error) => {
+          clearTimeout(timer);
+          reject(error);
+        });
+    });
+
+  const receipt = await waitWithTimeout(
+    bundlerClient.waitForUserOperationReceipt({ hash: userOpHash }),
+  ) as { receipt?: { transactionHash?: string } } | undefined;
+
+  const txHash = receipt?.receipt?.transactionHash;
+  if (!txHash) {
+    throw new Error("Deployment UserOp missing transaction hash");
+  }
+
+  return txHash as Hex;
 };
 
 /**
@@ -128,7 +305,7 @@ const generateSessionKey = (): { address: Address; privateKey: Hex } => {
  * Steps:
  * 1. Launch Web3Auth/Privy bridge
  * 2. Get authenticated wallet
- * 3. Deploy HybridDelegator (or check if exists)
+ * 3. Deploy HybridDelegator via sponsored UserOp (Pimlico pays gas)
  * 4. Generate session key
  * 5. Save session state
  *
@@ -185,6 +362,13 @@ export const runH2Onboarding = async (): Promise<H2OnboardingResult> => {
       deploySalt: "0x",
     })) as any;
 
+    // Create bundler client for UserOp-based session key funding
+    const bundlerClient = createBundlerClient({
+      chain: monadChain,
+      transport: http(PIMLICO_BUNDLER_URL),
+      client: publicClient,
+    });
+
     const hybridDelegatorAddress = await smartAccount.getAddress();
     if (!hybridDelegatorAddress) {
       throw new Error("Failed to derive HybridDelegator address");
@@ -200,14 +384,15 @@ export const runH2Onboarding = async (): Promise<H2OnboardingResult> => {
     if (alreadyDeployed) {
       spinner.succeed(chalk.green(`✓ HybridDelegator already deployed: ${hybridDelegator}`));
     } else {
-      spinner.text = "Deploying HybridDelegator...";
+      spinner.text = "Deploying HybridDelegator (sponsored by Pimlico)...";
       const txHash = await deployHybridDelegator({
         smartAccount,
-        walletClient,
+        bundlerClient,
         publicClient,
+        hybridDelegator,
       });
       spinner.succeed(chalk.green(`✓ HybridDelegator deployed: ${hybridDelegator}`));
-      console.log(chalk.gray(`   Tx: ${txHash}`));
+      console.log(chalk.gray(`   Tx: ${txHash} (gas sponsored by Pimlico)`));
     }
 
     // Step 5: Get or create persistent session key (H1 pattern)
@@ -234,8 +419,11 @@ export const runH2Onboarding = async (): Promise<H2OnboardingResult> => {
     spinner.succeed(chalk.green(`✓ Session saved`));
 
     console.log(chalk.bold.green("\n✅ Onboarding complete!\n"));
-    console.log(chalk.gray("Your account is now ready for H2 transactions."));
-    console.log(chalk.gray("Session key will be funded automatically when needed.\n"));
+    console.log(chalk.gray("Your account is now ready for H2 transactions.\n"));
+    console.log(chalk.cyan("ℹ️  Session Key Auto-Funding:"));
+    console.log(chalk.gray(`   • Your session key (${sessionKeyRecord.address}) handles transaction signing`));
+    console.log(chalk.gray(`   • When balance drops below 0.1 MON, we'll auto-transfer 0.5 MON from your smart account`));
+    console.log(chalk.gray(`   • You'll be notified each time funding occurs\n`));
 
     return {
       ownerAddress,
@@ -244,6 +432,8 @@ export const runH2Onboarding = async (): Promise<H2OnboardingResult> => {
       sessionKeyPrivateKey: sessionKeyRecord.privateKey,
       walletClient,
       bridge, // Return bridge to keep it alive for signing
+      smartAccount, // For UserOp-based session key funding
+      bundlerClient, // For UserOp-based session key funding
     };
   } catch (error) {
     spinner.fail(chalk.red("Onboarding failed"));

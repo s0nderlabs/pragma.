@@ -24,6 +24,7 @@ import {
   createWalletClient,
   http,
   formatUnits,
+  formatEther,
   getContract,
   getAddress,
   encodeFunctionData,
@@ -40,7 +41,7 @@ import {
 import type { ExecutionResult, SwapQuoteData } from "./types.js";
 import { createEphemeralDelegation } from "../delegation/ephemeral.js";
 import { getSwapQuote, deleteSwapQuote } from "./quoteStore.js";
-import { checkSessionKeyBalance } from "./sessionKeyManager.js";
+import { checkSessionKeyBalance, fundSessionKey, SESSION_KEY_FUNDING_AMOUNT } from "./sessionKeyManager.js";
 import { patchMonorailMinOutput } from "../../monorail/calldataPatcher.js";
 
 // ============================================================================
@@ -116,6 +117,10 @@ export interface ExecuteSwapParams {
   web3authBridge: any; // Type: Web3AuthBridge from apps/cli (has signTypedData method)
   /** Chain ID */
   chainId: number;
+  /** Smart account instance from DTK (for UserOp-based session key funding) */
+  smartAccount?: any;
+  /** Bundler client (for UserOp-based session key funding) */
+  bundlerClient?: any;
 }
 
 /**
@@ -139,6 +144,8 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     publicClient,
     web3authBridge,
     chainId,
+    smartAccount,
+    bundlerClient,
   } = params;
 
   // Step 1: Retrieve and validate quote
@@ -154,17 +161,48 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     transactionValue: quote.monorailQuote.transactionValue.toString(),
   });
 
-  // Step 2: Check session key balance
-  const { needsFunding, balance } = await checkSessionKeyBalance(
+  // Step 2: Check session key balance and auto-fund if needed
+  const { needsFunding, balance, recommendedFundingAmount } = await checkSessionKeyBalance(
     sessionKeyAddress,
     publicClient
   );
 
   if (needsFunding) {
-    throw new Error(
-      `Session key balance too low: ${formatUnits(balance, 18)} MON. ` +
-      `Please fund the session key before executing.`
+    // Notify user about auto-funding
+    console.log(`\n⚡ Session key needs gas`);
+    console.log(`   Current balance: ${formatEther(balance)} MON (minimum: 0.1 MON)`);
+    console.log(`   Transferring ${formatEther(SESSION_KEY_FUNDING_AMOUNT)} MON from smart account...\n`);
+
+    debugLog("Session Key Funding Required", {
+      currentBalance: formatUnits(balance, 18),
+      threshold: "0.1 MON",
+      fundingAmount: formatUnits(recommendedFundingAmount, 18),
+    });
+
+    const fundingResult = await fundSessionKey(
+      {
+        smartAccountAddress: userAddress,
+        sessionKeyAddress,
+        sessionKeyPrivateKey,
+        ownerAddress,
+        chainId,
+        rpcUrl: MONAD_RPC_URL,
+        delegationManager: DELEGATION_MANAGER_ADDRESS,
+        smartAccount,
+        bundlerClient,
+      },
+      publicClient,
+      web3authBridge
     );
+
+    console.log(`✓ Session key funded: ${formatEther(fundingResult.newBalance)} MON`);
+    console.log(`   Tx: ${fundingResult.txHash}\n`);
+
+    debugLog("Session Key Funded", {
+      oldBalance: formatUnits(balance, 18),
+      newBalance: formatUnits(fundingResult.newBalance, 18),
+      fundedAmount: formatUnits(fundingResult.fundedAmount, 18),
+    });
   }
 
   // Step 2.5: Verify on-chain balance matches quote amount (guard against stale indexer data)

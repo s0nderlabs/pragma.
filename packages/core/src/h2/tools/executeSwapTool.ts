@@ -36,6 +36,8 @@ export const executeSwapTool = tool(
       const sessionData = config?.configurable?.sessionData as any;
       const publicClient = config?.configurable?.publicClient;
       const web3authBridge = config?.configurable?.web3authBridge;
+      const smartAccount = config?.configurable?.smartAccount;
+      const bundlerClient = config?.configurable?.bundlerClient;
 
       // Validate context
       if (!userAddress || !sessionData || !publicClient || !web3authBridge) {
@@ -77,6 +79,8 @@ export const executeSwapTool = tool(
         publicClient,
         web3authBridge,
         chainId: sessionData.chainId,
+        smartAccount,
+        bundlerClient,
       });
 
       // Format receipt

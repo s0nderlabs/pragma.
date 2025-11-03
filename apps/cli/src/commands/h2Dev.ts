@@ -88,6 +88,8 @@ export function registerH2DevCommand(program: Command): void {
           sessionData: context.sessionState,
           web3authBridge: context.bridge, // Use direct PK bridge
           publicClient: context.publicClient, // For balance checks
+          smartAccount: context.smartAccount, // For UserOp-based session key funding
+          bundlerClient: context.bundlerClient, // For UserOp-based session key funding
         });
       } catch (error) {
         console.error(chalk.red("\n✗ Failed to start H2 dev mode:"), (error as Error).message);

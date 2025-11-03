@@ -30,7 +30,7 @@ import {
 } from "@metamask/delegation-toolkit";
 
 import { createEphemeralDelegation } from "../delegation/ephemeral.js";
-import { checkSessionKeyBalance } from "../execution/sessionKeyManager.js";
+import { checkSessionKeyBalance, fundSessionKey } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 
 // ============================================================================
@@ -77,6 +77,8 @@ export const wrapTool = tool(
       const publicClient = config?.configurable?.publicClient as PublicClient;
       const sessionData = config?.configurable?.sessionData as any;
       const web3authBridge = config?.configurable?.web3authBridge as any;
+      const smartAccount = config?.configurable?.smartAccount;
+      const bundlerClient = config?.configurable?.bundlerClient;
 
       if (!userAddress || !publicClient || !sessionData || !web3authBridge) {
         throw createErrorFromCode("CONFIG_MISSING", {
@@ -111,16 +113,27 @@ export const wrapTool = tool(
         });
       }
 
-      // Check session key balance
+      // Check session key balance and auto-fund if needed
       const { needsFunding, balance } = await checkSessionKeyBalance(
         sessionData.sessionKeyAddress,
         publicClient
       );
 
       if (needsFunding) {
-        throw createErrorFromCode("SESSION_KEY_LOW_BALANCE", {
-          message: `Session key balance too low: ${formatUnits(balance, 18)} MON. Please refund.`,
-        });
+        // Auto-fund session key (user approved this during onboarding)
+        await fundSessionKey(
+          {
+            smartAccountAddress: userAddress,
+            sessionKeyAddress: sessionData.sessionKeyAddress,
+            chainId: sessionData.chainId,
+            rpcUrl: MONAD_RPC_URL,
+            delegationManager: DELEGATION_MANAGER_ADDRESS,
+            smartAccount,
+            bundlerClient,
+          },
+          publicClient,
+          web3authBridge
+        );
       }
 
       // Fetch delegation nonce from NonceEnforcer (H1 pattern)

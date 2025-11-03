@@ -62,6 +62,8 @@ export async function h2Command(options: H2CommandOptions = {}) {
       const onboardingResult = await runH2Onboarding();
       const bridge = onboardingResult.bridge; // Capture bridge to keep alive
       web3authBridge = onboardingResult.bridge; // Use bridge for delegation signing
+      const smartAccount = onboardingResult.smartAccount; // For UserOp-based session key funding
+      const bundlerClient = onboardingResult.bundlerClient; // For UserOp-based session key funding
 
       // Reload session state after onboarding
       sessionState = await loadSessionState();
@@ -88,6 +90,8 @@ export async function h2Command(options: H2CommandOptions = {}) {
           sessionData: options.address ? undefined : sessionState,
           web3authBridge,
           publicClient,
+          smartAccount,
+          bundlerClient,
         });
       } finally {
         // Clean up bridge when REPL exits

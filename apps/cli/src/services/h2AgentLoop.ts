@@ -18,6 +18,8 @@ export interface H2AgentReplOptions {
   sessionData?: SessionState; // For Phase 3+: delegation/execution
   web3authBridge?: any; // Bridge for signing delegations (required for execution)
   publicClient?: any; // Viem public client for balance checks and RPC calls
+  smartAccount?: any; // Smart account instance from DTK (for UserOp-based session key funding)
+  bundlerClient?: any; // Bundler client (for UserOp-based session key funding)
 }
 
 // ============================================================================
@@ -296,6 +298,8 @@ export const runPragmaH2Repl = async (options: H2AgentReplOptions = {}): Promise
             publicClient: options.publicClient,
             sessionData: options.sessionData,
             web3authBridge: options.web3authBridge,
+            smartAccount: options.smartAccount,
+            bundlerClient: options.bundlerClient,
           },
         }
       );

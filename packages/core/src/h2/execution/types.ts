@@ -34,14 +34,20 @@ export interface SessionKeyFundingConfig {
   smartAccountAddress: Address;
   /** Session key public address */
   sessionKeyAddress: Address;
+  /** Session key private key (required for delegation-based refills) */
+  sessionKeyPrivateKey?: Hex;
+  /** Owner address (required for delegation-based refills) */
+  ownerAddress?: Address;
   /** Chain ID (e.g., 10207 for Monad testnet) */
   chainId: number;
   /** RPC URL for the chain */
   rpcUrl: string;
   /** DelegationManager contract address */
   delegationManager: Address;
-  /** Owner's persistent delegation (for funding transactions) */
-  ownerDelegation?: Delegation;
+  /** Smart account instance from DTK (required for initial funding via UserOp) */
+  smartAccount?: any;
+  /** Bundler client (required for initial funding via UserOp) */
+  bundlerClient?: any;
 }
 
 /**

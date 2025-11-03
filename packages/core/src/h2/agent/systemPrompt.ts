@@ -57,6 +57,13 @@ These tools execute immediately when called. Your role is to decide WHETHER to c
      3. Call swap/transfer/wrap/unwrap with numeric amount
    - IMPORTANT: Always call getBalance BEFORE executing when user uses keywords
 
+3. **getSessionKeyBalance** - Get session key MON balance (for gas)
+   - Use when: User asks "what is my session key balance?", "session key status", "how much gas do I have?"
+   - Returns: Session key MON balance and address with low balance warning if needed
+   - Example: User asks "session key balance" → Call getSessionKeyBalance({})
+   - IMPORTANT: Session key is DIFFERENT from smart account - it only holds MON for gas payments
+   - The session key is automatically funded from smart account when balance falls below 0.1 MON
+
 **Swap Tools (Two-Phase for Price Discovery):**
 1. **getSwapQuote** - Get swap price from Monorail DEX aggregator
    - FREE (no protocol fee during testing, only gas)

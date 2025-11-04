@@ -46,28 +46,12 @@ import {
 import { buildDelegationTypedData } from "../../delegations/typedData.js";
 import { ZERO_SALT } from "../../delegations/hybrid.js";
 import { SESSION_KEY_FUNDING_AMOUNT } from "./sessionKeyManager.js";
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const MONAD_RPC_URL = process.env.MONAD_EXECUTION_RPC_URL || "https://testnet.monad.xyz/";
-const DELEGATION_MANAGER_ADDRESS = (process.env.DELEGATION_MANAGER_ADDRESS as Address) || "0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3" as Address;
-const NONCE_ENFORCER_ADDRESS = (process.env.NONCE_ENFORCER_ADDRESS as Address) || "0xDE4f2FAC4B3D87A1d9953Ca5FC09FCa7F366254f" as Address;
-
-// NonceEnforcer ABI for nonce fetching
-const NONCE_ENFORCER_ABI = [
-  {
-    type: "function",
-    name: "currentNonce",
-    stateMutability: "view",
-    inputs: [
-      { name: "delegationManager", type: "address" },
-      { name: "delegator", type: "address" },
-    ],
-    outputs: [{ name: "nonce", type: "uint256" }],
-  },
-] as const;
+import {
+  MONAD_RPC_URL,
+  DELEGATION_MANAGER_ADDRESS,
+  NONCE_ENFORCER_ADDRESS,
+  NONCE_ENFORCER_ABI,
+} from "../config.js";
 
 // ============================================================================
 // Types

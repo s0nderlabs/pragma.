@@ -26,34 +26,22 @@ import {
   createExecution,
   ExecutionMode,
   redeemDelegations,
-  createDelegation,
-  getDeleGatorEnvironment,
   type Delegation,
-  type Caveats,
 } from "@metamask/delegation-toolkit";
 
-import { createEphemeralDelegation } from "../delegation/ephemeral.js";
+import {
+  createERC20TransferDelegation,
+  createNativeTransferDelegation,
+  type TransferDelegationResult,
+} from "../delegation/transferDelegation.js";
 import { checkSessionKeyBalance } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
-import { buildDelegationTypedData } from "../../delegations/typedData.js";
-import { ZERO_SALT } from "../../delegations/hybrid.js";
-
-const MONAD_RPC_URL = process.env.MONAD_EXECUTION_RPC_URL || "https://testnet.monad.xyz/";
-const DELEGATION_MANAGER_ADDRESS = (process.env.DELEGATION_MANAGER_ADDRESS as Address) || "0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3" as Address;
-const NONCE_ENFORCER_ADDRESS = (process.env.NONCE_ENFORCER_ADDRESS as Address) || "0xDE4f2FAC4B3D87A1d9953Ca5FC09FCa7F366254f" as Address;
-
-const NONCE_ENFORCER_ABI = [
-  {
-    type: "function",
-    name: "currentNonce",
-    stateMutability: "view",
-    inputs: [
-      { name: "delegationManager", type: "address" },
-      { name: "delegator", type: "address" },
-    ],
-    outputs: [{ name: "nonce", type: "uint256" }],
-  },
-] as const;
+import {
+  MONAD_RPC_URL,
+  DELEGATION_MANAGER_ADDRESS,
+  NONCE_ENFORCER_ADDRESS,
+  NONCE_ENFORCER_ABI,
+} from "../config.js";
 
 const ERC20_ABI = [
   {
@@ -235,67 +223,36 @@ export const transferTool = tool(
 
       // Create delegation (conditional based on transfer type)
       let delegation: Delegation;
-      let typedData: ReturnType<typeof buildDelegationTypedData>;
+      let typedData: any; // EIP-712 typed data for delegation signing
 
       if (isNativeTransfer) {
-        // Native MON transfer: use nativeTokenTransferAmount scope (H1 pattern)
-        const expiresAt = Math.floor(Date.now() / 1000) + 300; // 5 minutes
-        const environment = getDeleGatorEnvironment(sessionData.chainId);
-
-        const transferScope = {
-          type: "nativeTokenTransferAmount" as const,
-          maxAmount: amountWei,
-        };
-
-        const transferCaveats: Caveats = [
-          {
-            type: "timestamp" as const,
-            afterThreshold: 0,
-            beforeThreshold: expiresAt,
-          },
-          {
-            type: "nonce" as const,
-            nonce: toHex(nonce),
-          },
-          {
-            type: "limitedCalls" as const,
-            limit: 1,
-          },
-        ] as unknown as Caveats;
-
-        delegation = createDelegation({
-          environment,
-          scope: transferScope,
-          from: getAddress(userAddress) as Hex,
-          to: getAddress(sessionData.sessionKeyAddress) as Hex,
-          caveats: transferCaveats,
-          salt: ZERO_SALT,
-        });
-
-        typedData = buildDelegationTypedData(delegation, sessionData.chainId, DELEGATION_MANAGER_ADDRESS);
-      } else {
-        // ERC20 transfer: use functionCall scope via createEphemeralDelegation
-        const result = createEphemeralDelegation({
-          quote: {
-            quoteId: `transfer-${Date.now()}`,
-            aggregator: target,
-            transactionData: calldata,
-            transactionValue: value,
-            rawInput: amountWei,
-            rawOutput: amountWei,
-            rawMinOutput: amountWei,
-          },
+        // Native MON transfer: use nativeTokenTransferAmount scope with recipient enforcement
+        const result = createNativeTransferDelegation({
+          recipient,
+          amount: amountWei,
           delegator: getAddress(userAddress),
           sessionKey: getAddress(sessionData.sessionKeyAddress),
           nonce,
           chainId: sessionData.chainId,
           delegationManager: DELEGATION_MANAGER_ADDRESS,
-          fromToken: tokenAddress,
-          toToken: tokenAddress,
-          nativeTokenAddress: NATIVE_TOKEN_ADDRESS,
-          currentAllowance: 0n, // Transfers don't require approval
-          requiredAmount: 0n,
         });
+
+        delegation = result.delegation;
+        typedData = result.typedData;
+      } else {
+        // ERC20 transfer: use functionCall scope with recipient + amount enforcement
+        const result = createERC20TransferDelegation({
+          tokenAddress,
+          recipient,
+          amount: amountWei,
+          delegator: getAddress(userAddress),
+          sessionKey: getAddress(sessionData.sessionKeyAddress),
+          nonce,
+          chainId: sessionData.chainId,
+          delegationManager: DELEGATION_MANAGER_ADDRESS,
+          calldata,
+        });
+
         delegation = result.delegation;
         typedData = result.typedData;
       }

@@ -1,20 +1,22 @@
 /**
- * Execute Swap with Ephemeral Delegation
+ * Execute Swap with Multi-Delegation Architecture
  *
- * This module implements the actual swap execution using ephemeral delegations.
+ * This module implements swap execution using the multi-delegation pattern:
+ * - ONE delegation = ONE blockchain action
+ * - Approve and swap are separate delegations
+ * - Each delegation has its own enforcement rules
+ * - All delegations share the same nonce
  *
  * Flow:
  * 1. Retrieve and validate quote
  * 2. Check session key balance (fund if needed)
  * 3. Fetch current nonce from DelegationManager
- * 4. Create ephemeral delegation
- * 5. Sign delegation with Web3Auth
- * 6. Build transaction execution
- * 7. Sign transaction with session key
- * 8. Submit to bundler/RPC
- * 9. Wait for confirmation
- * 10. Calculate actual output
- * 11. Return receipt
+ * 4. Create delegation(s): approve (0-2 calls) + swap (1 call)
+ * 5. Sign all delegations with Web3Auth
+ * 6. Execute all delegations sequentially
+ * 7. Wait for confirmation
+ * 8. Calculate actual output
+ * 9. Return receipt
  */
 
 import {
@@ -39,10 +41,18 @@ import {
 } from "@metamask/delegation-toolkit";
 
 import type { ExecutionResult, SwapQuoteData } from "./types.js";
-import { createEphemeralDelegation } from "../delegation/ephemeral.js";
+import { createApproveDelegation } from "../delegation/approveDelegation.js";
+import { createSwapDelegation } from "../delegation/swapDelegation.js";
 import { getSwapQuote, deleteSwapQuote } from "./quoteStore.js";
 import { checkSessionKeyBalance, fundSessionKey, SESSION_KEY_FUNDING_AMOUNT } from "./sessionKeyManager.js";
 import { patchMonorailMinOutput } from "../../monorail/calldataPatcher.js";
+import {
+  MONAD_RPC_URL,
+  DELEGATION_MANAGER_ADDRESS,
+  NONCE_ENFORCER_ADDRESS,
+  NONCE_ENFORCER_ABI,
+  MON_ADDRESS,
+} from "../config.js";
 
 // ============================================================================
 // Debug Logging
@@ -60,30 +70,6 @@ function debugLog(message: string, data?: any) {
     }
   }
 }
-
-// ============================================================================
-// Configuration
-// ============================================================================
-
-// These will be loaded from environment/config
-const MONAD_RPC_URL = process.env.MONAD_EXECUTION_RPC_URL || "https://testnet.monad.xyz/";
-const DELEGATION_MANAGER_ADDRESS = (process.env.DELEGATION_MANAGER_ADDRESS as Address) || "0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3" as Address;
-const NONCE_ENFORCER_ADDRESS = (process.env.NONCE_ENFORCER_ADDRESS as Address) || "0xDE4f2FAC4B3D87A1d9953Ca5FC09FCa7F366254f" as Address;
-const MON_ADDRESS = (process.env.MON_ADDRESS as Address) || "0x0000000000000000000000000000000000000000" as Address;
-
-// NonceEnforcer ABI (used to fetch delegation nonce - H1 pattern)
-const NONCE_ENFORCER_ABI = [
-  {
-    type: "function",
-    name: "currentNonce",
-    stateMutability: "view",
-    inputs: [
-      { name: "delegationManager", type: "address" },
-      { name: "delegator", type: "address" },
-    ],
-    outputs: [{ name: "nonce", type: "uint256" }],
-  },
-] as const;
 
 // ============================================================================
 // Helper Functions
@@ -266,7 +252,8 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     });
   }
 
-  // Step 4: Fetch current nonce from NonceEnforcer (H1 pattern)
+  // Step 4: Fetch current nonce from NonceEnforcer
+  // All delegations in this batch will share the same nonce
   const nonce = await publicClient.readContract({
     address: NONCE_ENFORCER_ADDRESS,
     abi: NONCE_ENFORCER_ABI,
@@ -274,199 +261,133 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     args: [DELEGATION_MANAGER_ADDRESS, userAddress],
   }) as bigint;
 
-  // Step 5: Create ephemeral delegation
-  const { delegation, typedData, callLimit, requiresApprove } = createEphemeralDelegation({
-    quote: quote.monorailQuote,
-    delegator: userAddress,
-    sessionKey: sessionKeyAddress,
-    nonce,
-    chainId,
-    delegationManager: DELEGATION_MANAGER_ADDRESS,
-    fromToken: quote.fromToken,
-    toToken: quote.toToken,
-    nativeTokenAddress: MON_ADDRESS,
-    currentAllowance, // Pass allowance for smart callLimit calculation
-    requiredAmount: quote.amountWei, // Pass required amount for comparison
-  });
+  // Step 5: Create delegations (multi-delegation architecture)
+  // - Approve delegation(s): 0-2 depending on current allowance
+  // - Swap delegation: 1 always
+  interface DelegationBundle {
+    delegationResult: any; // Result from createApproveDelegation/createSwapDelegation
+    execution: ExecutionStruct;
+    label: string;
+  }
 
-  debugLog("Delegation Created", {
-    nonce: nonce.toString(),
-    callLimit,
-    requiresApprove,
-    delegator: userAddress,
-    delegate: sessionKeyAddress,
-    fromToken: quote.fromToken,
-    toToken: quote.toToken,
-  });
+  const delegationBundles: DelegationBundle[] = [];
+  const aggregator = getAddress(quote.monorailQuote.aggregator);
 
-  // Step 6: Sign delegation with Web3Auth
-  const { signature } = await web3authBridge.signTypedData({
-    typedDataJson: JSON.stringify(typedData),
-    from: ownerAddress,
-  });
-
-  // Attach signature to delegation
-  delegation.signature = signature;
-
-  // Step 7: Create session wallet client
-  const sessionWallet = createWalletClient({
-    account: privateKeyToAccount(sessionKeyPrivateKey),
-    chain: {
-      id: chainId,
-      name: "Monad",
-      nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
-      rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
-    },
-    transport: http(MONAD_RPC_URL),
-  });
-
-  // Step 8: Execute approve if needed (smart allowance pattern)
+  // Step 5a: Create approve delegations if needed (smart allowance pattern)
   if (needsApprove) {
-    const aggregator = getAddress(quote.monorailQuote.aggregator);
-
     // Case 1: Sufficient allowance - skip approve entirely (gas optimization)
     if (currentAllowance >= quote.amountWei) {
-      // No approve needed, sufficient allowance exists
-      // This saves ~45k gas and one transaction
+      // No approve delegations needed
+      debugLog("Approve delegations: SKIPPED (sufficient allowance)", {
+        currentAllowance: currentAllowance.toString(),
+        requiredAmount: quote.amountWei.toString(),
+      });
     }
-    // Case 2: Has allowance but insufficient - reset to 0 first (USDC safety)
+    // Case 2: Has allowance but insufficient - reset to 0 first (USDC/USDT safety)
     else if (currentAllowance > 0n && currentAllowance < quote.amountWei) {
-      // Reset allowance to 0 first (USDC/USDT requirement)
+      // Reset delegation: approve(0)
+      const resetDelegationResult = createApproveDelegation({
+        tokenAddress: quote.fromToken,
+        spender: aggregator,
+        amount: 0n,
+        delegator: userAddress,
+        sessionKey: sessionKeyAddress,
+        nonce,
+        chainId,
+        delegationManager: DELEGATION_MANAGER_ADDRESS,
+      });
+
       const resetCalldata = encodeFunctionData({
         abi: erc20Abi,
         functionName: "approve",
         args: [aggregator, 0n],
       });
 
-      const resetExecution = createExecution({
-        target: quote.fromToken,
-        value: 0n,
-        callData: resetCalldata,
+      delegationBundles.push({
+        delegationResult: resetDelegationResult,
+        execution: createExecution({
+          target: quote.fromToken,
+          value: 0n,
+          callData: resetCalldata,
+        }),
+        label: "approve(0) - Reset",
       });
 
-      debugLog("Executing approve(0) - Reset allowance", {
-        token: quote.fromToken,
+      // Approve delegation: approve(amount)
+      const approveDelegationResult = createApproveDelegation({
+        tokenAddress: quote.fromToken,
         spender: aggregator,
-        currentAllowance: currentAllowance.toString(),
-        calldata: resetCalldata,
+        amount: quote.amountWei,
+        delegator: userAddress,
+        sessionKey: sessionKeyAddress,
+        nonce, // Same nonce!
+        chainId,
+        delegationManager: DELEGATION_MANAGER_ADDRESS,
       });
 
-      try {
-        const resetTxHash = await redeemDelegations(
-          sessionWallet,
-          publicClient,
-          DELEGATION_MANAGER_ADDRESS,
-          [{
-            permissionContext: [delegation],
-            executions: [resetExecution],
-            mode: ExecutionMode.SingleDefault,
-          }],
-        );
-
-        debugLog("approve(0) transaction sent", { hash: resetTxHash });
-        await publicClient.waitForTransactionReceipt({ hash: resetTxHash });
-        debugLog("approve(0) transaction confirmed");
-      } catch (error: any) {
-        debugLog("approve(0) FAILED", {
-          error: error.message,
-          stack: error.stack,
-          details: error.details,
-        });
-        throw new Error(`Failed to reset allowance: ${error.message}`);
-      }
-
-      // Then approve the required amount
       const approveCalldata = encodeFunctionData({
         abi: erc20Abi,
         functionName: "approve",
         args: [aggregator, quote.amountWei],
       });
 
-      const approveExecution = createExecution({
-        target: quote.fromToken,
-        value: 0n,
-        callData: approveCalldata,
+      delegationBundles.push({
+        delegationResult: approveDelegationResult,
+        execution: createExecution({
+          target: quote.fromToken,
+          value: 0n,
+          callData: approveCalldata,
+        }),
+        label: "approve(amount)",
       });
 
-      debugLog("Executing approve(amount) after reset", {
-        token: quote.fromToken,
-        spender: aggregator,
-        amount: quote.amountWei.toString(),
-        calldata: approveCalldata,
+      debugLog("Approve delegations: RESET + APPROVE (insufficient allowance)", {
+        currentAllowance: currentAllowance.toString(),
+        requiredAmount: quote.amountWei.toString(),
+        totalDelegations: 2,
       });
-
-      try {
-        const approveTxHash = await redeemDelegations(
-          sessionWallet,
-          publicClient,
-          DELEGATION_MANAGER_ADDRESS,
-          [{
-            permissionContext: [delegation],
-            executions: [approveExecution],
-            mode: ExecutionMode.SingleDefault,
-          }],
-        );
-
-        debugLog("approve(amount) transaction sent", { hash: approveTxHash });
-        await publicClient.waitForTransactionReceipt({ hash: approveTxHash });
-        debugLog("approve(amount) transaction confirmed");
-      } catch (error: any) {
-        debugLog("approve(amount) FAILED", {
-          error: error.message,
-          stack: error.stack,
-          details: error.details,
-        });
-        throw new Error(`Failed to approve token: ${error.message}`);
-      }
     }
     // Case 3: No existing allowance - approve directly
     else {
+      const approveDelegationResult = createApproveDelegation({
+        tokenAddress: quote.fromToken,
+        spender: aggregator,
+        amount: quote.amountWei,
+        delegator: userAddress,
+        sessionKey: sessionKeyAddress,
+        nonce,
+        chainId,
+        delegationManager: DELEGATION_MANAGER_ADDRESS,
+      });
+
       const approveCalldata = encodeFunctionData({
         abi: erc20Abi,
         functionName: "approve",
         args: [aggregator, quote.amountWei],
       });
 
-      const approveExecution = createExecution({
-        target: quote.fromToken,
-        value: 0n,
-        callData: approveCalldata,
+      delegationBundles.push({
+        delegationResult: approveDelegationResult,
+        execution: createExecution({
+          target: quote.fromToken,
+          value: 0n,
+          callData: approveCalldata,
+        }),
+        label: "approve(amount) - Direct",
       });
 
-      debugLog("Executing approve(amount) - Direct approve", {
-        token: quote.fromToken,
-        spender: aggregator,
-        amount: quote.amountWei.toString(),
-        calldata: approveCalldata,
+      debugLog("Approve delegations: DIRECT APPROVE (zero allowance)", {
+        requiredAmount: quote.amountWei.toString(),
+        totalDelegations: 1,
       });
-
-      try {
-        const approveTxHash = await redeemDelegations(
-          sessionWallet,
-          publicClient,
-          DELEGATION_MANAGER_ADDRESS,
-          [{
-            permissionContext: [delegation],
-            executions: [approveExecution],
-            mode: ExecutionMode.SingleDefault,
-          }],
-        );
-
-        debugLog("approve(amount) transaction sent", { hash: approveTxHash });
-        await publicClient.waitForTransactionReceipt({ hash: approveTxHash });
-        debugLog("approve(amount) transaction confirmed");
-      } catch (error: any) {
-        debugLog("approve(amount) FAILED", {
-          error: error.message,
-          stack: error.stack,
-          details: error.details,
-        });
-        throw new Error(`Failed to approve token: ${error.message}`);
-      }
     }
+  } else {
+    debugLog("Approve delegations: NOT NEEDED (native token)", {
+      fromToken: quote.fromToken,
+    });
   }
 
-  // Step 8.5: Patch Monorail calldata with correct slippage (H1 pattern)
+  // Step 5b: Patch Monorail calldata with correct slippage (before creating swap delegation)
   const patchResult = patchMonorailMinOutput(
     quote.monorailQuote.transactionData,
     quote.expectedOutputWei,
@@ -481,58 +402,127 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     expectedOutput: quote.expectedOutputWei.toString(),
   });
 
-  // Step 9: Execute swap (second redeemDelegations call, or first if no approve needed)
-  const swapExecution = createExecution({
-    target: quote.monorailQuote.aggregator,
-    value: quote.monorailQuote.transactionValue,
-    callData: patchResult.patchedCalldata,
+  // Step 5c: Create swap delegation (always needed)
+  const swapDelegationResult = createSwapDelegation({
+    aggregator: quote.monorailQuote.aggregator,
+    transactionData: patchResult.patchedCalldata,
+    transactionValue: quote.monorailQuote.transactionValue,
+    destination: userAddress, // Swap output goes to user's smart account
+    delegator: userAddress,
+    sessionKey: sessionKeyAddress,
+    nonce, // Same nonce as approve delegations!
+    chainId,
+    delegationManager: DELEGATION_MANAGER_ADDRESS,
   });
 
-  debugLog("Executing SWAP", {
-    aggregator: quote.monorailQuote.aggregator,
+  delegationBundles.push({
+    delegationResult: swapDelegationResult,
+    execution: createExecution({
+      target: quote.monorailQuote.aggregator,
+      value: quote.monorailQuote.transactionValue,
+      callData: patchResult.patchedCalldata,
+    }),
+    label: "swap",
+  });
+
+  debugLog("Delegations Created", {
+    nonce: nonce.toString(),
+    totalDelegations: delegationBundles.length,
+    delegationTypes: delegationBundles.map(d => d.label),
     fromToken: quote.fromToken,
     toToken: quote.toToken,
-    amountIn: quote.amountWei.toString(),
-    value: quote.monorailQuote.transactionValue.toString(),
-    calldata: quote.monorailQuote.transactionData.slice(0, 66) + "...", // First 32 bytes
   });
 
-  let txHash: Hex;
-  try {
-    txHash = await redeemDelegations(
-      sessionWallet,
-      publicClient,
-      DELEGATION_MANAGER_ADDRESS,
-      [{
-        permissionContext: [delegation],
-        executions: [swapExecution],
-        mode: ExecutionMode.SingleDefault,
-      }],
-    );
+  // Step 6: Sign all delegations with Web3Auth
+  for (const bundle of delegationBundles) {
+    const { delegation, typedData } = bundle.delegationResult;
 
-    debugLog("Swap transaction sent", { hash: txHash });
-  } catch (error: any) {
-    debugLog("SWAP redeemDelegations FAILED", {
-      error: error.message,
-      stack: error.stack,
-      details: error.details,
-      cause: error.cause,
+    debugLog(`Signing delegation: ${bundle.label}`);
+
+    const { signature } = await web3authBridge.signTypedData({
+      typedDataJson: JSON.stringify(typedData),
+      from: ownerAddress,
     });
-    throw new Error(`Swap execution failed: ${error.message}`);
+
+    // Attach signature to delegation
+    delegation.signature = signature;
   }
 
-  // Step 10: Wait for confirmation
-  const receipt = await publicClient.waitForTransactionReceipt({
-    hash: txHash,
+  // Step 7: Create session wallet client
+  const sessionWallet = createWalletClient({
+    account: privateKeyToAccount(sessionKeyPrivateKey),
+    chain: {
+      id: chainId,
+      name: "Monad",
+      nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
+      rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
+    },
+    transport: http(MONAD_RPC_URL),
   });
 
-  debugLog("Swap transaction confirmed", {
+  // Step 8: Execute all delegations sequentially
+  // Each delegation is independent and executes one blockchain action
+  let finalTxHash: Hex = "0x" as Hex;
+
+  for (const bundle of delegationBundles) {
+    const { delegation } = bundle.delegationResult;
+
+    debugLog(`Executing delegation: ${bundle.label}`, {
+      target: bundle.execution.target,
+      value: bundle.execution.value.toString(),
+      calldata: bundle.execution.callData.slice(0, 66) + "...",
+    });
+
+    try {
+      const txHash = await redeemDelegations(
+        sessionWallet,
+        publicClient,
+        DELEGATION_MANAGER_ADDRESS,
+        [{
+          permissionContext: [delegation],
+          executions: [bundle.execution],
+          mode: ExecutionMode.SingleDefault,
+        }],
+      );
+
+      debugLog(`${bundle.label} transaction sent`, { hash: txHash });
+
+      // Wait for confirmation
+      await publicClient.waitForTransactionReceipt({ hash: txHash });
+
+      debugLog(`${bundle.label} transaction confirmed`);
+
+      // Track the final transaction (swap) for the receipt
+      if (bundle.label === "swap") {
+        finalTxHash = txHash;
+      }
+    } catch (error: any) {
+      debugLog(`${bundle.label} FAILED`, {
+        error: error.message,
+        stack: error.stack,
+        details: error.details,
+      });
+      throw new Error(`Failed to execute ${bundle.label}: ${error.message}`);
+    }
+  }
+
+  // Verify we executed at least the swap
+  if (finalTxHash === ("0x" as Hex)) {
+    throw new Error("No swap transaction was executed");
+  }
+
+  // Step 9: Wait for final transaction confirmation (if not already done)
+  const receipt = await publicClient.waitForTransactionReceipt({
+    hash: finalTxHash,
+  });
+
+  debugLog("Final transaction confirmed", {
     blockNumber: receipt.blockNumber.toString(),
     gasUsed: receipt.gasUsed.toString(),
     status: receipt.status,
   });
 
-  // Step 11: Calculate actual output (balance after - balance before)
+  // Step 10: Calculate actual output (balance after - balance before)
   const balanceAfter = isNativeToken(quote.toToken, MON_ADDRESS)
     ? await publicClient.getBalance({ address: userAddress })
     : (await publicClient.readContract({
@@ -543,12 +533,12 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
       }) as bigint);
   const actualOutput = balanceAfter - balanceBefore;
 
-  // Step 12: Clean up quote from store
+  // Step 11: Clean up quote from store
   deleteSwapQuote(quoteId);
 
-  // Step 13: Return execution result
+  // Step 12: Return execution result
   return {
-    txHash,
+    txHash: finalTxHash,
     blockNumber: receipt.blockNumber,
     gasUsed: receipt.gasUsed,
     status: receipt.status === "success" ? "success" : "reverted",

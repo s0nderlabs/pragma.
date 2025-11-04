@@ -16,6 +16,7 @@ import { createDelegation, getDeleGatorEnvironment, type Delegation, type Caveat
 import type { MonorailQuote } from "../../monorail/pathfinder.js";
 import { buildDelegationTypedData } from "../../delegations/typedData.js";
 import { ZERO_SALT } from "../../delegations/hybrid.js";
+import { buildSwapEnforcement } from "./calldataEnforcement.js";
 
 // ============================================================================
 // Types
@@ -44,6 +45,8 @@ export interface EphemeralDelegationContext {
   currentAllowance: bigint;
   /** Required amount for swap */
   requiredAmount: bigint;
+  /** Skip parameter enforcement (for operations without destination parameter like wrap/unwrap) */
+  skipParameterEnforcement?: boolean;
 }
 
 export interface EphemeralDelegationResult {
@@ -103,13 +106,16 @@ const detectApproveRequired = (
 };
 
 /**
- * Build scope with function selector enforcement
+ * Build scope with function selector enforcement + parameter enforcement
  *
  * Extracts function selector from calldata and enforces it in delegation.
  * This ensures session key can ONLY call the specific function needed.
+ *
+ * For swaps, also enforces the destination parameter (offset 132) to prevent
+ * output theft attacks. The destination is always the user's smart account.
  */
 const buildEphemeralScope = (context: EphemeralDelegationContext) => {
-  const { quote, fromToken, toToken, nativeTokenAddress } = context;
+  const { quote, fromToken, toToken, nativeTokenAddress, delegator } = context;
 
   // Build target list
   const targets = new Set<Address>();
@@ -141,11 +147,19 @@ const buildEphemeralScope = (context: EphemeralDelegationContext) => {
     targets.add(getAddress(toToken));
   }
 
+  // Build destination enforcement for swap
+  // Enforces that swap output goes to user's smart account (delegator)
+  // This prevents attackers from redirecting swap output to their own address
+  //
+  // IMPORTANT: Only enforce for operations with a destination parameter (swaps).
+  // Wrap/unwrap operations don't have a destination parameter, so enforcement
+  // would fail with "invalid-calldata-length" error.
+  // Use empty array [] for wrap/unwrap to skip enforcement, use buildSwapEnforcement for swaps.
   return {
     type: "functionCall" as const,
     targets: Array.from(targets),
     selectors: Array.from(selectors), // Enforced function selectors
-    allowedCalldata: [], // NOTE: DTK will validate execution against these selectors
+    allowedCalldata: context.skipParameterEnforcement ? [] : buildSwapEnforcement(delegator),
   };
 };
 

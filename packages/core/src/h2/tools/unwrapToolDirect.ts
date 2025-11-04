@@ -25,7 +25,7 @@ import {
   redeemDelegations,
 } from "@metamask/delegation-toolkit";
 
-import { createEphemeralDelegation } from "../delegation/ephemeral.js";
+import { createUnwrapDelegation } from "../delegation/unwrapDelegation.js";
 import { checkSessionKeyBalance } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 
@@ -139,27 +139,16 @@ export const unwrapTool = tool(
         args: [amountWei],
       });
 
-      // Create ephemeral delegation
-      const { delegation, typedData } = createEphemeralDelegation({
-        quote: {
-          quoteId: `unwrap-${Date.now()}`,
-          aggregator: getAddress(WMON_ADDRESS),
-          transactionData: withdrawCalldata,
-          transactionValue: 0n,
-          rawInput: amountWei,
-          rawOutput: amountWei,
-          rawMinOutput: amountWei,
-        },
+      // Create ephemeral delegation for unwrap
+      // withdraw(uint256) has amount at offset 4 (not enforceable with our offset 132 system)
+      const { delegation, typedData } = createUnwrapDelegation({
+        wmonAddress: getAddress(WMON_ADDRESS),
+        amount: amountWei,
         delegator: getAddress(userAddress),
         sessionKey: getAddress(sessionData.sessionKeyAddress),
         nonce,
         chainId: sessionData.chainId,
         delegationManager: DELEGATION_MANAGER_ADDRESS,
-        fromToken: getAddress(WMON_ADDRESS),
-        toToken: getAddress(WMON_ADDRESS),
-        nativeTokenAddress: getAddress(WMON_ADDRESS),
-        currentAllowance: 0n, // Unwraps don't require approval
-        requiredAmount: 0n,
       });
 
       // Sign delegation

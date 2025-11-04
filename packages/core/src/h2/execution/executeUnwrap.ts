@@ -37,27 +37,12 @@ import type { ExecutionResult, UnwrapQuoteData } from "./types.js";
 import { createEphemeralDelegation } from "../delegation/ephemeral.js";
 import { getUnwrapQuote, deleteUnwrapQuote } from "./quoteStore.js";
 import { checkSessionKeyBalance, fundSessionKey, SESSION_KEY_FUNDING_AMOUNT } from "./sessionKeyManager.js";
-
-// ============================================================================
-// Configuration
-// ============================================================================
-
-const MONAD_RPC_URL = process.env.MONAD_EXECUTION_RPC_URL || "https://testnet.monad.xyz/";
-const DELEGATION_MANAGER_ADDRESS = (process.env.DELEGATION_MANAGER_ADDRESS as Address) || "0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3" as Address;
-const NONCE_ENFORCER_ADDRESS = (process.env.NONCE_ENFORCER_ADDRESS as Address) || "0xDE4f2FAC4B3D87A1d9953Ca5FC09FCa7F366254f" as Address;
-
-const NONCE_ENFORCER_ABI = [
-  {
-    type: "function",
-    name: "currentNonce",
-    stateMutability: "view",
-    inputs: [
-      { name: "delegationManager", type: "address" },
-      { name: "delegator", type: "address" },
-    ],
-    outputs: [{ name: "nonce", type: "uint256" }],
-  },
-] as const;
+import {
+  MONAD_RPC_URL,
+  DELEGATION_MANAGER_ADDRESS,
+  NONCE_ENFORCER_ADDRESS,
+  NONCE_ENFORCER_ABI,
+} from "../config.js";
 
 const WRAPPED_NATIVE_ABI = [
   {
@@ -164,6 +149,8 @@ export async function executeUnwrap(params: ExecuteUnwrapParams): Promise<Execut
   });
 
   // Step 5: Create ephemeral delegation for unwrap
+  // IMPORTANT: Skip parameter enforcement for unwrap operations
+  // withdraw(uint256) has only 1 parameter (amount), no destination at offset 132
   const { delegation, typedData } = createEphemeralDelegation({
     quote: {
       quoteId: quoteId,
@@ -184,6 +171,7 @@ export async function executeUnwrap(params: ExecuteUnwrapParams): Promise<Execut
     nativeTokenAddress: quote.wmonAddress,
     currentAllowance: 0n, // Unwraps don't require approval
     requiredAmount: 0n,
+    skipParameterEnforcement: true, // withdraw() has no destination parameter
   });
 
   // Step 6: Sign delegation with Web3Auth

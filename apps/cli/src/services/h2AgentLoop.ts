@@ -291,6 +291,7 @@ export const runPragmaH2Repl = async (options: H2AgentReplOptions = {}): Promise
         { messages },
         {
           version: "v2",
+          recursionLimit: 60, // Increased from default 25 to handle large batch operations (8+ sequential operations)
           configurable: {
             userAddress,
             allowedTokens,

@@ -29,7 +29,7 @@ import {
   redeemDelegations,
 } from "@metamask/delegation-toolkit";
 
-import { createEphemeralDelegation } from "../delegation/ephemeral.js";
+import { createWrapDelegation } from "../delegation/wrapDelegation.js";
 import { checkSessionKeyBalance, fundSessionKey } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 
@@ -151,27 +151,16 @@ export const wrapTool = tool(
         args: [],
       });
 
-      // Create ephemeral delegation
-      const { delegation, typedData } = createEphemeralDelegation({
-        quote: {
-          quoteId: `wrap-${Date.now()}`,
-          aggregator: getAddress(WMON_ADDRESS),
-          transactionData: depositCalldata,
-          transactionValue: amountWei,
-          rawInput: amountWei,
-          rawOutput: amountWei,
-          rawMinOutput: amountWei,
-        },
+      // Create ephemeral delegation for wrap
+      // deposit() has no parameters → no enforcement needed
+      const { delegation, typedData } = createWrapDelegation({
+        wmonAddress: getAddress(WMON_ADDRESS),
+        amount: amountWei,
         delegator: getAddress(userAddress),
         sessionKey: getAddress(sessionData.sessionKeyAddress),
         nonce,
         chainId: sessionData.chainId,
         delegationManager: DELEGATION_MANAGER_ADDRESS,
-        fromToken: getAddress(WMON_ADDRESS),
-        toToken: getAddress(WMON_ADDRESS),
-        nativeTokenAddress: getAddress(WMON_ADDRESS),
-        currentAllowance: 0n, // Wraps don't require approval
-        requiredAmount: 0n,
       });
 
       // Sign delegation

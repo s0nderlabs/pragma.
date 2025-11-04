@@ -80,6 +80,7 @@ export function createPragmaH2Agent(config: PragmaH2AgentConfig = {}): ReturnTyp
 
   // Create agent using LangChain 1.0 pattern
   // Note: System prompt will be prepended to messages when invoking
+  // Note: recursionLimit is configured in h2AgentLoop.ts during invocation
   return createAgent({
     model,
     tools: [...h2ToolRegistry],

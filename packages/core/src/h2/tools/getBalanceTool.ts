@@ -29,6 +29,42 @@ const MONORAIL_API_KEY = process.env.MONORAIL_API_KEY || process.env.MONORAIL_AP
 const MON_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Format balance with USD value
+ * Prioritizes USD display over MON value for clarity
+ *
+ * @param balanceFormatted - Formatted token amount (e.g., "10.5")
+ * @param symbol - Token symbol (e.g., "MON")
+ * @param usdPerToken - USD price per token (optional)
+ * @param monValue - MON value (fallback if USD not available)
+ * @returns Formatted string with USD or MON value
+ */
+const formatBalanceWithUsd = (
+  balanceFormatted: string,
+  symbol: string,
+  usdPerToken?: string,
+  monValue?: string
+): string => {
+  // Calculate and show USD value if price available
+  if (usdPerToken) {
+    const amount = parseFloat(balanceFormatted);
+    const usdValue = amount * parseFloat(usdPerToken);
+    return `${balanceFormatted} ${symbol} ($${usdValue.toFixed(2)})`;
+  }
+
+  // Fallback to MON value
+  if (monValue) {
+    return `${balanceFormatted} ${symbol} (~${monValue} MON)`;
+  }
+
+  // No value information available
+  return `${balanceFormatted} ${symbol}`;
+};
+
+// ============================================================================
 // Tool Implementation
 // ============================================================================
 
@@ -104,7 +140,8 @@ export const getBalanceTool = tool(
           }
         };
 
-        // Format all non-zero balances
+        // Format all non-zero balances with USD values
+        let totalPortfolioUsd = 0;
         const nonZeroBalances = balances
           .map((bal) => {
             const balanceBigInt = safeBalanceToBigInt(bal.balance || "0", bal.decimals);
@@ -114,13 +151,25 @@ export const getBalanceTool = tool(
             if (balanceFloat === 0) return null;
 
             const symbol = bal.symbol || "UNKNOWN";
-            const monValue = bal.monValue ? ` (~${bal.monValue} MON)` : "";
+
+            // Calculate USD value for portfolio total
+            let usdValue = 0;
+            if (bal.usdPerToken) {
+              usdValue = balanceFloat * parseFloat(bal.usdPerToken);
+              totalPortfolioUsd += usdValue;
+            }
+
+            // Format with USD helper
+            const formattedLine = formatBalanceWithUsd(
+              balanceFormatted,
+              symbol,
+              bal.usdPerToken,
+              bal.monValue
+            );
 
             return {
-              symbol,
-              balance: balanceFormatted,
-              monValue,
-              sortValue: balanceFloat,
+              line: formattedLine,
+              sortValue: usdValue > 0 ? usdValue : balanceFloat, // Sort by USD value if available
             };
           })
           .filter((item): item is NonNullable<typeof item> => item !== null)
@@ -130,11 +179,14 @@ export const getBalanceTool = tool(
           return "You don't have any tokens in your wallet. Your wallet balance is empty.";
         }
 
-        const balanceLines = nonZeroBalances.map(
-          (item) => `• ${item.balance} ${item.symbol}${item.monValue}`
-        );
+        const balanceLines = nonZeroBalances.map((item) => `• ${item.line}`);
 
-        return `📊 Your Token Balances (${nonZeroBalances.length} tokens):\n\n${balanceLines.join("\n")}`;
+        // Add total portfolio value if we have USD prices
+        const totalLine = totalPortfolioUsd > 0
+          ? `\n**Total Portfolio Value: $${totalPortfolioUsd.toFixed(2)}**`
+          : "";
+
+        return `📊 Your Token Balances (${nonZeroBalances.length} tokens):\n\n${balanceLines.join("\n")}${totalLine}`;
       }
 
       // Find the requested token by symbol or address
@@ -227,10 +279,15 @@ export const getBalanceTool = tool(
       const balanceFormatted = formatUnits(balanceBigInt, targetBalance.decimals);
       const symbol = targetBalance.symbol || token;
 
-      // Include value information if available
-      const monValue = targetBalance.monValue ? ` (~${targetBalance.monValue} MON)` : "";
+      // Format with USD value using helper function
+      const formattedBalance = formatBalanceWithUsd(
+        balanceFormatted,
+        symbol,
+        targetBalance.usdPerToken,
+        targetBalance.monValue
+      );
 
-      return `You have ${balanceFormatted} ${symbol}${monValue}`;
+      return `You have ${formattedBalance}`;
     } catch (error) {
       // More specific error logging
       const errorMessage = (error as Error).message;
@@ -250,7 +307,7 @@ export const getBalanceTool = tool(
   {
     name: "getBalance",
     description:
-      "Get user's balance for a specific token OR all tokens. Pass token='all' when user asks 'show my balances', 'list all tokens', 'what do I have', etc. Pass specific token symbol when user asks about one token ('show my MON balance') or uses amount keywords ('swap all my MON'). Always call this BEFORE executing swaps/transfers when user uses amount keywords like 'all', 'max', 'half', 'quarter'.",
+      "Get user's balance for a specific token OR display complete portfolio with USD values. Pass token='all' when user asks 'show my balances', 'what's my portfolio', 'show all my tokens', 'what do I have', etc. Returns all non-zero token balances with USD values and total portfolio value. Pass specific token symbol when user asks about one token ('show my MON balance', 'how much USDC do I have') or uses amount keywords ('swap all my MON'). Always call this BEFORE executing swaps/transfers when user uses amount keywords like 'all', 'max', 'half', 'quarter'. Balances include USD values when available for better clarity.",
     schema: getBalanceSchema,
   }
 );

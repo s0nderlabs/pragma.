@@ -55,6 +55,53 @@ export const MON_ADDRESS =
   ("0x0000000000000000000000000000000000000000" as Address);
 
 // ============================================================================
+// Protocol Integration Addresses
+// ============================================================================
+
+/**
+ * Wrapped MON (WMON) contract address
+ * ERC20 wrapper for native MON token
+ *
+ * Used in wrap/unwrap tools for converting between MON <-> WMON
+ *
+ * @address 0x760afe86e5de5fa0ee542fc7b7b713e1c5425701
+ */
+export const WMON_ADDRESS =
+  (process.env.MONAD_WMON_ADDRESS as Address) ||
+  ("0x760afe86e5de5fa0ee542fc7b7b713e1c5425701" as Address);
+
+/**
+ * aPriori Liquid Staking (aprMON) contract address
+ * ERC4626 tokenized vault for MON staking
+ *
+ * Docs: https://apriori-docs.gitbook.io/apriori-docs/aprmon/smart-contract-integration
+ *
+ * Features:
+ * - Appreciation model (not rebase) - token value increases over time
+ * - Payable deposit() - MON sent as msg.value (no approval needed)
+ * - Two-step unstaking with epoch-based delays (12-18 hours)
+ * - Batch redeem support for gas optimization
+ *
+ * Fee Structure:
+ * - Pragma: 0.5% on staking operations
+ * - aPriori: 0.1% (10 basis points) on unstaking/claiming
+ * - aPriori: 10% on rewards (protocol-level, indirect to users)
+ *
+ * @address 0xb2f82D0f38dc453D596Ad40A37799446Cc89274A
+ */
+export const APRIORI_ADDRESS =
+  (process.env.APRIORI_ADDRESS as Address) ||
+  ("0xb2f82D0f38dc453D596Ad40A37799446Cc89274A" as Address);
+
+/**
+ * Pragma fee rate for aPriori staking operations
+ * Charged on input amount (MON → aprMON conversions)
+ *
+ * @value 0.005 (0.5%)
+ */
+export const APRIORI_FEE_RATE = 0.005;
+
+// ============================================================================
 // Caveat Enforcer Addresses
 // ============================================================================
 

@@ -25,6 +25,7 @@ import {
   MONORAIL_DATA_API_URL,
   MONAD_NATIVE_TOKEN_ADDRESS,
   MONAD_WMON_ADDRESS,
+  APRIORI_ADDRESS,
 } from "./config.js";
 
 const CACHE_DIR = path.join(os.homedir(), ".pragma", "cache");
@@ -69,6 +70,18 @@ export const loadAllowedTokens = async (): Promise<AllowedToken[]> => {
     persistentTtlMs: CACHE_PERSISTENT_TTL_MS,
     tokenMetadata,
   });
+
+  // Manually add aprMON (aPriori liquid staking token)
+  // Ensures it's always available even if not in Monorail API yet
+  ensureTokenSet(allowlist, {
+    address: getAddress(APRIORI_ADDRESS),
+    symbol: "aprMON",
+    name: "aPriori Monad",
+    decimals: 18,
+    kind: "erc20",
+    categories: ["verified", "lst"],
+  });
+
   return allowlist;
 };
 

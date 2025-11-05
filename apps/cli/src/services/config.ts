@@ -75,6 +75,10 @@ export const MONAD_WRAPPED_TOKEN_SYMBOL = "WMON";
 export const MONAD_WMON_ADDRESS =
   getEnvOptional("MONAD_WMON_ADDRESS") ?? "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701";
 
+export const APRIORI_TOKEN_SYMBOL = "aprMON";
+export const APRIORI_ADDRESS =
+  getEnvOptional("APRIORI_ADDRESS") ?? "0xb2f82D0f38dc453D596Ad40A37799446Cc89274A";
+
 const parsePort = (value: string | undefined): number | undefined => {
   if (!value) return undefined;
   const parsed = Number.parseInt(value, 10);

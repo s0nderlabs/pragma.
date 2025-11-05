@@ -23,6 +23,12 @@ import { wrapTool } from "./wrapToolDirect.js";
 import { unwrapTool } from "./unwrapToolDirect.js";
 import { transferTool } from "./transferToolDirect.js";
 
+// aPriori Liquid Staking Tools
+import { stakeTool } from "./stakeToolDirect.js";
+import { unstakeRequestTool } from "./unstakeRequestTool.js";
+import { unstakeClaimTool } from "./unstakeClaimTool.js";
+import { checkUnstakeStatusTool } from "./checkUnstakeStatusTool.js";
+
 // ============================================================================
 // Tool Registry
 // ============================================================================
@@ -37,15 +43,18 @@ import { transferTool } from "./transferToolDirect.js";
  * 4. **Wrap:** Direct execution (deterministic 1:1 MON → WMON)
  * 5. **Unwrap:** Direct execution (deterministic 1:1 WMON → MON)
  * 6. **Transfer:** Direct execution (simple token/MON transfer)
+ * 7. **Stake:** Direct execution (MON → aprMON liquid staking)
+ * 8. **Unstake:** Two-step process (request → wait → claim)
  *
- * Simple operations (wrap/unwrap/transfer) execute immediately without quotes.
+ * Simple operations (wrap/unwrap/transfer/stake) execute immediately without quotes.
  * Complex operations (swap) use quote → execute for user review.
+ * Unstaking uses request → claim pattern due to epoch-based withdrawal system.
  *
  * Amount Keywords:
  * When user uses "all", "max", "half", "quarter", agent should:
  * 1. Call getBalance to fetch current balance
  * 2. Calculate numeric amount (all=100%, half=50%, quarter=25%)
- * 3. Pass numeric amount to swap/wrap/unwrap/transfer tools
+ * 3. Pass numeric amount to swap/wrap/unwrap/transfer/stake tools
  */
 export const h2ToolRegistry = [
   // Account & balance tools
@@ -62,6 +71,12 @@ export const h2ToolRegistry = [
   wrapTool,
   unwrapTool,
   transferTool,
+
+  // aPriori liquid staking tools
+  stakeTool,
+  unstakeRequestTool,
+  unstakeClaimTool,
+  checkUnstakeStatusTool,
 ] as const;
 
 /**
@@ -88,4 +103,10 @@ export {
   wrapTool,
   unwrapTool,
   transferTool,
+
+  // aPriori liquid staking tools
+  stakeTool,
+  unstakeRequestTool,
+  unstakeClaimTool,
+  checkUnstakeStatusTool,
 };

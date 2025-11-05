@@ -33,6 +33,8 @@ export const executeTransferTool = tool(
       const publicClient = config?.configurable?.publicClient;
       const web3authBridge = config?.configurable?.web3authBridge;
       const chainId = config?.configurable?.chainId as number;
+      const smartAccount = config?.configurable?.smartAccount;
+      const bundlerClient = config?.configurable?.bundlerClient;
 
       // Validate required context
       if (!userAddress || !sessionKeyAddress || !sessionKeyPrivateKey || !ownerAddress) {
@@ -81,6 +83,8 @@ export const executeTransferTool = tool(
         publicClient,
         web3authBridge,
         chainId,
+        smartAccount,
+        bundlerClient,
       });
 
       // Return conversational receipt

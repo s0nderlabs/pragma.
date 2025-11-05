@@ -17,6 +17,7 @@ import {
   createWalletClient,
   http,
   formatUnits,
+  formatEther,
   parseUnits,
   getContract,
   encodeFunctionData,
@@ -30,7 +31,7 @@ import {
 } from "@metamask/delegation-toolkit";
 
 import { createWrapDelegation } from "../delegation/wrapDelegation.js";
-import { checkSessionKeyBalance, fundSessionKey } from "../execution/sessionKeyManager.js";
+import { checkSessionKeyBalance, fundSessionKey, SESSION_KEY_FUNDING_AMOUNT } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 
 // ============================================================================
@@ -120,11 +121,18 @@ export const wrapTool = tool(
       );
 
       if (needsFunding) {
+        // Notify user about auto-funding
+        console.log(`\n⚡ Session key needs gas`);
+        console.log(`   Current balance: ${formatEther(balance)} MON (minimum: 0.1 MON)`);
+        console.log(`   Transferring ${formatEther(SESSION_KEY_FUNDING_AMOUNT)} MON from smart account...\n`);
+
         // Auto-fund session key (user approved this during onboarding)
-        await fundSessionKey(
+        const fundingResult = await fundSessionKey(
           {
             smartAccountAddress: userAddress,
             sessionKeyAddress: sessionData.sessionKeyAddress,
+            sessionKeyPrivateKey: sessionData.sessionKeyPrivateKey,
+            ownerAddress: sessionData.ownerAddress,
             chainId: sessionData.chainId,
             rpcUrl: MONAD_RPC_URL,
             delegationManager: DELEGATION_MANAGER_ADDRESS,
@@ -134,6 +142,9 @@ export const wrapTool = tool(
           publicClient,
           web3authBridge
         );
+
+        console.log(`✓ Session key funded: ${formatEther(fundingResult.newBalance)} MON`);
+        console.log(`   Tx: ${fundingResult.txHash}\n`);
       }
 
       // Fetch delegation nonce from NonceEnforcer (H1 pattern)

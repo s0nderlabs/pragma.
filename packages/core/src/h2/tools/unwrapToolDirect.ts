@@ -13,6 +13,7 @@ import {
   createWalletClient,
   http,
   formatUnits,
+  formatEther,
   parseUnits,
   getContract,
   encodeFunctionData,
@@ -26,7 +27,7 @@ import {
 } from "@metamask/delegation-toolkit";
 
 import { createUnwrapDelegation } from "../delegation/unwrapDelegation.js";
-import { checkSessionKeyBalance } from "../execution/sessionKeyManager.js";
+import { checkSessionKeyBalance, fundSessionKey, SESSION_KEY_FUNDING_AMOUNT } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 
 const WMON_ADDRESS = (process.env.MONAD_WMON_ADDRESS || "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701") as Address;
@@ -74,6 +75,8 @@ export const unwrapTool = tool(
       const publicClient = config?.configurable?.publicClient as PublicClient;
       const sessionData = config?.configurable?.sessionData as any;
       const web3authBridge = config?.configurable?.web3authBridge as any;
+      const smartAccount = config?.configurable?.smartAccount;
+      const bundlerClient = config?.configurable?.bundlerClient;
 
       if (!userAddress || !publicClient || !sessionData || !web3authBridge) {
         throw createErrorFromCode("CONFIG_MISSING", {
@@ -112,16 +115,37 @@ export const unwrapTool = tool(
         });
       }
 
-      // Check session key balance
+      // Check session key balance and auto-fund if needed
       const { needsFunding, balance } = await checkSessionKeyBalance(
         sessionData.sessionKeyAddress,
         publicClient
       );
 
       if (needsFunding) {
-        throw createErrorFromCode("SESSION_KEY_LOW_BALANCE", {
-          message: `Session key balance too low: ${formatUnits(balance, 18)} MON`,
-        });
+        // Notify user about auto-funding
+        console.log(`\n⚡ Session key needs gas`);
+        console.log(`   Current balance: ${formatEther(balance)} MON (minimum: 0.1 MON)`);
+        console.log(`   Transferring ${formatEther(SESSION_KEY_FUNDING_AMOUNT)} MON from smart account...\n`);
+
+        // Auto-fund session key (user approved this during onboarding)
+        const fundingResult = await fundSessionKey(
+          {
+            smartAccountAddress: userAddress,
+            sessionKeyAddress: sessionData.sessionKeyAddress,
+            sessionKeyPrivateKey: sessionData.sessionKeyPrivateKey,
+            ownerAddress: sessionData.ownerAddress,
+            chainId: sessionData.chainId,
+            rpcUrl: MONAD_RPC_URL,
+            delegationManager: DELEGATION_MANAGER_ADDRESS,
+            smartAccount,
+            bundlerClient,
+          },
+          publicClient,
+          web3authBridge
+        );
+
+        console.log(`✓ Session key funded: ${formatEther(fundingResult.newBalance)} MON`);
+        console.log(`   Tx: ${fundingResult.txHash}\n`);
       }
 
       // Fetch delegation nonce from NonceEnforcer (H1 pattern)

@@ -11,8 +11,13 @@
 // Account & Balance Tools
 import { getAccountInfoTool } from "./getAccountInfoTool.js";
 import { getBalanceTool } from "./getBalanceTool.js";
+import { getAllBalancesTool } from "./getAllBalancesTool.js";
 import { getSessionKeyBalanceTool } from "./getSessionKeyBalanceTool.js";
 import { listVerifiedTokensTool } from "./listVerifiedTokensTool.js";
+
+// Session Key Management Tools
+import { checkSessionKeyBalanceTool } from "./checkSessionKeyBalanceTool.js";
+import { fundSessionKeyTool } from "./fundSessionKeyTool.js";
 
 // Quote Tools (for operations that need price discovery)
 import { getSwapQuoteTool } from "./getSwapQuoteTool.js";
@@ -60,8 +65,13 @@ export const h2ToolRegistry = [
   // Account & balance tools
   getAccountInfoTool,
   getBalanceTool,
+  getAllBalancesTool,
   getSessionKeyBalanceTool,
   listVerifiedTokensTool,
+
+  // Session key management tools
+  checkSessionKeyBalanceTool,
+  fundSessionKeyTool,
 
   // Swap (Quote → Execute pattern for price discovery)
   getSwapQuoteTool,
@@ -92,8 +102,13 @@ export {
   // Account & balance tools
   getAccountInfoTool,
   getBalanceTool,
+  getAllBalancesTool,
   getSessionKeyBalanceTool,
   listVerifiedTokensTool,
+
+  // Session key management tools
+  checkSessionKeyBalanceTool,
+  fundSessionKeyTool,
 
   // Swap tools (quote pattern)
   getSwapQuoteTool,

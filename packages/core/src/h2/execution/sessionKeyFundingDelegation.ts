@@ -31,24 +31,17 @@ import {
   http,
   formatEther,
   getAddress,
-  toHex,
-  keccak256,
-  concat,
-  numberToHex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   createExecution,
   ExecutionMode,
   redeemDelegations,
-  createDelegation,
-  getDeleGatorEnvironment,
-  type Caveats,
 } from "@metamask/delegation-toolkit";
 
-import { buildDelegationTypedData } from "../../delegations/typedData.js";
-import { ZERO_SALT } from "../../delegations/hybrid.js";
 import { SESSION_KEY_FUNDING_AMOUNT } from "./sessionKeyManager.js";
+import { createErrorFromCode } from "../../errors/index.js";
+import { createNativeTransferDelegation } from "../delegation/transferDelegation.js";
 import {
   MONAD_RPC_URL,
   DELEGATION_MANAGER_ADDRESS,
@@ -144,52 +137,16 @@ export async function fundSessionKeyViaDelegation(
   }) as bigint;
 
   // Step 2: Create delegation for native MON transfer
-  // Use nativeTokenTransferAmount scope (H1 pattern - same as transferToolDirect.ts)
-  const expiresAt = Math.floor(Date.now() / 1000) + 300; // 5 minutes
-  const environment = getDeleGatorEnvironment(chainId);
-
-  const transferScope = {
-    type: "nativeTokenTransferAmount" as const,
-    maxAmount: SESSION_KEY_FUNDING_AMOUNT,
-  };
-
-  const transferCaveats: Caveats = [
-    {
-      type: "timestamp" as const,
-      afterThreshold: 0,
-      beforeThreshold: expiresAt,
-    },
-    {
-      type: "nonce" as const,
-      nonce: toHex(nonce),
-    },
-    {
-      type: "limitedCalls" as const,
-      limit: 1,
-    },
-  ] as unknown as Caveats;
-
-  // Generate unique salt for this funding delegation
-  // CRITICAL: Prevents hash collisions when multiple parallel operations
-  // trigger session key funding simultaneously
-  const uniqueSalt = keccak256(
-    concat([
-      numberToHex(Date.now(), { size: 32 }),      // Timestamp (millisecond precision)
-      numberToHex(Math.floor(Math.random() * 1e18), { size: 32 }), // Random value
-      toHex(nonce),                                // Current nonce
-    ])
-  );
-
-  const delegation = createDelegation({
-    environment,
-    scope: transferScope,
-    from: getAddress(smartAccountAddress) as Hex,
-    to: getAddress(sessionKeyAddress) as Hex,
-    caveats: transferCaveats,
-    salt: uniqueSalt,  // Unique salt prevents delegation hash collisions
+  // Use proven helper function (same pattern as transferToolDirect.ts)
+  const { delegation, typedData } = createNativeTransferDelegation({
+    recipient: sessionKeyAddress,  // Transfer to session key itself
+    amount: SESSION_KEY_FUNDING_AMOUNT,
+    delegator: getAddress(smartAccountAddress),
+    sessionKey: getAddress(sessionKeyAddress),
+    nonce,
+    chainId,
+    delegationManager: DELEGATION_MANAGER_ADDRESS,
   });
-
-  const typedData = buildDelegationTypedData(delegation, chainId, DELEGATION_MANAGER_ADDRESS);
 
   // Step 3: Sign delegation with Web3Auth (EOA signature)
   const { signature } = await web3authBridge.signTypedData({

@@ -44,8 +44,9 @@ import type { ExecutionResult, SwapQuoteData } from "./types.js";
 import { createApproveDelegation } from "../delegation/approveDelegation.js";
 import { createSwapDelegation } from "../delegation/swapDelegation.js";
 import { getSwapQuote, deleteSwapQuote } from "./quoteStore.js";
-import { checkSessionKeyBalance, fundSessionKey, SESSION_KEY_FUNDING_AMOUNT } from "./sessionKeyManager.js";
+import { MIN_SESSION_KEY_BALANCE } from "./sessionKeyManager.js";
 import { patchMonorailMinOutput } from "../../monorail/calldataPatcher.js";
+import { createErrorFromCode } from "../../errors/index.js";
 import {
   MONAD_RPC_URL,
   DELEGATION_MANAGER_ADDRESS,
@@ -153,47 +154,12 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     transactionValue: quote.monorailQuote.transactionValue.toString(),
   });
 
-  // Step 2: Check session key balance and auto-fund if needed
-  const { needsFunding, balance, recommendedFundingAmount } = await checkSessionKeyBalance(
-    sessionKeyAddress,
-    publicClient
-  );
+  // Step 2: Check session key balance (throw error if insufficient - LLM will fund via fundSessionKeyTool)
+  const sessionKeyBalance = await publicClient.getBalance({ address: sessionKeyAddress });
 
-  if (needsFunding) {
-    // Notify user about auto-funding
-    console.log(`\n⚡ Session key needs gas`);
-    console.log(`   Current balance: ${formatEther(balance)} MON (minimum: 0.1 MON)`);
-    console.log(`   Transferring ${formatEther(SESSION_KEY_FUNDING_AMOUNT)} MON from smart account...\n`);
-
-    debugLog("Session Key Funding Required", {
-      currentBalance: formatUnits(balance, 18),
-      threshold: "0.1 MON",
-      fundingAmount: formatUnits(recommendedFundingAmount, 18),
-    });
-
-    const fundingResult = await fundSessionKey(
-      {
-        smartAccountAddress: userAddress,
-        sessionKeyAddress,
-        sessionKeyPrivateKey,
-        ownerAddress,
-        chainId,
-        rpcUrl: MONAD_RPC_URL,
-        delegationManager: DELEGATION_MANAGER_ADDRESS,
-        smartAccount,
-        bundlerClient,
-      },
-      publicClient,
-      web3authBridge
-    );
-
-    console.log(`✓ Session key funded: ${formatEther(fundingResult.newBalance)} MON`);
-    console.log(`   Tx: ${fundingResult.txHash}\n`);
-
-    debugLog("Session Key Funded", {
-      oldBalance: formatUnits(balance, 18),
-      newBalance: formatUnits(fundingResult.newBalance, 18),
-      fundedAmount: formatUnits(fundingResult.fundedAmount, 18),
+  if (sessionKeyBalance < MIN_SESSION_KEY_BALANCE) {
+    throw createErrorFromCode("SESSION_KEY_LOW_BALANCE", {
+      message: `Session key balance too low: ${formatEther(sessionKeyBalance)} MON (minimum: ${formatEther(MIN_SESSION_KEY_BALANCE)} MON). Fund session key first using fundSessionKey tool.`,
     });
   }
 

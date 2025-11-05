@@ -5,9 +5,16 @@
  */
 
 import readline from "node:readline";
+import { setMaxListeners } from "node:events";
 import chalk from "chalk";
 import { createWalletClient, http, type WalletClient } from "viem";
 import { privateKeyToAccount, nonceManager } from "viem/accounts";
+
+// Increase max listeners for batch operations
+// LangChain/LangGraph uses AbortSignals for cancellation/timeout on each tool call
+// Default limit is 10, but batch operations (10 swaps = 20+ tool calls) need higher limit
+// This is safe - LangGraph properly cleans up listeners after each operation completes
+setMaxListeners(50); // Support up to ~20 batch operations safely
 
 import { createPragmaH2Agent, PRAGMA_H2_SYSTEM_PROMPT } from "@pragma/core";
 import { loadAllowedTokens } from "./monorailTokens.js";
@@ -244,8 +251,64 @@ export const runPragmaH2Repl = async (options: H2AgentReplOptions = {}): Promise
 
   // Initialize conversation history with actual userAddress and mode injected
   const modeInstructions = quickMode
-    ? "YOU ARE IN QUICK MODE - Execute all operations immediately WITHOUT asking for confirmation. For wrap/unwrap/transfer: call the tool immediately. For swaps: call getSwapQuote, then IMMEDIATELY call executeSwap with the quote ID. Example: 'I'll swap 0.005 MON to USDC...' [call getSwapQuote] [immediately call executeSwap] 'Done! Tx: 0x...'"
-    : "YOU ARE IN NORMAL MODE - Ask for user confirmation BEFORE executing. For wrap/unwrap/transfer: ask first, then execute. For swaps: call getSwapQuote, show quote details, then wait for explicit approval ('yes', 'execute', 'proceed') before calling executeSwap. Example: 'Quote ready... Proceed?' → wait for 'yes' → [call executeSwap]";
+    ? `YOU ARE IN QUICK MODE - Execute all operations WITHOUT asking for user confirmation.
+
+**EXECUTION STRATEGY:**
+- SEQUENTIAL (Multi-Step): When operations have dependencies (e.g., "swap MON to USDC then swap to DAI")
+  → Keywords: "then", "after", "once", "and then"
+  → Execute: Operation 1 → wait for completion → Operation 2
+
+- PARALLEL (Batch): When operations are independent (e.g., "swap to USDC, USDT, and USDM")
+  → Keywords: "and", comma-separated, no "then"
+  → Execute: All operations at the same time (faster)
+
+Always prefer PARALLEL execution for independent operations.
+
+**SESSION KEY FUNDING:**
+Before executing batch operations (2+ swaps/transfers), ALWAYS check session key balance:
+1. Call checkSessionKeyBalance
+2. If needsFunding = true, call fundSessionKey ONCE
+3. Then execute all operations in parallel
+
+For single operations: Just execute - if balance low, tool will error.
+AUTOMATICALLY call fundSessionKey (no user permission needed) then retry the operation.
+Session key funding is a maintenance operation that does not require user confirmation.
+
+**BALANCE FETCHING:**
+- User says "show balances" or "what do I have" → use getAllBalances (fast, gets all tokens)
+- User says "what's my USDC" → use getBalance(USDC) (precise, single token)
+
+For swaps: call getSwapQuote then executeSwap with the quote ID.
+For wrap/unwrap/transfer: call tool directly.`
+    : `YOU ARE IN NORMAL MODE - Ask for user confirmation BEFORE executing.
+
+**EXECUTION STRATEGY:**
+- SEQUENTIAL (Multi-Step): When operations have dependencies (e.g., "swap MON to USDC then swap to DAI")
+  → Keywords: "then", "after", "once", "and then"
+  → Execute: Operation 1 → wait for completion → Operation 2
+
+- PARALLEL (Batch): When operations are independent (e.g., "swap to USDC, USDT, and USDM")
+  → Keywords: "and", comma-separated, no "then"
+  → Plan all operations → show all quotes → execute in parallel after confirmation
+
+Always prefer PARALLEL execution for independent operations.
+
+**SESSION KEY FUNDING:**
+Before executing batch operations (2+ swaps/transfers), ALWAYS check session key balance:
+1. Call checkSessionKeyBalance
+2. If needsFunding = true, call fundSessionKey ONCE
+3. Then execute all operations in parallel
+
+For single operations: Just execute - if balance low, tool will error.
+AUTOMATICALLY call fundSessionKey (no user permission needed) then retry the operation.
+Session key funding is a maintenance operation that does not require user confirmation.
+
+**BALANCE FETCHING:**
+- User says "show balances" or "what do I have" → use getAllBalances (fast, gets all tokens)
+- User says "what's my USDC" → use getBalance(USDC) (precise, single token)
+
+For swaps: call getSwapQuote, show quote, wait for approval ('yes', 'execute', 'proceed'), then executeSwap.
+For wrap/unwrap/transfer: ask first, then execute.`;
 
   const systemPrompt = PRAGMA_H2_SYSTEM_PROMPT
     .replace(/\[userAddress from context\]/g, userAddress)
@@ -342,8 +405,50 @@ export const runPragmaH2Repl = async (options: H2AgentReplOptions = {}): Promise
 
       // Update system prompt with current mode
       const modeInstructions = quickMode
-        ? "YOU ARE IN QUICK MODE - Execute all operations immediately WITHOUT asking for confirmation. For wrap/unwrap/transfer: call the tool immediately. For swaps: call getSwapQuote, then IMMEDIATELY call executeSwap with the quote ID. Example: 'I'll swap 0.005 MON to USDC...' [call getSwapQuote] [immediately call executeSwap] 'Done! Tx: 0x...'"
-        : "YOU ARE IN NORMAL MODE - Ask for user confirmation BEFORE executing. For wrap/unwrap/transfer: ask first, then execute. For swaps: call getSwapQuote, show quote details, then wait for explicit approval ('yes', 'execute', 'proceed') before calling executeSwap. Example: 'Quote ready... Proceed?' → wait for 'yes' → [call executeSwap]";
+        ? `YOU ARE IN QUICK MODE - Execute all operations WITHOUT asking for user confirmation.
+
+**EXECUTION STRATEGY:**
+- SEQUENTIAL (Multi-Step): When operations have dependencies (e.g., "swap MON to USDC then swap to DAI")
+  → Keywords: "then", "after", "once", "and then"
+  → Execute: Operation 1 → wait for completion → Operation 2
+
+- PARALLEL (Batch): When operations are independent (e.g., "swap to USDC, USDT, and USDM")
+  → Keywords: "and", comma-separated, no "then"
+  → Execute: All operations at the same time (faster)
+
+Always prefer PARALLEL execution for independent operations.
+
+For swaps: call getSwapQuote then executeSwap with the quote ID.
+For wrap/unwrap/transfer: call tool directly.`
+        : `YOU ARE IN NORMAL MODE - Ask for user confirmation BEFORE executing.
+
+**EXECUTION STRATEGY:**
+- SEQUENTIAL (Multi-Step): When operations have dependencies (e.g., "swap MON to USDC then swap to DAI")
+  → Keywords: "then", "after", "once", "and then"
+  → Execute: Operation 1 → wait for completion → Operation 2
+
+- PARALLEL (Batch): When operations are independent (e.g., "swap to USDC, USDT, and USDM")
+  → Keywords: "and", comma-separated, no "then"
+  → Plan all operations → show all quotes → execute in parallel after confirmation
+
+Always prefer PARALLEL execution for independent operations.
+
+**SESSION KEY FUNDING:**
+Before executing batch operations (2+ swaps/transfers), ALWAYS check session key balance:
+1. Call checkSessionKeyBalance
+2. If needsFunding = true, call fundSessionKey ONCE
+3. Then execute all operations in parallel
+
+For single operations: Just execute - if balance low, tool will error.
+AUTOMATICALLY call fundSessionKey (no user permission needed) then retry the operation.
+Session key funding is a maintenance operation that does not require user confirmation.
+
+**BALANCE FETCHING:**
+- User says "show balances" or "what do I have" → use getAllBalances (fast, gets all tokens)
+- User says "what's my USDC" → use getBalance(USDC) (precise, single token)
+
+For swaps: call getSwapQuote, show quote, wait for approval ('yes', 'execute', 'proceed'), then executeSwap.
+For wrap/unwrap/transfer: ask first, then execute.`;
 
       const updatedSystemPrompt = PRAGMA_H2_SYSTEM_PROMPT
         .replace(/\[userAddress from context\]/g, userAddress)

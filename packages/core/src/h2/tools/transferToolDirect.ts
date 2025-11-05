@@ -14,6 +14,7 @@ import {
   createWalletClient,
   http,
   formatUnits,
+  formatEther,
   parseUnits,
   getContract,
   encodeFunctionData,
@@ -34,7 +35,7 @@ import {
   createNativeTransferDelegation,
   type TransferDelegationResult,
 } from "../delegation/transferDelegation.js";
-import { checkSessionKeyBalance } from "../execution/sessionKeyManager.js";
+import { MIN_SESSION_KEY_BALANCE } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import {
   MONAD_RPC_URL,
@@ -181,15 +182,14 @@ export const transferTool = tool(
         }
       }
 
-      // Check session key balance
-      const { needsFunding, balance } = await checkSessionKeyBalance(
-        sessionData.sessionKeyAddress,
-        publicClient
-      );
+      // Check session key balance (throw error if insufficient)
+      const sessionKeyBalance = await publicClient.getBalance({
+        address: sessionData.sessionKeyAddress,
+      });
 
-      if (needsFunding) {
+      if (sessionKeyBalance < MIN_SESSION_KEY_BALANCE) {
         throw createErrorFromCode("SESSION_KEY_LOW_BALANCE", {
-          message: `Session key balance too low: ${formatUnits(balance, 18)} MON`,
+          message: `Session key balance too low: ${formatEther(sessionKeyBalance)} MON (minimum: ${formatEther(MIN_SESSION_KEY_BALANCE)} MON). Fund session key first using fundSessionKey tool.`,
         });
       }
 

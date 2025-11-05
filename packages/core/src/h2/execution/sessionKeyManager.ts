@@ -12,7 +12,7 @@
  * - User permission required before funding
  */
 
-import { type Address, type Hex, type PublicClient, parseEther, formatEther } from "viem";
+import { type Address, type Hex, type PublicClient, parseEther, formatEther, getAddress } from "viem";
 import type {
   SessionKeyBalance,
   SessionKeyFundingConfig,
@@ -29,8 +29,69 @@ import { fundSessionKeyViaDelegation } from "./sessionKeyFundingDelegation.js";
 /** Minimum balance threshold (if below this, funding is needed) */
 export const MIN_SESSION_KEY_BALANCE = parseEther("0.1"); // 0.1 MON
 
-/** Standard funding amount */
-export const SESSION_KEY_FUNDING_AMOUNT = parseEther("0.5"); // 0.5 MON
+/** Standard funding amount (increased for batch operation support) */
+export const SESSION_KEY_FUNDING_AMOUNT = parseEther("1.0"); // 1.0 MON
+
+/** Average gas cost per operation (conservative estimate) */
+export const AVG_GAS_PER_OPERATION = parseEther("0.08"); // ~0.08 MON per swap/transfer
+
+/** Safety buffer for batch operations */
+export const BATCH_SAFETY_BUFFER = parseEther("0.15"); // Extra 0.15 MON buffer
+
+/** Minimum balance needed to pay gas for delegation-based refill */
+export const MIN_GAS_FOR_DELEGATION = MIN_SESSION_KEY_BALANCE; // 0.1 MON (safe threshold)
+
+// ============================================================================
+// Gas Estimation (for Pre-Flight Checks)
+// ============================================================================
+
+/**
+ * Estimate gas required for batch operations
+ *
+ * Uses conservative estimates to prevent mid-batch failures due to
+ * insufficient session key balance.
+ *
+ * @param operationCount - Number of operations planned (swaps, transfers, etc.)
+ * @returns Estimated gas needed (in wei)
+ *
+ * @example
+ * ```typescript
+ * const estimatedGas = estimateGasForBatch(4); // 4 swaps
+ * // Returns: (4 × 0.08 MON) + 0.15 MON buffer = 0.47 MON
+ * ```
+ */
+export function estimateGasForBatch(operationCount: number): bigint {
+  if (operationCount <= 0) return 0n;
+
+  const totalGas = AVG_GAS_PER_OPERATION * BigInt(operationCount);
+  return totalGas + BATCH_SAFETY_BUFFER;
+}
+
+/**
+ * Check if session key should be funded for batch operations
+ *
+ * Performs pre-flight check to prevent mid-batch balance depletion.
+ * Compares current balance against estimated gas requirement.
+ *
+ * @param currentBalance - Current session key balance (in wei)
+ * @param estimatedOperations - Number of operations planned
+ * @returns Whether funding is needed before batch execution
+ *
+ * @example
+ * ```typescript
+ * const shouldFund = shouldFundForBatch(parseEther("0.3"), 4);
+ * // 0.3 MON < (4 × 0.08 + 0.15) = 0.47 MON → true
+ * ```
+ */
+export function shouldFundForBatch(
+  currentBalance: bigint,
+  estimatedOperations: number
+): boolean {
+  if (estimatedOperations <= 0) return currentBalance < MIN_SESSION_KEY_BALANCE;
+
+  const requiredBalance = estimateGasForBatch(estimatedOperations);
+  return currentBalance < requiredBalance;
+}
 
 // ============================================================================
 // Balance Checking
@@ -117,9 +178,22 @@ export async function fundSessionKey(
   web3authBridge: any, // Web3AuthBridge or direct PK bridge (used for refills only)
 ): Promise<SessionKeyFundingResult> {
   try {
+    // Validate inputs before attempting RPC calls
+    if (!config.sessionKeyAddress) {
+      throw new SessionKeyFundingError("sessionKeyAddress is undefined or empty");
+    }
+
+    if (!config.smartAccountAddress) {
+      throw new SessionKeyFundingError("smartAccountAddress is undefined or empty");
+    }
+
+    if (!publicClient) {
+      throw new SessionKeyFundingError("publicClient is undefined");
+    }
+
     // Get current balance before funding
     const balanceBefore = await publicClient.getBalance({
-      address: config.sessionKeyAddress
+      address: getAddress(config.sessionKeyAddress),
     });
 
     // Check if funding is actually needed
@@ -133,7 +207,7 @@ export async function fundSessionKey(
 
     // Check smart account balance
     const smartAccountBalance = await publicClient.getBalance({
-      address: config.smartAccountAddress
+      address: getAddress(config.smartAccountAddress),
     });
 
     if (smartAccountBalance < SESSION_KEY_FUNDING_AMOUNT) {
@@ -145,11 +219,11 @@ export async function fundSessionKey(
     }
 
     // Route based on session key balance:
-    // - 0 MON (initial funding) → Use UserOp (no gas needed from session key)
-    // - > 0 but < 0.1 MON (refill) → Use delegation (session key pays gas)
+    // - < 0.1 MON (initial or low balance) → Use UserOp (bundler pays gas)
+    // - ≥ 0.1 MON (refill with sufficient gas) → Use delegation (session key pays gas)
 
-    if (balanceBefore === 0n) {
-      // INITIAL FUNDING: Use UserOp approach
+    if (balanceBefore < MIN_GAS_FOR_DELEGATION) {
+      // INITIAL OR LOW-BALANCE FUNDING: Use UserOp approach (bundler pays gas)
       if (!config.smartAccount || !config.bundlerClient) {
         throw new SessionKeyFundingError(
           "Initial session key funding requires smartAccount and bundlerClient. " +
@@ -172,8 +246,8 @@ export async function fundSessionKey(
       };
     }
 
-    // REFILL FUNDING: Use delegation approach
-    // Session key has > 0 but < 0.1 MON - use delegation pattern
+    // REFILL FUNDING: Use delegation approach (session key has enough to pay gas)
+    // Session key has ≥ 0.1 MON - use delegation pattern
     if (!config.sessionKeyPrivateKey || !config.ownerAddress) {
       throw new SessionKeyFundingError(
         "Refill funding requires sessionKeyPrivateKey and ownerAddress. " +
@@ -225,3 +299,11 @@ export function getSessionKeyFundingMessage(balance: bigint): string {
     `I'll transfer ${formatEther(SESSION_KEY_FUNDING_AMOUNT)} MON from your smart account to cover gas costs. ` +
     `Is that okay?`;
 }
+
+// Re-export types for external use
+export type {
+  SessionKeyBalance,
+  SessionKeyFundingConfig,
+  SessionKeyFundingResult,
+} from "./types.js";
+export { SessionKeyFundingError } from "./types.js";

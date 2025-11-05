@@ -27,7 +27,7 @@ import {
 } from "@metamask/delegation-toolkit";
 
 import { createUnwrapDelegation } from "../delegation/unwrapDelegation.js";
-import { checkSessionKeyBalance, fundSessionKey, SESSION_KEY_FUNDING_AMOUNT } from "../execution/sessionKeyManager.js";
+import { MIN_SESSION_KEY_BALANCE } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 
 const WMON_ADDRESS = (process.env.MONAD_WMON_ADDRESS || "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701") as Address;
@@ -116,37 +116,15 @@ export const unwrapTool = tool(
         });
       }
 
-      // Check session key balance and auto-fund if needed
-      const { needsFunding, balance } = await checkSessionKeyBalance(
-        sessionData.sessionKeyAddress,
-        publicClient
-      );
+      // Check session key balance (throw error if insufficient)
+      const sessionKeyBalance = await publicClient.getBalance({
+        address: sessionData.sessionKeyAddress,
+      });
 
-      if (needsFunding) {
-        // Notify user about auto-funding
-        console.log(`\n⚡ Session key needs gas`);
-        console.log(`   Current balance: ${formatEther(balance)} MON (minimum: 0.1 MON)`);
-        console.log(`   Transferring ${formatEther(SESSION_KEY_FUNDING_AMOUNT)} MON from smart account...\n`);
-
-        // Auto-fund session key (user approved this during onboarding)
-        const fundingResult = await fundSessionKey(
-          {
-            smartAccountAddress: userAddress,
-            sessionKeyAddress: sessionData.sessionKeyAddress,
-            sessionKeyPrivateKey: sessionData.sessionKeyPrivateKey,
-            ownerAddress: sessionData.ownerAddress,
-            chainId: sessionData.chainId,
-            rpcUrl: MONAD_RPC_URL,
-            delegationManager: DELEGATION_MANAGER_ADDRESS,
-            smartAccount,
-            bundlerClient,
-          },
-          publicClient,
-          web3authBridge
-        );
-
-        console.log(`✓ Session key funded: ${formatEther(fundingResult.newBalance)} MON`);
-        console.log(`   Tx: ${fundingResult.txHash}\n`);
+      if (sessionKeyBalance < MIN_SESSION_KEY_BALANCE) {
+        throw createErrorFromCode("SESSION_KEY_LOW_BALANCE", {
+          message: `Session key balance too low: ${formatEther(sessionKeyBalance)} MON (minimum: ${formatEther(MIN_SESSION_KEY_BALANCE)} MON). Fund session key first using fundSessionKey tool.`,
+        });
       }
 
       // Fetch delegation nonce from NonceEnforcer (H1 pattern)

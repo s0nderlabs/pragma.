@@ -40,7 +40,7 @@ import {
 } from "@metamask/delegation-toolkit";
 
 import { createUnstakeClaimDelegation } from "../delegation/unstakeClaimDelegation.js";
-import { checkSessionKeyBalance, fundSessionKey, SESSION_KEY_FUNDING_AMOUNT } from "../execution/sessionKeyManager.js";
+import { MIN_SESSION_KEY_BALANCE } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import { APRIORI_ADDRESS } from "../config.js";
 import { APRIORI_ABI } from "../../contracts/aprMonABI.js";
@@ -105,37 +105,15 @@ export const unstakeClaimTool = tool(
       const requestIdArray = requestIds.split(",").map((id) => BigInt(id.trim()));
       const isBatch = requestIdArray.length > 1;
 
-      // Check session key balance and auto-fund if needed
-      const { needsFunding, balance } = await checkSessionKeyBalance(
-        sessionData.sessionKeyAddress,
-        publicClient
-      );
+      // Check session key balance (throw error if insufficient)
+      const sessionKeyBalance = await publicClient.getBalance({
+        address: sessionData.sessionKeyAddress,
+      });
 
-      if (needsFunding) {
-        // Notify user about auto-funding
-        console.log(`\n⚡ Session key needs gas`);
-        console.log(`   Current balance: ${formatEther(balance)} MON (minimum: 0.1 MON)`);
-        console.log(`   Transferring ${formatEther(SESSION_KEY_FUNDING_AMOUNT)} MON from smart account...\n`);
-
-        // Auto-fund session key (user approved this during onboarding)
-        const fundingResult = await fundSessionKey(
-          {
-            smartAccountAddress: userAddress,
-            sessionKeyAddress: sessionData.sessionKeyAddress,
-            sessionKeyPrivateKey: sessionData.sessionKeyPrivateKey,
-            ownerAddress: sessionData.ownerAddress,
-            chainId: sessionData.chainId,
-            rpcUrl: MONAD_RPC_URL,
-            delegationManager: DELEGATION_MANAGER_ADDRESS,
-            smartAccount,
-            bundlerClient,
-          },
-          publicClient,
-          web3authBridge
-        );
-
-        console.log(`✓ Session key funded: ${formatEther(fundingResult.newBalance)} MON`);
-        console.log(`   Tx: ${fundingResult.txHash}\n`);
+      if (sessionKeyBalance < MIN_SESSION_KEY_BALANCE) {
+        throw createErrorFromCode("SESSION_KEY_LOW_BALANCE", {
+          message: `Session key balance too low: ${formatEther(sessionKeyBalance)} MON (minimum: ${formatEther(MIN_SESSION_KEY_BALANCE)} MON). Fund session key first using fundSessionKey tool.`,
+        });
       }
 
       // Validate that all requests are claimable

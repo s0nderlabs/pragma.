@@ -255,6 +255,14 @@ export const ERROR_DEFINITIONS: DefinitionRecord = {
     retriable: false,
     defaultMessage: "Execution failed.",
   },
+  TRANSACTION_EXECUTION_FAILED: {
+    code: "TRANSACTION_EXECUTION_FAILED",
+    class: "Execution",
+    module: "Execution",
+    severity: "error",
+    retriable: true,
+    defaultMessage: "Transaction execution failed on-chain.",
+  },
   INTERNAL_ASSERTION_FAILED: {
     code: "INTERNAL_ASSERTION_FAILED",
     class: "Infra",

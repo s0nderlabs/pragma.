@@ -10,13 +10,15 @@ import chalk from "chalk";
 import { createPragmaH2Agent, PRAGMA_H2_SYSTEM_PROMPT } from "@pragma/core";
 import { loadAllowedTokens } from "./monorailTokens.js";
 import { logoutH2Session, type SessionState } from "./sessionStore.js";
+import type { Web3AuthBridge } from "./web3authServer.js";
+import type { H2Bridge } from "./h2Bridge.js";
 
 export interface H2AgentReplOptions {
   apiKey?: string;
   quickMode?: boolean;
   userAddress?: string;
   sessionData?: SessionState; // For Phase 3+: delegation/execution
-  web3authBridge?: any; // Bridge for signing delegations (required for execution)
+  web3authBridge?: Web3AuthBridge | H2Bridge; // Bridge for signing delegations (Web3Auth for prod, H2Bridge for dev)
   publicClient?: any; // Viem public client for balance checks and RPC calls
   smartAccount?: any; // Smart account instance from DTK (for UserOp-based session key funding)
   bundlerClient?: any; // Bundler client (for UserOp-based session key funding)
@@ -35,6 +37,7 @@ const MAX_HISTORY_MESSAGES = 20; // System prompt + 10 conversation turns
 
 /**
  * Prompt for user input with readline
+ * Handles SIGINT (Ctrl+C) to allow graceful exit
  */
 const promptLine = async (prompt: string): Promise<string> => {
   return new Promise((resolve) => {
@@ -42,6 +45,14 @@ const promptLine = async (prompt: string): Promise<string> => {
       input: process.stdin,
       output: process.stdout,
     });
+
+    const handleSigint = () => {
+      process.stdout.write("^C\n");
+      rl.close();
+      resolve("exit");  // Return "exit" to break the main loop
+    };
+
+    rl.on("SIGINT", handleSigint);
 
     rl.question(prompt, (answer) => {
       rl.close();
@@ -206,8 +217,27 @@ export const runPragmaH2Repl = async (options: H2AgentReplOptions = {}): Promise
 
   const messages: Array<[string, string]> = [["system", systemPrompt]];
 
-  // Main loop
-  while (true) {
+  // Process-level SIGINT handler as backup for graceful shutdown
+  const sigintHandler = async () => {
+    console.log(chalk.gray("\n\nInterrupted. Cleaning up...\n"));
+
+    // Close Web3Auth browser window before exit (only for Web3AuthBridge, not H2Bridge)
+    if (options.web3authBridge && 'shutdown' in options.web3authBridge) {
+      try {
+        await options.web3authBridge.shutdown();
+        console.log(chalk.gray("✓ Browser window closed\n"));
+      } catch (error) {
+        console.log(chalk.yellow("⚠ Browser cleanup failed (may already be closed)\n"));
+      }
+    }
+
+    process.exit(0);
+  };
+  process.on("SIGINT", sigintHandler);
+
+  try {
+    // Main loop
+    while (true) {
     try {
       // Prompt
       const prompt = quickMode
@@ -421,5 +451,9 @@ export const runPragmaH2Repl = async (options: H2AgentReplOptions = {}): Promise
       }
       // Continue REPL
     }
+  }
+  } finally {
+    // Clean up SIGINT handler
+    process.off("SIGINT", sigintHandler);
   }
 };

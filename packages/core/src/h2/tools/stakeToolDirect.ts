@@ -100,6 +100,7 @@ export const stakeTool = tool(
       const web3authBridge = config?.configurable?.web3authBridge as any;
       const smartAccount = config?.configurable?.smartAccount;
       const bundlerClient = config?.configurable?.bundlerClient;
+      let sessionWallet = config?.configurable?.sessionWallet; // Shared wallet for nonce management
 
       if (!userAddress || !publicClient || !sessionData || !web3authBridge) {
         throw createErrorFromCode("CONFIG_MISSING", {
@@ -213,17 +214,20 @@ export const stakeTool = tool(
         callData: depositCalldata,
       });
 
-      // Create session wallet
-      const sessionWallet = createWalletClient({
-        account: privateKeyToAccount(sessionData.sessionKeyPrivateKey),
-        chain: {
-          id: sessionData.chainId,
-          name: "Monad",
-          nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
-          rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
-        },
-        transport: http(MONAD_RPC_URL),
-      });
+      // Get or create session wallet (prefer shared wallet for proper nonce management)
+      if (!sessionWallet) {
+        // FALLBACK: Create temporary wallet (backward compatibility)
+        sessionWallet = createWalletClient({
+          account: privateKeyToAccount(sessionData.sessionKeyPrivateKey),
+          chain: {
+            id: sessionData.chainId,
+            name: "Monad",
+            nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
+            rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
+          },
+          transport: http(MONAD_RPC_URL),
+        });
+      }
 
       // Execute
       const txHash = await redeemDelegations(

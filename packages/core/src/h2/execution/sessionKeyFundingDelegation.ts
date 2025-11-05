@@ -32,6 +32,9 @@ import {
   formatEther,
   getAddress,
   toHex,
+  keccak256,
+  concat,
+  numberToHex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
@@ -166,13 +169,24 @@ export async function fundSessionKeyViaDelegation(
     },
   ] as unknown as Caveats;
 
+  // Generate unique salt for this funding delegation
+  // CRITICAL: Prevents hash collisions when multiple parallel operations
+  // trigger session key funding simultaneously
+  const uniqueSalt = keccak256(
+    concat([
+      numberToHex(Date.now(), { size: 32 }),      // Timestamp (millisecond precision)
+      numberToHex(Math.floor(Math.random() * 1e18), { size: 32 }), // Random value
+      toHex(nonce),                                // Current nonce
+    ])
+  );
+
   const delegation = createDelegation({
     environment,
     scope: transferScope,
     from: getAddress(smartAccountAddress) as Hex,
     to: getAddress(sessionKeyAddress) as Hex,
     caveats: transferCaveats,
-    salt: ZERO_SALT,
+    salt: uniqueSalt,  // Unique salt prevents delegation hash collisions
   });
 
   const typedData = buildDelegationTypedData(delegation, chainId, DELEGATION_MANAGER_ADDRESS);

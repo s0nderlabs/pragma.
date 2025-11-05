@@ -87,6 +87,7 @@ export const unstakeRequestTool = tool(
       const web3authBridge = config?.configurable?.web3authBridge as any;
       const smartAccount = config?.configurable?.smartAccount;
       const bundlerClient = config?.configurable?.bundlerClient;
+      let sessionWallet = config?.configurable?.sessionWallet;
 
       if (!userAddress || !publicClient || !sessionData || !web3authBridge) {
         throw createErrorFromCode("CONFIG_MISSING", {
@@ -202,17 +203,19 @@ export const unstakeRequestTool = tool(
         callData: requestRedeemCalldata,
       });
 
-      // Create session wallet
-      const sessionWallet = createWalletClient({
-        account: privateKeyToAccount(sessionData.sessionKeyPrivateKey),
-        chain: {
-          id: sessionData.chainId,
-          name: "Monad",
-          nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
-          rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
-        },
-        transport: http(MONAD_RPC_URL),
-      });
+      // Get or create session wallet
+      if (!sessionWallet) {
+        sessionWallet = createWalletClient({
+          account: privateKeyToAccount(sessionData.sessionKeyPrivateKey),
+          chain: {
+            id: sessionData.chainId,
+            name: "Monad",
+            nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
+            rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
+          },
+          transport: http(MONAD_RPC_URL),
+        });
+      }
 
       // Execute
       const txHash = await redeemDelegations(

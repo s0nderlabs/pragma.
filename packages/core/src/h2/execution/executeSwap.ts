@@ -107,6 +107,12 @@ export interface ExecuteSwapParams {
   smartAccount?: any;
   /** Bundler client (for UserOp-based session key funding) */
   bundlerClient?: any;
+  /**
+   * Shared session wallet client (for transaction nonce management)
+   * @recommended Pass this from agent context to prevent nonce collisions in parallel transactions
+   * @fallback If not provided, creates temporary wallet (legacy behavior - not recommended for parallel ops)
+   */
+  sessionWallet?: any; // Type: viem WalletClient
 }
 
 /**
@@ -448,17 +454,30 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     delegation.signature = signature;
   }
 
-  // Step 7: Create session wallet client
-  const sessionWallet = createWalletClient({
-    account: privateKeyToAccount(sessionKeyPrivateKey),
-    chain: {
-      id: chainId,
-      name: "Monad",
-      nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
-      rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
-    },
-    transport: http(MONAD_RPC_URL),
-  });
+  // Step 7: Get or create session wallet client
+  // Use provided wallet for proper nonce management (prevents parallel tx collisions)
+  // Or create temporary wallet as fallback (legacy behavior)
+  let sessionWallet = params.sessionWallet;
+
+  if (!sessionWallet) {
+    // FALLBACK: Create temporary wallet (backward compatibility)
+    // WARNING: This creates nonce collisions in parallel execution
+    if (DEBUG || process.env.H2_WARN_NONCE) {
+      console.log("\n⚠️  Creating temporary session wallet (deprecated for parallel ops)");
+      console.log("   Recommendation: Pass sessionWallet via config to prevent nonce collisions\n");
+    }
+
+    sessionWallet = createWalletClient({
+      account: privateKeyToAccount(sessionKeyPrivateKey),
+      chain: {
+        id: chainId,
+        name: "Monad",
+        nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
+        rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
+      },
+      transport: http(MONAD_RPC_URL),
+    });
+  }
 
   // Step 8: Execute all delegations sequentially
   // Each delegation is independent and executes one blockchain action
@@ -487,8 +506,12 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
 
       debugLog(`${bundle.label} transaction sent`, { hash: txHash });
 
-      // Wait for confirmation
-      await publicClient.waitForTransactionReceipt({ hash: txHash });
+      // Wait for confirmation with timeout (60 seconds)
+      // Prevents infinite waiting if transaction gets stuck
+      await publicClient.waitForTransactionReceipt({
+        hash: txHash,
+        timeout: 60_000,  // 60 second timeout
+      });
 
       debugLog(`${bundle.label} transaction confirmed`);
 
@@ -514,6 +537,7 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
   // Step 9: Wait for final transaction confirmation (if not already done)
   const receipt = await publicClient.waitForTransactionReceipt({
     hash: finalTxHash,
+    timeout: 60_000,  // 60 second timeout
   });
 
   debugLog("Final transaction confirmed", {

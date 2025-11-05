@@ -90,6 +90,7 @@ export const transferTool = tool(
       const sessionData = config?.configurable?.sessionData as any;
       const web3authBridge = config?.configurable?.web3authBridge as any;
       const allowedTokens = config?.configurable?.allowedTokens as any[];
+      let sessionWallet = config?.configurable?.sessionWallet;
 
       if (!userAddress || !publicClient || !sessionData || !web3authBridge || !allowedTokens) {
         throw createErrorFromCode("CONFIG_MISSING", {
@@ -271,17 +272,19 @@ export const transferTool = tool(
         callData: calldata,
       });
 
-      // Create session wallet
-      const sessionWallet = createWalletClient({
-        account: privateKeyToAccount(sessionData.sessionKeyPrivateKey),
-        chain: {
-          id: sessionData.chainId,
-          name: "Monad",
-          nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
-          rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
-        },
-        transport: http(MONAD_RPC_URL),
-      });
+      // Get or create session wallet
+      if (!sessionWallet) {
+        sessionWallet = createWalletClient({
+          account: privateKeyToAccount(sessionData.sessionKeyPrivateKey),
+          chain: {
+            id: sessionData.chainId,
+            name: "Monad",
+            nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
+            rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
+          },
+          transport: http(MONAD_RPC_URL),
+        });
+      }
 
       // Execute
       const txHash = await redeemDelegations(

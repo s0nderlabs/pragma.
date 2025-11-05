@@ -6,6 +6,8 @@
 
 import readline from "node:readline";
 import chalk from "chalk";
+import { createWalletClient, http, type WalletClient } from "viem";
+import { privateKeyToAccount, nonceManager } from "viem/accounts";
 
 import { createPragmaH2Agent, PRAGMA_H2_SYSTEM_PROMPT } from "@pragma/core";
 import { loadAllowedTokens } from "./monorailTokens.js";
@@ -199,6 +201,41 @@ export const runPragmaH2Repl = async (options: H2AgentReplOptions = {}): Promise
   // Create agent
   const agent = createPragmaH2Agent({ apiKey: options.apiKey });
 
+  // Create shared session wallet with nonce manager
+  // The nonce manager provides atomic nonce management, preventing collisions
+  // when executing parallel transactions (queues parallel calls, increments nonces safely)
+  let sessionWallet: WalletClient | undefined;
+  if (options.sessionData?.sessionKeyPrivateKey && options.sessionData?.chainId) {
+    const MONAD_RPC_URL = process.env.MONAD_EXECUTION_RPC_URL || "https://testnet.monad.xyz/";
+
+    try {
+      // Create account with nonce manager for parallel transaction support
+      const account = privateKeyToAccount(
+        options.sessionData.sessionKeyPrivateKey as `0x${string}`,
+        { nonceManager }  // Enable atomic nonce management for parallel operations
+      );
+
+      sessionWallet = createWalletClient({
+        account,  // Account with nonce manager attached
+        chain: {
+          id: options.sessionData.chainId,
+          name: "Monad",
+          nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
+          rpcUrls: {
+            default: { http: [MONAD_RPC_URL] },
+            public: { http: [MONAD_RPC_URL] },
+          },
+        },
+        transport: http(MONAD_RPC_URL),
+      });
+
+      console.log(chalk.gray("✓ Session wallet initialized with nonce manager (parallel tx support)\n"));
+    } catch (error) {
+      console.log(chalk.yellow(`⚠ Failed to initialize session wallet: ${(error as Error).message}`));
+      console.log(chalk.gray("  Tools will create wallets individually (fallback mode)\n"));
+    }
+  }
+
   // State
   let quickMode = options.quickMode ?? false;
   const setQuickMode = (value: boolean) => {
@@ -331,6 +368,7 @@ export const runPragmaH2Repl = async (options: H2AgentReplOptions = {}): Promise
             web3authBridge: options.web3authBridge,
             smartAccount: options.smartAccount,
             bundlerClient: options.bundlerClient,
+            sessionWallet, // Shared wallet for transaction nonce management (prevents parallel tx collisions)
           },
         }
       );

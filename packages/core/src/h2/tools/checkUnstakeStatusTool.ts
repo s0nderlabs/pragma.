@@ -67,7 +67,18 @@ You haven't created any withdrawal requests yet. To unstake aprMON, use the unst
       const claimed: RequestData[] = [];
 
       for (const request of requestData) {
-        if (request.claimed) {
+        // Enhanced claimed detection with fallback heuristics for testnet instant withdrawals
+        // On testnet with withdrawalDelay = 0, withdrawals complete instantly but the contract
+        // may not set claimed = true. Detect these cases by checking if request exists but
+        // is neither claimable nor claimed (indicating instant completion).
+        const isActuallyClaimed =
+          request.claimed ||  // Standard flag - contract says it's claimed
+          // Fallback heuristic for testnet instant withdrawals:
+          // If request exists but is neither claimable nor claimed, it was likely
+          // instant-claimed (testnet withdrawalDelay = 0 means immediate MON transfer)
+          (!request.claimable && !request.claimed && request.timestamp > 0n);
+
+        if (isActuallyClaimed) {
           claimed.push(request);
         } else if (request.claimable) {
           claimable.push(request);
@@ -82,7 +93,7 @@ You haven't created any withdrawal requests yet. To unstake aprMON, use the unst
       output += `Total Requests: ${requestData.length}\n`;
       output += `• Claimable: ${claimable.length}\n`;
       output += `• Pending: ${pending.length}\n`;
-      output += `• Already Claimed: ${claimed.length}\n\n`;
+      output += `• Completed: ${claimed.length}\n\n`;
 
       // Show claimable requests
       if (claimable.length > 0) {
@@ -119,12 +130,16 @@ You haven't created any withdrawal requests yet. To unstake aprMON, use the unst
       // Show claimed requests (last 3 only)
       if (claimed.length > 0) {
         const recentClaimed = claimed.slice(-3);
-        output += `**✓ Already Claimed (showing last ${Math.min(3, claimed.length)} of ${claimed.length}):**\n`;
+        output += `**✓ Already Completed (showing last ${Math.min(3, claimed.length)} of ${claimed.length}):**\n`;
         for (const request of recentClaimed) {
           output += `\n• Request ID: ${request.id}\n`;
           output += `  aprMON: ${formatUnits(request.shares, 18)}\n`;
           output += `  MON received: ${formatUnits(request.assets, 18)}\n`;
-          output += `  Status: ✅ CLAIMED\n`;
+          // Distinguish between explicitly claimed and instant claims
+          const status = request.claimed
+            ? "✅ CLAIMED (manual)"
+            : "✅ COMPLETED (instant on testnet)";
+          output += `  Status: ${status}\n`;
         }
         output += "\n";
       }

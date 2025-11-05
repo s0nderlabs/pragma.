@@ -38,6 +38,7 @@ export const executeSwapTool = tool(
       const web3authBridge = config?.configurable?.web3authBridge;
       const smartAccount = config?.configurable?.smartAccount;
       const bundlerClient = config?.configurable?.bundlerClient;
+      const sessionWallet = config?.configurable?.sessionWallet; // Shared wallet for nonce management
 
       // Validate context
       if (!userAddress || !sessionData || !publicClient || !web3authBridge) {
@@ -81,6 +82,7 @@ export const executeSwapTool = tool(
         chainId: sessionData.chainId,
         smartAccount,
         bundlerClient,
+        sessionWallet, // Pass shared wallet to prevent nonce collisions in parallel execution
       });
 
       // Format receipt

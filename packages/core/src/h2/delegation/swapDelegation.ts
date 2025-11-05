@@ -43,7 +43,7 @@
  * ```
  */
 
-import { Address, Hex, getAddress, toHex } from "viem";
+import { Address, Hex, getAddress, toHex, keccak256, concat, numberToHex } from "viem";
 import {
   createDelegation,
   getDeleGatorEnvironment,
@@ -220,6 +220,18 @@ export const createSwapDelegation = (
   // Get DTK environment
   const environment = getDeleGatorEnvironment(chainId);
 
+  // Generate unique salt for this delegation
+  // CRITICAL: Each delegation must have unique salt to prevent hash collisions
+  // when executing parallel operations with the same nonce
+  // Hash includes: timestamp + random + nonce for guaranteed uniqueness
+  const uniqueSalt = keccak256(
+    concat([
+      numberToHex(Date.now(), { size: 32 }),      // Timestamp (millisecond precision)
+      numberToHex(Math.floor(Math.random() * 1e18), { size: 32 }), // Random value
+      toHex(nonce),                                // Current nonce
+    ])
+  );
+
   // Create unsigned delegation
   const delegation = createDelegation({
     environment,
@@ -227,7 +239,7 @@ export const createSwapDelegation = (
     from: delegator as Hex,
     to: sessionKey as Hex,
     caveats,
-    salt: ZERO_SALT,
+    salt: uniqueSalt,  // Unique salt prevents delegation hash collisions
   });
 
   // Build EIP-712 typed data for signing

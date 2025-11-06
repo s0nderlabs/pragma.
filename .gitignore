@@ -16,6 +16,9 @@ out
 *.tsbuildinfo
 fixtures/
 
+# Private/Business Documents
+invoices/
+
 AGENTS.md
 CLAUDE.md
 SCRIPT.md
@@ -29,12 +32,10 @@ UI-Template/
 *_SUMMARY.md
 *_UPDATES.md
 *_ENHANCEMENTS*.md
-RUN_*_TESTS.sh
 TEST_*.md
-.claude/
-validate_monorail_slippage_bug.sh
-test-h2-*.sh
 H2_TEST_RESULTS.md
+.claude/
+dev-scripts/
 
 # Test artifacts
 test-results/

@@ -196,6 +196,60 @@ export const NATIVE_TOKEN_TRANSFER_AMOUNT_ENFORCER_ADDRESS =
   (process.env.NATIVE_TOKEN_TRANSFER_AMOUNT_ENFORCER_ADDRESS as Address) ||
   ("0xF71af580b9c3078fbc2BBF16FbB8EEd82b330320" as Address);
 
+/**
+ * ArgsEqualityCheckEnforcer - Enforces args equality for nested delegations
+ *
+ * Used in allowance delegations to prevent front-running attacks.
+ * Validates that the delegationHash and redeemer match the expected values.
+ *
+ * Critical for PragmaFeeEnforcer security: ensures fee delegation can only be
+ * redeemed by the correct session key in the correct execution context.
+ *
+ * @address 0x44B8C6ae3C304213c3e298495e12497Ed3E56E41
+ * @version v1.3.0
+ */
+export const ARGS_EQUALITY_CHECK_ENFORCER_ADDRESS =
+  (process.env.ARGS_EQUALITY_CHECK_ENFORCER_ADDRESS as Address) ||
+  ("0x44B8C6ae3C304213c3e298495e12497Ed3E56E41" as Address);
+
+/**
+ * PragmaFeeEnforcer - Enforces protocol fee collection
+ *
+ * Collects 0.5% fee on all Pragma operations (swaps, stakes, NFT purchases).
+ * Supports both native token (MON) and ERC20 fees.
+ *
+ * Features:
+ * - Fee-on-transfer token support (90% threshold, allows up to 10% token fee)
+ * - Treasury EOA validation (no contract callbacks)
+ * - Maximum fee sanity check (1000 MON)
+ * - Zero amount validation
+ * - Enhanced event logging with actual amounts
+ *
+ * Security:
+ * - Stateless design (no mutable storage)
+ * - Requires ArgsEqualityCheckEnforcer to prevent front-running
+ * - Balance-based validation (supports fee-on-transfer tokens)
+ *
+ * @address TBD (to be deployed)
+ * @version v1.0.0
+ */
+export const PRAGMA_FEE_ENFORCER_ADDRESS =
+  (process.env.PRAGMA_FEE_ENFORCER_ADDRESS as Address) ||
+  ("0x0000000000000000000000000000000000000000" as Address); // TBD: Update after deployment
+
+/**
+ * Pragma treasury address
+ * Receives all protocol fees from operations
+ *
+ * MUST be an EOA (not a contract) for security reasons.
+ * Contract enforces this in constructor validation.
+ *
+ * @address TBD (to be configured)
+ */
+export const PRAGMA_TREASURY_ADDRESS =
+  (process.env.PRAGMA_TREASURY_ADDRESS as Address) ||
+  ("0x0000000000000000000000000000000000000000" as Address); // TBD: Update with treasury EOA
+
 // ============================================================================
 // Enforcer ABIs
 // ============================================================================

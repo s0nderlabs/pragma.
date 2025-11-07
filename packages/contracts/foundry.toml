@@ -9,4 +9,9 @@ remappings = [
     "forge-std/=lib/forge-std/src/"
 ]
 
+# Sourcify verification settings (required for Monad testnet verification)
+metadata = true
+metadata_hash = "none"
+use_literal_content = true
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

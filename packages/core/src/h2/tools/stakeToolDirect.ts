@@ -134,9 +134,8 @@ export const stakeTool = tool(
         });
       }
 
-      // Note: Fee collection temporarily disabled until treasury system is implemented
-      // Will be added in future update with multi-delegation treasury transfers
-      const stakeAmount = amountWei; // Stake full amount (no fee for now)
+      // No Pragma protocol fee on staking (fee structure to be decided)
+      const stakeAmount = amountWei; // Stake full amount
 
       // Check session key balance (throw error if insufficient)
       const sessionKeyBalance = await publicClient.getBalance({
@@ -238,9 +237,7 @@ export const stakeTool = tool(
 • Block: ${receipt.blockNumber}
 • Gas Used: ${receipt.gasUsed}
 
-Your MON is now earning staking rewards through aPriori. aprMON appreciates in value over time.
-
-Note: Protocol fees temporarily disabled - you staked the full amount.`;
+Your MON is now earning staking rewards through aPriori. aprMON appreciates in value over time.`;
     } catch (error) {
       throw createErrorFromCode("EXEC_DELEGATION_REDEEM_REVERT", {
         message: `Failed to stake: ${(error as Error).message}`,
@@ -262,12 +259,11 @@ Use when user wants to:
 
 Process:
 1. Validates you have enough MON
-2. Deducts Pragma fee (0.5%)
-3. Creates ephemeral delegation (1-time use)
-4. Executes stake via aPriori.deposit()
-5. Returns transaction receipt with aprMON balance
+2. Creates ephemeral delegation (1-time use)
+3. Executes stake via aPriori.deposit()
+4. Returns transaction receipt with aprMON balance
 
-Fee: 0.5% Pragma protocol fee on input amount
+Fee: No Pragma fee (aPriori charges from rewards over time)
 
 Example: "stake 1 MON" or "stake all my MON"`,
     schema: z.object({

@@ -53,7 +53,14 @@ import {
   NONCE_ENFORCER_ADDRESS,
   NONCE_ENFORCER_ABI,
   MON_ADDRESS,
+  DELEGATION_MANAGER_ABI,
+  PRAGMA_FEE_ENFORCER_ADDRESS,
+  ARGS_EQUALITY_CHECK_ENFORCER_ADDRESS,
+  ROOT_AUTHORITY,
 } from "../config.js";
+import { addPragmaFeeEnforcer, requiresFee } from "../delegation/withFeeEnforcer.js";
+import { buildDelegationTypedData } from "../../delegations/typedData.js";
+import { PROTOCOL_FEES } from "../config.js";
 
 // ============================================================================
 // Debug Logging
@@ -387,8 +394,36 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     delegationManager: DELEGATION_MANAGER_ADDRESS,
   });
 
+  // Step 5d: Add fee enforcer if protocol fees are enabled
+  let feeEnforcedSwap = null;
+  let feeAllowanceDelegation = null;
+
+  if (requiresFee("swap", PROTOCOL_FEES) && quote.protocolFeeAmount > 0n) {
+    debugLog("Adding PragmaFeeEnforcer", {
+      feeAmount: quote.protocolFeeAmount.toString(),
+      fromToken: quote.fromToken,
+      isNative: quote.fromToken === MON_ADDRESS,
+    });
+
+    feeEnforcedSwap = addPragmaFeeEnforcer(swapDelegationResult, {
+      feeAmount: quote.protocolFeeAmount,
+      tokenAddress: quote.fromToken,
+      isNative: quote.fromToken === MON_ADDRESS,
+      sessionKey: sessionKeyAddress,
+    });
+
+    // CRITICAL FIX: Rebuild typedData to include fee enforcer caveat
+    // Without this, the signature is created for the OLD delegation structure (without fee enforcer)
+    // causing InvalidERC1271Signature error during redemption
+    feeEnforcedSwap.mainDelegation.typedData = buildDelegationTypedData(
+      feeEnforcedSwap.mainDelegation.delegation,
+      chainId,
+      DELEGATION_MANAGER_ADDRESS
+    );
+  }
+
   delegationBundles.push({
-    delegationResult: swapDelegationResult,
+    delegationResult: feeEnforcedSwap?.mainDelegation || swapDelegationResult,
     execution: createExecution({
       target: quote.monorailQuote.aggregator,
       value: quote.monorailQuote.transactionValue,
@@ -403,10 +438,12 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     delegationTypes: delegationBundles.map(d => d.label),
     fromToken: quote.fromToken,
     toToken: quote.toToken,
+    feeEnforcerAdded: !!feeEnforcedSwap,
   });
 
-  // Step 6: Sign all delegations with Web3Auth
-  for (const bundle of delegationBundles) {
+  // Step 6: Sign approve delegations (if any)
+  for (let i = 0; i < delegationBundles.length - 1; i++) {
+    const bundle = delegationBundles[i];
     const { delegation, typedData } = bundle.delegationResult;
 
     debugLog(`Signing delegation: ${bundle.label}`);
@@ -416,8 +453,66 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
       from: ownerAddress,
     });
 
-    // Attach signature to delegation
     delegation.signature = signature;
+  }
+
+  // Step 6b: Sign swap delegation (with fee enforcer caveat if added)
+  const swapBundle = delegationBundles[delegationBundles.length - 1];
+  const swapTypedData = feeEnforcedSwap?.mainDelegation.typedData || swapBundle.delegationResult.typedData;
+
+  debugLog("Signing swap delegation", {
+    hasFeeEnforcer: !!feeEnforcedSwap,
+    caveatsCount: swapBundle.delegationResult.delegation.caveats.length,
+  });
+
+  const swapSignatureResult = await web3authBridge.signTypedData({
+    typedDataJson: JSON.stringify(swapTypedData),
+    from: ownerAddress,
+  });
+  swapBundle.delegationResult.delegation.signature = swapSignatureResult.signature;
+
+  // Step 6c: If fee enforcer is added, get delegation hash and create fee allowance
+  if (feeEnforcedSwap) {
+    debugLog("Getting swap delegation hash for fee allowance");
+
+    const swapDelegationHash = await publicClient.readContract({
+      address: DELEGATION_MANAGER_ADDRESS,
+      abi: DELEGATION_MANAGER_ABI,
+      functionName: "getDelegationHash",
+      args: [swapBundle.delegationResult.delegation],
+    });
+
+    debugLog("Swap delegation hash", { hash: swapDelegationHash });
+
+    // Create fee allowance delegation
+    feeAllowanceDelegation = feeEnforcedSwap.createFeeAllowanceDelegation(swapDelegationHash);
+
+    debugLog("Fee allowance delegation created", {
+      delegate: feeAllowanceDelegation.delegate,
+      authority: feeAllowanceDelegation.authority,
+    });
+
+    // Sign fee allowance delegation
+    const feeAllowanceTypedData = buildDelegationTypedData(
+      feeAllowanceDelegation,
+      chainId,
+      DELEGATION_MANAGER_ADDRESS
+    );
+
+    debugLog("Signing fee allowance delegation");
+
+    const feeSignatureResult = await web3authBridge.signTypedData({
+      typedDataJson: JSON.stringify(feeAllowanceTypedData),
+      from: ownerAddress,
+    });
+    feeAllowanceDelegation.signature = feeSignatureResult.signature;
+
+    debugLog("Fee allowance delegation signed");
+
+    // Update swap delegation's caveat args (no re-signing needed!)
+    feeEnforcedSwap.updateMainDelegationArgs(feeAllowanceDelegation);
+
+    debugLog("Swap delegation args updated with fee allowance");
   }
 
   // Step 7: Get or create session wallet client

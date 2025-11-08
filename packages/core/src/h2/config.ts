@@ -11,6 +11,10 @@
  */
 
 import type { Address } from "viem";
+import { ROOT_AUTHORITY } from "@metamask/delegation-toolkit";
+
+// Re-export ROOT_AUTHORITY for fee enforcer integration
+export { ROOT_AUTHORITY };
 
 // ============================================================================
 // Network Configuration
@@ -100,6 +104,26 @@ export const APRIORI_ADDRESS =
  * @value 0.005 (0.5%)
  */
 export const APRIORI_FEE_RATE = 0.005;
+
+/**
+ * Protocol fee rates by operation type
+ * Fees are charged on input amounts and displayed to users in quotes
+ *
+ * Fee Pattern: Uniswap-style input deduction
+ * - When user swaps 1.0 TOKEN, fee is deducted FROM that 1.0 TOKEN
+ * - Actual swap amount: 1.0 - (1.0 × 0.005) = 0.995 TOKEN
+ * - User only needs exactly 1.0 TOKEN, NOT 1.005 TOKEN
+ */
+export const PROTOCOL_FEES = {
+  swap: 0.005,      // 0.5% on DEX swaps (deducted from input)
+  stake: 0,         // FREE - to be decided whether to charge on stake or unstake
+  nftBuy: 0.005,    // 0.5% on NFT purchases
+  nftSell: 0,       // FREE - no fee on NFT listings
+  transfer: 0,      // FREE - no fee on transfers
+  wrap: 0,          // FREE - no fee on MON wrapping
+  unwrap: 0,        // FREE - no fee on MON unwrapping
+  unstake: 0,       // FREE - to be decided whether to charge on stake or unstake
+} as const;
 
 // ============================================================================
 // Caveat Enforcer Addresses
@@ -235,7 +259,7 @@ export const ARGS_EQUALITY_CHECK_ENFORCER_ADDRESS =
  */
 export const PRAGMA_FEE_ENFORCER_ADDRESS =
   (process.env.PRAGMA_FEE_ENFORCER_ADDRESS as Address) ||
-  ("0x0000000000000000000000000000000000000000" as Address); // TBD: Update after deployment
+  ("0x3748f88864Af3802dbbacb58B83411A246f023A1" as Address);
 
 /**
  * Pragma treasury address
@@ -248,7 +272,7 @@ export const PRAGMA_FEE_ENFORCER_ADDRESS =
  */
 export const PRAGMA_TREASURY_ADDRESS =
   (process.env.PRAGMA_TREASURY_ADDRESS as Address) ||
-  ("0x0000000000000000000000000000000000000000" as Address); // TBD: Update with treasury EOA
+  ("0x0f7f2dc632ce4668574249961b79d8daaf804bb9" as Address);
 
 // ============================================================================
 // Enforcer ABIs
@@ -268,6 +292,41 @@ export const NONCE_ENFORCER_ABI = [
       { name: "delegator", type: "address" },
     ],
     outputs: [{ name: "nonce", type: "uint256" }],
+  },
+] as const;
+
+/**
+ * DelegationManager contract ABI (minimal - only getDelegationHash function)
+ * Used to calculate delegation hash for fee enforcer integration
+ */
+export const DELEGATION_MANAGER_ABI = [
+  {
+    type: "function",
+    name: "getDelegationHash",
+    stateMutability: "view",
+    inputs: [
+      {
+        name: "delegation",
+        type: "tuple",
+        components: [
+          { name: "delegate", type: "address" },
+          { name: "delegator", type: "address" },
+          { name: "authority", type: "bytes32" },
+          {
+            name: "caveats",
+            type: "tuple[]",
+            components: [
+              { name: "enforcer", type: "address" },
+              { name: "terms", type: "bytes" },
+              { name: "args", type: "bytes" },
+            ],
+          },
+          { name: "salt", type: "uint256" },
+          { name: "signature", type: "bytes" },
+        ],
+      },
+    ],
+    outputs: [{ name: "", type: "bytes32" }],
   },
 ] as const;
 

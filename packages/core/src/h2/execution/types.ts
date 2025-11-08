@@ -101,9 +101,10 @@ export interface SwapQuoteData {
     quoteId: string;
     gasEstimate?: bigint;
   };
-  // TODO: Add protocolFeeAmount when FeeEnforcer caveat is implemented
-  // /** Protocol fee amount in wei */
-  // protocolFeeAmount: bigint;
+  /** Protocol fee amount in wei (charged on input amount) */
+  protocolFeeAmount: bigint;
+  /** Net swap amount in wei (input amount minus protocol fee) */
+  netSwapAmount: bigint;
   /** Expected output amount in wei (full Monorail output, no fee subtracted) */
   expectedOutputWei: bigint;
   /** Expected output amount (formatted) */

@@ -21,6 +21,8 @@ import { resolveTokenFromAllowlist, type AllowedToken } from "../../monorail/tok
 import { createErrorFromCode } from "../../errors/index.js";
 import { generateQuoteId, storeSwapQuote } from "../execution/quoteStore.js";
 import type { SwapQuoteData } from "../execution/types.js";
+import { calculateProtocolFee } from "../delegation/withFeeEnforcer.js";
+import { PROTOCOL_FEES } from "../config.js";
 
 // ============================================================================
 // Configuration
@@ -100,27 +102,38 @@ export const getSwapQuoteTool = tool(
       const senderAddress = getAddress(userAddress as Address);
       const fromTokenDecimals = resolvedFromToken.decimals || 18;
 
-      // Prepare quote request
+      // Calculate protocol fee FIRST (charged on input amount)
+      const amountWei = parseUnits(amount, fromTokenDecimals);
+      const protocolFeeAmount = calculateProtocolFee(amountWei, PROTOCOL_FEES.swap);
+
+      // Calculate net swap amount (input minus fee)
+      // This is the actual amount that will be swapped via Monorail
+      const netSwapAmount = amountWei - protocolFeeAmount;
+      const netSwapAmountFormatted = formatUnits(netSwapAmount, fromTokenDecimals);
+
+      // Prepare quote request with NET amount (after fee deduction)
+      // This ensures the quote reflects what we're actually swapping
       const quoteParams: QuoteRequestParams = {
         fromToken: fromTokenAddress,
         toToken: toTokenAddress,
-        amountDecimal: amount,
+        amountDecimal: netSwapAmountFormatted,  // Use net amount for quote
         sender: senderAddress,
         destination: senderAddress,
         maxSlippageBps: validatedSlippageBps,
       };
 
-      // Fetch quote from Monorail
+      // Fetch quote from Monorail with net swap amount
       const monorailConfig = getMonorailConfig();
       const monorailQuote = await fetchMonorailQuote(quoteParams, monorailConfig);
 
-      // TODO: Protocol fee calculation removed until FeeEnforcer caveat is implemented
-      // Using full Monorail output (no fee subtraction)
+      // Final output (no fee deduction from output - fee is charged separately on input)
       const finalOutputAmount = monorailQuote.rawOutput;
 
       // Format amounts for display
       const toTokenDecimals = resolvedToToken.decimals || 18;
       const finalOutputFormatted = formatUnits(finalOutputAmount, toTokenDecimals);
+      const protocolFeeFormatted = formatUnits(protocolFeeAmount, fromTokenDecimals);
+      const netSwapFormatted = formatUnits(netSwapAmount, fromTokenDecimals);
 
       // Generate and store quote
       const quoteId = generateQuoteId();
@@ -135,7 +148,7 @@ export const getSwapQuoteTool = tool(
         fromTokenDecimals,
         toTokenDecimals,
         amount,
-        amountWei: parseUnits(amount, fromTokenDecimals),
+        amountWei,
         slippageBps: validatedSlippageBps,
         monorailQuote: {
           quoteId: monorailQuote.quoteId,
@@ -147,7 +160,8 @@ export const getSwapQuoteTool = tool(
           rawMinOutput: monorailQuote.rawMinOutput,
           gasEstimate: monorailQuote.gasEstimate,
         },
-        // TODO: Add protocolFeeAmount when FeeEnforcer is implemented
+        protocolFeeAmount,
+        netSwapAmount,
         expectedOutputWei: finalOutputAmount,
         expectedOutput: finalOutputFormatted,
         createdAt: now,
@@ -168,8 +182,9 @@ export const getSwapQuoteTool = tool(
       // Return conversational quote
       return `${slippageCappedWarning}Swap quote ready:
 
-• From: ${amount} ${fromToken}
+• From: ${amount} ${fromToken} (${netSwapFormatted} ${fromToken} after 0.5% fee)
 • To: ~${finalOutputFormatted} ${toToken}
+• Protocol Fee: ${protocolFeeFormatted} ${fromToken} (0.5%)
 • Price Impact: ${monorailQuote.compoundImpact || "unknown"}%
 • Route: ${routeNames.join(" → ") || "Direct"}
 • Gas Estimate: ${monorailQuote.gasEstimate ? formatUnits(monorailQuote.gasEstimate, 18) : "~0.002"} MON

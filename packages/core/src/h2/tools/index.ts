@@ -13,11 +13,13 @@ import { getAccountInfoTool } from "./getAccountInfoTool.js";
 import { getBalanceTool } from "./getBalanceTool.js";
 import { getAllBalancesTool } from "./getAllBalancesTool.js";
 import { getSessionKeyBalanceTool } from "./getSessionKeyBalanceTool.js";
+import { getSessionKeyPrivateKeyTool } from "./getSessionKeyPrivateKeyTool.js";
 import { listVerifiedTokensTool } from "./listVerifiedTokensTool.js";
 
 // Session Key Management Tools
 import { checkSessionKeyBalanceTool } from "./checkSessionKeyBalanceTool.js";
 import { fundSessionKeyTool } from "./fundSessionKeyTool.js";
+import { withdrawSessionKeyBalanceTool } from "./withdrawSessionKeyBalanceTool.js";
 
 // Quote Tools (for operations that need price discovery)
 import { getSwapQuoteTool } from "./getSwapQuoteTool.js";
@@ -67,11 +69,13 @@ export const h2ToolRegistry = [
   getBalanceTool,
   getAllBalancesTool,
   getSessionKeyBalanceTool,
+  getSessionKeyPrivateKeyTool,
   listVerifiedTokensTool,
 
   // Session key management tools
   checkSessionKeyBalanceTool,
   fundSessionKeyTool,
+  withdrawSessionKeyBalanceTool,
 
   // Swap (Quote → Execute pattern for price discovery)
   getSwapQuoteTool,
@@ -104,11 +108,13 @@ export {
   getBalanceTool,
   getAllBalancesTool,
   getSessionKeyBalanceTool,
+  getSessionKeyPrivateKeyTool,
   listVerifiedTokensTool,
 
   // Session key management tools
   checkSessionKeyBalanceTool,
   fundSessionKeyTool,
+  withdrawSessionKeyBalanceTool,
 
   // Swap tools (quote pattern)
   getSwapQuoteTool,

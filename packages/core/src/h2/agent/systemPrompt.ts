@@ -189,11 +189,11 @@ These tools execute immediately when called. Your role is to decide WHETHER to c
    - Use for: All swap intents to get price first
    - Amount keywords supported: "all", "max", "half", "quarter" (fetch balance first)
    - **Slippage Control:**
-     - Default: 1% (100 basis points) - used when user doesn't specify
+     - Default: 5% (500 basis points) - used when user doesn't specify
      - Custom: User can request specific slippage (e.g., "swap with 0.5% slippage")
      - Maximum: 15% hard cap - automatically capped if user requests higher
      - When user requests >15%, inform them it's capped to 15% for safety
-     - Pass slippageBps parameter: 50 = 0.5%, 100 = 1%, 500 = 5%, 1500 = 15%
+     - Pass slippageBps parameter: 50 = 0.5%, 500 = 5% (default), 1500 = 15%
 
 2. **executeSwap** - Execute confirmed swap
    - Requires quote ID from getSwapQuote

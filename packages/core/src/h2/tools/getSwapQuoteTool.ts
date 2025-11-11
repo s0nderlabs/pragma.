@@ -71,7 +71,7 @@ export const getSwapQuoteTool = tool(
 
       // Validate and cap slippage at 15% (1500 bps)
       const MAX_SLIPPAGE_BPS = 1500; // 15%
-      const DEFAULT_SLIPPAGE_BPS = 100; // 1%
+      const DEFAULT_SLIPPAGE_BPS = 500; // 5%
       let validatedSlippageBps = slippageBps || DEFAULT_SLIPPAGE_BPS;
 
       if (validatedSlippageBps > MAX_SLIPPAGE_BPS) {
@@ -227,12 +227,12 @@ Example inputs:
 - fromToken: "MON" or "0x..." (symbol preferred)
 - toToken: "USDC" or "0x..." (symbol preferred)
 - amount: "1.5" (decimal string)
-- slippageBps: 100 (optional, default 1% = 100 basis points)`,
+- slippageBps: 500 (optional, default 5% = 500 basis points)`,
     schema: z.object({
       fromToken: z.string().describe("Token to swap from (symbol like 'MON' or address like '0x...')"),
       toToken: z.string().describe("Token to swap to (symbol like 'USDC' or address like '0x...')"),
       amount: z.string().describe("Amount to swap (decimal string like '1.5')"),
-      slippageBps: z.number().optional().describe("Max slippage in basis points (100 = 1%, default 100)"),
+      slippageBps: z.number().optional().describe("Max slippage in basis points (100 = 1%, default 500 = 5%)"),
     }),
   }
 );

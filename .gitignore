@@ -41,3 +41,5 @@ dev-scripts/
 test-results/
 playwright-report/
 .playwright-mcp/
+
+YC/

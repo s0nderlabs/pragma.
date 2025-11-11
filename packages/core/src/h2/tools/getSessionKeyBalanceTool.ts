@@ -9,6 +9,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { formatUnits, parseUnits } from "viem";
 import type { Address, PublicClient } from "viem";
+import { emitProgress } from "../progress/emitter.js";
 
 const getSessionKeyBalanceSchema = z.object({
   // No parameters needed - uses sessionData from config
@@ -26,6 +27,8 @@ export const getSessionKeyBalanceTool = tool(
     const sessionKeyAddress = sessionData.sessionKeyAddress as Address;
 
     try {
+      emitProgress("Checking session key balance...");
+
       const balance = await publicClient.getBalance({ address: sessionKeyAddress });
       const balanceFormatted = formatUnits(balance, 18);
 

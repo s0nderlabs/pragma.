@@ -16,6 +16,7 @@ import { formatUnits, parseUnits, getAddress, type Address } from "viem";
 
 import { fetchWalletBalances, normalizeBalances } from "../../monorail/balances.js";
 import { createErrorFromCode } from "../../errors/index.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Configuration
@@ -107,6 +108,10 @@ export const getBalanceTool = tool(
         });
       }
 
+      // Progress: Checking balance
+      const tokenNormalized = token.toUpperCase().trim();
+      emitProgress(`Checking ${tokenNormalized === "ALL" ? "all token" : tokenNormalized} balance...`);
+
       // Fetch all balances from Monorail
       const rawBalances = await fetchWalletBalances(getAddress(userAddress), {
         dataApiUrl: MONORAIL_DATA_API_URL,
@@ -116,7 +121,6 @@ export const getBalanceTool = tool(
       const balances = normalizeBalances(rawBalances);
 
       // Check if user wants all balances
-      const tokenNormalized = token.toUpperCase().trim();
       if (tokenNormalized === "ALL") {
         // Helper function to safely convert balance to BigInt
         const safeBalanceToBigInt = (balanceStr: string, decimals: number): bigint => {

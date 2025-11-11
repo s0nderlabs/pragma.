@@ -39,6 +39,7 @@ import { createStakeDelegation } from "../delegation/stakeDelegation.js";
 import { MIN_SESSION_KEY_BALANCE } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import { APRIORI_ADDRESS, APRIORI_FEE_RATE } from "../config.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Constants
@@ -133,6 +134,9 @@ export const stakeTool = tool(
           message: `Insufficient MON balance. Required: ${amountFormatted}, Available: ${formatUnits(userBalance, 18)}`,
         });
       }
+
+      // Progress: Staking into aPriori
+      emitProgress(`Staking ${amountFormatted} MON into aPriori...`);
 
       // No Pragma protocol fee on staking (fee structure to be decided)
       const stakeAmount = amountWei; // Stake full amount

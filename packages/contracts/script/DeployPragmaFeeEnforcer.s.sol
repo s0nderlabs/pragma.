@@ -25,7 +25,7 @@ import {IDelegationManager} from "../lib/delegation-framework/src/interfaces/IDe
  */
 contract DeployPragmaFeeEnforcer is Script {
     // CREATE2 salt for deterministic deployment
-    bytes32 internal constant SALT = keccak256("PRAGMA_FEE_ENFORCER_v1.0.0");
+    bytes32 internal constant SALT = keccak256("PRAGMA_FEE_ENFORCER_v1.0.1");
 
     // DelegationManager address (Monad testnet)
     address internal constant DELEGATION_MANAGER = 0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3;
@@ -107,7 +107,7 @@ contract DeployPragmaFeeEnforcer is Script {
         console2.log("==========================================");
         console2.log("");
         console2.log("Contract:", "PragmaFeeEnforcer");
-        console2.log("Version:", "1.0.0");
+        console2.log("Version:", "1.0.1");
         console2.log("Address:", deployedAddress);
         console2.log("Status:", newlyDeployed ? "NEWLY DEPLOYED" : "ALREADY DEPLOYED");
         console2.log("");

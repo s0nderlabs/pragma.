@@ -31,6 +31,9 @@ import {
   getAddress,
   encodeFunctionData,
   erc20Abi,
+  WaitForTransactionReceiptTimeoutError,
+  TransactionNotFoundError,
+  TransactionReceiptNotFoundError,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
@@ -47,6 +50,7 @@ import { getSwapQuote, deleteSwapQuote } from "./quoteStore.js";
 import { MIN_SESSION_KEY_BALANCE } from "./sessionKeyManager.js";
 import { patchMonorailMinOutput } from "../../monorail/calldataPatcher.js";
 import { createErrorFromCode } from "../../errors/index.js";
+import { emitProgress } from "../progress/emitter.js";
 import {
   MONAD_RPC_URL,
   DELEGATION_MANAGER_ADDRESS,
@@ -88,6 +92,32 @@ function debugLog(message: string, data?: any) {
  */
 const isNativeToken = (tokenAddress: Address, nativeAddress: Address): boolean => {
   return tokenAddress.toLowerCase() === nativeAddress.toLowerCase();
+};
+
+/**
+ * Check if error is RPC infrastructure issue (not user/code fault)
+ * These errors indicate problems with the RPC endpoint, not the transaction itself
+ */
+const isRpcInfrastructureError = (error: unknown): boolean => {
+  if (!error) return false;
+
+  // Viem timeout errors
+  if (error instanceof WaitForTransactionReceiptTimeoutError) return true;
+  if (error instanceof TransactionNotFoundError) return true;
+  if (error instanceof TransactionReceiptNotFoundError) return true;
+
+  // Message-based detection (fallback)
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    /timed out while waiting for transaction/i.test(message) ||
+    /block requested not found/i.test(message) ||
+    /transaction (receipt )?not found/i.test(message) ||
+    /connection refused/i.test(message) ||
+    /rate limit/i.test(message) ||
+    /gateway timeout/i.test(message) ||
+    /service unavailable/i.test(message) ||
+    /invalid parameters/i.test(message)
+  );
 };
 
 // ============================================================================
@@ -200,6 +230,9 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     sufficient: true,
   });
 
+  // Progress: Balance verified
+  emitProgress(`Swapping ${formatUnits(quote.amountWei, quote.fromTokenDecimals)} ${quote.fromTokenSymbol} → ${quote.toTokenSymbol}...`);
+
   // Step 3: Get balance before swap (to calculate actual output later)
   const balanceBefore = isNativeToken(quote.toToken, MON_ADDRESS)
     ? await publicClient.getBalance({ address: userAddress })
@@ -254,6 +287,9 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
 
   // Step 5a: Create approve delegations if needed (smart allowance pattern)
   if (needsApprove) {
+    // Progress: Approving router
+    emitProgress(`Approving Monorail router to access your ${quote.fromTokenSymbol}...`);
+
     // Case 1: Sufficient allowance - skip approve entirely (gas optimization)
     if (currentAllowance >= quote.amountWei) {
       // No approve delegations needed
@@ -407,6 +443,7 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
 
     feeEnforcedSwap = addPragmaFeeEnforcer(swapDelegationResult, {
       feeAmount: quote.protocolFeeAmount,
+      swapAmount: quote.amountWei, // Original swap amount (before fee deduction)
       tokenAddress: quote.fromToken,
       isNative: quote.fromToken === MON_ADDRESS,
       sessionKey: sessionKeyAddress,
@@ -544,6 +581,9 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
   // Each delegation is independent and executes one blockchain action
   let finalTxHash: Hex = "0x" as Hex;
 
+  // Progress: Building delegations complete
+  emitProgress(`Building swap delegation with ${(quote.slippageBps / 100).toFixed(1)}% slippage protection...`);
+
   for (const bundle of delegationBundles) {
     const { delegation } = bundle.delegationResult;
 
@@ -553,8 +593,14 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
       calldata: bundle.execution.callData.slice(0, 66) + "...",
     });
 
+    // Progress: Executing delegation
+    if (bundle.label === "swap") {
+      emitProgress(`Executing swap via Monorail...`);
+    }
+
+    let txHash: Hex | undefined;
     try {
-      const txHash = await redeemDelegations(
+      txHash = await redeemDelegations(
         sessionWallet,
         publicClient,
         DELEGATION_MANAGER_ADDRESS,
@@ -566,6 +612,11 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
       );
 
       debugLog(`${bundle.label} transaction sent`, { hash: txHash });
+
+      // Progress: Waiting for confirmation
+      if (bundle.label === "swap") {
+        emitProgress(`Waiting for blockchain confirmation...`);
+      }
 
       // Wait for confirmation with timeout (60 seconds)
       // Prevents infinite waiting if transaction gets stuck
@@ -586,6 +637,29 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
         stack: error.stack,
         details: error.details,
       });
+
+      // Check if RPC infrastructure issue
+      if (isRpcInfrastructureError(error)) {
+        const txHashInfo = txHash ? `(hash: ${txHash})` : "(transaction may not have been broadcast)";
+        throw new Error(
+          `⚠️  RPC Endpoint Issue: ${bundle.label} transaction confirmation failed.\n\n` +
+          `This is a network infrastructure problem, not a bug in your transaction.\n\n` +
+          `What happened:\n` +
+          `• Your transaction was sent to the blockchain ${txHashInfo}\n` +
+          `• The RPC provider failed to confirm it within 60 seconds\n` +
+          `• This could be due to RPC sync lag, rate limiting, or network issues\n\n` +
+          `Your tokens are SAFE. Possible outcomes:\n` +
+          `• Transaction is pending confirmation\n` +
+          `• Transaction completed but RPC didn't report it\n\n` +
+          `Recommended actions:\n` +
+          `1. Check transaction status manually (explorer or different RPC)\n` +
+          `2. Check your balance - operation may have succeeded\n` +
+          `3. Try again in a few moments\n` +
+          `4. Switch to different RPC endpoint if problem persists\n\n` +
+          `Technical details: ${error.message}`
+        );
+      }
+
       throw new Error(`Failed to execute ${bundle.label}: ${error.message}`);
     }
   }
@@ -596,16 +670,42 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
   }
 
   // Step 9: Wait for final transaction confirmation (if not already done)
-  const receipt = await publicClient.waitForTransactionReceipt({
-    hash: finalTxHash,
-    timeout: 60_000,  // 60 second timeout
-  });
+  let receipt;
+  try {
+    receipt = await publicClient.waitForTransactionReceipt({
+      hash: finalTxHash,
+      timeout: 60_000,  // 60 second timeout
+    });
 
-  debugLog("Final transaction confirmed", {
-    blockNumber: receipt.blockNumber.toString(),
-    gasUsed: receipt.gasUsed.toString(),
-    status: receipt.status,
-  });
+    debugLog("Final transaction confirmed", {
+      blockNumber: receipt.blockNumber.toString(),
+      gasUsed: receipt.gasUsed.toString(),
+      status: receipt.status,
+    });
+  } catch (error: any) {
+    debugLog("Final confirmation FAILED", { error: error.message });
+
+    if (isRpcInfrastructureError(error)) {
+      throw new Error(
+        `⚠️  RPC Endpoint Issue: Transaction confirmation failed.\n\n` +
+        `This is a network infrastructure problem, not a bug.\n\n` +
+        `What happened:\n` +
+        `• Your swap transaction was submitted (hash: ${finalTxHash})\n` +
+        `• The RPC provider failed to return confirmation\n` +
+        `• This is often due to RPC sync issues or rate limiting\n\n` +
+        `Your tokens are SAFE. Possible outcomes:\n` +
+        `• Transaction is pending confirmation (check status manually)\n` +
+        `• Transaction completed but RPC didn't report it\n\n` +
+        `Recommended actions:\n` +
+        `1. Check transaction on block explorer\n` +
+        `2. Check your balance - swap may have succeeded\n` +
+        `3. Try different RPC endpoint if problem persists\n\n` +
+        `Technical details: ${error.message}`
+      );
+    }
+
+    throw error;
+  }
 
   // Step 10: Calculate actual output (balance after - balance before)
   const balanceAfter = isNativeToken(quote.toToken, MON_ADDRESS)

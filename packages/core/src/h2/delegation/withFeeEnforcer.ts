@@ -38,6 +38,8 @@ import {
 export interface FeeConfig {
   /** Fee amount in wei (e.g., parseEther("0.0005") for 0.0005 MON) */
   feeAmount: bigint;
+  /** Original swap/operation amount in wei (before fee deduction) */
+  swapAmount: bigint;
   /** Token address for fee payment (use MON_ADDRESS for native MON) */
   tokenAddress: Address;
   /** Whether the fee is paid in native token (MON) or ERC20 */
@@ -93,6 +95,7 @@ export interface DelegationWithFee<T> {
  * // 3. Add fee enforcer (if fee > 0)
  * const withFee = addPragmaFeeEnforcer(swapDelegation, {
  *   feeAmount,
+ *   swapAmount, // Original swap amount (for percentage-based minimum)
  *   tokenAddress: MON_ADDRESS,
  *   isNative: true,
  *   sessionKey: sessionKeyAddress,
@@ -123,10 +126,11 @@ export interface DelegationWithFee<T> {
 export function addPragmaFeeEnforcer<
   T extends { delegation: Delegation; typedData: any }
 >(delegationResult: T, config: FeeConfig): DelegationWithFee<T> {
-  // Build PragmaFeeEnforcer terms: isNative (1 byte) + token (20 bytes) + amount (32 bytes)
+  // Build PragmaFeeEnforcer terms: isNative (1 byte) + token (20 bytes) + amount (32 bytes) + swapAmount (32 bytes)
+  // Total: 85 bytes (v1.0.1 - added swapAmount for percentage-based minimum fee)
   const feeEnforcerTerms = encodePacked(
-    ["uint8", "address", "uint256"],
-    [config.isNative ? 1 : 0, config.tokenAddress, config.feeAmount]
+    ["uint8", "address", "uint256", "uint256"],
+    [config.isNative ? 1 : 0, config.tokenAddress, config.feeAmount, config.swapAmount]
   );
 
   // Add caveat with empty args (will be updated after signing)

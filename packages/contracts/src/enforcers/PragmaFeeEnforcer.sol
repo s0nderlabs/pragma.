@@ -49,7 +49,7 @@ contract PragmaFeeEnforcer is CaveatEnforcer {
     uint256 public constant MAX_FEE_AMOUNT = 1000 ether;
 
     /// @dev Contract version for deployment verification and frontend integration
-    string public constant VERSION = "1.0.0";
+    string public constant VERSION = "1.0.1";
 
     ////////////////////////////// Events //////////////////////////////
 
@@ -136,7 +136,7 @@ contract PragmaFeeEnforcer is CaveatEnforcer {
      * 8. Check treasury balance after
      * 9. Verify fee was received
      *
-     * @param _terms Encoded 53 bytes: isNative (1 byte) + token (20 bytes) + amount (32 bytes)
+     * @param _terms Encoded 85 bytes: isNative (1 byte) + token (20 bytes) + amount (32 bytes) + swapAmount (32 bytes)
      * @param _args Encoded allowance delegation(s) for fee payment
      * @param _mode The execution mode (must be default)
      * @param _delegationHash The hash of the main delegation
@@ -271,10 +271,11 @@ contract PragmaFeeEnforcer is CaveatEnforcer {
 
     /**
      * @notice Decodes the terms used in this caveat enforcer
-     * @param _terms Encoded 53 bytes:
+     * @param _terms Encoded 85 bytes:
      *   - byte 0: isNative flag (1 = native, 0 = ERC20)
      *   - bytes 1-20: token address (ignored if isNative = true)
      *   - bytes 21-52: fee amount (32 bytes)
+     *   - bytes 53-84: swap amount (32 bytes, original amount before fee)
      * @return isNative_ Whether the fee is in native token
      * @return token_ The ERC20 token address (address(0) if native)
      * @return amount_ The fee amount to collect
@@ -284,13 +285,19 @@ contract PragmaFeeEnforcer is CaveatEnforcer {
         pure
         returns (bool isNative_, address token_, uint256 amount_)
     {
-        require(_terms.length == 53, "PragmaFeeEnforcer:invalid-terms-length");
+        require(_terms.length == 85, "PragmaFeeEnforcer:invalid-terms-length");
 
         isNative_ = uint8(_terms[0]) == 1;
         token_ = address(bytes20(_terms[1:21]));
         amount_ = uint256(bytes32(_terms[21:53]));
+        uint256 swapAmount = uint256(bytes32(_terms[53:85]));
 
         require(amount_ > 0, "PragmaFeeEnforcer:amount-must-be-positive");
-        require(amount_ >= 100, "PragmaFeeEnforcer:amount-too-small");
+        require(swapAmount > 0, "PragmaFeeEnforcer:swap-amount-must-be-positive");
+
+        // Option A: Percentage-based minimum (0.01% of swap amount)
+        // This ensures fees scale with swap value, works for all token decimals
+        uint256 minFee = swapAmount / 10000; // 0.01% = 1 basis point
+        require(amount_ >= minFee, "PragmaFeeEnforcer:amount-too-small");
     }
 }

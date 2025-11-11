@@ -7,6 +7,8 @@
 import readline from "node:readline";
 import { setMaxListeners } from "node:events";
 import chalk from "chalk";
+import gradient from "gradient-string";
+import ora from "ora";
 import { createWalletClient, http, type WalletClient } from "viem";
 import { privateKeyToAccount, nonceManager } from "viem/accounts";
 
@@ -16,7 +18,7 @@ import { privateKeyToAccount, nonceManager } from "viem/accounts";
 // This is safe - LangGraph properly cleans up listeners after each operation completes
 setMaxListeners(50); // Support up to ~20 batch operations safely
 
-import { createPragmaH2Agent, PRAGMA_H2_SYSTEM_PROMPT } from "@pragma/core";
+import { createPragmaH2Agent, PRAGMA_H2_SYSTEM_PROMPT, onProgress, offProgress, type ProgressEvent } from "@pragma/core";
 import { loadAllowedTokens } from "./monorailTokens.js";
 import { logoutH2Session, type SessionState } from "./sessionStore.js";
 import type { Web3AuthBridge } from "./web3authServer.js";
@@ -337,15 +339,25 @@ For wrap/unwrap/transfer: ask first, then execute.`;
 
   try {
     // Main loop
+    let isRetrying = false;  // Track if we're retrying after termination error
+    let currentLine = '';    // Store current user input for retry
+    let retryCount = 0;      // Prevent infinite retry loops
+
     while (true) {
     try {
-      // Prompt
-      const prompt = quickMode
-        ? chalk.cyan("pragma ") + chalk.yellow("[quick]> ")
-        : chalk.cyan("pragma> ");
+      // Prompt (skip if retrying same message)
+      if (!isRetrying) {
+        const prompt = quickMode
+          ? chalk.cyan("pragma ") + chalk.yellow("[quick]> ")
+          : chalk.cyan("pragma> ");
 
-      const inputLine = await promptLine(prompt);
-      const line = inputLine.trim();
+        currentLine = await promptLine(prompt);
+        retryCount = 0;  // Reset retry count for new input
+      } else {
+        isRetrying = false;  // Reset retry flag
+      }
+
+      const line = currentLine.trim();
 
       // Skip empty lines
       if (!line) continue;
@@ -500,6 +512,98 @@ For wrap/unwrap/transfer: ask first, then execute.`;
       let assistantResponse = "";
       let hasOutput = false;
 
+      // Track progress state for in-place updates
+      let isShowingProgress = false;
+      let lastProgressMessage = ''; // Track last progress to persist it on tool end
+      let thinkingSpinner: ReturnType<typeof ora> | undefined; // Track ora spinner instance
+      let toolCompletedSinceLastText = false; // Track if tools completed (prevents multiple blank lines in batches)
+
+      // Static "thinking" word (playful crypto-themed, picked randomly per prompt)
+      // Like Claude Code - one word per prompt, no rotation
+      // Abstract words that don't confuse users with specific operations
+      const THINKING_WORDS = [
+        'finding alpha',
+        'building magic',
+        'securing vibes',
+        'preparing execution',
+        'summoning liquidity',
+        'channeling protocols',
+        'consulting the chain',
+        'brewing transactions',
+        'weaving smart contracts',
+        'harmonizing validators',
+      ];
+
+      const startThinking = () => {
+        // Pick ONE random word per prompt (no rotation)
+        const randomWord = THINKING_WORDS[Math.floor(Math.random() * THINKING_WORDS.length)];
+
+        // Static gradient (Monad purple → terracotta)
+        // No shimmer animation to prevent glitching on multiple lines
+        const monadGradient = gradient(['#846FFA', '#E2725B']);
+
+        // Ora spinner with static gradient text (distinct from cyan ⚡ tool messages)
+        thinkingSpinner = ora({
+          text: monadGradient(randomWord),
+          spinner: 'dots',  // Classic spinning dots animation (only dots animate, text is static)
+        }).start();
+
+        // No gradient interval - prevents terminal glitching when spinner runs long
+      };
+
+      const stopThinking = () => {
+        // Stop ora spinner completely (stops animation AND clears display)
+        if (thinkingSpinner) {
+          thinkingSpinner.stop();  // Use stop() to halt ora animation AND clear terminal
+          thinkingSpinner = undefined;
+        }
+      };
+
+      // Progress event handler for in-place terminal updates
+      // Rotates messages in-place, persists last message when tool completes
+      const progressHandler = (event: ProgressEvent) => {
+        const clearLine = '\x1b[2K';  // Clear entire line
+        const moveStart = '\r';        // Move cursor to start of line
+
+        if (!hasOutput) {
+          stopThinking(); // Stop thinking animation when first progress appears
+          console.log(""); // Blank line before first output
+          hasOutput = true;
+        }
+
+        // CRITICAL FIX: Flush any pending assistant text before showing progress
+        // This ensures AI text is written before we move to progress line
+        if (buffer.length > 0) {
+          flushBuffer(true); // Force flush all pending text
+        }
+
+        // Line separation: progress and AI text never share lines
+        if (!isShowingProgress) {
+          // First progress - start on NEW LINE (separate from AI text)
+          process.stdout.write('\n');
+        } else if (lastProgressMessage) {
+          // Updating existing progress - clear only progress line (safe)
+          process.stdout.write(`${clearLine}${moveStart}`);
+        }
+
+        // Update progress message
+        lastProgressMessage = event.message;
+        process.stdout.write(`${chalk.cyan('⚡')} ${event.message}`);
+        isShowingProgress = true;
+      };
+
+      // Subscribe to progress events
+      onProgress(progressHandler);
+
+      // Start thinking animation
+      startThinking();
+
+      // Reset state for new user message (prevents bugs on 2nd+ messages in REPL)
+      hasOutput = false;
+      toolCompletedSinceLastText = false;
+      isShowingProgress = false;
+      lastProgressMessage = '';
+
       try {
         for await (const event of stream) {
           // Token-level streaming from LLM
@@ -522,10 +626,21 @@ For wrap/unwrap/transfer: ask first, then execute.`;
             }
 
             if (delta) {
+              // ALWAYS stop thinking when AI text starts (defensive + idempotent)
+              stopThinking();
+
+              // Stop thinking only when we have actual text to display
+              // This prevents 1-2 second gap from empty initialization chunks
               if (!hasOutput) {
                 console.log(""); // Blank line before first output
                 hasOutput = true;
+              } else if (toolCompletedSinceLastText) {
+                // AI resuming after tool batch - add blank line for visual separation
+                // CRITICAL: Use 'else if' to prevent double blank (first output + tools)
+                console.log(""); // Blank line after tool batch (clean separation)
+                toolCompletedSinceLastText = false; // Reset for next batch
               }
+
               assistantResponse += delta;
               buffer += delta;
               flushBuffer();
@@ -538,25 +653,53 @@ For wrap/unwrap/transfer: ask first, then execute.`;
               console.log("");
               hasOutput = true;
             }
-            const toolName = event.name || "tool";
-            console.log(chalk.cyan(`\n🔧 Calling ${toolName}...`));
+            // Tools will emit their own progress messages now
+            // No need for static "Calling..." message
           }
           // Tool execution complete
           else if (event.event === "on_tool_end") {
             const toolName = event.name || "tool";
             const output = event.data?.output;
-            console.log(chalk.green(`✓ ${toolName} complete`));
-            if (output && typeof output === "string") {
-              // Display tool result
-              console.log(chalk.gray(`   ${output.slice(0, 200)}${output.length > 200 ? "..." : ""}\n`));
-            } else {
-              console.log("");
+
+            // Only write newline ONCE per batch (prevents stacked newlines from parallel tools)
+            // ALWAYS write newline after tool completion (even if progress wasn't shown)
+            // This fixes fast tools that complete before progress registers
+            if (!toolCompletedSinceLastText) {
+              process.stdout.write('\n');
+              toolCompletedSinceLastText = true;  // Block subsequent tools in this batch
             }
+
+            // Reset progress state for next tool
+            isShowingProgress = false;
+            lastProgressMessage = '';
+
+            // No completion message - last progress line provides context
+          }
+          // Tool execution error
+          else if (event.event === "on_tool_error") {
+            // Handle tool errors same as tool completion for spacing
+            // This prevents text concatenation when tools throw errors
+            if (!toolCompletedSinceLastText) {
+              process.stdout.write('\n');
+              toolCompletedSinceLastText = true;
+            }
+
+            // Reset progress state
+            isShowingProgress = false;
+            lastProgressMessage = '';
           }
         }
       } finally {
         clearInterval(flushInterval);
-        flushBuffer(true); // Final flush
+        flushBuffer(true); // CRITICAL: Flush final text BEFORE clearing
+
+        // Ensure newline after final text (prevents prompt from appearing on same line)
+        if (hasOutput) {
+          console.log(""); // Add blank line for clean separation
+        }
+
+        stopThinking(); // Clean up thinking animation (after flush, safe to clear)
+        offProgress(progressHandler); // Clean up progress listener
       }
 
       // Add assistant's response to history
@@ -576,11 +719,45 @@ For wrap/unwrap/transfer: ask first, then execute.`;
       console.log(""); // Blank line after response
     } catch (error) {
       const err = error as Error;
-      console.error(chalk.red(`\n❌ Error: ${err.message}\n`));
 
-      // Show error type for better debugging of intermittent issues
-      if (err.name && err.name !== "Error") {
-        console.error(chalk.gray(`   Type: ${err.name}`));
+      // Check if it's a termination/connection error (auto-retry once)
+      const isTerminationError =
+        err.message === "terminated" ||
+        err.message.includes("aborted") ||
+        err.message.includes("Connection") ||
+        err.name === "AbortError" ||
+        err.name === "TypeError" && err.message === "terminated";
+
+      if (isTerminationError && retryCount === 0) {
+        // Connection interrupted - retry once
+        console.error(chalk.yellow(`\n⚠️  Connection interrupted. Retrying...\n`));
+        retryCount++;
+        isRetrying = true;
+        // DON'T pop message - keep for retry
+        continue;  // Retry with same message
+      }
+
+      // Check if it's an RPC infrastructure error
+      const isRpcError = err.message.includes("⚠️  RPC Endpoint Issue") ||
+                         (err as any).code === "RPC_UNAVAILABLE" ||
+                         (err as any).code === "RPC_RATE_LIMITED" ||
+                         (err as any).code === "TIMEOUT";
+
+      if (isRpcError) {
+        // RPC errors - show in yellow (warning) with full helpful message
+        console.error(chalk.yellow(`\n${err.message}\n`));
+      } else if (isTerminationError) {
+        // Termination error after retry - show friendly message
+        console.error(chalk.red(`\n❌ Connection error: Unable to reach AI service after retry.\n`));
+        console.error(chalk.gray(`   Please check your internet connection and try again.\n`));
+      } else {
+        // Regular errors - show in red
+        console.error(chalk.red(`\n❌ Error: ${err.message}\n`));
+
+        // Show error type for better debugging of intermittent issues
+        if (err.name && err.name !== "Error") {
+          console.error(chalk.gray(`   Type: ${err.name}`));
+        }
       }
 
       if (process.env.DEBUG) {

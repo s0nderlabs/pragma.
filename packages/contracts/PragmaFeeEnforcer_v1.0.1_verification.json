@@ -1,0 +1,117 @@
+{
+  "contractName": "PragmaFeeEnforcer",
+  "version": "1.0.1",
+  "address": "0xC0060a7411b5a66ffF4285BEf32e02eCd1Ba9D92",
+  "network": "Monad Testnet",
+  "chainId": 10143,
+  "compiler": {
+    "version": "v0.8.23+commit.f704f362",
+    "optimizationEnabled": true,
+    "runs": 200
+  },
+  "deployment": {
+    "method": "CREATE2",
+    "salt": "0x238c2b9617412541b150e7a4799f595a747049a3f185c6a09a91c370e01998c5",
+    "deployer": "0x0F7f2dc632ce4668574249961B79D8DaAF804bB9",
+    "timestamp": "2025-11-11",
+    "transactionHash": "0x50b5539dd08320f5ee920557de6eb1cd3c429151e182a8075a83fbd592dccdbe"
+  },
+  "constructorArguments": {
+    "delegationManager": "0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3",
+    "argsEqualityCheckEnforcer": "0x44B8C6ae3C304213c3e298495e12497Ed3E56E41",
+    "treasury": "0x0F7f2dc632ce4668574249961B79D8DaAF804bB9"
+  },
+  "contractConfiguration": {
+    "TREASURY": "0x0F7f2dc632ce4668574249961B79D8DaAF804bB9",
+    "MAX_FEE_AMOUNT": "1000000000000000000000",
+    "VERSION": "1.0.1",
+    "minimumFeeLogic": "percentage-based (0.01% of swap amount)"
+  },
+  "keyFeatures": [
+    "Protocol fee collection (0.5% on swaps/stakes/NFT purchases)",
+    "Percentage-based minimum fee (0.01% of swap amount) - fixes WBTC dust amount bug",
+    "Fee-on-transfer token support (90% threshold, allows up to 10% token fee)",
+    "Treasury EOA validation (no contract callbacks)",
+    "Maximum fee sanity check (1000 MON)",
+    "Enhanced event logging with actual amounts",
+    "Supports both native token (MON) and ERC20 fees",
+    "ArgsEqualityCheckEnforcer integration for front-running protection",
+    "Balance-based validation (prevents malicious token balance manipulation)"
+  ],
+  "changelog": {
+    "v1.0.1": {
+      "date": "2025-11-11",
+      "changes": [
+        "Changed minimum fee from fixed 100 wei to percentage-based (0.01% of swap amount)",
+        "Extended terms encoding from 53 bytes to 85 bytes (added swapAmount parameter)",
+        "Added swapAmount validation in getTermsInfo",
+        "Fixed WBTC dust amount bug (0.00003620 WBTC now works)",
+        "Updated all tests to use new 85-byte term format",
+        "Updated TypeScript integration (withFeeEnforcer.ts, executeSwap.ts)"
+      ],
+      "reason": "Fixed critical bug where small WBTC swaps were rejected due to fixed 100 wei minimum fee. WBTC (8 decimals) generates very small wei amounts for small USD values, causing 0.5% protocol fee to be below fixed minimum. Solution: percentage-based minimum (0.01% of swap) scales with swap value regardless of token decimals."
+    },
+    "v1.0.0": {
+      "date": "2024-10-31",
+      "changes": [
+        "Initial release",
+        "Nested delegation pattern for fee collection",
+        "Fixed 100 wei minimum fee",
+        "Fee-on-transfer token support",
+        "Treasury EOA validation"
+      ]
+    }
+  },
+  "securityConsiderations": [
+    "Stateless design - no mutable storage",
+    "Requires ArgsEqualityCheckEnforcer to prevent front-running attacks",
+    "Balance-based validation instead of relying on return values",
+    "Treasury must be EOA (enforced in constructor)",
+    "Maximum fee sanity check (1000 MON) prevents misconfiguration",
+    "Percentage-based minimum prevents dust amount exploits"
+  ],
+  "testCoverage": {
+    "totalTests": 31,
+    "passing": 31,
+    "failing": 0,
+    "testFile": "test/PragmaFeeEnforcer.t.sol",
+    "testCategories": [
+      "getTermsInfo validation (7 tests)",
+      "afterAllHook native token (3 tests)",
+      "afterAllHook ERC20 token (4 tests)",
+      "Security validations (8 tests)",
+      "Fee-on-transfer token support (3 tests)",
+      "Constructor validation (4 tests)",
+      "WBTC dust amount edge cases (2 tests)"
+    ]
+  },
+  "integrationPoints": {
+    "typescript": [
+      "packages/core/src/h2/config.ts (PRAGMA_FEE_ENFORCER_ADDRESS)",
+      "packages/core/src/h2/delegation/withFeeEnforcer.ts (integration wrapper)",
+      "packages/core/src/h2/execution/executeSwap.ts (swap execution)"
+    ],
+    "contracts": [
+      "DelegationManager (0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3)",
+      "ArgsEqualityCheckEnforcer (0x44B8C6ae3C304213c3e298495e12497Ed3E56E41)"
+    ]
+  },
+  "verificationSteps": [
+    "1. Copy contract source code from packages/contracts/src/enforcers/PragmaFeeEnforcer.sol",
+    "2. Flatten imports if needed (may require flattening delegation-framework dependencies)",
+    "3. Submit to block explorer with constructor arguments above",
+    "4. Verify compiler version matches: 0.8.23",
+    "5. Verify optimization enabled with 200 runs",
+    "6. Check VERSION() public view returns '1.0.1'",
+    "7. Check TREASURY() returns 0x0F7f2dc632ce4668574249961B79D8DaAF804bB9",
+    "8. Check MAX_FEE_AMOUNT() returns 1000 ether"
+  ],
+  "notes": [
+    "This is a critical hotfix deployed during demo video recording",
+    "Original issue: WBTC swap (0.00003620 WBTC = ~$3.91) failed with 'amount-too-small' error",
+    "Root cause: Fixed 100 wei minimum equates to ~$21 minimum for WBTC (8 decimals)",
+    "Solution: Percentage-based minimum (0.01% of swap) works for all token decimals",
+    "All 31 Foundry tests passing after fix",
+    "TypeScript integration updated and rebuilt (core + CLI packages)"
+  ]
+}

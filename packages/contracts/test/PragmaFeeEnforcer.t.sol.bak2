@@ -185,7 +185,7 @@ contract PragmaFeeEnforcerTest is Test {
     function test_AfterAllHook_RevertsIfNativePaymentNotReceived() public {
         uint256 feeAmount = 0.5 ether;
 
-        bytes memory terms = abi.encodePacked(uint8(1), address(0), feeAmount, uint256(100 ether));
+        bytes memory terms = abi.encodePacked(uint8(1), address(0), feeAmount);
         Delegation memory allowanceDelegation = _createAllowanceDelegation(true, address(0), feeAmount);
         bytes memory args = abi.encode(_wrapDelegationArray(allowanceDelegation));
 
@@ -207,14 +207,12 @@ contract PragmaFeeEnforcerTest is Test {
 
     function test_AfterAllHook_CollectsERC20Fee() public {
         uint256 feeAmount = 100e18;
-        uint256 swapAmount = 1000e18; // Original swap amount
 
         // Encode terms for ERC20 fee
         bytes memory terms = abi.encodePacked(
             uint8(0),              // isNative = false
             erc20Token,            // token
-            feeAmount,             // amount
-            swapAmount             // swapAmount
+            feeAmount              // amount
         );
 
         // Create allowance delegation
@@ -260,7 +258,7 @@ contract PragmaFeeEnforcerTest is Test {
     function test_AfterAllHook_RevertsIfERC20PaymentNotReceived() public {
         uint256 feeAmount = 100e18;
 
-        bytes memory terms = abi.encodePacked(uint8(0), erc20Token, feeAmount, uint256(1000e18));
+        bytes memory terms = abi.encodePacked(uint8(0), erc20Token, feeAmount);
         Delegation memory allowanceDelegation = _createAllowanceDelegation(false, erc20Token, feeAmount);
         bytes memory args = abi.encode(_wrapDelegationArray(allowanceDelegation));
 
@@ -386,7 +384,7 @@ contract PragmaFeeEnforcerTest is Test {
         // Deploy fee-on-transfer token (10% fee)
         MockFeeOnTransferToken feeToken = new MockFeeOnTransferToken("Fee Token", "FEE", 10); // 10% fee
 
-        bytes memory terms = abi.encodePacked(uint8(0), address(feeToken), feeAmount, uint256(1000e18));
+        bytes memory terms = abi.encodePacked(uint8(0), address(feeToken), feeAmount);
         Delegation memory allowanceDelegation = _createAllowanceDelegation(false, address(feeToken), feeAmount);
         bytes memory args = abi.encode(_wrapDelegationArray(allowanceDelegation));
 
@@ -418,7 +416,7 @@ contract PragmaFeeEnforcerTest is Test {
         // Deploy fee-on-transfer token (11% fee - exceeds 90% threshold)
         MockFeeOnTransferToken feeToken = new MockFeeOnTransferToken("Fee Token", "FEE", 11); // 11% fee
 
-        bytes memory terms = abi.encodePacked(uint8(0), address(feeToken), feeAmount, uint256(1000e18));
+        bytes memory terms = abi.encodePacked(uint8(0), address(feeToken), feeAmount);
         Delegation memory allowanceDelegation = _createAllowanceDelegation(false, address(feeToken), feeAmount);
         bytes memory args = abi.encode(_wrapDelegationArray(allowanceDelegation));
 
@@ -445,7 +443,7 @@ contract PragmaFeeEnforcerTest is Test {
         // Deploy fee-on-transfer token (exactly 10% fee)
         MockFeeOnTransferToken feeToken = new MockFeeOnTransferToken("Fee Token", "FEE", 10);
 
-        bytes memory terms = abi.encodePacked(uint8(0), address(feeToken), feeAmount, uint256(1000e18));
+        bytes memory terms = abi.encodePacked(uint8(0), address(feeToken), feeAmount);
         Delegation memory allowanceDelegation = _createAllowanceDelegation(false, address(feeToken), feeAmount);
         bytes memory args = abi.encode(_wrapDelegationArray(allowanceDelegation));
 
@@ -471,7 +469,7 @@ contract PragmaFeeEnforcerTest is Test {
         uint256 feeAmount = 100e18;
         MockFeeOnTransferToken feeToken = new MockFeeOnTransferToken("Fee Token", "FEE", 10); // 10% fee
 
-        bytes memory terms = abi.encodePacked(uint8(0), address(feeToken), feeAmount, uint256(1000e18));
+        bytes memory terms = abi.encodePacked(uint8(0), address(feeToken), feeAmount);
         Delegation memory allowanceDelegation = _createAllowanceDelegation(false, address(feeToken), feeAmount);
         bytes memory args = abi.encode(_wrapDelegationArray(allowanceDelegation));
 
@@ -515,9 +513,9 @@ contract PragmaFeeEnforcerTest is Test {
     }
 
     function test_GetTermsInfo_RevertsIfAmountTooSmall() public {
-        // swapAmount = 100000 wei → minFee = 100000 / 10000 = 10 wei
-        // fee = 5 wei (positive, but < minFee of 10 wei) → should revert with amount-too-small
-        bytes memory terms = abi.encodePacked(uint8(1), address(0), uint256(5), uint256(100000));
+        // swapAmount = 10000 wei → minFee = 10000 / 10000 = 1 wei
+        // fee = 0 wei < minFee → should revert
+        bytes memory terms = abi.encodePacked(uint8(1), address(0), uint256(0), uint256(10000));
 
         vm.expectRevert("PragmaFeeEnforcer:amount-too-small");
         enforcer.getTermsInfo(terms);
@@ -554,8 +552,7 @@ contract PragmaFeeEnforcerTest is Test {
         MockBalanceManipulationToken maliciousToken = new MockBalanceManipulationToken(treasury);
 
         uint256 feeAmount = 100e18;
-        uint256 swapAmount = 1000e18;
-        bytes memory terms = abi.encodePacked(uint8(0), address(maliciousToken), feeAmount, swapAmount);
+        bytes memory terms = abi.encodePacked(uint8(0), address(maliciousToken), feeAmount);
         Delegation memory allowanceDelegation = _createAllowanceDelegation(false, address(maliciousToken), feeAmount);
         bytes memory args = abi.encode(_wrapDelegationArray(allowanceDelegation));
 
@@ -580,10 +577,9 @@ contract PragmaFeeEnforcerTest is Test {
 
     function test_AfterAllHook_RevertsIfTokenIsNotContract() public {
         uint256 feeAmount = 100e18;
-        uint256 swapAmount = 1000e18;
         address notAContract = makeAddr("notAContract");
 
-        bytes memory terms = abi.encodePacked(uint8(0), notAContract, feeAmount, swapAmount);
+        bytes memory terms = abi.encodePacked(uint8(0), notAContract, feeAmount);
         Delegation memory allowanceDelegation = _createAllowanceDelegation(false, notAContract, feeAmount);
         bytes memory args = abi.encode(_wrapDelegationArray(allowanceDelegation));
 
@@ -602,9 +598,8 @@ contract PragmaFeeEnforcerTest is Test {
 
     function test_AfterAllHook_RevertsIfTokenAddressIsZeroForERC20() public {
         uint256 feeAmount = 100e18;
-        uint256 swapAmount = 1000e18;
 
-        bytes memory terms = abi.encodePacked(uint8(0), address(0), feeAmount, swapAmount); // ERC20 with zero address
+        bytes memory terms = abi.encodePacked(uint8(0), address(0), feeAmount); // ERC20 with zero address
         Delegation memory allowanceDelegation = _createAllowanceDelegation(false, address(0), feeAmount);
         bytes memory args = abi.encode(_wrapDelegationArray(allowanceDelegation));
 
@@ -657,9 +652,8 @@ contract PragmaFeeEnforcerTest is Test {
 
     function test_AfterAllHook_RevertsIfFeeExceedsMaximum() public {
         uint256 excessiveFee = 1001 ether; // Exceeds MAX_FEE_AMOUNT (1000 ether)
-        uint256 swapAmount = 10000 ether; // Large swap amount
 
-        bytes memory terms = abi.encodePacked(uint8(1), address(0), excessiveFee, swapAmount);
+        bytes memory terms = abi.encodePacked(uint8(1), address(0), excessiveFee);
         Delegation memory allowanceDelegation = _createAllowanceDelegation(true, address(0), excessiveFee);
         bytes memory args = abi.encode(_wrapDelegationArray(allowanceDelegation));
 
@@ -678,9 +672,8 @@ contract PragmaFeeEnforcerTest is Test {
 
     function test_AfterAllHook_AcceptsMaximumFeeAmount() public {
         uint256 maxFee = 1000 ether; // Exactly MAX_FEE_AMOUNT
-        uint256 swapAmount = 10000 ether; // Large swap amount
 
-        bytes memory terms = abi.encodePacked(uint8(1), address(0), maxFee, swapAmount);
+        bytes memory terms = abi.encodePacked(uint8(1), address(0), maxFee);
         Delegation memory allowanceDelegation = _createAllowanceDelegation(true, address(0), maxFee);
         bytes memory args = abi.encode(_wrapDelegationArray(allowanceDelegation));
 

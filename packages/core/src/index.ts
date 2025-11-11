@@ -30,3 +30,4 @@ export * from "./h2/agent/systemPrompt.js";
 export * from "./h2/tools/index.js";
 export * from "./h2/delegation/index.js";
 export * from "./h2/config.js";
+export * from "./h2/progress/emitter.js";

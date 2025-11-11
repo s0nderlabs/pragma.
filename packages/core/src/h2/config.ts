@@ -246,7 +246,7 @@ export const ARGS_EQUALITY_CHECK_ENFORCER_ADDRESS =
  * - Fee-on-transfer token support (90% threshold, allows up to 10% token fee)
  * - Treasury EOA validation (no contract callbacks)
  * - Maximum fee sanity check (1000 MON)
- * - Zero amount validation
+ * - Percentage-based minimum fee (0.01% of swap amount) - works for all token decimals
  * - Enhanced event logging with actual amounts
  *
  * Security:
@@ -254,12 +254,12 @@ export const ARGS_EQUALITY_CHECK_ENFORCER_ADDRESS =
  * - Requires ArgsEqualityCheckEnforcer to prevent front-running
  * - Balance-based validation (supports fee-on-transfer tokens)
  *
- * @address TBD (to be deployed)
- * @version v1.0.0
+ * @address 0xC0060a7411b5a66ffF4285BEf32e02eCd1Ba9D92
+ * @version v1.0.1
  */
 export const PRAGMA_FEE_ENFORCER_ADDRESS =
   (process.env.PRAGMA_FEE_ENFORCER_ADDRESS as Address) ||
-  ("0x3748f88864Af3802dbbacb58B83411A246f023A1" as Address);
+  ("0xC0060a7411b5a66ffF4285BEf32e02eCd1Ba9D92" as Address);
 
 /**
  * Pragma treasury address

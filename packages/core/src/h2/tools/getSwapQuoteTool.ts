@@ -23,6 +23,7 @@ import { generateQuoteId, storeSwapQuote } from "../execution/quoteStore.js";
 import type { SwapQuoteData } from "../execution/types.js";
 import { calculateProtocolFee } from "../delegation/withFeeEnforcer.js";
 import { PROTOCOL_FEES } from "../config.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Configuration
@@ -122,8 +123,13 @@ export const getSwapQuoteTool = tool(
         maxSlippageBps: validatedSlippageBps,
       };
 
+      // Progress: Requesting quote
+      emitProgress(`Requesting quote from Monorail...`);
+
       // Fetch quote from Monorail with net swap amount
       const monorailConfig = getMonorailConfig();
+
+      emitProgress(`Comparing routes across DEXs...`);
       const monorailQuote = await fetchMonorailQuote(quoteParams, monorailConfig);
 
       // Final output (no fee deduction from output - fee is charged separately on input)

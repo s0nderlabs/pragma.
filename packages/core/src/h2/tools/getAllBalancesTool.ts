@@ -18,6 +18,7 @@ import { formatUnits, parseUnits, getAddress, type Address } from "viem";
 
 import { fetchWalletBalances, normalizeBalances } from "../../monorail/balances.js";
 import { createErrorFromCode } from "../../errors/index.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Configuration
@@ -96,6 +97,9 @@ export const getAllBalancesTool = tool(
         });
       }
 
+      // Progress: Fetching balances
+      emitProgress("Fetching your portfolio from Monad...");
+
       // Fetch all balances from Monorail API (single call)
       const rawBalances = await fetchWalletBalances(getAddress(userAddress), {
         dataApiUrl: MONORAIL_DATA_API_URL,
@@ -103,6 +107,9 @@ export const getAllBalancesTool = tool(
       });
 
       const balances = normalizeBalances(rawBalances);
+
+      // Progress: Calculating values
+      emitProgress("Calculating USD values...");
 
       // Format all non-zero balances with USD values
       let totalPortfolioUsd = 0;

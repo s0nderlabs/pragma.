@@ -8,7 +8,7 @@ import {
 } from "viem";
 
 import { HyperSyncObserver, type HyperSyncLogSubscription } from "./hypersync.js";
-import { createErrorFromCode } from "../errors/index.js";
+import { createErrorFromCode } from "@pragma/core";
 
 const toTopicHash = (signature: string) => keccak256(stringToHex(signature)).toLowerCase();
 

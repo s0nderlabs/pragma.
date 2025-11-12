@@ -377,8 +377,10 @@ const disconnectIdentity = async () => {
   if (web3authInstance) {
     try {
       await web3authInstance.logout();
+      // Explicitly clear Web3Auth cache to prevent auto-reconnection
+      await web3authInstance.clearCache();
     } catch (error) {
-      console.warn("Web3Auth logout failed", error);
+      console.warn("Web3Auth logout/clear cache failed", error);
     }
   }
 
@@ -431,3 +433,9 @@ export const useIdentity = () => {
     web3auth: web3authInstance,
   };
 };
+
+/**
+ * Get current identity snapshot (fresh state without closure staleness)
+ * Useful for accessing wallet state outside React component lifecycle
+ */
+export { getIdentitySnapshot };

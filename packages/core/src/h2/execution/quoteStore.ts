@@ -26,9 +26,10 @@ const wrapQuotes = new Map<string, WrapQuoteData>();
 const unwrapQuotes = new Map<string, UnwrapQuoteData>();
 
 /**
- * Quote expiry time in milliseconds (5 minutes)
+ * Quote expiry time in milliseconds (10 minutes)
+ * Extended to support multi-turn confirmations in normal mode
  */
-const QUOTE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+const QUOTE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
 // ============================================================================
 // Swap Quotes

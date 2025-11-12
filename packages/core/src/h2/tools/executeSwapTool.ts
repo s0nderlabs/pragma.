@@ -134,14 +134,27 @@ Your ${quote.toTokenSymbol} balance has been updated.`;
     name: "executeSwap",
     description: `Execute a confirmed swap transaction.
 
-**CRITICAL RULES:**
-1. ONLY call this after getSwapQuote has been called
-2. ONLY call this after user has explicitly confirmed
-3. Pass the quote ID from getSwapQuote
+**CRITICAL RULES FOR QUOTE REUSE:**
+1. ONLY call after getSwapQuote has been called AND user confirmed
+2. REUSE the exact quote ID you JUST showed in your previous message
+3. NEVER call getSwapQuote again before calling this tool
+4. Look at YOUR PREVIOUS MESSAGES to find the quote ID you showed to user
+5. Quotes are valid for 10 minutes - reusing prevents expiry errors
+
+**Example Flow (CORRECT):**
+User: "swap 1 MON to USDC"
+AI: [calls getSwapQuote] → Shows "Quote abc123: 1 MON → 3.5 USDC. Execute?"
+User: "yes"
+AI: [calls executeSwap("abc123")] → IMMEDIATELY executes with same quote
+
+**What NOT to Do:**
+❌ After user says "yes", DO NOT call getSwapQuote again (wastes time, causes expiry)
+❌ DO NOT check balance again before executing (already checked before quote fetch)
+✅ Just call executeSwap with the quote ID you already have
 
 This tool will:
 - Validate the quote (not expired, still valid)
-- Check session key balance (fund if needed, with user permission)
+- Check session key balance (fund if needed, automatic)
 - Create ephemeral delegation (5 min expiry, single-use)
 - Sign delegation with Web3Auth (owner's signature)
 - Sign transaction with session key
@@ -149,18 +162,12 @@ This tool will:
 - Wait for confirmation (6-8 seconds)
 - Return detailed receipt
 
-Example flow:
-User: "swap 1 MON to USDC"
-AI: [calls getSwapQuote] → Shows quote to user
-User: "yes, execute"
-AI: [calls executeSwap with quoteId] → Executes transaction
-
 Security:
 - Ephemeral delegation created just-in-time
 - Single-use (1-2 calls max)
 - Short-lived (5 minute expiry)
 - Exact calldata matching quote
-- User confirmation required (except yolo mode)
+- User confirmation required (except quick mode)
 
 Returns: Conversational receipt with transaction details`,
     schema: z.object({

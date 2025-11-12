@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useThemeStore } from '@/stores/useThemeStore'
-import { useChatStore } from '@/stores/useChatStore'
+import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import { Toggle } from '@/components/ui/Toggle'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -16,12 +16,14 @@ interface ModePopoverProps {
 /**
  * ModePopover Component
  *
- * Glass popover displaying Yolo and Quick mode toggles.
+ * Glass popover displaying Quick mode toggle for H2.
  * Appears above the gear icon in ChatInput.
+ *
+ * Quick Mode: Auto-execute operations without asking for confirmation.
  */
 export function ModePopover({ isOpen, onClose, anchorRef }: ModePopoverProps) {
   const { theme } = useThemeStore()
-  const { yoloMode, quickMode, toggleYoloMode, toggleQuickMode } = useChatStore()
+  const { quickMode, setQuickMode } = useH2ChatStore()
   const popoverRef = useRef<HTMLDivElement>(null)
 
   // Close on click outside
@@ -86,26 +88,8 @@ export function ModePopover({ isOpen, onClose, anchorRef }: ModePopoverProps) {
                 </div>
                 <Toggle
                   enabled={quickMode}
-                  onChange={toggleQuickMode}
+                  onChange={setQuickMode}
                   label="Toggle Quick Mode"
-                />
-              </div>
-
-              {/* Divider */}
-              <div className="h-px bg-white/10" />
-
-              {/* Yolo Mode */}
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="font-medium text-sm mb-1">Yolo Mode</div>
-                  <div className="text-xs opacity-60 leading-relaxed">
-                    Allow unverified tokens and risky actions without warnings.
-                  </div>
-                </div>
-                <Toggle
-                  enabled={yoloMode}
-                  onChange={toggleYoloMode}
-                  label="Toggle Yolo Mode"
                 />
               </div>
             </div>

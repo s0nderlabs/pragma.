@@ -1,10 +1,10 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { type Message } from '@/stores/useChatStore'
+import type { ChatMessage } from '@/lib/h2/types'
 
 interface SystemMessageProps {
-  message: Message
+  message: ChatMessage
 }
 
 /**

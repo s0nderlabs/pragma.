@@ -75,13 +75,18 @@ Session Key Address: ${sessionKeyAddress}`;
     name: "checkSessionKeyBalance",
     description: `Check session key balance to determine if funding is needed. FREE operation (read-only).
 
-⚡ **IMPORTANT:** Always call this tool BEFORE executing batch operations (2+ swaps/transfers)
-   to ensure the session key has sufficient gas balance.
+⚡ **WHEN TO CALL THIS TOOL:**
+- At the START when user FIRST requests a batch operation (2+ swaps/transfers)
+- After fundSessionKey completes (to verify funding succeeded)
+- When execution fails with low balance error
+- When user explicitly asks "check my session key balance" or "do I have enough gas?"
 
-Use when:
-- Before executing multiple operations in parallel
-- User asks "do I have enough gas?"
-- Planning batch swaps/transfers
+⚡ **WHEN NOT TO CALL THIS TOOL:**
+- After showing quotes to user (balance doesn't change during quote fetch)
+- After user confirms with "yes"/"execute"/"proceed" (still same operation, already checked)
+- Between multiple tool calls in the same operation (unless funding just occurred)
+
+**Reasoning:** Balance only changes when funding occurs. Checking repeatedly wastes time and doesn't add value.
 
 Returns:
 - Current session key balance
@@ -91,7 +96,7 @@ Returns:
 
 If needsFunding = true, call fundSessionKey before proceeding with operations.
 
-Example: "check session key balance" or before "swap to USDC, USDT, USDM"`,
+Example: User says "swap to USDC, USDT, USDM" → Call checkSessionKeyBalance ONCE at start`,
     schema: z.object({}),
   }
 );

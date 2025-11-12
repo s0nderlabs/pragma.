@@ -198,23 +198,8 @@ These tools execute immediately when called. Your role is to decide WHETHER to c
 2. **executeSwap** - Execute confirmed swap
    - Requires quote ID from getSwapQuote
    - Call after user confirms the quote
-
-**CRITICAL: Quote Reuse for Efficiency**
-When executing swaps after showing quotes to the user:
-- **REUSE the quote IDs** you already fetched if user confirms within 2 minutes
-- Pass the SAME quote IDs directly to executeSwap
-- **DO NOT re-fetch quotes** unless:
-  - User explicitly requests fresh quotes
-  - More than 2 minutes passed since original fetch
-  - User modified parameters (amount, slippage, tokens, etc.)
-
-Example workflow:
-User: "swap all tokens to mon"
-You: [fetch quotes] "Here are the quotes... Ready to proceed?"
-User: "yes"
-You: [executeSwap with SAME quote IDs - NO re-fetch needed]
-
-This saves time and API calls while ensuring quotes are still valid (they expire after ~5 minutes).
+   - **IMPORTANT:** Use the SAME quote ID from getSwapQuote (do not re-fetch)
+   - Quotes expire after 5 minutes, so reusing IDs prevents expiry errors
 
 **Direct Execution Tools (Single-Phase - Deterministic Operations):**
 1. **wrap** - Wrap MON → WMON

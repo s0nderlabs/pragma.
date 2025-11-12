@@ -1,49 +1,26 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { type Message } from '@/stores/useChatStore'
+import type { ChatMessage } from '@/lib/h2/types'
+import { useStreamingMessage } from '@/hooks/useStreamingMessage'
 import { MarkdownRenderer } from './MarkdownRenderer'
 
 interface AIMessageProps {
-  message: Message
-  enableTyping?: boolean
+  message: ChatMessage
 }
 
 /**
- * AIMessage Component
+ * AIMessage Component (H2 Enabled)
  *
- * AI messages with rich markdown support, syntax highlighting, and AI avatar.
- * Design: Avatar on left, markdown content on right with glass container.
- * Features: Typing animation, code blocks, tables, lists, and more.
+ * AI messages with rich markdown support, syntax highlighting, and streaming.
+ * Now integrated with H2 streaming via useStreamingMessage hook.
+ * Features: Smooth token-by-token streaming, code blocks, tables, lists.
  */
-export function AIMessage({ message, enableTyping = true }: AIMessageProps) {
-  const [displayedText, setDisplayedText] = useState('')
-  const [isComplete, setIsComplete] = useState(false)
-
-  useEffect(() => {
-    if (!enableTyping) {
-      setDisplayedText(message.content)
-      setIsComplete(true)
-      return
-    }
-
-    // Character-by-character typing animation for markdown
-    let currentIndex = 0
-    const fullText = message.content
-
-    const interval = setInterval(() => {
-      if (currentIndex <= fullText.length) {
-        setDisplayedText(fullText.substring(0, currentIndex))
-        currentIndex++
-      } else {
-        setIsComplete(true)
-        clearInterval(interval)
-      }
-    }, 20) // 20ms per character (smooth typing)
-
-    return () => clearInterval(interval)
-  }, [message.content, enableTyping])
+export function AIMessage({ message }: AIMessageProps) {
+  const { displayedContent, isBuffering } = useStreamingMessage({
+    message,
+    enabled: message.isStreaming ?? false,
+  })
 
   return (
     <motion.div
@@ -53,8 +30,8 @@ export function AIMessage({ message, enableTyping = true }: AIMessageProps) {
       className="mb-6"
     >
       <div className="text-sm lg:text-base">
-        <MarkdownRenderer content={displayedText} />
-        {!isComplete && (
+        <MarkdownRenderer content={displayedContent} />
+        {(message.isStreaming || isBuffering) && (
           <motion.span
             animate={{ opacity: [1, 0.3, 1] }}
             transition={{ duration: 0.8, repeat: Infinity }}

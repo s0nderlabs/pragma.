@@ -2,20 +2,22 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useThemeStore } from '@/stores/useThemeStore'
-import { useChatStore } from '@/stores/useChatStore'
+import { useH2ChatStore } from '@/stores/useH2ChatStore'
+import { useH2Agent } from '@/hooks/useH2Agent'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import { Send, Settings } from 'lucide-react'
 import { ModePopover } from './ModePopover'
 
 /**
- * ChatInput Component
+ * ChatInput Component (H2 Enabled)
  *
  * Auto-resize textarea with send button and settings gear.
- * Design: Glass morphism input bar at bottom of chat.
+ * Now integrated with H2 LangChain agent via SSE streaming.
  */
 export function ChatInput() {
   const { theme } = useThemeStore()
-  const { addMessage, isThinking, activeConversationId, createConversation } = useChatStore()
+  const tokensLoading = useH2ChatStore((state) => state.tokensLoading)
+  const { sendMessage, isStreaming } = useH2Agent()
   const [input, setInput] = useState('')
   const [modePopoverOpen, setModePopoverOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -29,21 +31,12 @@ export function ChatInput() {
     }
   }, [input])
 
-  const handleSend = () => {
-    if (!input.trim() || isThinking) return
+  const handleSend = async () => {
+    if (!input.trim() || isStreaming || tokensLoading) return
 
-    // Create conversation if none exists
-    if (!activeConversationId) {
-      createConversation()
-    }
+    const message = input.trim()
 
-    // Add user message
-    addMessage({
-      role: 'user',
-      content: input.trim(),
-    })
-
-    // Clear input
+    // Clear input immediately for better UX
     setInput('')
 
     // Reset textarea height
@@ -51,44 +44,8 @@ export function ChatInput() {
       textareaRef.current.style.height = 'auto'
     }
 
-    // TODO: Trigger AI response (mock for now)
-    // In production, this would call the LangChain agent
-    setTimeout(() => {
-      useChatStore.getState().setThinking(true)
-      setTimeout(() => {
-        useChatStore.getState().setThinking(false)
-        addMessage({
-          role: 'ai',
-          content: `I can help you with that! Here's what I found:
-
-## Key Features
-
-1. **Swap tokens** - Best prices across Monad DEXs
-2. **Stake MON** - Earn rewards with aPriori liquid staking
-3. **NFT trading** - Buy and sell on Poply marketplace
-
-### Example Commands
-
-You can try commands like:
-- \`swap 10 USDC to MON\`
-- \`stake 100 MON\`
-- \`buy cheapest NFT from collection ABC\`
-
-> **Note:** The LangChain agent integration will be added in the next phase.
-
-\`\`\`typescript
-// Example code block
-const swap = await monorail.getBestQuote({
-  tokenIn: 'USDC',
-  tokenOut: 'MON',
-  amount: parseUnits('10', 6)
-})
-\`\`\`
-
-Would you like to know more about any specific feature?`,
-        })
-      }, 2000)
-    }, 500)
+    // Send message to H2 agent
+    await sendMessage(message)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -131,8 +88,8 @@ Would you like to know more about any specific feature?`,
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask anything about Monad..."
-          disabled={isThinking}
+          placeholder={tokensLoading ? "Loading tokens..." : "Ask anything about Monad..."}
+          disabled={isStreaming || tokensLoading}
           rows={1}
           className="flex-1 bg-transparent resize-none outline-none text-sm lg:text-base min-h-[24px] max-h-[200px] placeholder:opacity-50 disabled:opacity-50"
           style={{ overflow: 'hidden' }}
@@ -141,7 +98,7 @@ Would you like to know more about any specific feature?`,
         {/* Send Button */}
         <button
           onClick={handleSend}
-          disabled={!input.trim() || isThinking}
+          disabled={!input.trim() || isStreaming || tokensLoading}
           className="flex-shrink-0 p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           aria-label="Send message"
         >

@@ -20,8 +20,6 @@ export * from "./agent/context.js";
 export * from "./agent/amount.js";
 export * from "./agent/quickActions.js";
 export * from "./clients/publicClient.js";
-export * from "./observability/hypersync.js";
-export * from "./observability/subscriptions.js";
 export * from "./errors/index.js";
 
 // H2 Agent Exports
@@ -29,5 +27,6 @@ export * from "./h2/agent/pragmaH2Agent.js";
 export * from "./h2/agent/systemPrompt.js";
 export * from "./h2/tools/index.js";
 export * from "./h2/delegation/index.js";
+export * from "./h2/execution/index.js";
 export * from "./h2/config.js";
 export * from "./h2/progress/emitter.js";

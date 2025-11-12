@@ -59,3 +59,6 @@ export { executeSwap } from "./executeSwap.js";
 export { executeTransfer } from "./executeTransfer.js";
 export { executeWrap } from "./executeWrap.js";
 export { executeUnwrap } from "./executeUnwrap.js";
+
+// Session Key Funding
+export { fundSessionKeyViaUserOp } from "./sessionKeyFundingUserOp.js";

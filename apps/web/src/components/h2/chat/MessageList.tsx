@@ -1,38 +1,37 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useChatStore } from '@/stores/useChatStore'
+import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { UserMessage } from './UserMessage'
 import { AIMessage } from './AIMessage'
 import { SystemMessage } from './SystemMessage'
 import { QuoteMessage } from './QuoteMessage'
 import { ThinkingIndicator } from './ThinkingIndicator'
+import { ProgressIndicator } from './ProgressIndicator'
 import { MessageSquare } from 'lucide-react'
 
 /**
- * MessageList Component
+ * MessageList Component (H2 Enabled)
  *
- * Renders all messages in the active conversation.
- * Features: Auto-scroll, Lenis smooth scrolling, loading state.
+ * Renders all messages from H2 agent with real-time streaming.
+ * Features: Auto-scroll, streaming support, progress indicators.
  */
 export function MessageList() {
-  const { conversations, activeConversationId, isThinking } = useChatStore()
+  const messages = useH2ChatStore((state) => state.messages)
+  const isStreaming = useH2ChatStore((state) => state.isStreaming)
+  const progress = useH2ChatStore((state) => state.progress)
   const scrollRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  // Get active conversation
-  const activeConversation = conversations.find((c) => c.id === activeConversationId)
-  const messages = activeConversation?.messages || []
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [messages.length, isThinking])
+  }, [messages.length, isStreaming])
 
-  // Empty state: No active conversation
-  if (!activeConversationId || messages.length === 0) {
+  // Empty state: No messages yet
+  if (messages.length === 0 && !isStreaming) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto px-4">
         <div className="text-center opacity-60 max-w-md">
@@ -41,6 +40,11 @@ export function MessageList() {
           <p className="text-sm opacity-80">
             Ask me anything about Monad - swaps, staking, NFTs, and more
           </p>
+          <div className="mt-6 text-xs opacity-60 space-y-1">
+            <p>💬 Try: "what's my balance?"</p>
+            <p>🔄 Try: "swap 10 USDC to MON"</p>
+            <p>📊 Try: "show all my balances"</p>
+          </div>
         </div>
       </div>
     )
@@ -53,7 +57,7 @@ export function MessageList() {
           switch (message.role) {
             case 'user':
               return <UserMessage key={message.id} message={message} />
-            case 'ai':
+            case 'assistant':
               return <AIMessage key={message.id} message={message} />
             case 'system':
               return <SystemMessage key={message.id} message={message} />
@@ -64,7 +68,13 @@ export function MessageList() {
           }
         })}
 
-        {isThinking && <ThinkingIndicator />}
+        {/* Progress Indicator - shows during tool execution */}
+        {progress.isVisible && <ProgressIndicator />}
+
+        {/* Thinking Indicator - shows before AI starts responding */}
+        {isStreaming && messages.length > 0 && !messages[messages.length - 1]?.isStreaming && (
+          <ThinkingIndicator />
+        )}
 
         {/* Scroll anchor */}
         <div ref={messagesEndRef} />

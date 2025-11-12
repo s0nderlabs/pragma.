@@ -28,6 +28,7 @@
   "author": "",
   "license": "UNLICENSED",
   "dependencies": {
+    "@envio-dev/hypersync-client": "^0.6.6",
     "@metamask/delegation-toolkit": "^0.13.0",
     "@pragma/core": "workspace:*",
     "@privy-io/js-sdk-core": "^0.55.2",

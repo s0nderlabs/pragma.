@@ -27,6 +27,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@envio-dev/hypersync-client':
+        specifier: ^0.6.6
+        version: 0.6.6
       '@metamask/delegation-toolkit':
         specifier: ^0.13.0
         version: 0.13.0(viem@2.37.9(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.25.76))
@@ -268,9 +271,6 @@ importers:
 
   packages/core:
     dependencies:
-      '@envio-dev/hypersync-client':
-        specifier: ^0.6.6
-        version: 0.6.6
       '@langchain/core':
         specifier: ^1.0.2
         version: 1.0.2(openai@5.23.2(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@4.1.12))

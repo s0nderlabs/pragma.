@@ -3,9 +3,11 @@ import { decodeEventLog, formatUnits, getAddress, type Address, type PublicClien
 
 import {
   HyperSyncObserver,
+} from "../lib/hypersync/hypersync.js";
+import {
   subscribeAggregatorExecutions,
   subscribeDelegationLifecycle,
-} from "@pragma/core";
+} from "../lib/hypersync/subscriptions.js";
 
 import type { AllowedToken } from "./monorailTokens.js";
 import { ENVIO_TOKEN_API, MONAD_HYPERSYNC_URL, MONORAIL_AGGREGATOR_ADDRESS } from "./config.js";

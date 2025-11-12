@@ -85,6 +85,11 @@ Transaction: ${result.txHash}
 Session key is now funded and ready for operations.
 You can proceed with swaps, transfers, and other operations.`;
     } catch (error) {
+      // Log detailed error for debugging
+      console.error('[fundSessionKeyTool] Full error:', error);
+      console.error('[fundSessionKeyTool] Error message:', (error as Error).message);
+      console.error('[fundSessionKeyTool] Error stack:', (error as Error).stack);
+
       throw createErrorFromCode("TRANSACTION_EXECUTION_FAILED", {
         message: `Failed to fund session key: ${(error as Error).message}`,
         cause: error,

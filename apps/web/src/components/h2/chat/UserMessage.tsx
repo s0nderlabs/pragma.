@@ -3,11 +3,11 @@
 import { useEffect, useRef } from 'react'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
-import { type Message } from '@/stores/useChatStore'
+import type { ChatMessage } from '@/lib/h2/types'
 import gsap from 'gsap'
 
 interface UserMessageProps {
-  message: Message
+  message: ChatMessage
 }
 
 /**

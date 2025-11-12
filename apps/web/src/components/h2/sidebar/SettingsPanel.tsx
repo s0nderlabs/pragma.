@@ -1,17 +1,27 @@
 'use client'
 
 import { useThemeStore } from '@/stores/useThemeStore'
-import { Sun, Moon, Wallet, Key } from 'lucide-react'
+import { useIdentity } from '@/hooks/useIdentity'
+import { useH2Session } from '@/hooks/useH2Session'
+import { Sun, Moon, Wallet, Key, LogOut, LogIn } from 'lucide-react'
 
 /**
  * Settings Panel accordion section
  * Contains:
- * - Theme toggle (functional)
- * - Wallet info (placeholder)
- * - Session key status (placeholder)
+ * - Theme toggle
+ * - Wallet connection controls
+ * - Session key status
  */
 export function SettingsPanel() {
   const { theme, toggleTheme } = useThemeStore()
+  const { status, wallet, connect, disconnect } = useIdentity()
+  const { sessionData, clearSession } = useH2Session()
+
+  const handleDisconnect = async () => {
+    // Clear both Web3Auth and H2 session
+    await disconnect()
+    clearSession()
+  }
 
   return (
     <div className="py-4 space-y-4">
@@ -38,19 +48,47 @@ export function SettingsPanel() {
         </div>
       </div>
 
-      {/* Wallet (Placeholder) */}
-      <div className="px-4 py-2 opacity-50">
-        <div className="flex items-center gap-2 text-sm">
-          <Wallet className="w-4 h-4" />
-          <span>Wallet: Not connected</span>
-        </div>
+      {/* Wallet Connection */}
+      <div className="px-4">
+        {status === 'connected' && wallet ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm">
+              <Wallet className="w-4 h-4" />
+              <span className="font-mono text-xs">
+                {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
+              </span>
+            </div>
+            <button
+              onClick={handleDisconnect}
+              className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--liquid-glass-color)_12%,transparent)] hover:bg-[color-mix(in_srgb,var(--liquid-glass-color)_18%,transparent)] transition-colors text-sm"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Disconnect</span>
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={connect}
+            className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--liquid-glass-color)_12%,transparent)] hover:bg-[color-mix(in_srgb,var(--liquid-glass-color)_18%,transparent)] transition-colors text-sm"
+          >
+            <LogIn className="w-4 h-4" />
+            <span>Connect Wallet</span>
+          </button>
+        )}
       </div>
 
-      {/* Session Key (Placeholder) */}
-      <div className="px-4 py-2 opacity-50">
+      {/* Session Key Status */}
+      <div className="px-4 py-2">
         <div className="flex items-center gap-2 text-sm">
           <Key className="w-4 h-4" />
-          <span>Session Key: Not initialized</span>
+          {sessionData?.sessionKeyAddress ? (
+            <span className="font-mono text-xs">
+              Session: {sessionData.sessionKeyAddress.slice(0, 6)}...
+              {sessionData.sessionKeyAddress.slice(-4)}
+            </span>
+          ) : (
+            <span className="opacity-50">No session key</span>
+          )}
         </div>
       </div>
     </div>

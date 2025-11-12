@@ -1,39 +1,38 @@
 'use client'
 
 import { useThemeStore } from '@/stores/useThemeStore'
-import { useIdentity } from '@/hooks/useIdentity'
+import { useH2Onboarding } from '@/hooks/useH2Onboarding'
 import Background from '../Background'
 import { MobileHeader } from './MobileHeader'
 import { ChatContainer } from './ChatContainer'
-import { SimplifiedOnboarding } from '../onboarding/SimplifiedOnboarding'
+import { H2ErrorBoundary } from '../ErrorBoundary'
 
 /**
  * H2Layout Component
  *
- * Main layout orchestrator for H2 UI with onboarding flow.
+ * Main layout orchestrator for H2 UI - always shows chat interface.
  *
- * H2 Onboarding Flow (Simplified):
- * 1. User not connected → Show SimplifiedOnboarding (just connect button)
- * 2. User clicks Connect → Web3Auth modal opens
- * 3. Web3Auth returns wallet → HybridDelegator auto-deployed
- * 4. User immediately sees ChatContainer (NO delegation modal!)
+ * H2 UX Flow:
+ * 1. User sees H2 chat interface immediately (no forced onboarding screen)
+ * 2. User connects wallet via sidebar Settings panel
+ * 3. Web3Auth modal opens → HybridDelegator auto-deployed
+ * 4. User can now interact with H2 agent
  *
- * Key H2 Difference:
- * - NO delegation issuance during onboarding
+ * Key H2 Features:
+ * - NO forced onboarding screen - clean interface from the start
+ * - Login/logout controls in sidebar Settings accordion
  * - Ephemeral delegations created just-in-time (after quote confirmation)
  *
  * Components:
  * - Background: Iridescence shader (z-0)
- * - MobileHeader: Hamburger menu (z-40, mobile only, chat only)
- * - SimplifiedOnboarding: Connect wallet screen (if not connected)
- * - ChatContainer: Fullscreen glass panel with sidebar + chat (z-20, if connected)
+ * - MobileHeader: Hamburger menu (z-40, mobile only)
+ * - ChatContainer: Fullscreen glass panel with sidebar + chat (z-20)
  */
 export function H2Layout() {
   const { theme } = useThemeStore()
-  const { status, wallet } = useIdentity()
 
-  // Show onboarding if not connected
-  const showOnboarding = status !== 'connected' || !wallet
+  // Auto-create H2 session after Web3Auth connects
+  useH2Onboarding()
 
   return (
     <div
@@ -46,18 +45,15 @@ export function H2Layout() {
       {/* Background - Iridescence shader (z-0) */}
       <Background />
 
-      {/* Mobile Header (z-40, mobile only, chat only) */}
-      {!showOnboarding && <MobileHeader />}
+      {/* Mobile Header (z-40, mobile only) */}
+      <MobileHeader />
 
       {/* Main Content Area (z-20) */}
       <div className="relative z-20 h-screen pt-16 lg:pt-0">
-        {showOnboarding ? (
-          /* Simplified onboarding - just connect button */
-          <SimplifiedOnboarding />
-        ) : (
-          /* Chat interface - no delegation modal needed */
+        <H2ErrorBoundary>
+          {/* Always show chat interface - login via sidebar */}
           <ChatContainer />
-        )}
+        </H2ErrorBoundary>
       </div>
     </div>
   )

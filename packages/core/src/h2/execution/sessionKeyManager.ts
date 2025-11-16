@@ -38,8 +38,16 @@ export const AVG_GAS_PER_OPERATION = parseEther("0.08"); // ~0.08 MON per swap/t
 /** Safety buffer for batch operations */
 export const BATCH_SAFETY_BUFFER = parseEther("0.15"); // Extra 0.15 MON buffer
 
-/** Minimum balance needed to pay gas for delegation-based refill */
-export const MIN_GAS_FOR_DELEGATION = MIN_SESSION_KEY_BALANCE; // 0.1 MON (safe threshold)
+/**
+ * Minimum balance needed to pay gas for delegation-based refill
+ *
+ * This is LOWER than MIN_SESSION_KEY_BALANCE to create a range where
+ * delegation can be used instead of UserOp:
+ * - 0.00 - 0.05 MON: UserOp-based funding (can't afford delegation tx gas ~0.01 MON)
+ * - 0.05 - 0.10 MON: Delegation-based funding (has gas, more efficient refill)
+ * - 0.10+ MON: No funding needed
+ */
+export const MIN_GAS_FOR_DELEGATION = parseEther("0.05"); // 0.05 MON
 
 // ============================================================================
 // Gas Estimation (for Pre-Flight Checks)

@@ -79,23 +79,33 @@ export const getSwapQuoteTool = tool(
         validatedSlippageBps = MAX_SLIPPAGE_BPS;
       }
 
-      // Resolve token symbols to addresses
-      const resolvedFromToken = resolveTokenFromAllowlist(fromToken, allowedTokens);
-      const resolvedToToken = resolveTokenFromAllowlist(toToken, allowedTokens);
+      // Monorail config for on-demand token lookup
+      const monorailOptions = {
+        apiKey: process.env.MONORAIL_API_KEY || process.env.NEXT_PUBLIC_MONORAIL_API_KEY,
+        dataApiUrl: process.env.MONORAIL_DATA_API_URL || "https://testnet-api.monorail.xyz/v1",
+        fetch,
+      };
+
+      // Resolve token symbols to addresses (async with API fallback)
+      const resolvedFromToken = await resolveTokenFromAllowlist(fromToken, allowedTokens, monorailOptions);
+      const resolvedToToken = await resolveTokenFromAllowlist(toToken, allowedTokens, monorailOptions);
 
       if (!resolvedFromToken) {
         throw createErrorFromCode("TOKEN_NOT_IN_ALLOWLIST", {
-          message: `Token "${fromToken}" not found in allowlist. Please provide a valid token symbol or address.`,
+          message: `Token "${fromToken}" not found.`,
           context: { token: fromToken },
         });
       }
 
       if (!resolvedToToken) {
         throw createErrorFromCode("TOKEN_NOT_IN_ALLOWLIST", {
-          message: `Token "${toToken}" not found in allowlist. Please provide a valid token symbol or address.`,
+          message: `Token "${toToken}" not found.`,
           context: { token: toToken },
         });
       }
+
+      // Detect unverified status (only check destination token)
+      const isUnverified = !resolvedToToken.categories?.includes('verified');
 
       // Normalize addresses and get decimals
       const fromTokenAddress = resolvedFromToken.address;
@@ -185,11 +195,16 @@ export const getSwapQuoteTool = tool(
         ? `⚠️ Note: Slippage capped from ${(slippageBps / 100).toFixed(2)}% to maximum 15%\n\n`
         : '';
 
+      // Build unverified warning if needed
+      const unverifiedWarning = isUnverified
+        ? `\n\n⚠️ WARNING: Token ${resolvedToToken.symbol || toToken} (${toTokenAddress}) is NOT verified by Monorail.\n\nThis token could be:\n- A scam or rug pull token\n- A honeypot (can buy but cannot sell)\n- A fee-on-transfer token\n- A malicious contract\n\nPragma is not responsible for losses from unverified tokens.`
+        : '';
+
       // Return conversational quote
       return `${slippageCappedWarning}Swap quote ready:
 
 • From: ${amount} ${fromToken} (${netSwapFormatted} ${fromToken} after 0.5% fee)
-• To: ~${finalOutputFormatted} ${toToken}
+• To: ~${finalOutputFormatted} ${isUnverified ? '⚠️ ' : ''}${toToken}
 • Protocol Fee: ${protocolFeeFormatted} ${fromToken} (0.5%)
 • Price Impact: ${monorailQuote.compoundImpact || "unknown"}%
 • Route: ${routeNames.join(" → ") || "Direct"}
@@ -197,7 +212,7 @@ export const getSwapQuoteTool = tool(
 • Slippage allowed: ${(validatedSlippageBps / 100).toFixed(2)}% (${validatedSlippageBps} bps)
 
 Quote ID: ${quoteId}
-Valid for: 5 minutes
+Valid for: 5 minutes${unverifiedWarning}
 
 This quote is ready to execute. Would you like me to proceed with the swap?`;
     } catch (error) {

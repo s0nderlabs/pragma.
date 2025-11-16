@@ -265,19 +265,73 @@ export const hasWrappedNativeToken = (tokens: AllowedToken[], metadata?: TokenAd
   });
 };
 
-export const resolveTokenFromAllowlist = (
+export const fetchSingleTokenFromMonorail = async (
+  address: Address,
+  options: Pick<LoadMonorailTokensOptions, 'apiKey' | 'dataApiUrl' | 'fetch'>
+): Promise<AllowedToken | undefined> => {
+  const url = `${options.dataApiUrl}/token/${address}`;
+
+  try {
+    const response = await getFetchFn(options)(url, {
+      headers: buildHeaders(options.apiKey),
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) return undefined;
+      throw createErrorFromCode("RPC_UNAVAILABLE", {
+        message: `Token not found in Monorail: ${response.status}`,
+        context: { provider: "MonorailData", address },
+      });
+    }
+
+    const raw = (await response.json()) as RawMonorailToken;
+    const parsed = parseMonorailToken(raw);
+
+    if (!parsed) return undefined;
+
+    return {
+      address: parsed.address,
+      symbol: parsed.symbol || address.slice(0, 8),
+      name: parsed.name,
+      decimals: parsed.decimals,
+      categories: parsed.categories || [],
+      logoURI: parsed.logoURI,
+      kind: "erc20",
+    };
+  } catch (error) {
+    console.warn(`[Monorail] Token lookup failed for ${address}:`, error);
+    return undefined;
+  }
+};
+
+export const resolveTokenFromAllowlist = async (
   input: string,
   allowlist: AllowedToken[],
-): AllowedToken | undefined => {
+  monorailOptions?: Pick<LoadMonorailTokensOptions, 'apiKey' | 'dataApiUrl' | 'fetch'>
+): Promise<AllowedToken | undefined> => {
   const trimmed = input.trim();
   if (!trimmed) return undefined;
   const lower = trimmed.toLowerCase();
-  return (
-    allowlist.find((token) => token.symbol?.toLowerCase() === lower) ??
-    (trimmed.startsWith("0x")
-      ? allowlist.find((token) => token.address.toLowerCase() === lower)
-      : undefined)
-  );
+
+  // 1. Check allowlist (fast path)
+  let token = allowlist.find((token) => token.symbol?.toLowerCase() === lower);
+  if (!token && trimmed.startsWith("0x")) {
+    token = allowlist.find((token) => token.address.toLowerCase() === lower);
+  }
+
+  if (token) return token;
+
+  // 2. Fallback: Fetch from Monorail if address provided
+  if (trimmed.startsWith("0x") && monorailOptions) {
+    try {
+      const address = getAddress(trimmed as Address);
+      return await fetchSingleTokenFromMonorail(address, monorailOptions);
+    } catch {
+      return undefined;
+    }
+  }
+
+  return undefined;
 };
 
 export const formatTokenLabel = (token: AllowedToken): string => {

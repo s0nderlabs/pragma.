@@ -8,14 +8,17 @@
  * 1. Build execute() calldata for MON transfer
  * 2. Create UserOp with that calldata
  * 3. Estimate gas via bundler
- * 4. Sign UserOp with smart account (EOA signature)
- * 5. Submit to bundler → EntryPoint → HybridDelegator.execute() → Session key funded
+ * 4. Get paymaster sponsorship (avoids 10 MON reserve requirement)
+ * 5. Sign UserOp with smart account (EOA signature)
+ * 6. Submit to bundler → EntryPoint → HybridDelegator.execute() → Session key funded
  */
 
 import { type Address, type Hex, type PublicClient, encodeFunctionData, parseEther, formatEther } from "viem";
 import type { BundlerClient } from "viem/account-abstraction";
 import { formatUserOperationRequest } from "viem/account-abstraction";
 import type { SmartAccount } from "@metamask/delegation-toolkit";
+import { sponsorUserOperation } from "../pimlico";
+import { buildSponsorRequest, applySponsorshipToUserOp } from "../onboarding/paymasterUtils";
 
 // ============================================================================
 // Constants
@@ -334,6 +337,20 @@ export async function fundSessionKeyViaUserOp(params: FundingParams): Promise<Fu
     callGasLimit: userOp.callGasLimit.toString(),
     verificationGasLimit: userOp.verificationGasLimit.toString(),
     preVerificationGas: userOp.preVerificationGas.toString(),
+  });
+
+  // Step 5.5: Get paymaster sponsorship (avoids 10 MON reserve requirement)
+  console.log("[FundingUserOp] Requesting paymaster sponsorship...");
+  const sponsorship = await sponsorUserOperation({
+    userOperation: buildSponsorRequest(userOp as any), // eslint-disable-line @typescript-eslint/no-explicit-any
+    entryPoint,
+  });
+  applySponsorshipToUserOp(userOp as any, sponsorship); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  console.log("[FundingUserOp] Paymaster sponsorship applied:", {
+    paymaster: userOp.paymaster,
+    paymasterVerificationGasLimit: (userOp as any).paymasterVerificationGasLimit?.toString(), // eslint-disable-line @typescript-eslint/no-explicit-any
+    paymasterPostOpGasLimit: (userOp as any).paymasterPostOpGasLimit?.toString(), // eslint-disable-line @typescript-eslint/no-explicit-any
   });
 
   // Step 6: Sign UserOp with smart account (returns signature)

@@ -95,8 +95,8 @@ export const findTokenBySymbol = async (symbol: string) =>
     tokenMetadata,
   });
 
-export const ensureTokenSetFromString = (tokens: AllowedToken[], input: string) => {
-  const token = resolveTokenFromAllowlist(input, tokens);
+export const ensureTokenSetFromString = async (tokens: AllowedToken[], input: string) => {
+  const token = await resolveTokenFromAllowlist(input, tokens);
   if (token) ensureTokenSet(tokens, token);
 };
 

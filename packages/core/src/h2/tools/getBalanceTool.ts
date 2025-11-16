@@ -291,7 +291,8 @@ export const getBalanceTool = tool(
         targetBalance.monValue
       );
 
-      return `You have ${formattedBalance}`;
+      // Include address in brackets for agent reference (user won't see this in UI)
+      return `You have ${formattedBalance} [${targetBalance.address}]`;
     } catch (error) {
       // More specific error logging
       const errorMessage = (error as Error).message;

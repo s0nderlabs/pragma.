@@ -8,10 +8,14 @@
  * 1. Build execute() calldata for MON transfer
  * 2. Create UserOp with that calldata
  * 3. Estimate gas via bundler
- * 4. Sign UserOp with smart account (EOA signature)
- * 5. Submit to bundler → EntryPoint → HybridDelegator.execute() → Session key funded
+ * 4. Get paymaster sponsorship (bypasses 10 MON reserve requirement)
+ * 5. Sign UserOp with smart account (EOA signature)
+ * 6. Submit to bundler → EntryPoint → HybridDelegator.execute() → Session key funded
  *
- * No gas needed from session key (EOA signs, bundler submits, smart account pays gas).
+ * Why paymaster for session key funding?
+ * - Pimlico bundler requires 10 MON minimum balance for self-paid UserOps
+ * - Smart accounts typically have < 10 MON after deployment
+ * - Paymaster bypasses reserve check (Pimlico's deposit pays gas, not smart account)
  */
 
 import { type Address, type Hex, type PublicClient, encodeFunctionData, parseEther } from "viem";
@@ -25,6 +29,8 @@ import {
   type BaseUserOp,
 } from "./userOpUtils.js";
 import { SESSION_KEY_FUNDING_AMOUNT } from "./sessionKeyManager.js";
+import { sponsorUserOperation } from "./pimlico.js";
+import { buildSponsorRequest, applySponsorshipToUserOp } from "./paymasterUtils.js";
 
 // ============================================================================
 // Constants
@@ -133,7 +139,7 @@ export async function fundSessionKeyViaUserOp(
   const bundlerGasPrice = await getUserOpGasPrice(bundlerClient);
   const gasPrice = bundlerGasPrice ?? (await getFallbackGasPrice(publicClient));
 
-  // Step 4: Build base UserOp
+  // Step 4: Build base UserOp (paymaster will be added after gas estimation)
   const userOp: BaseUserOp = {
     sender: smartAccountAddress,
     nonce,
@@ -145,8 +151,8 @@ export async function fundSessionKeyViaUserOp(
     preVerificationGas: 0n, // Will be estimated
     maxFeePerGas: gasPrice.maxFeePerGas,
     maxPriorityFeePerGas: gasPrice.maxPriorityFeePerGas,
-    paymaster: undefined, // User pays their own gas
-    paymasterData: undefined,
+    paymaster: undefined, // Will be set by sponsorship
+    paymasterData: undefined, // Will be set by sponsorship
     signature: "0x", // Placeholder
   };
 
@@ -155,11 +161,25 @@ export async function fundSessionKeyViaUserOp(
   const gasEstimates = await estimateUserOpGas(bundlerClient, userOp, entryPoint);
   applyGasEstimates(userOp, gasEstimates);
 
+  // Step 5.5: Get paymaster sponsorship (avoids 10 MON reserve requirement)
+  console.log("[SessionKeyFunding] Requesting paymaster sponsorship...");
+  const sponsorship = await sponsorUserOperation({
+    userOperation: buildSponsorRequest(userOp as any), // eslint-disable-line @typescript-eslint/no-explicit-any
+    entryPoint,
+  });
+  applySponsorshipToUserOp(userOp as any, sponsorship); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+  console.log("[SessionKeyFunding] Paymaster sponsorship applied:", {
+    paymaster: userOp.paymaster,
+    paymasterVerificationGasLimit: (userOp as any).paymasterVerificationGasLimit?.toString(), // eslint-disable-line @typescript-eslint/no-explicit-any
+    paymasterPostOpGasLimit: (userOp as any).paymasterPostOpGasLimit?.toString(), // eslint-disable-line @typescript-eslint/no-explicit-any
+  });
+
   // Step 6: Sign UserOp with smart account (EOA signature)
   const signature = await smartAccount.signUserOperation(userOp);
   userOp.signature = signature;
 
-  // Step 7: Submit UserOp to bundler
+  // Step 7: Submit UserOp to bundler (paymaster will pay gas)
   const { userOpHash, transactionHash } = await submitUserOp(
     bundlerClient,
     userOp,

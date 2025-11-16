@@ -29,6 +29,8 @@ import { createBrowserAgent, validateBrowserEnvironment } from '@/lib/h2.5/creat
 import { createDirectWeb3AuthBridge } from '@/lib/h2.5/directWeb3AuthBridge';
 import { streamBrowserAgent } from '@/lib/h2.5/browserAgentRunner';
 import type { MessageTuple, BrowserAgentCallbacks } from '@/lib/h2.5/browserAgentRunner';
+import { createHybridDelegatorHandle } from '@/lib/onboarding/hybridDelegator';
+import type { HybridDelegatorHandle } from '@/lib/onboarding/hybridDelegator';
 
 /**
  * H2.5 Agent Hook
@@ -40,6 +42,10 @@ export function useH2_5Agent() {
   const agentRef = useRef<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
+
+  // State for smartAccount and bundlerClient (needed for session key funding)
+  const [smartAccount, setSmartAccount] = useState<HybridDelegatorHandle['smartAccount'] | null>(null);
+  const [bundlerClient, setBundlerClient] = useState<HybridDelegatorHandle['bundlerClient'] | null>(null);
 
   // Get wallet from identity (needed for direct bridge)
   const { wallet } = useIdentity();
@@ -96,6 +102,41 @@ export function useH2_5Agent() {
       setInitError(errorMessage);
     }
   }, []);
+
+  /**
+   * Initialize smartAccount and bundlerClient for session key funding
+   * These are needed for UserOp-based funding when session key has 0 balance
+   */
+  useEffect(() => {
+    if (!wallet || !sessionData?.delegator) {
+      // Reset state if wallet or session not available
+      setSmartAccount(null);
+      setBundlerClient(null);
+      return;
+    }
+
+    console.log('[H2.5Agent] Creating smartAccount and bundlerClient for session key funding');
+
+    (async () => {
+      try {
+        // Create hybrid delegator handle (includes smartAccount + bundlerClient)
+        const handle = await createHybridDelegatorHandle(
+          wallet.walletClient,
+          wallet.address
+        );
+
+        setSmartAccount(handle.smartAccount);
+        setBundlerClient(handle.bundlerClient);
+
+        console.log('[H2.5Agent] SmartAccount and bundlerClient ready');
+      } catch (error) {
+        console.error('[H2.5Agent] Failed to create smartAccount/bundlerClient:', error);
+        // Don't fail the whole app - session key funding will fall back to delegation pattern
+        setSmartAccount(null);
+        setBundlerClient(null);
+      }
+    })();
+  }, [wallet, sessionData?.delegator]);
 
   /**
    * Send message to agent
@@ -256,6 +297,8 @@ export function useH2_5Agent() {
             sessionWallet,
             quickMode,
             allowedTokens,
+            smartAccount: smartAccount || undefined,
+            bundlerClient: bundlerClient || undefined,
           },
           callbacks
         );
@@ -280,6 +323,8 @@ export function useH2_5Agent() {
       messages,
       quickMode,
       allowedTokens,
+      smartAccount,
+      bundlerClient,
       addMessage,
       updateMessageContent,
       setStreamingMessage,

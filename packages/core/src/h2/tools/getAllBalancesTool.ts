@@ -132,6 +132,7 @@ export const getAllBalancesTool = tool(
           return {
             symbol: bal.symbol || "UNKNOWN",
             balance: balanceFormatted,
+            address: bal.address, // Include address for agent reference
             formatted: formatBalanceWithUsd(
               balanceFormatted,
               bal.symbol || "UNKNOWN",
@@ -151,7 +152,9 @@ No tokens found. Your wallet appears empty.
 Address: ${userAddress}`;
       }
 
-      const balanceLines = nonZeroBalances.map((b) => `  • ${b!.formatted}`).join("\n");
+      const balanceLines = nonZeroBalances
+        .map((b) => `  • ${b!.formatted} [${b!.address}]`)
+        .join("\n");
 
       const portfolioValueLine =
         totalPortfolioUsd > 0

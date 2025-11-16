@@ -18,6 +18,7 @@ import {
 import { MONAD_CHAIN_ID, PIMLICO_BUNDLER_URL } from "../../lib/config";
 import { sponsorUserOperation, type PimlicoSponsorship } from "../../lib/pimlico";
 import { fetchDelegatorNonce } from "@pragma/core/delegations/nonce";
+import { buildSponsorRequest, applySponsorshipToUserOp, type SignableUserOperation } from "./paymasterUtils";
 
 const coerceEstimate = (value?: string | null) => {
   if (!value) return undefined;
@@ -203,48 +204,6 @@ export const ensureHybridDelegatorDeployed = async (
     maxFeePerGas,
     maxPriorityFeePerGas,
     signature: "0x" as Hex,
-  };
-
-  type SignableUserOperation = Parameters<typeof smartAccount.signUserOperation>[0];
-
-  const buildSponsorRequest = (op: SignableUserOperation) =>
-    formatUserOperationRequest({
-      ...op,
-      paymaster: undefined,
-      paymasterData: undefined,
-      signature: "0x" as Hex,
-    } as unknown as UserOperationRequest);
-
-  const applySponsorshipToUserOp = (target: SignableUserOperation, update: PimlicoSponsorship) => {
-    if (update.callGasLimit && update.callGasLimit > 0n) {
-      target.callGasLimit = update.callGasLimit;
-    }
-    if (update.verificationGasLimit && update.verificationGasLimit > 0n) {
-      target.verificationGasLimit = update.verificationGasLimit;
-    }
-    if (update.preVerificationGas && update.preVerificationGas > 0n) {
-      target.preVerificationGas = update.preVerificationGas;
-    }
-    if (update.paymasterPostOpGasLimit) {
-      Object.assign(target, { paymasterPostOpGasLimit: update.paymasterPostOpGasLimit });
-    }
-    if (update.paymasterVerificationGasLimit) {
-      Object.assign(target, {
-        paymasterVerificationGasLimit: update.paymasterVerificationGasLimit,
-      });
-    }
-
-    if (update.paymaster) {
-      Object.assign(target, {
-        paymaster: update.paymaster,
-        paymasterData: update.paymasterData ?? ("0x" as Hex),
-      });
-    } else {
-      Object.assign(target, {
-        paymaster: `0x${update.paymasterAndData.slice(2, 42)}` as Hex,
-        paymasterData: `0x${update.paymasterAndData.slice(42)}` as Hex,
-      });
-    }
   };
 
   const userOp: SignableUserOperation = { ...baseUserOp };

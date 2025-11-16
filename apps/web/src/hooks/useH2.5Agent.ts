@@ -243,6 +243,10 @@ export function useH2_5Agent() {
         // Flush every 50ms for snappy UI updates (reduced from 100ms)
         const tokenBufferRef = { current: '' };
 
+        // Tool completion tracking for automatic spacing
+        // When a tool completes, the next token should start with \n\n
+        const justCompletedToolRef = { current: false };
+
         const flushTokenBuffer = () => {
           // Atomic read-and-clear operation to prevent race conditions
           const contentToFlush = tokenBufferRef.current;
@@ -283,6 +287,22 @@ export function useH2_5Agent() {
           onToken: (token) => {
             // Atomic append to buffer (prevents race conditions with flush)
             console.log('[Buffer Receive]:', JSON.stringify(token));
+
+            // Safety net: Add spacing after tool completion if LLM didn't
+            if (justCompletedToolRef.current) {
+              const bufferEndsWithNewlines = tokenBufferRef.current.endsWith('\n\n');
+              const tokenStartsWithNewline = token.startsWith('\n');
+
+              if (!bufferEndsWithNewlines && !tokenStartsWithNewline) {
+                // LLM forgot to add spacing - add it automatically
+                console.log('[Auto-spacing] Adding \\n\\n after tool completion');
+                tokenBufferRef.current += '\n\n';
+              }
+
+              // Reset flag after handling first token
+              justCompletedToolRef.current = false;
+            }
+
             tokenBufferRef.current += token;
             console.log('[Buffer State]:', JSON.stringify(tokenBufferRef.current), 'length:', tokenBufferRef.current.length);
           },
@@ -300,6 +320,9 @@ export function useH2_5Agent() {
           onToolEnd: (toolName, output) => {
             completeTool(toolName, output);
             hideProgress();
+
+            // Set flag so next token gets automatic spacing if needed
+            justCompletedToolRef.current = true;
           },
 
           onToolError: (toolName, error) => {

@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Space_Grotesk } from "next/font/google";
+import { Geist_Mono, IBM_Plex_Mono } from "next/font/google";
 
 import { ThemeProvider } from "../components/theme-provider";
 import { cn } from "../lib/utils";
 
 import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({
+const ibmPlexMono = IBM_Plex_Mono({
+  weight: ["400", "500", "600", "700"],
   variable: "--font-sans",
   subsets: ["latin"],
   display: "swap",
@@ -37,7 +38,7 @@ export default function RootLayout({
       <body
         className={cn(
           "min-h-screen bg-background font-sans text-foreground antialiased",
-          spaceGrotesk.variable,
+          ibmPlexMono.variable,
           geistMono.variable,
         )}
       >

@@ -19,14 +19,14 @@
  * - Direct access to agent state
  */
 
-import type { BaseMessage } from '@langchain/core/messages';
-import { PRAGMA_H2_SYSTEM_PROMPT } from '@pragma/core';
+import type { BaseMessage } from "@langchain/core/messages";
+import { PRAGMA_H2_SYSTEM_PROMPT } from "@pragma/core";
 
 /**
  * Message tuple format used by LangChain
  * [role, content]
  */
-export type MessageTuple = ['user' | 'assistant' | 'system', string];
+export type MessageTuple = ["user" | "assistant" | "system", string];
 
 /**
  * Browser agent execution callbacks
@@ -160,7 +160,7 @@ export async function runBrowserAgent(
   callbacks: BrowserAgentCallbacks = {}
 ): Promise<string> {
   try {
-    console.log('[BrowserAgent] Starting execution...', {
+    console.log("[BrowserAgent] Starting execution...", {
       messageCount: messages.length,
       userAddress: context.userAddress,
       quickMode: context.quickMode,
@@ -173,7 +173,7 @@ export async function runBrowserAgent(
     }));
 
     // Track current assistant message for streaming
-    let currentResponse = '';
+    let currentResponse = "";
 
     // Invoke agent with context and streaming
     const result = await agent.invoke(
@@ -204,26 +204,29 @@ export async function runBrowserAgent(
             },
 
             // Handle tool execution start
-            handleToolStart(tool: any, input: string) { // eslint-disable-line @typescript-eslint/no-explicit-any
-              console.log('[BrowserAgent] Tool start:', tool.name);
+            handleToolStart(tool: any, input: string) {
+              // eslint-disable-line @typescript-eslint/no-explicit-any
+              console.log("[BrowserAgent] Tool start:", tool.name);
               callbacks.onToolStart?.(tool.name, input);
             },
 
             // Handle tool execution end
-            handleToolEnd(output: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-              console.log('[BrowserAgent] Tool end');
+            handleToolEnd(output: any) {
+              // eslint-disable-line @typescript-eslint/no-explicit-any
+              console.log("[BrowserAgent] Tool end");
               callbacks.onToolEnd?.(output.tool, output.output);
             },
 
             // Handle tool errors
-            handleToolError(error: Error, runnable: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
-              console.error('[BrowserAgent] Tool error:', error);
+            handleToolError(error: Error, runnable: any) {
+              // eslint-disable-line @typescript-eslint/no-explicit-any
+              console.error("[BrowserAgent] Tool error:", error);
               callbacks.onToolError?.(runnable.name, error.message);
             },
 
             // Handle agent errors
             handleChainError(error: Error) {
-              console.error('[BrowserAgent] Chain error:', error);
+              console.error("[BrowserAgent] Chain error:", error);
               callbacks.onError?.(error);
             },
           },
@@ -231,7 +234,7 @@ export async function runBrowserAgent(
       }
     );
 
-    console.log('[BrowserAgent] Execution complete');
+    console.log("[BrowserAgent] Execution complete");
     callbacks.onComplete?.();
 
     // Extract final response from result
@@ -239,17 +242,18 @@ export async function runBrowserAgent(
     const lastMessage = finalMessages[finalMessages.length - 1];
 
     if (!lastMessage) {
-      throw new Error('No response from agent');
+      throw new Error("No response from agent");
     }
 
     // Return content from last AI message
-    return typeof lastMessage.content === 'string'
+    return typeof lastMessage.content === "string"
       ? lastMessage.content
       : currentResponse;
-
   } catch (error) {
-    console.error('[BrowserAgent] Execution failed:', error);
-    callbacks.onError?.(error instanceof Error ? error : new Error(String(error)));
+    console.error("[BrowserAgent] Execution failed:", error);
+    callbacks.onError?.(
+      error instanceof Error ? error : new Error(String(error))
+    );
     throw error;
   }
 }
@@ -276,9 +280,9 @@ export async function streamBrowserAgent(
   callbacks: BrowserAgentCallbacks = {}
 ): Promise<string> {
   try {
-    console.log('[BrowserAgent] Starting streaming execution...');
+    console.log("[BrowserAgent] Starting streaming execution...");
 
-    let currentResponse = '';
+    let currentResponse = "";
 
     // Build execution mode instructions (same as H2 CLI)
     const modeInstructions = context.quickMode
@@ -310,7 +314,9 @@ Session key funding is a maintenance operation that does not require user confir
 - User says "what's my USDC" → use getBalance(USDC) (precise, single token)
 
 For swaps: call getSwapQuote then executeSwap with the quote ID.
-For wrap/unwrap/transfer: call tool directly.`
+For wrap/unwrap/transfer: call tool directly.
+
+Group capabilities with **bold section headers**. Use emojis sparingly. Natural, conversational tone.`
       : `YOU ARE IN NORMAL MODE - Ask for user confirmation BEFORE executing.
 
 **EXECUTION STRATEGY:**
@@ -339,18 +345,23 @@ Session key funding is a maintenance operation that does not require user confir
 - User says "what's my USDC" → use getBalance(USDC) (precise, single token)
 
 For swaps: call getSwapQuote, show quote, wait for approval ('yes', 'execute', 'proceed'), then executeSwap.
-For wrap/unwrap/transfer: ask first, then execute.`;
+For wrap/unwrap/transfer: ask first, then execute.
+
+Group capabilities with **bold section headers**. Use emojis sparingly. Natural, conversational tone.`;
 
     // Build system prompt with placeholders replaced (same as H2 CLI)
-    const systemPrompt = PRAGMA_H2_SYSTEM_PROMPT
-      .replace(/\[userAddress from context\]/g, context.userAddress)
+    // Formatting instructions now in base system prompt (CRITICAL FORMATTING RULES section)
+    const systemPrompt = PRAGMA_H2_SYSTEM_PROMPT.replace(
+      /\[userAddress from context\]/g,
+      context.userAddress
+    )
       .replace(/\[userAddress\]/g, context.userAddress)
       .replace(/\[EXECUTION_MODE\]/g, modeInstructions);
 
     // Prepend system prompt to messages (filter out any existing system messages)
     const messagesWithSystem: MessageTuple[] = [
-      ['system', systemPrompt],
-      ...messages.filter(([role]) => role !== 'system'),
+      ["system", systemPrompt],
+      ...messages.filter(([role]) => role !== "system"),
     ];
 
     // Format messages for LangChain
@@ -365,7 +376,7 @@ For wrap/unwrap/transfer: ask first, then execute.`;
         messages: formattedMessages,
       },
       {
-        version: 'v2', // Use streamEvents v2 API
+        version: "v2", // Use streamEvents v2 API
         recursionLimit: 60, // Support large batch operations (same as CLI)
         configurable: {
           userAddress: context.userAddress,
@@ -383,7 +394,7 @@ For wrap/unwrap/transfer: ask first, then execute.`;
 
     // Process events
     for await (const event of stream) {
-      if (event.event === 'on_chat_model_stream') {
+      if (event.event === "on_chat_model_stream") {
         // LLM token streaming
         const rawContent = event.data?.chunk?.content;
 
@@ -393,7 +404,7 @@ For wrap/unwrap/transfer: ask first, then execute.`;
         if (typeof rawContent === "string") {
           delta = rawContent;
         } else if (Array.isArray(rawContent)) {
-          // Responses API format
+          // Responses API format - concatenate all text parts
           for (const part of rawContent) {
             if (part.type === "text" && part.text) {
               delta += part.text;
@@ -404,29 +415,36 @@ For wrap/unwrap/transfer: ask first, then execute.`;
         }
 
         if (delta) {
+          // Stream tokens directly from LLM without post-processing
+          // System prompt instructs the LLM to output proper markdown formatting
+          console.log('[OpenAI Token]:', JSON.stringify(delta));
           currentResponse += delta;
           callbacks.onToken?.(delta);
         }
-      } else if (event.event === 'on_tool_start') {
+      } else if (event.event === "on_tool_start") {
         // Tool execution started
         callbacks.onToolStart?.(event.name, event.data?.input);
-      } else if (event.event === 'on_tool_end') {
+      } else if (event.event === "on_tool_end") {
         // Tool execution completed
         callbacks.onToolEnd?.(event.name, event.data?.output);
-      } else if (event.event === 'on_tool_error') {
+      } else if (event.event === "on_tool_error") {
         // Tool execution failed
-        callbacks.onToolError?.(event.name, event.data?.error?.message || 'Unknown error');
+        callbacks.onToolError?.(
+          event.name,
+          event.data?.error?.message || "Unknown error"
+        );
       }
     }
 
-    console.log('[BrowserAgent] Streaming complete');
+    console.log("[BrowserAgent] Streaming complete");
     callbacks.onComplete?.();
 
     return currentResponse;
-
   } catch (error) {
-    console.error('[BrowserAgent] Streaming failed:', error);
-    callbacks.onError?.(error instanceof Error ? error : new Error(String(error)));
+    console.error("[BrowserAgent] Streaming failed:", error);
+    callbacks.onError?.(
+      error instanceof Error ? error : new Error(String(error))
+    );
     throw error;
   }
 }

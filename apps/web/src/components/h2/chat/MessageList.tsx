@@ -8,6 +8,7 @@ import { SystemMessage } from './SystemMessage'
 import { QuoteMessage } from './QuoteMessage'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { ProgressIndicator } from './ProgressIndicator'
+import { ActiveTools } from './ActiveTools'
 import { MessageSquare } from 'lucide-react'
 
 /**
@@ -67,6 +68,9 @@ export function MessageList() {
               return null
           }
         })}
+
+        {/* Active Tools - shows running/completed/error tool states */}
+        <ActiveTools />
 
         {/* Progress Indicator - shows during tool execution */}
         {progress?.isVisible && <ProgressIndicator />}

@@ -22,7 +22,7 @@ import { useCallback, useEffect, useState, useRef } from 'react';
 import { useH2ChatStore } from '@/stores/useH2ChatStore';
 import { useIdentity } from './useIdentity';
 import { createPublicClient, createWalletClient, http, type Hex } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { privateKeyToAccount, nonceManager } from 'viem/accounts';
 import { monadDevnet } from '@/lib/chains';
 
 import { createBrowserAgent, validateBrowserEnvironment } from '@/lib/h2.5/createBrowserAgent';
@@ -31,6 +31,7 @@ import { streamBrowserAgent } from '@/lib/h2.5/browserAgentRunner';
 import type { MessageTuple, BrowserAgentCallbacks } from '@/lib/h2.5/browserAgentRunner';
 import { createHybridDelegatorHandle } from '@/lib/onboarding/hybridDelegator';
 import type { HybridDelegatorHandle } from '@/lib/onboarding/hybridDelegator';
+import { onProgress, offProgress } from '@pragma/core/h2/progress/emitter';
 
 /**
  * H2.5 Agent Hook
@@ -139,6 +140,24 @@ export function useH2_5Agent() {
   }, [wallet, sessionData?.delegator]);
 
   /**
+   * Subscribe to global progress emitter
+   * Tools emit progress updates via emitProgress() - we listen and show in UI
+   */
+  useEffect(() => {
+    const progressHandler = (event: { message: string; toolName?: string }) => {
+      showProgress(event.message, event.toolName);
+    };
+
+    // Subscribe to progress events
+    onProgress(progressHandler);
+
+    // Cleanup on unmount
+    return () => {
+      offProgress(progressHandler);
+    };
+  }, [showProgress]);
+
+  /**
    * Send message to agent
    * Runs agent in browser with direct wallet access
    */
@@ -200,11 +219,15 @@ export function useH2_5Agent() {
           transport: http(process.env.NEXT_PUBLIC_MONAD_RPC_URL),
         });
 
-        // Create session wallet with correct RPC URL
+        // Create session wallet with correct RPC URL and nonceManager
+        // nonceManager enables atomic nonce coordination for parallel transactions
         // This prevents tools (like executeSwap) from creating their own wallet
         // with hardcoded testnet.monad.xyz from @pragma/core/h2/config.ts
         const sessionWallet = createWalletClient({
-          account: privateKeyToAccount(sessionData.sessionKeyPrivateKey as Hex),
+          account: privateKeyToAccount(
+            sessionData.sessionKeyPrivateKey as Hex,
+            { nonceManager }  // Enable atomic nonce management for parallel operations
+          ),
           chain: monadDevnet,
           transport: http(process.env.NEXT_PUBLIC_MONAD_RPC_URL),
         });
@@ -215,30 +238,53 @@ export function useH2_5Agent() {
           ownerAddress: wallet.address as `0x${string}`,
         });
 
+        // Token buffering with useRef to prevent race conditions
+        // Using ref instead of closure variable ensures atomic updates
+        // Flush every 50ms for snappy UI updates (reduced from 100ms)
+        const tokenBufferRef = { current: '' };
+
+        const flushTokenBuffer = () => {
+          // Atomic read-and-clear operation to prevent race conditions
+          const contentToFlush = tokenBufferRef.current;
+          if (contentToFlush.length === 0) return;
+
+          console.log('[Buffer Flush]:', JSON.stringify(contentToFlush), 'length:', contentToFlush.length);
+          tokenBufferRef.current = '';
+
+          const streamingId = useH2ChatStore.getState().streamingMessageId;
+          if (streamingId) {
+            // Use functional update to avoid race conditions
+            // This ensures we're always appending to the latest state
+            const currentMessages = useH2ChatStore.getState().messages;
+            const currentMessage = currentMessages.find((msg) => msg.id === streamingId);
+            if (currentMessage) {
+              updateMessageContent(streamingId, currentMessage.content + contentToFlush);
+            }
+          } else {
+            // Create new assistant message
+            addMessage({
+              role: 'assistant',
+              content: contentToFlush,
+              isStreaming: true,
+            });
+
+            const newMessage = useH2ChatStore.getState().messages.at(-1);
+            if (newMessage) {
+              setStreamingMessage(newMessage.id);
+            }
+          }
+        };
+
+        // Auto-flush interval for smooth streaming (50ms for snappy updates)
+        const flushInterval = setInterval(flushTokenBuffer, 50);
+
         // Streaming callbacks for UI updates
         const callbacks: BrowserAgentCallbacks = {
           onToken: (token) => {
-            // Append token to current assistant message
-            const streamingId = useH2ChatStore.getState().streamingMessageId;
-            if (streamingId) {
-              const currentMessages = useH2ChatStore.getState().messages;
-              const currentMessage = currentMessages.find((msg) => msg.id === streamingId);
-              if (currentMessage) {
-                updateMessageContent(streamingId, currentMessage.content + token);
-              }
-            } else {
-              // Create new assistant message
-              addMessage({
-                role: 'assistant',
-                content: token || '',
-                isStreaming: true,
-              });
-
-              const newMessage = useH2ChatStore.getState().messages.at(-1);
-              if (newMessage) {
-                setStreamingMessage(newMessage.id);
-              }
-            }
+            // Atomic append to buffer (prevents race conditions with flush)
+            console.log('[Buffer Receive]:', JSON.stringify(token));
+            tokenBufferRef.current += token;
+            console.log('[Buffer State]:', JSON.stringify(tokenBufferRef.current), 'length:', tokenBufferRef.current.length);
           },
 
           onProgress: (message, toolName) => {
@@ -262,12 +308,20 @@ export function useH2_5Agent() {
           },
 
           onComplete: () => {
+            // Stop flush interval and flush any remaining tokens
+            clearInterval(flushInterval);
+            flushTokenBuffer();
+
             setStreamingMessage(null);
             setIsStreaming(false);
             hideProgress();
           },
 
           onError: (error) => {
+            // Stop flush interval and flush any remaining tokens
+            clearInterval(flushInterval);
+            flushTokenBuffer();
+
             console.error('[H2.5Agent] Execution error:', error);
             setStreamingMessage(null);
             setIsStreaming(false);

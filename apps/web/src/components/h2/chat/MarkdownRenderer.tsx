@@ -21,8 +21,28 @@ interface MarkdownRendererProps {
  * - Custom lists and blockquotes
  * - Tables, links, and inline code
  */
+
+/**
+ * Preprocess content to filter out agent metadata and normalize formatting
+ * - Removes [0x...] addresses that are meant for agent reference only
+ * - Normalizes newlines (CRLF → LF) for consistent rendering
+ */
+function preprocessContent(content: string): string {
+  // Normalize line breaks (Windows CRLF → Unix LF)
+  let cleaned = content.replace(/\r\n/g, '\n');
+
+  // Remove addresses in brackets (e.g., [0xABC123...])
+  // Matches [0x followed by 40+ hex characters]
+  cleaned = cleaned.replace(/\[0x[a-fA-F0-9]{40,}\]/g, '');
+
+  return cleaned;
+}
+
 export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   const { theme } = useThemeStore()
+
+  // Preprocess content to remove agent metadata
+  const cleanContent = preprocessContent(content);
 
   const components: Components = {
     // Code blocks with syntax highlighting
@@ -198,7 +218,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
         remarkPlugins={[remarkGfm]}
         components={components}
       >
-        {content}
+        {cleanContent}
       </ReactMarkdown>
     </div>
   )

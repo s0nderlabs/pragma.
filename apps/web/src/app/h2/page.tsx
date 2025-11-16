@@ -2,20 +2,21 @@
 
 import { useEffect } from 'react'
 import { H2Layout } from '@/components/h2/layout/H2Layout'
+import { AgentProvider } from '@/contexts/H2AgentContext'
+import { useH2Agent } from '@/hooks/useH2Agent'
 
 /**
- * H2 Page - Conversational AI Interface
+ * H2 Page - Server-Side LangChain Agent
  *
- * Phase 1: Layout Structure
- * - Responsive sidebar with accordion sections
- * - Chat container with placeholder
- * - Theme toggle functionality
- * - Mobile hamburger menu and overlay
+ * Uses server-side agent execution with SSE streaming.
+ * Provides useH2Agent via context to child components.
  *
- * Future Phases:
- * - Phase 2: Message components and chat input
- * - Phase 3: Conversational UX (quotes, receipts, welcome screen)
- * - Phase 4: Multi-step timeline, real-time updates, Risk Gate
+ * Architecture:
+ * - LangChain agent runs on server (Node.js)
+ * - SSE streaming for real-time updates
+ * - Signature transport via SSE + HTTP POST (4 round-trips per swap)
+ *
+ * For client-side execution, see /h2.5 route.
  */
 export default function H2Page() {
   useEffect(() => {
@@ -28,5 +29,9 @@ export default function H2Page() {
     }
   }, [])
 
-  return <H2Layout />
+  return (
+    <AgentProvider hook={useH2Agent}>
+      <H2Layout />
+    </AgentProvider>
+  )
 }

@@ -69,7 +69,7 @@ export function MessageList() {
         })}
 
         {/* Progress Indicator - shows during tool execution */}
-        {progress.isVisible && <ProgressIndicator />}
+        {progress?.isVisible && <ProgressIndicator />}
 
         {/* Thinking Indicator - shows before AI starts responding */}
         {isStreaming && messages.length > 0 && !messages[messages.length - 1]?.isStreaming && (

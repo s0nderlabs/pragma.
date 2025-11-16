@@ -3,21 +3,21 @@
 import { useState, useRef, useEffect } from 'react'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
-import { useH2Agent } from '@/hooks/useH2Agent'
+import { useAgentContext } from '@/contexts/H2AgentContext'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import { Send, Settings } from 'lucide-react'
 import { ModePopover } from './ModePopover'
 
 /**
- * ChatInput Component (H2 Enabled)
+ * ChatInput Component (H2/H2.5 Compatible)
  *
  * Auto-resize textarea with send button and settings gear.
- * Now integrated with H2 LangChain agent via SSE streaming.
+ * Works with both H2 (server-side) and H2.5 (client-side) agents via context.
  */
 export function ChatInput() {
   const { theme } = useThemeStore()
   const tokensLoading = useH2ChatStore((state) => state.tokensLoading)
-  const { sendMessage, isStreaming } = useH2Agent()
+  const { sendMessage, isStreaming } = useAgentContext()
   const [input, setInput] = useState('')
   const [modePopoverOpen, setModePopoverOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)

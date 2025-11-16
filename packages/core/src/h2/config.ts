@@ -22,10 +22,13 @@ export { ROOT_AUTHORITY };
 
 /**
  * Monad RPC URL
+ * Supports both server-side (MONAD_EXECUTION_RPC_URL) and client-side (NEXT_PUBLIC_MONAD_EXECUTION_RPC_URL) environments
  * @default https://testnet.monad.xyz/
  */
 export const MONAD_RPC_URL =
-  (process.env.MONAD_EXECUTION_RPC_URL as string) || "https://testnet.monad.xyz/";
+  (process.env.MONAD_EXECUTION_RPC_URL as string) ||
+  (process.env.NEXT_PUBLIC_MONAD_EXECUTION_RPC_URL as string) ||
+  "https://testnet.monad.xyz/";
 
 /**
  * Monad Chain ID

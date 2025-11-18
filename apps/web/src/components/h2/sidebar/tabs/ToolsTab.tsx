@@ -3,8 +3,14 @@
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useThemeStore } from '@/stores/useThemeStore'
-import { useIdentity } from '@/hooks/useIdentity'
 import { Moon, Sun, Wallet, LogOut, Loader2 } from 'lucide-react'
+
+interface ToolsTabProps {
+  status: string
+  wallet: any
+  connect: () => Promise<void>
+  disconnect: () => Promise<void>
+}
 
 /**
  * ToolsTab - Minimal Settings
@@ -12,10 +18,9 @@ import { Moon, Sun, Wallet, LogOut, Loader2 } from 'lucide-react'
  * Only essential settings: theme toggle and wallet connection
  * Clean, grayscale design with minimal interaction
  */
-export function ToolsTab() {
+export function ToolsTab({ status, wallet, connect, disconnect }: ToolsTabProps) {
   const { theme, setTheme } = useThemeStore()
   const isDark = theme === 'pragma-dark'
-  const { connect, disconnect, status, wallet } = useIdentity()
 
   const isConnecting = status === 'connecting' || status === 'initializing'
   const isConnected = status === 'connected' && wallet?.address

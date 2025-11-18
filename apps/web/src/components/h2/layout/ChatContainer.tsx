@@ -8,6 +8,13 @@ import { SettingsMenu } from '../chat/SettingsMenu'
 import { useSidebarStore } from '@/stores/useSidebarStore'
 import { motion } from 'framer-motion'
 
+interface ChatContainerProps {
+  status: string
+  wallet: any
+  connect: () => Promise<void>
+  disconnect: () => Promise<void>
+}
+
 /**
  * ChatContainer Component
  *
@@ -16,14 +23,19 @@ import { motion } from 'framer-motion'
  *
  * This is the main H2 UI surface.
  */
-export function ChatContainer() {
+export function ChatContainer({ status, wallet, connect, disconnect }: ChatContainerProps) {
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
   const { isOpen } = useSidebarStore()
 
   return (
     <div className="w-full h-full relative">
       {/* Minimal Sidebar with drawer slide collapse */}
-      <MinimalSidebar />
+      <MinimalSidebar
+        status={status}
+        wallet={wallet}
+        connect={connect}
+        disconnect={disconnect}
+      />
 
       {/* Main Chat Area - adjusts position based on sidebar state */}
       <motion.div

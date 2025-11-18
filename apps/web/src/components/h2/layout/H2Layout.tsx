@@ -2,6 +2,7 @@
 
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useH2Onboarding } from '@/hooks/useH2Onboarding'
+import { useIdentity } from '@/hooks/useIdentity'
 import { MobileHeader } from './MobileHeader'
 import { ChatContainer } from './ChatContainer'
 import { H2ErrorBoundary } from '../ErrorBoundary'
@@ -30,6 +31,9 @@ import { H2ErrorBoundary } from '../ErrorBoundary'
 export function H2Layout() {
   const { theme } = useThemeStore()
 
+  // SINGLE source of truth for wallet state (prevents race condition)
+  const { status, wallet, connect, disconnect } = useIdentity()
+
   // Auto-create H2 session after Web3Auth connects
   useH2Onboarding()
 
@@ -45,7 +49,12 @@ export function H2Layout() {
       <div className="relative z-20 h-screen pt-16 lg:pt-0">
         <H2ErrorBoundary>
           {/* Always show chat interface - login via sidebar */}
-          <ChatContainer />
+          <ChatContainer
+            status={status}
+            wallet={wallet}
+            connect={connect}
+            disconnect={disconnect}
+          />
         </H2ErrorBoundary>
       </div>
     </div>

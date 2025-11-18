@@ -3,18 +3,21 @@
 import { Eye, EyeOff } from 'lucide-react'
 import { useSidebarStore } from '@/stores/useSidebarStore'
 import { useThemeStore } from '@/stores/useThemeStore'
-import { useIdentity } from '@/hooks/useIdentity'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
+
+interface BalanceCardProps {
+  status?: string
+  wallet?: any
+}
 
 /**
  * Balance Card - Compact Glass Card
  * Shows address + balance with toggle visibility
  * Always rendered at top-left of sidebar
  */
-export function BalanceCard() {
+export function BalanceCard({ status, wallet }: BalanceCardProps) {
   const { balanceVisible, toggleBalance } = useSidebarStore()
   const { theme } = useThemeStore()
-  const { status, wallet } = useIdentity()
 
   // Format address for display
   const address = wallet?.address

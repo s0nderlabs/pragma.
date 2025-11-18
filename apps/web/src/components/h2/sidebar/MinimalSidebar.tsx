@@ -5,12 +5,18 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useSidebarStore } from '@/stores/useSidebarStore'
-import { useIdentity } from '@/hooks/useIdentity'
 import { WalletCard } from './WalletCard'
 import { SpaceNavigation } from './SpaceNavigation'
 import { ActivityTab } from './tabs/ActivityTab'
 import { SessionsTab } from './tabs/SessionsTab'
 import { ToolsTab } from './tabs/ToolsTab'
+
+interface MinimalSidebarProps {
+  status: string
+  wallet: any
+  connect: () => Promise<void>
+  disconnect: () => Promise<void>
+}
 
 /**
  * MinimalSidebar - Apple × Dieter Rams Design
@@ -19,16 +25,12 @@ import { ToolsTab } from './tabs/ToolsTab'
  * Clean information architecture with tab-based navigation
  * Drawer slide collapse with floating balance trigger
  */
-export function MinimalSidebar() {
+export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalSidebarProps) {
   const { theme } = useThemeStore()
   const { isOpen, toggle } = useSidebarStore()
   const [activeTab, setActiveTab] = useState<'activity' | 'sessions' | 'tools'>('activity')
   const [openMethod, setOpenMethod] = useState<'hover' | 'keyboard' | null>(null)
   const [isHovering, setIsHovering] = useState(false)
-
-  // CRITICAL: This triggers Web3Auth bootstrap on page load
-  // Without this, wallet connection stays in "idle" state forever
-  const { status, wallet } = useIdentity()
 
   // Invert isOpen to get isCollapsed for clearer logic
   const isCollapsed = !isOpen
@@ -199,7 +201,12 @@ export function MinimalSidebar() {
                       exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.2 }}
                     >
-                      <ToolsTab />
+                      <ToolsTab
+                        status={status}
+                        wallet={wallet}
+                        connect={connect}
+                        disconnect={disconnect}
+                      />
                     </motion.div>
                   )}
                 </AnimatePresence>

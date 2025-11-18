@@ -58,7 +58,7 @@ export function BatchOperationSummary({ operations, title = 'Batch Operations' }
           {/* Progress Bar */}
           <div className="h-2 rounded-full bg-white/10 overflow-hidden">
             <motion.div
-              className="h-full bg-gradient-to-r from-purple-500 to-cyan-500"
+              className="h-full bg-gradient-to-r from-[#E07A5F] to-[#6E54FF]"
               initial={{ width: 0 }}
               animate={{ width: `${totalProgress}%` }}
               transition={{ duration: 0.5 }}
@@ -68,7 +68,7 @@ export function BatchOperationSummary({ operations, title = 'Batch Operations' }
           {/* Stats */}
           <div className="flex gap-4 mt-3 text-xs">
             {inProgress > 0 && (
-              <div className="flex items-center gap-1 text-purple-400">
+              <div className="flex items-center gap-1 text-[#F2A694]">
                 <Loader2 className="w-3 h-3 animate-spin" />
                 <span>{inProgress} running</span>
               </div>
@@ -99,7 +99,7 @@ export function BatchOperationSummary({ operations, title = 'Batch Operations' }
               className={`
                 p-3 rounded-lg border flex items-center gap-3
                 ${op.status === 'completed' ? 'bg-green-500/5 border-green-500/20' : ''}
-                ${op.status === 'in_progress' ? 'bg-purple-500/5 border-purple-500/20' : ''}
+                ${op.status === 'in_progress' ? 'bg-[#E07A5F]/5 border-[#E07A5F]/20' : ''}
                 ${op.status === 'error' ? 'bg-red-500/5 border-red-500/20' : ''}
                 ${op.status === 'pending' ? 'bg-white/5 border-white/10' : ''}
               `}
@@ -110,7 +110,7 @@ export function BatchOperationSummary({ operations, title = 'Batch Operations' }
                   <Check className="w-5 h-5 text-green-400" />
                 )}
                 {op.status === 'in_progress' && (
-                  <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
+                  <Loader2 className="w-5 h-5 text-[#F2A694] animate-spin" />
                 )}
                 {op.status === 'error' && (
                   <XCircle className="w-5 h-5 text-red-400" />

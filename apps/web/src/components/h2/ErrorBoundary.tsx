@@ -98,7 +98,7 @@ export class H2ErrorBoundary extends Component<Props, State> {
 
               <button
                 onClick={this.handleReset}
-                className="w-full py-3 px-4 rounded-xl bg-purple-500 hover:bg-purple-600 transition-colors font-medium flex items-center justify-center gap-2"
+                className="w-full py-3 px-4 rounded-xl bg-[#E07A5F] hover:bg-[#7D3F2B] transition-colors font-medium flex items-center justify-center gap-2"
               >
                 <RefreshCw className="w-4 h-4" />
                 Try Again

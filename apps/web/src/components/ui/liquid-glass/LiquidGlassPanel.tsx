@@ -25,11 +25,15 @@ export function LiquidGlassPanel({
   style = {},
   stdDeviation = 0.04,
   displacementScale = 0.5,
-  blurAmount = 8,
+  blurAmount = 20,
 }: LiquidGlassPanelProps) {
   // Generate unique filter ID to avoid conflicts
   const componentId = useId().replace(/:/g, '')
   const filterId = `liquid-glass-filter-${componentId}`
+
+  // Theme-specific background opacity to match Apple's liquid glass
+  // Apple uses EXTREMELY opaque frosted glass - it's almost solid!
+  const backgroundOpacity = theme === 'light' || theme === 'pragma-light' ? 45 : 22;
 
   return (
     <div
@@ -40,9 +44,11 @@ export function LiquidGlassPanel({
         boxSizing: 'border-box',
         backdropFilter: `blur(${blurAmount}px) url(#${filterId}) saturate(var(--liquid-glass-saturation))`,
         WebkitBackdropFilter: `blur(${blurAmount}px) url(#${filterId}) saturate(var(--liquid-glass-saturation))`,
-        backgroundColor: 'color-mix(in srgb, var(--liquid-glass-color) 12%, transparent)',
+        backgroundColor: `color-mix(in srgb, var(--liquid-glass-color) ${backgroundOpacity}%, transparent)`,
         boxShadow: `
-          inset 0 0 0 1px color-mix(in srgb, var(--liquid-glass-light) calc(var(--liquid-glass-reflex-light) * 10%), transparent),
+          0 0 0 0.5px color-mix(in srgb, var(--liquid-glass-light) calc(var(--liquid-glass-reflex-light) * 20%), transparent),
+          0 0 3px 0.5px color-mix(in srgb, var(--liquid-glass-light) calc(var(--liquid-glass-reflex-light) * 15%), transparent),
+          inset 0 0 1px 0 color-mix(in srgb, var(--liquid-glass-light) calc(var(--liquid-glass-reflex-light) * 20%), transparent),
           inset 1.8px 3px 0px -2px color-mix(in srgb, var(--liquid-glass-light) calc(var(--liquid-glass-reflex-light) * 90%), transparent),
           inset -2px -2px 0px -2px color-mix(in srgb, var(--liquid-glass-light) calc(var(--liquid-glass-reflex-light) * 80%), transparent),
           inset -3px -8px 1px -6px color-mix(in srgb, var(--liquid-glass-light) calc(var(--liquid-glass-reflex-light) * 60%), transparent),

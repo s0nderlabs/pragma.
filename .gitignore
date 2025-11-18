@@ -36,6 +36,8 @@ TEST_*.md
 H2_TEST_RESULTS.md
 .claude/
 dev-scripts/
+apps/web/test-results
+apps/web/tests
 
 # Test artifacts
 test-results/

@@ -35,7 +35,7 @@ export function AIMessage({ message }: AIMessageProps) {
           <motion.span
             animate={{ opacity: [1, 0.3, 1] }}
             transition={{ duration: 0.8, repeat: Infinity }}
-            className="inline-block w-1 h-4 bg-purple-400 ml-1 align-middle rounded-sm"
+            className="inline-block w-1 h-4 bg-[#F2A694] ml-1 align-middle rounded-sm"
           />
         )}
       </div>

@@ -87,7 +87,7 @@ export function EphemeralDelegationModal({
               {/* Header */}
               <div className="mb-6">
                 <div className="flex items-center gap-3 mb-2">
-                  <ShieldCheck className="w-6 h-6 text-purple-400" />
+                  <ShieldCheck className="w-6 h-6 text-[#F2A694]" />
                   <h2 className="text-xl font-semibold">{info.title}</h2>
                 </div>
                 <p className="text-sm opacity-70">{info.description}</p>
@@ -166,7 +166,7 @@ export function EphemeralDelegationModal({
                 <button
                   onClick={handleSign}
                   disabled={isSigning}
-                  className="flex-1 py-3 px-4 rounded-xl bg-purple-500 hover:bg-purple-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  className="flex-1 py-3 px-4 rounded-xl bg-[#E07A5F] hover:bg-[#7D3F2B] transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                 >
                   {isSigning ? (
                     <span className="flex items-center justify-center gap-2">

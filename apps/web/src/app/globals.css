@@ -3,61 +3,101 @@
 
 :root {
   color-scheme: light;
-  --background: 259 25% 96%;
-  --foreground: 0 0% 10%;
-  --card: 252 25% 95%;
-  --card-foreground: 0 0% 10%;
-  --popover: 252 25% 95%;
-  --popover-foreground: 0 0% 10%;
-  --accent-h: 249;
-  --accent-s: 93%;
-  --accent-l: 71%;
-  --accent: var(--accent-h) var(--accent-s) var(--accent-l);
-  --accent-strong: 249 95% 64%;
-  --accent-soft: var(--accent-h) calc(var(--accent-s) * 0.9) 82%;
-  --accent-rgb: 132, 111, 250;
-  --primary: var(--accent);
+  /* Neo-Terminal Palette - Sophisticated Grayscale */
+  --background: 0 0% 98%; /* #FAFAFA */
+  --foreground: 0 0% 10%; /* #1A1A1A - Softer than pure black */
+  --card: 0 0% 100%; /* #FFFFFF */
+  --card-foreground: 0 0% 10%; /* #1A1A1A */
+  --popover: 0 0% 100%; /* #FFFFFF */
+  --popover-foreground: 0 0% 10%; /* #1A1A1A */
+
+  /* Terracotta Accent */
+  --accent-h: 20;
+  --accent-s: 70%;
+  --accent-l: 48%;
+  --accent: var(--accent-h) var(--accent-s) var(--accent-l); /* #D4622A */
+  --accent-strong: 20 75% 45%;
+  --accent-soft: 20 70% 95%; /* Very soft terracotta background */
+  --accent-rgb: 212, 98, 42;
+
+  /* Neo-Terminal Colors */
+  --primary: 0 0% 10%; /* #1A1A1A - Sophisticated black */
   --primary-foreground: 0 0% 100%;
-  --secondary: 252 25% 93%;
+  --secondary: 0 0% 96%; /* #F5F5F5 */
   --secondary-foreground: 0 0% 10%;
-  --muted: 0 0% 36%;
-  --muted-foreground: 0 0% 36%;
+  --muted: 0 0% 42%; /* #6B6B6B - Readable gray */
+  --muted-foreground: 0 0% 42%;
   --accent-foreground: 0 0% 100%;
-  --destructive: 4 73% 48%;
-  --destructive-foreground: 210 40% 96%;
-  --border: 28 20% 78%;
-  --input: 28 20% 78%;
+  --destructive: 0 70% 50%; /* Red for errors */
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 92%; /* #EBEBEB - Ultra subtle borders */
+  --input: 0 0% 96%; /* #F5F5F5 */
   --ring: var(--accent);
-  --radius: 0.75rem;
+
+  /* Neo-Terminal Border Radius System */
+  --radius: 12px; /* Default component radius */
+  --radius-chat: 32px; /* Chat bubbles and input */
+  --radius-button: 24px; /* Send button */
+  --radius-card: 16px; /* Sidebar container */
+  --radius-component: 12px; /* Cards and panels */
+  --radius-control: 8px; /* Small buttons */
+  --radius-badge: 6px; /* Status indicators */
+  --radius-code: 4px; /* Code blocks */
+
+  /* Neo-Terminal Typography */
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-base: 15px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --line-height-tight: 1.3;
+  --line-height-normal: 1.6;
+  --line-height-loose: 1.8;
+
+  /* Spacing */
+  --spacing-xs: 8px;
+  --spacing-sm: 12px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
 }
 
 .dark {
   color-scheme: dark;
-  --background: 240 10% 4%;
-  --foreground: 210 40% 98%;
-  --card: 240 10% 4%;
-  --card-foreground: 210 40% 98%;
-  --popover: 240 10% 4%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 222 81% 56%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 240 6% 15%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 240 4% 14%;
-  --muted-foreground: 0 0% 65%;
-  --accent-h: 249;
-  --accent-s: 93%;
-  --accent-l: 60%;
-  --accent: var(--accent-h) var(--accent-s) var(--accent-l);
-  --accent-strong: 249 95% 54%;
-  --accent-soft: var(--accent-h) calc(var(--accent-s) * 0.9) 70%;
-  --accent-rgb: 132, 111, 250;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 63% 45%;
+  /* Neo-Terminal Dark Mode */
+  --background: 0 0% 7%; /* #121212 - Modern dark, not pure black */
+  --foreground: 0 0% 92%; /* #EBEBEB - Softer than pure white */
+  --card: 0 0% 10%; /* #1A1A1A */
+  --card-foreground: 0 0% 92%; /* #EBEBEB */
+  --popover: 0 0% 10%; /* #1A1A1A */
+  --popover-foreground: 0 0% 92%; /* #EBEBEB */
+
+  /* Terracotta Accent (brighter for dark mode) */
+  --accent-h: 20;
+  --accent-s: 100%;
+  --accent-l: 59%;
+  --accent: var(--accent-h) var(--accent-s) var(--accent-l); /* #FF7A42 */
+  --accent-strong: 20 100% 55%;
+  --accent-soft: 20 40% 15%; /* Soft terracotta background for dark */
+  --accent-rgb: 255, 122, 66;
+
+  /* Neo-Terminal Dark Colors */
+  --primary: 0 0% 92%; /* #EBEBEB - Soft white for primary */
+  --primary-foreground: 0 0% 10%;
+  --secondary: 0 0% 14%; /* #242424 */
+  --secondary-foreground: 0 0% 92%;
+  --muted: 0 0% 55%; /* #8C8C8C - Better contrast */
+  --muted-foreground: 0 0% 55%;
+  --accent-foreground: 0 0% 10%;
+  --destructive: 0 70% 60%; /* Brighter red for dark mode */
   --destructive-foreground: 0 0% 100%;
-  --border: 240 4% 18%;
-  --input: 240 4% 18%;
-  --ring: 222 81% 56%;
+  --border: 0 0% 20%; /* #333333 - Subtle dark borders */
+  --input: 0 0% 14%; /* #242424 */
+  --ring: var(--accent);
 }
 
 @theme inline {
@@ -73,13 +113,16 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
+  --color-accent: hsl(var(--accent));
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-terracotta: hsl(20 70% 48%);
+  --color-terracotta-light: hsl(20 100% 62%);
+  --color-terracotta-dark: hsl(20 60% 40%);
   --radius-lg: var(--radius);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
@@ -94,10 +137,12 @@
     min-height: 100dvh;
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: var(--font-sans), "Space Grotesk", system-ui, -apple-system, BlinkMacSystemFont,
-      "Segoe UI", sans-serif;
-    font-weight: 300;
-    letter-spacing: -0.01em;
+    font-family: var(--font-sans), "IBM Plex Mono", monospace;
+    font-weight: var(--font-weight-regular);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
+    letter-spacing: 0.02em;
+    font-feature-settings: "tnum" on, "lnum" on; /* Tabular numbers */
   }
 }
 

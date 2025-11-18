@@ -1,8 +1,8 @@
 /* Liquid Glass Theme Variables */
 
 :root {
-  /* Light theme (default) */
-  --liquid-glass-color: #bbbbbc;
+  /* Light theme (default) - Apple uses bright white frosted glass */
+  --liquid-glass-color: #ffffff;
   --liquid-glass-light: #fff;
   --liquid-glass-dark: #000;
   --liquid-glass-content: #224;
@@ -14,7 +14,8 @@
 }
 
 [data-theme='dark'] {
-  --liquid-glass-color: #bbbbbc;
+  /* Dark theme - Apple uses light gray tint for visibility */
+  --liquid-glass-color: #dddddd;
   --liquid-glass-light: #fff;
   --liquid-glass-dark: #000;
   --liquid-glass-content: #e1e1e1;
@@ -38,7 +39,8 @@
 
 /* Pragma H2-specific themes (purple/blue palette) */
 [data-theme='pragma-dark'] {
-  --liquid-glass-color: #bbbbbc;
+  /* Dark - Apple uses light gray tint */
+  --liquid-glass-color: #dddddd;
   --liquid-glass-light: #fff;
   --liquid-glass-dark: #000;
   --liquid-glass-content: #e1e1e1;
@@ -49,7 +51,8 @@
 }
 
 [data-theme='pragma-light'] {
-  --liquid-glass-color: #bbbbbc;
+  /* Light - Apple uses bright white frosted glass */
+  --liquid-glass-color: #ffffff;
   --liquid-glass-light: #fff;
   --liquid-glass-dark: #000;
   --liquid-glass-content: #224;

@@ -1,0 +1,200 @@
+/* Terminal Theme CSS Variables and Utilities */
+
+/* ASCII Characters for UI Elements */
+.terminal-ascii {
+  --ascii-border-top: "━";
+  --ascii-border-bottom: "━";
+  --ascii-border-left: "┃";
+  --ascii-border-right: "┃";
+  --ascii-corner-tl: "┏";
+  --ascii-corner-tr: "┓";
+  --ascii-corner-bl: "┗";
+  --ascii-corner-br: "┛";
+  --ascii-divider: "━━━━━━━━━━━━━━━━";
+  --ascii-bullet: "▣";
+  --ascii-arrow: "→";
+  --ascii-check: "✓";
+  --ascii-cross: "✗";
+  --ascii-pending: "◎";
+  --ascii-collapse: "[-]";
+  --ascii-expand: "[+]";
+}
+
+/* Terminal Box Drawing */
+.terminal-box {
+  border: 2px solid hsl(var(--border));
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.terminal-box-hover:hover {
+  border-width: 3px;
+  transform: translateY(-2px);
+  transition: all 0.15s ease;
+}
+
+.terminal-box-active {
+  border-color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.05);
+}
+
+/* Terminal Typography Classes */
+.terminal-text-xs {
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-tight);
+}
+
+.terminal-text-sm {
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-tight);
+}
+
+.terminal-text-base {
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+}
+
+.terminal-text-md {
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+}
+
+.terminal-text-lg {
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-normal);
+  font-weight: var(--font-weight-medium);
+}
+
+.terminal-text-xl {
+  font-size: var(--font-size-xl);
+  line-height: var(--line-height-tight);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Terminal Grid Pattern */
+.terminal-grid-pattern {
+  background-image: radial-gradient(circle, hsl(var(--muted) / 0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+  background-position: 0 0;
+}
+
+/* ASCII Progress Bar */
+.terminal-progress {
+  font-family: var(--font-sans), "IBM Plex Mono", monospace;
+  letter-spacing: -0.05em;
+}
+
+.terminal-progress-filled::before {
+  content: "█";
+}
+
+.terminal-progress-empty::before {
+  content: "░";
+}
+
+/* Terminal Blink Animation */
+@keyframes terminal-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+.terminal-cursor::after {
+  content: "█";
+  animation: terminal-blink 1s infinite;
+  color: hsl(var(--accent));
+}
+
+/* Terminal Scan Line Effect */
+@keyframes terminal-scan {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+.terminal-scan-effect::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    hsl(var(--accent) / 0.5),
+    transparent
+  );
+  animation: terminal-scan 3s linear infinite;
+  pointer-events: none;
+}
+
+/* Terminal Glow Effect */
+.terminal-glow {
+  text-shadow: 0 0 5px hsl(var(--accent) / 0.5);
+}
+
+/* Matrix Rain Effect for Yolo Mode */
+@keyframes matrix-rain {
+  0% {
+    transform: translateY(-100%);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh);
+    opacity: 0;
+  }
+}
+
+.matrix-rain-char {
+  position: fixed;
+  color: hsl(var(--accent));
+  font-size: 20px;
+  animation: matrix-rain 2s linear infinite;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Terminal Table Styles */
+.terminal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans), "IBM Plex Mono", monospace;
+}
+
+.terminal-table th,
+.terminal-table td {
+  padding: 4px 8px;
+  text-align: left;
+  border-bottom: 1px solid hsl(var(--border) / 0.3);
+}
+
+.terminal-table th {
+  font-weight: var(--font-weight-semibold);
+  border-bottom: 2px solid hsl(var(--border));
+}
+
+/* Terminal Status Indicators */
+.terminal-status-active::before {
+  content: "●";
+  color: hsl(var(--accent));
+  margin-right: 4px;
+}
+
+.terminal-status-inactive::before {
+  content: "○";
+  color: hsl(var(--muted));
+  margin-right: 4px;
+}
+
+.terminal-status-error::before {
+  content: "✗";
+  color: hsl(var(--destructive));
+  margin-right: 4px;
+}
+
+.terminal-status-success::before {
+  content: "✓";
+  color: hsl(var(--accent));
+  margin-right: 4px;
+}

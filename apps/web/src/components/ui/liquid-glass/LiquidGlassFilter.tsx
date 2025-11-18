@@ -24,12 +24,22 @@ export function LiquidGlassFilter({
         <filter
           id={filterId}
           primitiveUnits="objectBoundingBox"
+          colorInterpolationFilters="sRGB"
           x="-200%"
           y="-200%"
           width="500%"
           height="500%"
         >
-
+          <image
+            id={`${filterId}-map`}
+            href={FILTER_MAP_DATA_URI}
+            x="0"
+            y="0"
+            width="1"
+            height="1"
+            preserveAspectRatio="none"
+            result="map"
+          />
           <feGaussianBlur
             in="SourceGraphic"
             stdDeviation={stdDeviation}

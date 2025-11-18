@@ -42,25 +42,17 @@ export function UserMessage({ message }: UserMessageProps) {
   return (
     <div ref={messageRef} className="flex justify-end mb-4">
       <div className="max-w-[80%] lg:max-w-[60%]">
-        <LiquidGlassPanel
-          theme={theme}
-          className="rounded-[24px] px-5 py-3 relative overflow-hidden"
-          blurAmount={6}
-          displacementScale={0.3}
-          stdDeviation={0.03}
+        <div
+          className={`rounded-[24px] px-5 py-3 ${
+            theme === 'dark' || theme === 'pragma-dark'
+              ? 'bg-gray-800 border border-gray-700'
+              : 'bg-gray-50 border border-gray-200'
+          }`}
         >
-          {/* Purple tint overlay */}
-          <div
-            className="absolute inset-0 rounded-[24px] pointer-events-none"
-            style={{
-              background: 'color-mix(in srgb, rgb(168, 85, 247) 15%, transparent)',
-            }}
-          />
-
-          <p className="text-sm lg:text-base whitespace-pre-wrap break-words relative z-10">
+          <p className="text-sm lg:text-base whitespace-pre-wrap break-words">
             {message.content}
           </p>
-        </LiquidGlassPanel>
+        </div>
       </div>
     </div>
   )

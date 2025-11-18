@@ -49,7 +49,7 @@ export function MultiStepTimeline({ steps, title = 'Multi-Step Operation' }: Mul
           <div className="flex items-center gap-3">
             <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
               <motion.div
-                className="h-full bg-gradient-to-r from-purple-500 to-cyan-500"
+                className="h-full bg-gradient-to-r from-[#E07A5F] to-[#6E54FF]"
                 initial={{ width: 0 }}
                 animate={{ width: `${progress}%` }}
                 transition={{ duration: 0.5 }}
@@ -78,7 +78,7 @@ export function MultiStepTimeline({ steps, title = 'Multi-Step Operation' }: Mul
                     className={`
                       w-8 h-8 rounded-full flex items-center justify-center relative z-10
                       ${step.status === 'completed' ? 'bg-green-500/20 border-2 border-green-500' : ''}
-                      ${step.status === 'in_progress' ? 'bg-purple-500/20 border-2 border-purple-500' : ''}
+                      ${step.status === 'in_progress' ? 'bg-[#E07A5F]/20 border-2 border-[#E07A5F]' : ''}
                       ${step.status === 'error' ? 'bg-red-500/20 border-2 border-red-500' : ''}
                       ${step.status === 'pending' ? 'bg-white/5 border-2 border-white/20' : ''}
                     `}
@@ -87,7 +87,7 @@ export function MultiStepTimeline({ steps, title = 'Multi-Step Operation' }: Mul
                       <Check className="w-4 h-4 text-green-400" />
                     )}
                     {step.status === 'in_progress' && (
-                      <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                      <Loader2 className="w-4 h-4 text-[#F2A694] animate-spin" />
                     )}
                     {step.status === 'error' && (
                       <XCircle className="w-4 h-4 text-red-400" />

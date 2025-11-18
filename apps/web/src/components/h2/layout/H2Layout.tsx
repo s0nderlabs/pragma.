@@ -2,7 +2,6 @@
 
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useH2Onboarding } from '@/hooks/useH2Onboarding'
-import Background from '../Background'
 import { MobileHeader } from './MobileHeader'
 import { ChatContainer } from './ChatContainer'
 import { H2ErrorBoundary } from '../ErrorBoundary'
@@ -36,15 +35,9 @@ export function H2Layout() {
 
   return (
     <div
-      className="relative min-h-screen overflow-hidden"
+      className="relative min-h-screen overflow-hidden bg-background"
       data-theme={theme}
-      style={{
-        color: theme === 'pragma-light' ? '#224' : '#e1e1e1',
-      }}
     >
-      {/* Background - Iridescence shader (z-0) */}
-      <Background />
-
       {/* Mobile Header (z-40, mobile only) */}
       <MobileHeader />
 

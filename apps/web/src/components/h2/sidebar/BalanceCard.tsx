@@ -3,6 +3,7 @@
 import { Eye, EyeOff } from 'lucide-react'
 import { useSidebarStore } from '@/stores/useSidebarStore'
 import { useThemeStore } from '@/stores/useThemeStore'
+import { useIdentity } from '@/hooks/useIdentity'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 
 /**
@@ -13,10 +14,17 @@ import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 export function BalanceCard() {
   const { balanceVisible, toggleBalance } = useSidebarStore()
   const { theme } = useThemeStore()
+  const { status, wallet } = useIdentity()
 
-  // Placeholder data - will integrate with wallet later
-  const address = '0x1234...5678'
-  const balance = '1,234.56'
+  // Format address for display
+  const address = wallet?.address
+    ? `${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}`
+    : status === 'connecting' || status === 'initializing'
+    ? 'Connecting...'
+    : 'Not connected'
+
+  // TODO: Fetch real balance from blockchain
+  const balance = wallet?.address ? '1,234.56' : '0.00'
 
   return (
     <LiquidGlassPanel
@@ -49,14 +57,22 @@ export function BalanceCard() {
 
         {/* Balance */}
         <div className="text-3xl font-semibold font-mono">
-          {balanceVisible ? (
-            <>
-              {balance} <span className="text-base opacity-60">MON</span>
-            </>
+          {wallet?.address ? (
+            balanceVisible ? (
+              <>
+                {balance} <span className="text-base opacity-60">MON</span>
+              </>
+            ) : (
+              <>
+                ****.**<span className="text-base opacity-60"> MON</span>
+              </>
+            )
           ) : (
-            <>
-              $***.**<span className="text-base opacity-60">MON</span>
-            </>
+            <span className="text-lg opacity-60">
+              {status === 'connecting' || status === 'initializing'
+                ? 'Loading...'
+                : 'No wallet'}
+            </span>
           )}
         </div>
       </div>

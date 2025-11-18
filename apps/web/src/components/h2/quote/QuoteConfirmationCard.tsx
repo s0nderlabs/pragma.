@@ -220,8 +220,8 @@ export function QuoteConfirmationCard({
           `}
           style={{
             background: theme === 'pragma-light'
-              ? 'linear-gradient(135deg, #836EF9 0%, #6C5CE7 100%)'
-              : 'linear-gradient(135deg, #9580FF 0%, #836EF9 100%)',
+              ? 'linear-gradient(135deg, #E07A5F 0%, #7D3F2B 100%)'
+              : 'linear-gradient(135deg, #F2A694 0%, #E07A5F 100%)',
             color: '#FFFFFF',
           }}
         >

@@ -8,6 +8,8 @@ import { useEffect } from 'react'
 import { H2Layout } from '@/components/h2/layout/H2Layout'
 import { AgentProvider } from '@/contexts/H2AgentContext'
 import { useH2_5Agent } from '@/hooks/useH2.5Agent'
+import { useThemeStore } from '@/stores/useThemeStore'
+import '@/components/ui/terminal/terminal-theme.css'
 
 /**
  * H2.5 Page - Client-Side LangChain Agent
@@ -30,6 +32,8 @@ import { useH2_5Agent } from '@/hooks/useH2.5Agent'
  * Access: http://localhost:3000/h2.5 (no navigation UI, direct URL only)
  */
 export default function H25Page() {
+  const { theme } = useThemeStore()
+
   useEffect(() => {
     // Override body background for this page to prevent globals.css interference
     const originalBg = document.body.style.background
@@ -42,7 +46,15 @@ export default function H25Page() {
 
   return (
     <AgentProvider hook={useH2_5Agent}>
-      <H2Layout />
+      <div
+        className={`min-h-screen terminal-grid-pattern ${
+          theme === 'dark' || theme === 'pragma-dark'
+            ? 'bg-background'
+            : 'bg-background'
+        }`}
+      >
+        <H2Layout />
+      </div>
     </AgentProvider>
   )
 }

@@ -3,6 +3,7 @@
 import { X, MessageSquare, Activity, Settings } from 'lucide-react'
 import { useSidebarStore } from '@/stores/useSidebarStore'
 import { useThemeStore } from '@/stores/useThemeStore'
+import { useIdentity } from '@/hooks/useIdentity'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/Accordion'
 import { BalanceCard } from '../sidebar/BalanceCard'
@@ -25,6 +26,10 @@ import { SettingsPanel } from '../sidebar/SettingsPanel'
 export function Sidebar() {
   const { activeSection, setActiveSection, setMobileOpen } = useSidebarStore()
   const { theme } = useThemeStore()
+
+  // CRITICAL: This triggers Web3Auth bootstrap on page load
+  // Without this, wallet connection stays in "idle" state forever
+  const { status, wallet } = useIdentity()
 
   return (
     <div className="h-full p-4">

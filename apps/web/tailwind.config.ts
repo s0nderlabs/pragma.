@@ -9,6 +9,13 @@ const config: Config = {
   darkMode: "class",
   theme: {
     extend: {
+      colors: {
+        terracotta: {
+          DEFAULT: '#D4622A',
+          light: '#FF7A42',
+          dark: '#A04A20',
+        },
+      },
       keyframes: {
         "accordion-down": {
           from: { height: "0" },

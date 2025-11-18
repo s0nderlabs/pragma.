@@ -41,7 +41,7 @@ export function ThinkingIndicator() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.3 }}
-            className="shimmer-text text-base text-purple-400/80"
+            className="shimmer-text text-base text-[#F2A694]/80"
           >
             {THINKING_VERBS[currentIndex]}
           </motion.div>

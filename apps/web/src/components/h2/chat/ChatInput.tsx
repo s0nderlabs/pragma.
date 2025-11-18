@@ -5,7 +5,7 @@ import { useThemeStore } from '@/stores/useThemeStore'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { useAgentContext } from '@/contexts/H2AgentContext'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
-import { Send, Settings } from 'lucide-react'
+import { Send, Settings, ArrowUpRight } from 'lucide-react'
 import { ModePopover } from './ModePopover'
 
 /**
@@ -65,14 +65,14 @@ export function ChatInput() {
           anchorRef={gearButtonRef}
         />
 
-        <LiquidGlassPanel
-          theme={theme}
-          className="rounded-[24px] p-3 flex items-center gap-2"
-          blurAmount={6}
-          displacementScale={0.3}
-          stdDeviation={0.03}
+        <div
+          className={`rounded-[32px] p-3 flex items-center gap-2 ${
+            theme === 'dark' || theme === 'pragma-dark'
+              ? 'bg-gray-900 border border-gray-700'
+              : 'bg-white border border-gray-200'
+          }`}
         >
-        {/* Settings Gear */}
+        {/* Settings Gear - Original Style */}
         <button
           ref={gearButtonRef}
           onClick={() => setModePopoverOpen(!modePopoverOpen)}
@@ -95,16 +95,21 @@ export function ChatInput() {
           style={{ overflow: 'hidden' }}
         />
 
-        {/* Send Button */}
+        {/* Send Button - Original Style */}
         <button
           onClick={handleSend}
           disabled={!input.trim() || isStreaming || tokensLoading}
-          className="flex-shrink-0 p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className={`group relative flex-shrink-0 flex items-center gap-1 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full active:scale-[0.985] transition-all ${
+            theme === 'dark' || theme === 'pragma-dark'
+              ? 'bg-white text-black'
+              : 'bg-black text-white'
+          }`}
           aria-label="Send message"
         >
-          <Send className="w-5 h-5" />
+          <span className="hidden sm:inline text-sm font-medium">Send</span>
+          <ArrowUpRight className="w-5 h-5 -mr-4 opacity-0 group-hover:-mr-0 group-hover:opacity-100 group-active:-rotate-45 transition-all duration-200" />
         </button>
-      </LiquidGlassPanel>
+      </div>
       </div>
     </div>
   )

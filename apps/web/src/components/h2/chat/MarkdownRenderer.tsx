@@ -98,7 +98,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
     // Headings with gradient effect
     h1: ({ children }) => (
       <h1
-        className="text-2xl lg:text-3xl font-bold mt-6 mb-4 bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent"
+        className="text-2xl lg:text-3xl font-bold mt-6 mb-4 bg-gradient-to-r from-[#F2A694] to-blue-400 bg-clip-text text-transparent"
       >
         {children}
       </h1>
@@ -121,12 +121,12 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
 
     // Lists
     ul: ({ children }) => (
-      <ul className="mb-4 ml-6 space-y-2 list-disc marker:text-purple-400">
+      <ul className="mb-4 ml-6 space-y-2 list-disc marker:text-[#F2A694]">
         {children}
       </ul>
     ),
     ol: ({ children }) => (
-      <ol className="mb-4 ml-6 space-y-2 list-decimal marker:text-purple-400">
+      <ol className="mb-4 ml-6 space-y-2 list-decimal marker:text-[#F2A694]">
         {children}
       </ol>
     ),
@@ -137,7 +137,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
     // Blockquotes
     blockquote: ({ children }) => (
       <blockquote
-        className="my-4 pl-4 border-l-4 border-purple-400/50 italic opacity-80"
+        className="my-4 pl-4 border-l-4 border-[#F2A694]/50 italic opacity-80"
         style={{
           background: 'color-mix(in srgb, var(--liquid-glass-color) 8%, transparent)',
           padding: '0.75rem 1rem',
@@ -154,7 +154,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-purple-400 hover:text-purple-300 underline underline-offset-2 transition-colors"
+        className="text-[#E07A5F] hover:text-[#F2A694] underline underline-offset-2 transition-colors"
       >
         {children}
       </a>

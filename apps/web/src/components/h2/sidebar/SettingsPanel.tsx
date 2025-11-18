@@ -3,7 +3,7 @@
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useIdentity } from '@/hooks/useIdentity'
 import { useH2Session } from '@/hooks/useH2Session'
-import { Sun, Moon, Wallet, Key, LogOut, LogIn } from 'lucide-react'
+import { Sun, Moon, Wallet, Key, LogOut, LogIn, Loader2 } from 'lucide-react'
 
 /**
  * Settings Panel accordion section
@@ -66,13 +66,33 @@ export function SettingsPanel() {
               <span>Disconnect</span>
             </button>
           </div>
+        ) : status === 'connecting' || status === 'initializing' ? (
+          <button
+            disabled
+            className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--liquid-glass-color)_12%,transparent)] transition-colors text-sm opacity-50 cursor-not-allowed"
+          >
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>{status === 'initializing' ? 'Initializing...' : 'Connecting...'}</span>
+          </button>
+        ) : status === 'error' ? (
+          <div className="space-y-2">
+            <div className="text-xs text-red-500">Connection failed</div>
+            <button
+              onClick={connect}
+              className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--liquid-glass-color)_12%,transparent)] hover:bg-[color-mix(in_srgb,var(--liquid-glass-color)_18%,transparent)] transition-colors text-sm"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>Retry Connection</span>
+            </button>
+          </div>
         ) : (
           <button
             onClick={connect}
-            className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--liquid-glass-color)_12%,transparent)] hover:bg-[color-mix(in_srgb,var(--liquid-glass-color)_18%,transparent)] transition-colors text-sm"
+            disabled={status === 'idle'}
+            className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg bg-[color-mix(in_srgb,var(--liquid-glass-color)_12%,transparent)] hover:bg-[color-mix(in_srgb,var(--liquid-glass-color)_18%,transparent)] transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <LogIn className="w-4 h-4" />
-            <span>Connect Wallet</span>
+            <span>{status === 'idle' ? 'Preparing...' : 'Connect Wallet'}</span>
           </button>
         )}
       </div>

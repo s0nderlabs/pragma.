@@ -125,7 +125,7 @@ export function ExportSessionKeyModal({ isOpen, onClose, privateKey }: ExportSes
                   type="checkbox"
                   checked={understood}
                   onChange={(e) => setUnderstood(e.target.checked)}
-                  className="mt-1 w-4 h-4 rounded border-2 border-white/20 bg-white/5 checked:bg-purple-500 checked:border-purple-500 cursor-pointer"
+                  className="mt-1 w-4 h-4 rounded border-2 border-white/20 bg-white/5 checked:bg-[#E07A5F] checked:border-[#E07A5F] cursor-pointer"
                 />
                 <span className="text-sm opacity-90 group-hover:opacity-100 transition-opacity">
                   I understand the risks and will keep this key secure
@@ -181,7 +181,7 @@ export function ExportSessionKeyModal({ isOpen, onClose, privateKey }: ExportSes
               <button
                 onClick={handleClose}
                 disabled={!understood}
-                className="w-full py-3 px-4 rounded-xl bg-purple-500 hover:bg-purple-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                className="w-full py-3 px-4 rounded-xl bg-[#E07A5F] hover:bg-[#7D3F2B] transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
               >
                 Close
               </button>

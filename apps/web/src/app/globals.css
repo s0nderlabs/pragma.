@@ -12,13 +12,13 @@
   --popover-foreground: 0 0% 10%; /* #1A1A1A */
 
   /* Terracotta Accent */
-  --accent-h: 20;
-  --accent-s: 70%;
-  --accent-l: 48%;
-  --accent: var(--accent-h) var(--accent-s) var(--accent-l); /* #D4622A */
-  --accent-strong: 20 75% 45%;
-  --accent-soft: 20 70% 95%; /* Very soft terracotta background */
-  --accent-rgb: 212, 98, 42;
+  --accent-h: 11;
+  --accent-s: 69%;
+  --accent-l: 62%;
+  --accent: var(--accent-h) var(--accent-s) var(--accent-l); /* #E07A5F */
+  --accent-strong: 11 69% 55%;
+  --accent-soft: 11 69% 95%; /* Very soft terracotta background */
+  --accent-rgb: 224, 122, 95;
 
   /* Neo-Terminal Colors */
   --primary: 0 0% 10%; /* #1A1A1A - Sophisticated black */
@@ -76,14 +76,14 @@
   --popover: 0 0% 10%; /* #1A1A1A */
   --popover-foreground: 0 0% 92%; /* #EBEBEB */
 
-  /* Terracotta Accent (brighter for dark mode) */
-  --accent-h: 20;
-  --accent-s: 100%;
-  --accent-l: 59%;
-  --accent: var(--accent-h) var(--accent-s) var(--accent-l); /* #FF7A42 */
-  --accent-strong: 20 100% 55%;
-  --accent-soft: 20 40% 15%; /* Soft terracotta background for dark */
-  --accent-rgb: 255, 122, 66;
+  /* Terracotta Accent */
+  --accent-h: 11;
+  --accent-s: 69%;
+  --accent-l: 62%;
+  --accent: var(--accent-h) var(--accent-s) var(--accent-l); /* #E07A5F */
+  --accent-strong: 11 69% 55%;
+  --accent-soft: 11 40% 15%; /* Soft terracotta background for dark */
+  --accent-rgb: 224, 122, 95;
 
   /* Neo-Terminal Dark Colors */
   --primary: 0 0% 92%; /* #EBEBEB - Soft white for primary */
@@ -120,9 +120,9 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-terracotta: hsl(20 70% 48%);
-  --color-terracotta-light: hsl(20 100% 62%);
-  --color-terracotta-dark: hsl(20 60% 40%);
+  --color-terracotta: hsl(11 69% 62%);
+  --color-terracotta-light: hsl(11 69% 72%);
+  --color-terracotta-dark: hsl(11 69% 52%);
   --radius-lg: var(--radius);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);

@@ -62,12 +62,81 @@ export function useH2_5Agent() {
   const addMessage = useH2ChatStore((state) => state.addMessage);
   const updateMessageContent = useH2ChatStore((state) => state.updateMessageContent);
   const setStreamingMessage = useH2ChatStore((state) => state.setStreamingMessage);
-  const showProgress = useH2ChatStore((state) => state.showProgress);
   const hideProgress = useH2ChatStore((state) => state.hideProgress);
   const startTool = useH2ChatStore((state) => state.startTool);
+  const addToolStep = useH2ChatStore((state) => state.addToolStep);
   const completeTool = useH2ChatStore((state) => state.completeTool);
   const errorTool = useH2ChatStore((state) => state.errorTool);
   const setIsStreaming = useH2ChatStore((state) => state.setIsStreaming);
+
+  /**
+   * Format tool name to human-readable text
+   */
+  const formatToolName = (name: string): string => {
+    // Convert camelCase to spaced words and capitalize first letter
+    return name
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .trim();
+  };
+
+  /**
+   * Generate human-readable description from tool name
+   * Note: LangChain streamEvents doesn't provide input in on_tool_start
+   * Detailed values come through progress emitter as nested steps
+   */
+  const generateToolDescription = (toolName: string): string => {
+    switch (toolName) {
+      // Swap operations
+      case 'getSwapQuote':
+        return 'Getting swap quote';
+      case 'executeSwap':
+        return 'Executing swap';
+
+      // Staking operations
+      case 'stake':
+        return 'Staking MON';
+      case 'unstakeRequest':
+        return 'Requesting unstake';
+      case 'unstakeClaim':
+        return 'Claiming unstaked MON';
+      case 'checkUnstakeStatus':
+        return 'Checking unstake status';
+
+      // Token operations
+      case 'transfer':
+        return 'Transferring tokens';
+      case 'wrap':
+        return 'Wrapping MON';
+      case 'unwrap':
+        return 'Unwrapping WMON';
+
+      // Balance operations
+      case 'getBalance':
+        return 'Checking balance';
+      case 'getAllBalances':
+        return 'Fetching all balances';
+      case 'getAccountInfo':
+        return 'Getting account info';
+      case 'listVerifiedTokens':
+        return 'Listing verified tokens';
+
+      // Session key operations
+      case 'checkSessionKeyBalance':
+        return 'Checking session key balance';
+      case 'fundSessionKey':
+        return 'Funding session key';
+      case 'getSessionKeyBalance':
+        return 'Getting session key balance';
+      case 'getSessionKeyPrivateKey':
+        return 'Getting session key';
+      case 'withdrawSessionKeyBalance':
+        return 'Withdrawing session key balance';
+
+      default:
+        return formatToolName(toolName);
+    }
+  };
 
   /**
    * Initialize agent on mount
@@ -141,11 +210,29 @@ export function useH2_5Agent() {
 
   /**
    * Subscribe to global progress emitter
-   * Tools emit progress updates via emitProgress() - we listen and show in UI
+   * Tools emit progress updates via emitProgress() - we listen and add as tree steps
    */
   useEffect(() => {
     const progressHandler = (event: { message: string; toolName?: string }) => {
-      showProgress(event.message, event.toolName);
+      if (event.message) {
+        let runningToolName = event.toolName;
+
+        // Find currently running tool if not specified
+        // Most tools emit progress without toolName
+        if (!runningToolName) {
+          const activeTools = useH2ChatStore.getState().activeTools;
+          activeTools.forEach((tool, name) => {
+            if (tool.status === "running") {
+              runningToolName = name;
+            }
+          });
+        }
+
+        // Add as tree step if we have a running tool
+        if (runningToolName) {
+          addToolStep(runningToolName, event.message);
+        }
+      }
     };
 
     // Subscribe to progress events
@@ -155,7 +242,7 @@ export function useH2_5Agent() {
     return () => {
       offProgress(progressHandler);
     };
-  }, [showProgress]);
+  }, [addToolStep]);
 
   /**
    * Send message to agent
@@ -198,8 +285,11 @@ export function useH2_5Agent() {
       });
 
       // Build message history for agent
+      // Filter out tool messages - they're UI-only, not part of conversation history
       const messageHistory: MessageTuple[] = [
-        ...messages.map((msg) => [msg.role, msg.content] as MessageTuple),
+        ...messages
+          .filter((msg) => msg.role !== "tool")
+          .map((msg) => [msg.role, (msg as { content: string }).content] as MessageTuple),
         ['user', content],
       ];
 
@@ -252,7 +342,6 @@ export function useH2_5Agent() {
           const contentToFlush = tokenBufferRef.current;
           if (contentToFlush.length === 0) return;
 
-          console.log('[Buffer Flush]:', JSON.stringify(contentToFlush), 'length:', contentToFlush.length);
           tokenBufferRef.current = '';
 
           const streamingId = useH2ChatStore.getState().streamingMessageId;
@@ -285,36 +374,45 @@ export function useH2_5Agent() {
         // Streaming callbacks for UI updates
         const callbacks: BrowserAgentCallbacks = {
           onToken: (token) => {
-            // Atomic append to buffer (prevents race conditions with flush)
-            console.log('[Buffer Receive]:', JSON.stringify(token));
-
             // Safety net: Add spacing after tool completion if LLM didn't
             if (justCompletedToolRef.current) {
               const bufferEndsWithNewlines = tokenBufferRef.current.endsWith('\n\n');
               const tokenStartsWithNewline = token.startsWith('\n');
 
               if (!bufferEndsWithNewlines && !tokenStartsWithNewline) {
-                // LLM forgot to add spacing - add it automatically
-                console.log('[Auto-spacing] Adding \\n\\n after tool completion');
                 tokenBufferRef.current += '\n\n';
               }
 
-              // Reset flag after handling first token
               justCompletedToolRef.current = false;
             }
 
             tokenBufferRef.current += token;
-            console.log('[Buffer State]:', JSON.stringify(tokenBufferRef.current), 'length:', tokenBufferRef.current.length);
           },
 
           onProgress: (message, toolName) => {
+            // Add progress as nested step in tool tree
             if (message) {
-              showProgress(message, toolName);
+              let runningToolName = toolName;
+
+              // Find currently running tool if not specified
+              if (!runningToolName) {
+                const activeTools = useH2ChatStore.getState().activeTools;
+                activeTools.forEach((tool, name) => {
+                  if (tool.status === "running") {
+                    runningToolName = name;
+                  }
+                });
+              }
+
+              if (runningToolName) {
+                addToolStep(runningToolName, message);
+              }
             }
           },
 
           onToolStart: (toolName) => {
-            startTool(toolName);
+            const description = generateToolDescription(toolName);
+            startTool(toolName, description);
           },
 
           onToolEnd: (toolName, output) => {
@@ -405,9 +503,9 @@ export function useH2_5Agent() {
       addMessage,
       updateMessageContent,
       setStreamingMessage,
-      showProgress,
       hideProgress,
       startTool,
+      addToolStep,
       completeTool,
       errorTool,
       setIsStreaming,

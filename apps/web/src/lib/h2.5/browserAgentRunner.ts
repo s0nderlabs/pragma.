@@ -415,14 +415,12 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
         }
 
         if (delta) {
-          // Stream tokens directly from LLM without post-processing
-          // System prompt instructs the LLM to output proper markdown formatting
-          console.log('[OpenAI Token]:', JSON.stringify(delta));
           currentResponse += delta;
           callbacks.onToken?.(delta);
         }
       } else if (event.event === "on_tool_start") {
         // Tool execution started
+        // Note: LangChain streamEvents doesn't provide input in on_tool_start
         callbacks.onToolStart?.(event.name, event.data?.input);
       } else if (event.event === "on_tool_end") {
         // Tool execution completed

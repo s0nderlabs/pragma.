@@ -6,10 +6,10 @@ import { UserMessage } from './UserMessage'
 import { AIMessage } from './AIMessage'
 import { SystemMessage } from './SystemMessage'
 import { QuoteMessage } from './QuoteMessage'
+import { ToolMessage } from './ToolMessage'
 import { ThinkingIndicator } from './ThinkingIndicator'
-import { ProgressIndicator } from './ProgressIndicator'
-import { ActiveTools } from './ActiveTools'
 import { MessageSquare } from 'lucide-react'
+import type { ToolMessage as ToolMessageType } from '@/lib/h2/types'
 
 /**
  * MessageList Component (H2 Enabled)
@@ -20,7 +20,6 @@ import { MessageSquare } from 'lucide-react'
 export function MessageList() {
   const messages = useH2ChatStore((state) => state.messages)
   const isStreaming = useH2ChatStore((state) => state.isStreaming)
-  const progress = useH2ChatStore((state) => state.progress)
   const scrollRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -64,16 +63,12 @@ export function MessageList() {
               return <SystemMessage key={message.id} message={message} />
             case 'quote':
               return <QuoteMessage key={message.id} message={message} />
+            case 'tool':
+              return <ToolMessage key={message.id} message={message as ToolMessageType} />
             default:
               return null
           }
         })}
-
-        {/* Active Tools - shows running/completed/error tool states */}
-        <ActiveTools />
-
-        {/* Progress Indicator - shows during tool execution */}
-        {progress?.isVisible && <ProgressIndicator />}
 
         {/* Thinking Indicator - shows before AI starts responding */}
         {isStreaming && messages.length > 0 && !messages[messages.length - 1]?.isStreaming && (

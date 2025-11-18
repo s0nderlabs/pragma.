@@ -119,3 +119,35 @@ export interface ToolExecutionState {
   startTime: number;
   endTime?: number;
 }
+
+/**
+ * Tool step for tree view (populated from progress events)
+ */
+export interface ToolStep {
+  id: string;
+  name: string;
+  status: "pending" | "running" | "completed" | "error";
+  children?: ToolStep[];
+  output?: unknown;
+  error?: string;
+}
+
+/**
+ * Tool message for display in chat
+ */
+export interface ToolMessage {
+  id: string;
+  role: "tool";
+  toolName: string;
+  description?: string; // Human-readable description (e.g., "Swapping 0.41 USDC to MON")
+  status: "running" | "completed" | "error";
+  steps: ToolStep[];
+  timestamp: number;
+  output?: unknown;
+  error?: string;
+}
+
+/**
+ * Union type for all message types
+ */
+export type AnyMessage = ChatMessage | ToolMessage;

@@ -13,6 +13,9 @@ import type {
   ToolExecutionState,
   H2SessionState,
   AllowedToken,
+  ToolMessage,
+  ToolStep,
+  AnyMessage,
 } from "@/lib/h2/types";
 import type { SSEConnectionState } from "@/lib/h2/sseClient";
 
@@ -22,7 +25,7 @@ import type { SSEConnectionState } from "@/lib/h2/sseClient";
 
 export interface H2ChatState {
   // Messages
-  messages: ChatMessage[];
+  messages: AnyMessage[];
   streamingMessageId: string | null;
 
   // Progress
@@ -50,7 +53,8 @@ export interface H2ChatState {
   hideProgress: () => void;
 
   // Tool actions
-  startTool: (toolName: string) => void;
+  startTool: (toolName: string, description?: string) => void;
+  addToolStep: (toolName: string, stepMessage: string) => void;
   completeTool: (toolName: string, output?: unknown) => void;
   errorTool: (toolName: string, error: string) => void;
   clearTools: () => void;
@@ -166,51 +170,140 @@ export const useH2ChatStore = create<H2ChatState>()(
         },
 
         // Tool actions
-        startTool: (toolName) => {
-          const tools = new Map(get().activeTools);
-          tools.set(toolName, {
+        startTool: (toolName, description) => {
+          // Track in activeTools
+          const activeTools = new Map(get().activeTools);
+          activeTools.set(toolName, {
             toolName,
             status: "running",
             startTime: Date.now(),
           });
-          set({ activeTools: tools });
+
+          // Finalize current streaming message (if any)
+          // This splits the assistant response so tool appears between parts
+          const streamingId = get().streamingMessageId;
+          if (streamingId) {
+            set((state) => ({
+              messages: state.messages.map((msg) =>
+                msg.id === streamingId ? { ...msg, isStreaming: false } : msg
+              ),
+              streamingMessageId: null, // Clear so next tokens create new message
+            }));
+          }
+
+          // Create tool message
+          const id = `tool-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const toolMessage: ToolMessage = {
+            id,
+            role: "tool",
+            toolName,
+            description,
+            status: "running",
+            steps: [],
+            timestamp: Date.now(),
+          };
+
+          // Append tool message (after finalized assistant)
+          set((state) => ({
+            messages: [...state.messages, toolMessage],
+            activeTools,
+          }));
+        },
+
+        addToolStep: (toolName, stepMessage) => {
+          set((state) => ({
+            messages: state.messages.map((msg) => {
+              if (msg.role === "tool" && (msg as ToolMessage).toolName === toolName && (msg as ToolMessage).status === "running") {
+                const toolMsg = msg as ToolMessage;
+                const stepId = `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+                // Mark previous steps as completed
+                const updatedSteps = toolMsg.steps.map(s => ({
+                  ...s,
+                  status: "completed" as const,
+                }));
+
+                // Add new step as running
+                const newStep: ToolStep = {
+                  id: stepId,
+                  name: stepMessage,
+                  status: "running",
+                };
+
+                return {
+                  ...toolMsg,
+                  steps: [...updatedSteps, newStep],
+                };
+              }
+              return msg;
+            }),
+          }));
         },
 
         completeTool: (toolName, output) => {
-          const tools = new Map(get().activeTools);
-          const tool = tools.get(toolName);
-          if (tool) {
-            tools.set(toolName, {
-              ...tool,
+          // Update activeTools
+          const activeTools = new Map(get().activeTools);
+          const activeTool = activeTools.get(toolName);
+          if (activeTool) {
+            activeTools.set(toolName, {
+              ...activeTool,
               status: "completed",
               output,
               endTime: Date.now(),
             });
-            set({ activeTools: tools });
-
-            // Remove from active tools after a delay
-            setTimeout(() => {
-              set((state) => {
-                const newTools = new Map(state.activeTools);
-                newTools.delete(toolName);
-                return { activeTools: newTools };
-              });
-            }, 3000); // Keep for 3 seconds to show completion state
+            set({ activeTools });
           }
+
+          // Update tool message - NO auto-delete
+          set((state) => ({
+            messages: state.messages.map((msg) => {
+              if (msg.role === "tool" && (msg as ToolMessage).toolName === toolName && (msg as ToolMessage).status === "running") {
+                const toolMsg = msg as ToolMessage;
+                // Mark all steps as completed
+                const completedSteps = toolMsg.steps.map(s => ({
+                  ...s,
+                  status: "completed" as const,
+                }));
+
+                return {
+                  ...toolMsg,
+                  status: "completed",
+                  steps: completedSteps,
+                  output,
+                };
+              }
+              return msg;
+            }),
+          }));
         },
 
         errorTool: (toolName, error) => {
-          const tools = new Map(get().activeTools);
-          const tool = tools.get(toolName);
-          if (tool) {
-            tools.set(toolName, {
-              ...tool,
+          // Update activeTools
+          const activeTools = new Map(get().activeTools);
+          const activeTool = activeTools.get(toolName);
+          if (activeTool) {
+            activeTools.set(toolName, {
+              ...activeTool,
               status: "error",
               error,
               endTime: Date.now(),
             });
-            set({ activeTools: tools });
+            set({ activeTools });
           }
+
+          // Update tool message
+          set((state) => ({
+            messages: state.messages.map((msg) => {
+              if (msg.role === "tool" && (msg as ToolMessage).toolName === toolName && (msg as ToolMessage).status === "running") {
+                return {
+                  ...msg,
+                  status: "error",
+                  error,
+                };
+              }
+              return msg;
+            }),
+          }));
         },
 
         clearTools: () => {

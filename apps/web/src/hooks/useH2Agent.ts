@@ -33,11 +33,11 @@ export function useH2Agent() {
   const addMessage = useH2ChatStore((state) => state.addMessage);
   const updateMessageContent = useH2ChatStore((state) => state.updateMessageContent);
   const setStreamingMessage = useH2ChatStore((state) => state.setStreamingMessage);
-  const showProgress = useH2ChatStore((state) => state.showProgress);
   const hideProgress = useH2ChatStore((state) => state.hideProgress);
   const startTool = useH2ChatStore((state) => state.startTool);
   const completeTool = useH2ChatStore((state) => state.completeTool);
   const errorTool = useH2ChatStore((state) => state.errorTool);
+  const addToolStep = useH2ChatStore((state) => state.addToolStep);
   const setConnectionState = useH2ChatStore((state) => state.setConnectionState);
   const setIsStreaming = useH2ChatStore((state) => state.setIsStreaming);
 
@@ -54,7 +54,7 @@ export function useH2Agent() {
             // Get current messages from store (not stale closure)
             const currentMessages = useH2ChatStore.getState().messages;
             const currentMessage = currentMessages.find((msg) => msg.id === streamingId);
-            if (currentMessage) {
+            if (currentMessage && 'content' in currentMessage) {
               updateMessageContent(streamingId, currentMessage.content + event.content);
             }
           } else {
@@ -75,9 +75,24 @@ export function useH2Agent() {
         }
 
         case "progress": {
-          // Show progress indicator
+          // All progress goes to tree as nested steps - no bubble
           if (event.message) {
-            showProgress(event.message, event.toolName);
+            let runningToolName = event.toolName;
+
+            // Find currently running tool if not specified
+            if (!runningToolName) {
+              const activeTools = useH2ChatStore.getState().activeTools;
+              activeTools.forEach((tool, name) => {
+                if (tool.status === "running") {
+                  runningToolName = name;
+                }
+              });
+            }
+
+            // Add as tree step if we have a running tool
+            if (runningToolName) {
+              addToolStep(runningToolName, event.message);
+            }
           }
           break;
         }
@@ -207,11 +222,11 @@ export function useH2Agent() {
       addMessage,
       updateMessageContent,
       setStreamingMessage,
-      showProgress,
       hideProgress,
       startTool,
       completeTool,
       errorTool,
+      addToolStep,
       setIsStreaming,
     ]
   );
@@ -240,8 +255,11 @@ export function useH2Agent() {
       });
 
       // Build message history for agent (LangChain format: [role, content] tuples)
+      // Filter out tool messages - they're UI-only, not part of conversation history
       const messageHistory: MessageTuple[] = [
-        ...messages.map((msg) => [msg.role, msg.content] as MessageTuple),
+        ...messages
+          .filter((msg) => msg.role !== "tool")
+          .map((msg) => [msg.role, (msg as { content: string }).content] as MessageTuple),
         ["user", content],
       ];
 

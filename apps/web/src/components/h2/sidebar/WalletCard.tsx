@@ -59,9 +59,9 @@ export function WalletCard({ balance, change24h, address }: WalletCardProps) {
             "px-3 py-1.5 rounded-[16px]",
             "transition-all duration-200",
             "text-xs font-mono",
-            "bg-black/5 dark:bg-white/5",
-            "hover:bg-black/10 dark:hover:bg-white/10",
-            "text-black/60 dark:text-white/60"
+            "bg-white/10",
+            "hover:bg-white/15",
+            "text-white/60"
           )}
         >
           <span>{formatAddress(address)}</span>
@@ -80,8 +80,8 @@ export function WalletCard({ balance, change24h, address }: WalletCardProps) {
 
         {/* Network Indicator */}
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-xs text-black/40 dark:text-white/40">
+          <div className="w-2 h-2 rounded-full bg-[#6E54FF] animate-pulse" />
+          <span className="text-xs text-white/40">
             MONAD
           </span>
         </div>
@@ -90,7 +90,7 @@ export function WalletCard({ balance, change24h, address }: WalletCardProps) {
       {/* Balance Display */}
       <div className="space-y-1">
         <div className="flex items-baseline justify-between">
-          <h2 className="text-3xl font-semibold tabular-nums text-black dark:text-white">
+          <h2 className="text-3xl font-semibold tabular-nums text-white">
             {balanceVisible ? formatBalance(balance) : '••••••'}
           </h2>
           <button
@@ -98,9 +98,9 @@ export function WalletCard({ balance, change24h, address }: WalletCardProps) {
             className={cn(
               "p-1.5 rounded-lg",
               "transition-colors duration-200",
-              "hover:bg-black/5 dark:hover:bg-white/10",
-              "text-black/40 dark:text-white/40",
-              "hover:text-black/60 dark:hover:text-white/60"
+              "hover:bg-white/10",
+              "text-white/40",
+              "hover:text-white/60"
             )}
             aria-label={balanceVisible ? "Hide balance" : "Show balance"}
           >
@@ -125,7 +125,7 @@ export function WalletCard({ balance, change24h, address }: WalletCardProps) {
             )}>
               {change24h >= 0 ? '+' : ''}{change24h}%
             </span>
-            <span className="text-xs text-black/40 dark:text-white/40">
+            <span className="text-xs text-white/40">
               24h
             </span>
           </motion.div>
@@ -133,18 +133,13 @@ export function WalletCard({ balance, change24h, address }: WalletCardProps) {
       </div>
 
       {/* Simplified Stats - Only MON */}
-      <div className="pt-4 mt-4 border-t border-black/5 dark:border-white/10">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-xs uppercase tracking-wider mb-1 text-black/40 dark:text-white/40">
-              MON Balance
-            </div>
-            <div className="text-lg font-mono font-semibold text-black dark:text-white">
-              124.5 MON
-            </div>
+      <div className="pt-4 mt-4 border-t border-white/10">
+        <div>
+          <div className="text-xs uppercase tracking-wider mb-1 text-white/40">
+            MON Balance
           </div>
-          <div className="text-xs text-black/30 dark:text-white/30">
-            ≈ $312.50
+          <div className="text-lg font-mono font-semibold text-white">
+            124.5 MON
           </div>
         </div>
       </div>

@@ -59,7 +59,7 @@ export function ChatContainer({ status, wallet, connect, disconnect }: ChatConta
       >
         <div className="flex h-full relative">
           {/* Messages Section */}
-          <div className="flex-1 flex flex-col relative">
+          <div className="flex-1 relative">
             {/* Message List */}
             <MessageList />
 
@@ -69,8 +69,10 @@ export function ChatContainer({ status, wallet, connect, disconnect }: ChatConta
               onClose={() => setSettingsMenuOpen(false)}
             />
 
-            {/* Chat Input */}
-            <ChatInput />
+            {/* Chat Input - Overlay at bottom */}
+            <div className="absolute bottom-0 left-0 right-0 z-30">
+              <ChatInput />
+            </div>
           </div>
         </div>
       </motion.div>

@@ -34,7 +34,7 @@ export function MessageList() {
   // Empty state: No messages yet
   if (messages.length === 0 && !isStreaming) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center overflow-y-auto px-4">
+      <div className="h-full flex flex-col items-center justify-center overflow-y-auto px-4 pb-32">
         <div className="text-center opacity-60 max-w-md">
           <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-40" />
           <h2 className="text-2xl font-semibold mb-2">Start a conversation</h2>
@@ -52,7 +52,7 @@ export function MessageList() {
   }
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 lg:px-8 py-6">
+    <div ref={scrollRef} className="h-full overflow-y-auto px-4 lg:px-8 pt-6 pb-32">
       <div className="max-w-4xl mx-auto">
         {messages.map((message) => {
           switch (message.role) {

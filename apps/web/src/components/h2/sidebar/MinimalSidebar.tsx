@@ -8,7 +8,7 @@ import { WalletCard } from './WalletCard'
 import { SpaceNavigation } from './SpaceNavigation'
 import { ActivityTab } from './tabs/ActivityTab'
 import { SessionsTab } from './tabs/SessionsTab'
-import { ToolsTab } from './tabs/ToolsTab'
+import { SettingsTab } from './tabs/SettingsTab'
 
 interface MinimalSidebarProps {
   status: string
@@ -26,7 +26,7 @@ interface MinimalSidebarProps {
  */
 export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalSidebarProps) {
   const { isOpen, toggle } = useSidebarStore()
-  const [activeTab, setActiveTab] = useState<'activity' | 'sessions' | 'tools'>('activity')
+  const [activeTab, setActiveTab] = useState<'activity' | 'sessions' | 'settings'>('activity')
   const [openMethod, setOpenMethod] = useState<'hover' | 'keyboard' | null>(null)
   const [isHovering, setIsHovering] = useState(false)
 
@@ -126,19 +126,18 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
               }
             }}
             className={cn(
-              "fixed left-6 top-6 bottom-6 z-30",
+              "fixed left-0 top-0 bottom-0 z-30",
               "w-[380px]",
               "flex flex-col",
               "overflow-hidden"
             )}
           >
-            {/* Glass morphism background */}
+            {/* Dark gray background - lighter in light mode, darker in dark mode */}
             <div
               className={cn(
-                "absolute inset-0 rounded-[32px]",
-                "bg-white/80 dark:bg-gray-900/80",
-                "backdrop-blur-xl",
-                "border border-black/5 dark:border-white/10"
+                "absolute inset-0",
+                "bg-[#2a2a2a] dark:bg-[#0a0a0a]",
+                "border-r border-white/10"
               )}
             />
 
@@ -192,15 +191,15 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
                       <SessionsTab />
                     </motion.div>
                   )}
-                  {activeTab === 'tools' && (
+                  {activeTab === 'settings' && (
                     <motion.div
-                      key="tools"
+                      key="settings"
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.2 }}
                     >
-                      <ToolsTab
+                      <SettingsTab
                         status={status}
                         wallet={wallet}
                         connect={connect}

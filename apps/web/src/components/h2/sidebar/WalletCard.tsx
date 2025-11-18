@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { Copy, Eye, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useThemeStore } from '@/stores/useThemeStore'
 import { motion } from 'framer-motion'
 
 interface WalletCardProps {
@@ -20,11 +19,8 @@ interface WalletCardProps {
  * Clean, minimal design with perfect typography hierarchy
  */
 export function WalletCard({ balance, change24h, address }: WalletCardProps) {
-  const { theme } = useThemeStore()
   const [balanceVisible, setBalanceVisible] = useState(true)
   const [copied, setCopied] = useState(false)
-
-  const isDark = theme === 'pragma-dark'
 
   const formatAddress = (addr: string) => {
     // Handle zero address or invalid address
@@ -63,9 +59,9 @@ export function WalletCard({ balance, change24h, address }: WalletCardProps) {
             "px-3 py-1.5 rounded-[16px]",
             "transition-all duration-200",
             "text-xs font-mono",
-            isDark
-              ? "bg-white/5 hover:bg-white/10 text-white/60"
-              : "bg-black/5 hover:bg-black/10 text-black/60"
+            "bg-black/5 dark:bg-white/5",
+            "hover:bg-black/10 dark:hover:bg-white/10",
+            "text-black/60 dark:text-white/60"
           )}
         >
           <span>{formatAddress(address)}</span>
@@ -85,10 +81,7 @@ export function WalletCard({ balance, change24h, address }: WalletCardProps) {
         {/* Network Indicator */}
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className={cn(
-            "text-xs",
-            isDark ? "text-white/40" : "text-black/40"
-          )}>
+          <span className="text-xs text-black/40 dark:text-white/40">
             MONAD
           </span>
         </div>
@@ -97,10 +90,7 @@ export function WalletCard({ balance, change24h, address }: WalletCardProps) {
       {/* Balance Display */}
       <div className="space-y-1">
         <div className="flex items-baseline justify-between">
-          <h2 className={cn(
-            "text-3xl font-semibold tabular-nums",
-            isDark ? "text-white" : "text-black"
-          )}>
+          <h2 className="text-3xl font-semibold tabular-nums text-black dark:text-white">
             {balanceVisible ? formatBalance(balance) : '••••••'}
           </h2>
           <button
@@ -108,9 +98,9 @@ export function WalletCard({ balance, change24h, address }: WalletCardProps) {
             className={cn(
               "p-1.5 rounded-lg",
               "transition-colors duration-200",
-              isDark
-                ? "hover:bg-white/10 text-white/40 hover:text-white/60"
-                : "hover:bg-black/5 text-black/40 hover:text-black/60"
+              "hover:bg-black/5 dark:hover:bg-white/10",
+              "text-black/40 dark:text-white/40",
+              "hover:text-black/60 dark:hover:text-white/60"
             )}
             aria-label={balanceVisible ? "Hide balance" : "Show balance"}
           >
@@ -135,10 +125,7 @@ export function WalletCard({ balance, change24h, address }: WalletCardProps) {
             )}>
               {change24h >= 0 ? '+' : ''}{change24h}%
             </span>
-            <span className={cn(
-              "text-xs",
-              isDark ? "text-white/40" : "text-black/40"
-            )}>
+            <span className="text-xs text-black/40 dark:text-white/40">
               24h
             </span>
           </motion.div>
@@ -146,29 +133,17 @@ export function WalletCard({ balance, change24h, address }: WalletCardProps) {
       </div>
 
       {/* Simplified Stats - Only MON */}
-      <div className={cn(
-        "pt-4 mt-4 border-t",
-        isDark ? "border-white/10" : "border-black/5"
-      )}>
+      <div className="pt-4 mt-4 border-t border-black/5 dark:border-white/10">
         <div className="flex items-center justify-between">
           <div>
-            <div className={cn(
-              "text-xs uppercase tracking-wider mb-1",
-              isDark ? "text-white/40" : "text-black/40"
-            )}>
+            <div className="text-xs uppercase tracking-wider mb-1 text-black/40 dark:text-white/40">
               MON Balance
             </div>
-            <div className={cn(
-              "text-lg font-mono font-semibold",
-              isDark ? "text-white" : "text-black"
-            )}>
+            <div className="text-lg font-mono font-semibold text-black dark:text-white">
               124.5 MON
             </div>
           </div>
-          <div className={cn(
-            "text-xs",
-            isDark ? "text-white/30" : "text-black/30"
-          )}>
+          <div className="text-xs text-black/30 dark:text-white/30">
             ≈ $312.50
           </div>
         </div>

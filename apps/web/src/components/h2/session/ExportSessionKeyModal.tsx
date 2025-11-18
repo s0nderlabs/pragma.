@@ -7,9 +7,9 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useThemeStore } from '@/stores/useThemeStore'
+import { useTheme } from 'next-themes'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import { X, AlertTriangle, Key, Copy, Check, Eye, EyeOff } from 'lucide-react'
 
@@ -20,7 +20,7 @@ interface ExportSessionKeyModalProps {
 }
 
 export function ExportSessionKeyModal({ isOpen, onClose, privateKey }: ExportSessionKeyModalProps) {
-  const { theme } = useThemeStore()
+  const { resolvedTheme } = useTheme()
   const [understood, setUnderstood] = useState(false)
   const [revealed, setRevealed] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -65,7 +65,7 @@ export function ExportSessionKeyModal({ isOpen, onClose, privateKey }: ExportSes
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
           >
             <LiquidGlassPanel
-              theme={theme}
+              theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
               className="w-full max-w-md rounded-3xl p-6 relative"
               blurAmount={8}
               displacementScale={0.5}

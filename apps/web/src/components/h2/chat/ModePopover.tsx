@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { useThemeStore } from '@/stores/useThemeStore'
+import { useState, useEffect, useRef } from 'react'
+import { useTheme } from 'next-themes'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import { Toggle } from '@/components/ui/Toggle'
@@ -22,7 +22,7 @@ interface ModePopoverProps {
  * Quick Mode: Auto-execute operations without asking for confirmation.
  */
 export function ModePopover({ isOpen, onClose, anchorRef }: ModePopoverProps) {
-  const { theme } = useThemeStore()
+  const { resolvedTheme } = useTheme()
   const { quickMode, setQuickMode } = useH2ChatStore()
   const popoverRef = useRef<HTMLDivElement>(null)
 
@@ -71,7 +71,7 @@ export function ModePopover({ isOpen, onClose, anchorRef }: ModePopoverProps) {
           className="absolute bottom-full left-0 mb-2 z-50"
         >
           <LiquidGlassPanel
-            theme={theme}
+            theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
             className="rounded-[20px] p-4 min-w-[280px] shadow-2xl"
             blurAmount={8}
             displacementScale={0.4}

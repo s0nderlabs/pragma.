@@ -1,6 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
+import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { Moon, Sun, Wallet, LogOut, Loader2 } from 'lucide-react'
@@ -19,8 +20,12 @@ interface ToolsTabProps {
  * Clean, grayscale design with minimal interaction
  */
 export function ToolsTab({ status, wallet, connect, disconnect }: ToolsTabProps) {
-  const { theme, setTheme } = useThemeStore()
-  const isDark = theme === 'pragma-dark'
+  // Read theme from Next Themes (for display - no flash)
+  const { resolvedTheme } = useTheme()
+  // Write theme to Zustand (ThemeSynchronizer syncs to Next Themes)
+  const { setTheme: setZustandTheme } = useThemeStore()
+
+  const isDark = resolvedTheme === 'dark'
 
   const isConnecting = status === 'connecting' || status === 'initializing'
   const isConnected = status === 'connected' && wallet?.address
@@ -48,20 +53,20 @@ export function ToolsTab({ status, wallet, connect, disconnect }: ToolsTabProps)
         className={cn(
           "p-4 rounded-[24px]",
           "transition-colors duration-200 border",
-          isDark
-            ? "bg-black/40 hover:bg-black/50 border-white/10"
-            : "bg-white hover:bg-gray-50 border-black/5"
+          "bg-white dark:bg-black/40",
+          "hover:bg-gray-50 dark:hover:bg-black/50",
+          "border-black/5 dark:border-white/10"
         )}
       >
         <button
-          onClick={() => setTheme(isDark ? 'pragma-light' : 'pragma-dark')}
+          onClick={() => setZustandTheme(isDark ? 'pragma-light' : 'pragma-dark')}
           className="w-full flex items-center justify-between"
         >
           <div className="flex items-center gap-3">
             <div className={cn(
               "w-10 h-10 rounded-[16px]",
               "flex items-center justify-center",
-              isDark ? "bg-white/10" : "bg-black/10"
+              "bg-black/10 dark:bg-white/10"
             )}>
               {isDark ? (
                 <Moon className="w-5 h-5" />
@@ -70,16 +75,10 @@ export function ToolsTab({ status, wallet, connect, disconnect }: ToolsTabProps)
               )}
             </div>
             <div className="text-left">
-              <div className={cn(
-                "text-sm font-medium",
-                isDark ? "text-white" : "text-black"
-              )}>
+              <div className="text-sm font-medium text-black dark:text-white">
                 Theme
               </div>
-              <div className={cn(
-                "text-xs",
-                isDark ? "text-white/40" : "text-black/40"
-              )}>
+              <div className="text-xs text-black/40 dark:text-white/40">
                 {isDark ? 'Dark mode' : 'Light mode'}
               </div>
             </div>
@@ -89,9 +88,8 @@ export function ToolsTab({ status, wallet, connect, disconnect }: ToolsTabProps)
           <div className={cn(
             "w-12 h-7 rounded-full p-1 border",
             "transition-colors duration-200",
-            isDark
-              ? "bg-white/10 border-white/20"
-              : "bg-black/10 border-black/20"
+            "bg-black/10 dark:bg-white/10",
+            "border-black/20 dark:border-white/20"
           )}>
             <motion.div
               className="w-5 h-5 rounded-full bg-white"
@@ -116,9 +114,9 @@ export function ToolsTab({ status, wallet, connect, disconnect }: ToolsTabProps)
         className={cn(
           "p-4 rounded-[24px]",
           "transition-colors duration-200 border",
-          isDark
-            ? "bg-black/40 hover:bg-black/50 border-white/10"
-            : "bg-white hover:bg-gray-50 border-black/5"
+          "bg-white dark:bg-black/40",
+          "hover:bg-gray-50 dark:hover:bg-black/50",
+          "border-black/5 dark:border-white/10"
         )}
       >
         <button
@@ -130,21 +128,15 @@ export function ToolsTab({ status, wallet, connect, disconnect }: ToolsTabProps)
             <div className={cn(
               "w-10 h-10 rounded-[16px]",
               "flex items-center justify-center",
-              isDark ? "bg-white/10" : "bg-black/10"
+              "bg-black/10 dark:bg-white/10"
             )}>
               <Wallet className="w-5 h-5" />
             </div>
             <div className="text-left">
-              <div className={cn(
-                "text-sm font-medium",
-                isDark ? "text-white" : "text-black"
-              )}>
+              <div className="text-sm font-medium text-black dark:text-white">
                 Wallet
               </div>
-              <div className={cn(
-                "text-xs",
-                isDark ? "text-white/40" : "text-black/40"
-              )}>
+              <div className="text-xs text-black/40 dark:text-white/40">
                 {isConnected && wallet?.address
                   ? formatAddress(wallet.address)
                   : isConnecting
@@ -160,9 +152,9 @@ export function ToolsTab({ status, wallet, connect, disconnect }: ToolsTabProps)
             "px-3 py-1.5 rounded-[12px]",
             "text-xs font-medium border",
             isConnecting && "opacity-50",
-            isDark
-              ? "bg-white/10 text-white/60 border-white/10"
-              : "bg-black/5 text-black/60 border-black/10"
+            "bg-black/5 dark:bg-white/10",
+            "text-black/60 dark:text-white/60",
+            "border-black/10 dark:border-white/10"
           )}>
             {isConnecting ? (
               <Loader2 className="w-3 h-3 animate-spin" />
@@ -182,7 +174,7 @@ export function ToolsTab({ status, wallet, connect, disconnect }: ToolsTabProps)
       <div className={cn(
         "pt-6 text-center",
         "text-xs",
-        isDark ? "text-white/30" : "text-black/30"
+        "text-black/30 dark:text-white/30"
       )}>
         Pragma H2.5
       </div>

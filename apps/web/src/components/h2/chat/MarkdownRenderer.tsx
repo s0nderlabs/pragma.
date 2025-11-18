@@ -1,10 +1,11 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { useThemeStore } from '@/stores/useThemeStore'
+import { useTheme } from 'next-themes'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import type { Components } from 'react-markdown'
 
@@ -39,7 +40,7 @@ function preprocessContent(content: string): string {
 }
 
 export function MarkdownRenderer({ content }: MarkdownRendererProps) {
-  const { theme } = useThemeStore()
+  const { resolvedTheme } = useTheme()
 
   // Preprocess content to remove agent metadata
   const cleanContent = preprocessContent(content);
@@ -52,7 +53,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
 
       return !inline && language ? (
         <LiquidGlassPanel
-          theme={theme}
+          theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
           className="my-4 rounded-xl overflow-hidden"
           blurAmount={8}
           displacementScale={0.4}

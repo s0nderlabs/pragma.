@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { useThemeStore } from '@/stores/useThemeStore'
 import { useSidebarStore } from '@/stores/useSidebarStore'
 import { WalletCard } from './WalletCard'
 import { SpaceNavigation } from './SpaceNavigation'
@@ -26,7 +25,6 @@ interface MinimalSidebarProps {
  * Drawer slide collapse with floating balance trigger
  */
 export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalSidebarProps) {
-  const { theme } = useThemeStore()
   const { isOpen, toggle } = useSidebarStore()
   const [activeTab, setActiveTab] = useState<'activity' | 'sessions' | 'tools'>('activity')
   const [openMethod, setOpenMethod] = useState<'hover' | 'keyboard' | null>(null)
@@ -40,6 +38,12 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
       setOpenMethod(collapsed ? null : (method || 'keyboard'))
     }
   }
+
+  // Track mounted state to skip initial animation on page load
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Auto-collapse on smaller screens
   useEffect(() => {
@@ -90,8 +94,6 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
     }
   }
 
-  const isDark = theme === 'pragma-dark'
-
   // Use real wallet data from useIdentity hook
   const walletData = {
     balance: 2847.32, // TODO: Fetch real balance from blockchain
@@ -105,7 +107,8 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
       <AnimatePresence mode="wait">
         {!isCollapsed && (
           <motion.aside
-            initial={{ x: -380 }}
+            // Skip initial animation on page load to prevent glitch
+            initial={mounted ? { x: -380 } : { x: 0 }}
             animate={{
               x: 0,
               transition: {
@@ -132,11 +135,10 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
             {/* Glass morphism background */}
             <div
               className={cn(
-                "absolute inset-0",
-                "rounded-[32px]",
-                isDark
-                  ? "bg-gray-900/80 backdrop-blur-xl border border-white/10"
-                  : "bg-white/80 backdrop-blur-xl border border-black/5"
+                "absolute inset-0 rounded-[32px]",
+                "bg-white/80 dark:bg-gray-900/80",
+                "backdrop-blur-xl",
+                "border border-black/5 dark:border-white/10"
               )}
             />
 
@@ -155,10 +157,7 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
               </div>
 
               {/* Divider */}
-              <div className={cn(
-                "mx-6 h-px",
-                isDark ? "bg-white/10" : "bg-black/5"
-              )} />
+              <div className="mx-6 h-px bg-black/5 dark:bg-white/10" />
 
               {/* Space Navigation - Arc Style */}
               <div className="flex-shrink-0 px-6 py-3">

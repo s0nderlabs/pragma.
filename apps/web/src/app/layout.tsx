@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist_Mono, IBM_Plex_Mono } from "next/font/google";
 
 import { ThemeProvider } from "../components/theme-provider";
+import { ThemeSynchronizer } from "../components/ThemeSynchronizer";
 import { cn } from "../lib/utils";
 
 import "./globals.css";
@@ -43,6 +44,7 @@ export default function RootLayout({
         )}
       >
         <ThemeProvider>
+          <ThemeSynchronizer />
           {children}
         </ThemeProvider>
       </body>

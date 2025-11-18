@@ -1,6 +1,5 @@
 'use client'
 
-import { useThemeStore } from '@/stores/useThemeStore'
 import { useH2Onboarding } from '@/hooks/useH2Onboarding'
 import { useIdentity } from '@/hooks/useIdentity'
 import { MobileHeader } from './MobileHeader'
@@ -29,8 +28,6 @@ import { H2ErrorBoundary } from '../ErrorBoundary'
  * - ChatContainer: Fullscreen glass panel with sidebar + chat (z-20)
  */
 export function H2Layout() {
-  const { theme } = useThemeStore()
-
   // SINGLE source of truth for wallet state (prevents race condition)
   const { status, wallet, connect, disconnect } = useIdentity()
 
@@ -38,10 +35,7 @@ export function H2Layout() {
   useH2Onboarding()
 
   return (
-    <div
-      className="relative min-h-screen overflow-hidden bg-background"
-      data-theme={theme}
-    >
+    <div className="relative min-h-screen overflow-hidden">
       {/* Mobile Header (z-40, mobile only) */}
       <MobileHeader />
 

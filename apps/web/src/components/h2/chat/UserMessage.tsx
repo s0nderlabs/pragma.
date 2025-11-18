@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useThemeStore } from '@/stores/useThemeStore'
-import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import type { ChatMessage } from '@/lib/h2/types'
 import gsap from 'gsap'
 
@@ -17,7 +15,6 @@ interface UserMessageProps {
  * Design: Compact glass bubble with slide-in animation from right.
  */
 export function UserMessage({ message }: UserMessageProps) {
-  const { theme } = useThemeStore()
   const messageRef = useRef<HTMLDivElement>(null)
 
   // Slide-in animation on mount
@@ -43,11 +40,7 @@ export function UserMessage({ message }: UserMessageProps) {
     <div ref={messageRef} className="flex justify-end mb-4">
       <div className="max-w-[80%] lg:max-w-[60%]">
         <div
-          className={`rounded-[24px] px-5 py-3 ${
-            theme === 'dark' || theme === 'pragma-dark'
-              ? 'bg-gray-800 border border-gray-700'
-              : 'bg-gray-50 border border-gray-200'
-          }`}
+          className="rounded-[24px] px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
         >
           <p className="text-sm lg:text-base whitespace-pre-wrap break-words">
             {message.content}

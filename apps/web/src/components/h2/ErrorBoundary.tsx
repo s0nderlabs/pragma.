@@ -67,7 +67,7 @@ export class H2ErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex items-center justify-center min-h-[400px] p-4">
           <LiquidGlassPanel
-            theme="pragma-dark"
+            theme="dark"
             className="w-full max-w-md rounded-2xl p-6"
             blurAmount={6}
             displacementScale={0.3}

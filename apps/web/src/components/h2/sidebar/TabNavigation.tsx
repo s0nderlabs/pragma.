@@ -2,7 +2,6 @@
 
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { useThemeStore } from '@/stores/useThemeStore'
 
 interface TabNavigationProps {
   activeTab: 'activity' | 'sessions' | 'tools'
@@ -17,8 +16,6 @@ interface TabNavigationProps {
  * Smooth transitions between tabs
  */
 export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
-  const { theme } = useThemeStore()
-  const isDark = theme === 'pragma-dark'
 
   const tabs = [
     { id: 'activity' as const, label: 'Activity', icon: '↗' },
@@ -29,22 +26,10 @@ export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
   const activeIndex = tabs.findIndex(tab => tab.id === activeTab)
 
   return (
-    <div
-      className={cn(
-        "relative flex p-1 rounded-[32px]",
-        isDark
-          ? "bg-white/5"
-          : "bg-black/5"
-      )}
-    >
+    <div className="relative flex p-1 rounded-[32px] bg-black/5 dark:bg-white/5">
       {/* Sliding Background */}
       <motion.div
-        className={cn(
-          "absolute inset-y-1 rounded-[24px]",
-          isDark
-            ? "bg-white/10"
-            : "bg-black/10"
-        )}
+        className="absolute inset-y-1 rounded-[24px] bg-black/10 dark:bg-white/10"
         animate={{
           x: `${activeIndex * 100}%`,
           width: `${100 / tabs.length}%`,
@@ -69,12 +54,8 @@ export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
             "transition-colors duration-200",
             "text-sm font-medium",
             activeTab === tab.id
-              ? isDark
-                ? "text-white"
-                : "text-black"
-              : isDark
-              ? "text-white/60 hover:text-white/80"
-              : "text-black/60 hover:text-black/80"
+              ? "text-black dark:text-white"
+              : "text-black/60 dark:text-white/60 hover:text-black/80 dark:hover:text-white/80"
           )}
         >
           <span className="text-base">{tab.icon}</span>

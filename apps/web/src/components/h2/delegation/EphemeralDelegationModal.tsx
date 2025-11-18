@@ -7,9 +7,9 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useThemeStore } from '@/stores/useThemeStore'
+import { useTheme } from 'next-themes'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import { X, AlertTriangle, Clock, ShieldCheck } from 'lucide-react'
 import type { DelegationSignRequest } from '@/lib/h2/delegationService'
@@ -30,7 +30,7 @@ export function EphemeralDelegationModal({
   onSign,
   isSigning,
 }: EphemeralDelegationModalProps) {
-  const { theme } = useThemeStore()
+  const { resolvedTheme } = useTheme()
   const [showRisks, setShowRisks] = useState(false)
 
   if (!request) return null
@@ -69,7 +69,7 @@ export function EphemeralDelegationModal({
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
           >
             <LiquidGlassPanel
-              theme={theme}
+              theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
               className="w-full max-w-md rounded-3xl p-6 relative"
               blurAmount={8}
               displacementScale={0.5}

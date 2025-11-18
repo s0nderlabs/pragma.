@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { MinimalSidebar } from '../sidebar/MinimalSidebar'
 import { MessageList } from '../chat/MessageList'
 import { ChatInput } from '../chat/ChatInput'
@@ -25,7 +25,13 @@ interface ChatContainerProps {
  */
 export function ChatContainer({ status, wallet, connect, disconnect }: ChatContainerProps) {
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const { isOpen } = useSidebarStore()
+
+  // Track mounted state to skip initial animation on page load
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   return (
     <div className="w-full h-full relative">
@@ -40,6 +46,8 @@ export function ChatContainer({ status, wallet, connect, disconnect }: ChatConta
       {/* Main Chat Area - adjusts position based on sidebar state */}
       <motion.div
         className="h-full relative overflow-hidden"
+        // Skip initial animation on page load to prevent slide glitch
+        initial={mounted ? undefined : { marginLeft: isOpen ? 380 : 0 }}
         animate={{
           marginLeft: isOpen ? 380 : 0,
         }}

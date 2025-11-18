@@ -33,7 +33,8 @@ export function LiquidGlassPanel({
 
   // Theme-specific background opacity to match Apple's liquid glass
   // Apple uses EXTREMELY opaque frosted glass - it's almost solid!
-  const backgroundOpacity = theme === 'light' || theme === 'pragma-light' ? 45 : 22;
+  const isLightTheme = theme === 'light' || theme === 'pragma-light'
+  const backgroundOpacity = isLightTheme ? 45 : 22;
 
   return (
     <div

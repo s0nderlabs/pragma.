@@ -3,7 +3,6 @@
 import { motion } from 'framer-motion'
 import { Menu, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useThemeStore } from '@/stores/useThemeStore'
 
 interface FloatingTriggerProps {
   balance: number
@@ -19,8 +18,6 @@ interface FloatingTriggerProps {
  * Fixed position with smooth animations
  */
 export function FloatingTrigger({ balance, change24h, onClick }: FloatingTriggerProps) {
-  const { theme } = useThemeStore()
-  const isDark = theme === 'pragma-dark'
 
   const formatCompactBalance = (amount: number) => {
     if (amount >= 1000) {
@@ -48,23 +45,19 @@ export function FloatingTrigger({ balance, change24h, onClick }: FloatingTrigger
         "px-4 py-2.5 rounded-[32px]",
         "shadow-lg",
         "transition-colors duration-200",
-        isDark
-          ? "bg-gray-900/90 backdrop-blur-xl border border-white/10 text-white hover:bg-gray-900/95"
-          : "bg-white/90 backdrop-blur-xl border border-black/5 text-black hover:bg-white/95"
+        "bg-white/90 dark:bg-gray-900/90",
+        "backdrop-blur-xl",
+        "border border-black/5 dark:border-white/10",
+        "text-black dark:text-white",
+        "hover:bg-white/95 dark:hover:bg-gray-900/95"
       )}
       aria-label="Expand sidebar"
     >
       {/* Menu Icon */}
-      <Menu className={cn(
-        "w-4 h-4",
-        isDark ? "text-white/60" : "text-black/60"
-      )} />
+      <Menu className="w-4 h-4 text-black/60 dark:text-white/60" />
 
       {/* Separator */}
-      <div className={cn(
-        "w-px h-4",
-        isDark ? "bg-white/20" : "bg-black/10"
-      )} />
+      <div className="w-px h-4 bg-black/10 dark:bg-white/20" />
 
       {/* Balance Info */}
       <div className="flex items-center gap-1.5">
@@ -80,10 +73,7 @@ export function FloatingTrigger({ balance, change24h, onClick }: FloatingTrigger
       </div>
 
       {/* Expand Arrow */}
-      <ChevronRight className={cn(
-        "w-3.5 h-3.5 -mr-1",
-        isDark ? "text-white/40" : "text-black/40"
-      )} />
+      <ChevronRight className="w-3.5 h-3.5 -mr-1 text-black/40 dark:text-white/40" />
 
       {/* Pulse indicator for attention */}
       <motion.div

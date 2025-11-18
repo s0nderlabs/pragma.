@@ -2,7 +2,6 @@
 
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { useThemeStore } from '@/stores/useThemeStore'
 import { ArrowUpRight, ArrowDownLeft, RefreshCw, Layers } from 'lucide-react'
 
 /**
@@ -13,8 +12,6 @@ import { ArrowUpRight, ArrowDownLeft, RefreshCw, Layers } from 'lucide-react'
  * No decoration, pure information
  */
 export function ActivityTab() {
-  const { theme } = useThemeStore()
-  const isDark = theme === 'pragma-dark'
 
   // Sample transactions - will be replaced with real data
   const transactions = [
@@ -91,7 +88,7 @@ export function ActivityTab() {
       case 'failed':
         return 'text-red-500'
       default:
-        return isDark ? 'text-white/40' : 'text-black/40'
+        return 'text-black/40 dark:text-white/40'
     }
   }
 
@@ -107,9 +104,9 @@ export function ActivityTab() {
             "p-4 rounded-[24px]",
             "transition-all duration-200",
             "cursor-pointer border",
-            isDark
-              ? "bg-black/40 hover:bg-black/50 border-white/10"
-              : "bg-white hover:bg-gray-50 border-black/5"
+            "bg-white dark:bg-black/40",
+            "hover:bg-gray-50 dark:hover:bg-black/50",
+            "border-black/5 dark:border-white/10"
           )}
         >
           <div className="flex items-center justify-between mb-1">
@@ -118,24 +115,19 @@ export function ActivityTab() {
               <div className={cn(
                 "w-8 h-8 rounded-[12px]",
                 "flex items-center justify-center",
-                isDark ? "bg-white/10 text-white/60" : "bg-black/5 text-black/60"
+                "bg-black/5 dark:bg-white/10",
+                "text-black/60 dark:text-white/60"
               )}>
                 {getIcon(tx.type)}
               </div>
               <div>
-                <div className={cn(
-                  "text-sm font-medium capitalize",
-                  isDark ? "text-white" : "text-black"
-                )}>
+                <div className="text-sm font-medium capitalize text-black dark:text-white">
                   {tx.type === 'swap' && `${tx.from} → ${tx.to}`}
                   {tx.type === 'send' && `Send to ${tx.to}`}
                   {tx.type === 'receive' && `From ${tx.from}`}
                   {tx.type === 'stake' && `Stake ${tx.apr}`}
                 </div>
-                <div className={cn(
-                  "text-xs",
-                  isDark ? "text-white/40" : "text-black/40"
-                )}>
+                <div className="text-xs text-black/40 dark:text-white/40">
                   {tx.time}
                 </div>
               </div>
@@ -143,10 +135,7 @@ export function ActivityTab() {
 
             {/* Right: Amount and Status */}
             <div className="text-right">
-              <div className={cn(
-                "text-sm font-mono font-medium",
-                isDark ? "text-white" : "text-black"
-              )}>
+              <div className="text-sm font-mono font-medium text-black dark:text-white">
                 {tx.value}
               </div>
               <div className={cn(
@@ -172,9 +161,10 @@ export function ActivityTab() {
           "w-full py-3 rounded-[24px]",
           "text-sm font-medium",
           "transition-all duration-200 border",
-          isDark
-            ? "text-white/60 hover:text-white border-white/10 hover:bg-white/5"
-            : "text-black/60 hover:text-black border-black/10 hover:bg-black/5"
+          "text-black/60 dark:text-white/60",
+          "hover:text-black dark:hover:text-white",
+          "border-black/10 dark:border-white/10",
+          "hover:bg-black/5 dark:hover:bg-white/5"
         )}
       >
         View all transactions

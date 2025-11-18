@@ -2,7 +2,7 @@
 
 import { Eye, EyeOff } from 'lucide-react'
 import { useSidebarStore } from '@/stores/useSidebarStore'
-import { useThemeStore } from '@/stores/useThemeStore'
+import { useTheme } from 'next-themes'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 
 interface BalanceCardProps {
@@ -17,7 +17,7 @@ interface BalanceCardProps {
  */
 export function BalanceCard({ status, wallet }: BalanceCardProps) {
   const { balanceVisible, toggleBalance } = useSidebarStore()
-  const { theme } = useThemeStore()
+  const { resolvedTheme } = useTheme()
 
   // Format address for display
   const address = wallet?.address
@@ -31,7 +31,7 @@ export function BalanceCard({ status, wallet }: BalanceCardProps) {
 
   return (
     <LiquidGlassPanel
-      theme={theme}
+      theme={resolvedTheme === 'dark' ? 'pragma-dark' : 'pragma-light'}
       className="rounded-[32px] p-8 w-full min-h-[160px]"
       blurAmount={4}
       displacementScale={0.2}

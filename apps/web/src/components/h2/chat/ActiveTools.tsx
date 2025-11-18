@@ -7,13 +7,14 @@
 
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
-import { useThemeStore } from '@/stores/useThemeStore'
+import { useTheme } from 'next-themes'
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react'
 
 export function ActiveTools() {
-  const { theme } = useThemeStore()
+  const { resolvedTheme } = useTheme()
   const activeTools = useH2ChatStore((state) => state.activeTools)
 
   // Convert Map to array for rendering
@@ -47,7 +48,7 @@ export function ActiveTools() {
 
             {/* Tool Info */}
             <LiquidGlassPanel
-              theme={theme}
+              theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
               className="flex-1 rounded-2xl p-3"
               blurAmount={6}
               displacementScale={0.3}

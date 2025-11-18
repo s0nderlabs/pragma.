@@ -1,4 +1,4 @@
-export type Theme = 'light' | 'dark' | 'dim'
+export type Theme = 'light' | 'dark' | 'dim' | 'pragma-light' | 'pragma-dark'
 
 export interface LiquidGlassFilterProps {
   /**

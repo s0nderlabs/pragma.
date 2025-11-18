@@ -1,8 +1,9 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { useSidebarStore } from '@/stores/useSidebarStore'
-import { useThemeStore } from '@/stores/useThemeStore'
+import { useTheme } from 'next-themes'
 import { TerminalCard } from '@/components/ui/terminal/TerminalCard'
 import { AsciiDivider, AsciiHeader, AsciiStatus } from '@/components/ui/terminal/AsciiComponents'
 import { BalanceTerminal } from '../sidebar/BalanceTerminal'
@@ -21,7 +22,12 @@ import { SettingsPanel } from '../sidebar/SettingsPanel'
  */
 export function TerminalSidebar() {
   const { activeSection, setActiveSection, setMobileOpen } = useSidebarStore()
-  const { theme } = useThemeStore()
+  const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const toggleSection = (section: 'history' | 'receipts' | 'settings') => {
     setActiveSection(activeSection === section ? null : section)

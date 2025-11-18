@@ -3,7 +3,6 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useThemeStore } from '@/stores/useThemeStore'
 import { useEffect, useRef } from 'react'
 
 interface SpaceNavigationProps {
@@ -19,8 +18,6 @@ interface SpaceNavigationProps {
  * Clean, grayscale design with subtle terracotta accent
  */
 export function SpaceNavigation({ activeTab, onTabChange }: SpaceNavigationProps) {
-  const { theme } = useThemeStore()
-  const isDark = theme === 'pragma-dark'
   const containerRef = useRef<HTMLDivElement>(null)
 
   const spaces = [
@@ -105,9 +102,9 @@ export function SpaceNavigation({ activeTab, onTabChange }: SpaceNavigationProps
           className={cn(
             "p-1.5 rounded-lg",
             "transition-all duration-200",
-            isDark
-              ? "hover:bg-white/10 text-white/40 hover:text-white/60"
-              : "hover:bg-black/5 text-black/40 hover:text-black/60"
+            "hover:bg-black/5 dark:hover:bg-white/10",
+            "text-black/40 dark:text-white/40",
+            "hover:text-black/60 dark:hover:text-white/60"
           )}
           aria-label="Previous space"
         >
@@ -127,12 +124,7 @@ export function SpaceNavigation({ activeTab, onTabChange }: SpaceNavigationProps
                   "transition-all duration-300",
                   index === currentIndex
                     ? "w-6 bg-accent"
-                    : cn(
-                        "w-2",
-                        isDark
-                          ? "bg-white/20 hover:bg-white/30"
-                          : "bg-black/30 hover:bg-black/40"
-                      )
+                    : "w-2 bg-black/30 dark:bg-white/20 hover:bg-black/40 dark:hover:bg-white/30"
                 )}
                 aria-label={`Go to ${space.name}`}
               />
@@ -147,20 +139,14 @@ export function SpaceNavigation({ activeTab, onTabChange }: SpaceNavigationProps
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 5 }}
               transition={{ duration: 0.15 }}
-              className={cn(
-                "text-sm font-medium",
-                isDark ? "text-white" : "text-black"
-              )}
+              className="text-sm font-medium text-black dark:text-white"
             >
               {spaces[currentIndex].name}
             </motion.div>
           </AnimatePresence>
 
           {/* Keyboard Hint */}
-          <div className={cn(
-            "text-xs mt-1",
-            isDark ? "text-white/20" : "text-black/20"
-          )}>
+          <div className="text-xs mt-1 text-black/20 dark:text-white/20">
             Alt + ← →
           </div>
         </div>
@@ -171,9 +157,9 @@ export function SpaceNavigation({ activeTab, onTabChange }: SpaceNavigationProps
           className={cn(
             "p-1.5 rounded-lg",
             "transition-all duration-200",
-            isDark
-              ? "hover:bg-white/10 text-white/40 hover:text-white/60"
-              : "hover:bg-black/5 text-black/40 hover:text-black/60"
+            "hover:bg-black/5 dark:hover:bg-white/10",
+            "text-black/40 dark:text-white/40",
+            "hover:text-black/60 dark:hover:text-white/60"
           )}
           aria-label="Next space"
         >

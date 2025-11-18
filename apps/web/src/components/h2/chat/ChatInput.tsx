@@ -1,11 +1,9 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { useThemeStore } from '@/stores/useThemeStore'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { useAgentContext } from '@/contexts/H2AgentContext'
-import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
-import { Send, Settings, ArrowUpRight } from 'lucide-react'
+import { Settings, ArrowUpRight } from 'lucide-react'
 import { ModePopover } from './ModePopover'
 
 /**
@@ -15,7 +13,6 @@ import { ModePopover } from './ModePopover'
  * Works with both H2 (server-side) and H2.5 (client-side) agents via context.
  */
 export function ChatInput() {
-  const { theme } = useThemeStore()
   const tokensLoading = useH2ChatStore((state) => state.tokensLoading)
   const { sendMessage, isStreaming } = useAgentContext()
   const [input, setInput] = useState('')
@@ -66,11 +63,7 @@ export function ChatInput() {
         />
 
         <div
-          className={`rounded-[32px] p-3 flex items-center gap-2 ${
-            theme === 'dark' || theme === 'pragma-dark'
-              ? 'bg-gray-900 border border-gray-700'
-              : 'bg-white border border-gray-200'
-          }`}
+          className="rounded-[32px] p-3 flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700"
         >
         {/* Settings Gear - Original Style */}
         <button
@@ -99,11 +92,7 @@ export function ChatInput() {
         <button
           onClick={handleSend}
           disabled={!input.trim() || isStreaming || tokensLoading}
-          className={`group relative flex-shrink-0 flex items-center gap-1 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full active:scale-[0.985] transition-all ${
-            theme === 'dark' || theme === 'pragma-dark'
-              ? 'bg-white text-black'
-              : 'bg-black text-white'
-          }`}
+          className="group relative flex-shrink-0 flex items-center gap-1 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full active:scale-[0.985] transition-all bg-black dark:bg-white text-white dark:text-black"
           aria-label="Send message"
         >
           <span className="hidden sm:inline text-sm font-medium">Send</span>

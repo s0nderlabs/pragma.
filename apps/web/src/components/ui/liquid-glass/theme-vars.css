@@ -44,7 +44,7 @@
   --liquid-glass-light: #fff;
   --liquid-glass-dark: #000;
   --liquid-glass-content: #e1e1e1;
-  --liquid-glass-bg: #0f172a;
+  --liquid-glass-bg: #121212; /* Matches Tailwind .dark --background: 0 0% 7% */
   --liquid-glass-reflex-dark: 1;
   --liquid-glass-reflex-light: 1;
   --liquid-glass-saturation: 150%;
@@ -56,7 +56,7 @@
   --liquid-glass-light: #fff;
   --liquid-glass-dark: #000;
   --liquid-glass-content: #224;
-  --liquid-glass-bg: #f8fafc;
+  --liquid-glass-bg: #FAFAFA; /* Matches Tailwind :root --background: 0 0% 98% */
   --liquid-glass-reflex-dark: 1;
   --liquid-glass-reflex-light: 1;
   --liquid-glass-saturation: 150%;

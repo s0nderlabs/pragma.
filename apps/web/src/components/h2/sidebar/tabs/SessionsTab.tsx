@@ -2,7 +2,6 @@
 
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { useThemeStore } from '@/stores/useThemeStore'
 import { MessageSquare, Play, Bookmark } from 'lucide-react'
 
 /**
@@ -13,8 +12,6 @@ import { MessageSquare, Play, Bookmark } from 'lucide-react'
  * Minimal design focused on content
  */
 export function SessionsTab() {
-  const { theme } = useThemeStore()
-  const isDark = theme === 'pragma-dark'
 
   // Sample sessions - will be replaced with real data
   const sessions = [
@@ -67,10 +64,9 @@ export function SessionsTab() {
             "p-4 rounded-[24px]",
             "transition-all duration-200",
             "group cursor-pointer border",
-            session.status === 'active' && isDark && "bg-terracotta/10 border-terracotta/20",
-            session.status === 'active' && !isDark && "bg-terracotta/5 border-terracotta/10",
-            session.status !== 'active' && isDark && "bg-black/40 hover:bg-black/50 border-white/10",
-            session.status !== 'active' && !isDark && "bg-white hover:bg-gray-50 border-black/5"
+            session.status === 'active'
+              ? "bg-terracotta/5 dark:bg-terracotta/10 border-terracotta/10 dark:border-terracotta/20"
+              : "bg-white dark:bg-black/40 hover:bg-gray-50 dark:hover:bg-black/50 border-black/5 dark:border-white/10"
           )}
         >
           {/* Session Header */}
@@ -80,14 +76,9 @@ export function SessionsTab() {
                 "w-4 h-4 mt-0.5 flex-shrink-0",
                 session.status === 'active'
                   ? "text-terracotta"
-                  : isDark
-                  ? "text-white/40"
-                  : "text-black/40"
+                  : "text-black/40 dark:text-white/40"
               )} />
-              <p className={cn(
-                "text-sm line-clamp-2",
-                isDark ? "text-white/80" : "text-black/80"
-              )}>
+              <p className="text-sm line-clamp-2 text-black/80 dark:text-white/80">
                 {session.preview}
               </p>
             </div>
@@ -97,9 +88,7 @@ export function SessionsTab() {
                 "transition-all duration-200",
                 session.bookmarked
                   ? "text-terracotta"
-                  : isDark
-                  ? "text-white/40 hover:text-white/60"
-                  : "text-black/40 hover:text-black/60"
+                  : "text-black/40 dark:text-white/40 hover:text-black/60 dark:hover:text-white/60"
               )}
               onClick={(e) => {
                 e.stopPropagation()
@@ -115,10 +104,7 @@ export function SessionsTab() {
 
           {/* Session Footer */}
           <div className="flex items-center justify-between">
-            <span className={cn(
-              "text-xs",
-              isDark ? "text-white/40" : "text-black/40"
-            )}>
+            <span className="text-xs text-black/40 dark:text-white/40">
               {session.timestamp}
             </span>
 
@@ -130,9 +116,10 @@ export function SessionsTab() {
                 "text-xs font-medium",
                 "transition-all duration-200",
                 "opacity-0 group-hover:opacity-100 border",
-                isDark
-                  ? "bg-white/10 hover:bg-white/15 text-white/60 border-white/10"
-                  : "bg-black/5 hover:bg-black/10 text-black/60 border-black/10"
+                "bg-black/5 dark:bg-white/10",
+                "hover:bg-black/10 dark:hover:bg-white/15",
+                "text-black/60 dark:text-white/60",
+                "border-black/10 dark:border-white/10"
               )}
             >
               <Play className="w-3 h-3" />
@@ -159,9 +146,10 @@ export function SessionsTab() {
           "text-sm font-medium",
           "transition-colors duration-200",
           "border-2 border-dashed",
-          isDark
-            ? "border-white/20 text-white/40 hover:border-white/30 hover:text-white/60"
-            : "border-black/20 text-black/40 hover:border-black/30 hover:text-black/60"
+          "border-black/20 dark:border-white/20",
+          "text-black/40 dark:text-white/40",
+          "hover:border-black/30 dark:hover:border-white/30",
+          "hover:text-black/60 dark:hover:text-white/60"
         )}
       >
         Start New Session

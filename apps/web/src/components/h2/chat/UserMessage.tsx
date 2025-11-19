@@ -40,7 +40,7 @@ export function UserMessage({ message }: UserMessageProps) {
     <div ref={messageRef} className="flex justify-end mb-4">
       <div className="max-w-[80%] lg:max-w-[60%]">
         <div
-          className="rounded-[24px] px-5 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
+          className="rounded-[24px] px-5 py-3 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700"
         >
           <p className="text-sm lg:text-base whitespace-pre-wrap break-words">
             {message.content}

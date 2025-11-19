@@ -63,7 +63,7 @@ export function ChatInput() {
         />
 
         <div
-          className="rounded-[32px] p-3 flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700"
+          className="rounded-[32px] p-3 flex items-center gap-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700"
         >
         {/* Settings Gear - Original Style */}
         <button

@@ -24,7 +24,34 @@
  */
 
 import type { Hex, Address, WalletClient } from 'viem';
-import type { Web3AuthBridge } from '@pragma/core/h2/types';
+
+/**
+ * Web3Auth Bridge Interface
+ *
+ * Defines the contract for signing delegations with Web3Auth wallet.
+ * Implemented by DirectWeb3AuthBridge for client-side H2.5 agent.
+ */
+export interface Web3AuthBridge {
+  /**
+   * Sign EIP-712 typed data
+   * @param params - typedDataJson string and signer address
+   * @returns Signature and recovered address
+   */
+  signTypedData(params: {
+    typedDataJson: string;
+    from: Address;
+  }): Promise<{ signature: Hex; recoveredAddress: Address }>;
+
+  /**
+   * Check if bridge is ready to sign
+   */
+  isReady(): boolean;
+
+  /**
+   * Get the owner address
+   */
+  getOwnerAddress(): Hex;
+}
 
 export interface DirectWeb3AuthBridgeConfig {
   /**

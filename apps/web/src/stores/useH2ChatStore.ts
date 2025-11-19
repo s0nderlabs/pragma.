@@ -16,8 +16,8 @@ import type {
   ToolMessage,
   ToolStep,
   AnyMessage,
+  SSEConnectionState,
 } from "@/lib/h2/types";
-import type { SSEConnectionState } from "@/lib/h2/sseClient";
 
 // ============================================================================
 // Helper Functions

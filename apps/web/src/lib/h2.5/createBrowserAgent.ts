@@ -117,6 +117,7 @@ export function createBrowserAgent(config: BrowserAgentConfig): ReturnType<typeo
   // Validate polyfills loaded (Zone.js + AsyncLocalStorage)
   if (typeof window !== 'undefined') {
     // Check Zone.js
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (typeof (window as any).Zone === 'undefined') {
       throw new Error(
         'Zone.js polyfill not loaded! Import @/lib/polyfills before creating agent.'
@@ -124,7 +125,9 @@ export function createBrowserAgent(config: BrowserAgentConfig): ReturnType<typeo
     }
 
     // Check AsyncLocalStorage polyfill
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (typeof (window as any).async_hooks === 'undefined' ||
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         !(window as any).async_hooks.AsyncLocalStorage) {
       throw new Error(
         'AsyncLocalStorage polyfill not loaded! Import @/lib/polyfills before creating agent.'
@@ -183,11 +186,13 @@ export function validateBrowserEnvironment(): void {
   }
 
   // Check Zone.js
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (typeof (window as any).Zone === 'undefined') {
     throw new Error('Zone.js not loaded. Import @/lib/polyfills in your page component.');
   }
 
   // Check AsyncLocalStorage
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (typeof (window as any).async_hooks === 'undefined') {
     throw new Error('async_hooks polyfill not loaded. Import @/lib/polyfills in your page component.');
   }

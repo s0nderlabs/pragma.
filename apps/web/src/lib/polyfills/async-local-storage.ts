@@ -30,6 +30,7 @@ export class AsyncLocalStorage<T> {
    * Creates a new Zone fork with the store value, ensuring it's available
    * to all async operations within the callback.
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   run<R>(store: T, callback: (...args: any[]) => R, ...args: any[]): R {
     // Fork current zone with store value in zone properties
     const newZone = Zone.current.fork({
@@ -61,6 +62,7 @@ export class AsyncLocalStorage<T> {
    * This is a simplified implementation that delegates to run().
    * Note: The callback pattern is more reliable in browsers.
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   enterWith(store: T): void {
     // Zone.js doesn't support "entering" a context imperatively like Node.js
     // We'd need to fork and run, but enterWith is synchronous
@@ -75,6 +77,7 @@ export class AsyncLocalStorage<T> {
    *
    * Zone.js doesn't support explicit exit. Context is automatically managed.
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   exit<R>(callback: (...args: any[]) => R, ...args: any[]): R {
     // Run callback in root zone (no async context)
     return Zone.root.run(callback, undefined, args);
@@ -99,13 +102,13 @@ export class AsyncLocalStorage<T> {
  * This makes our polyfill available at that import path.
  */
 if (typeof window !== 'undefined') {
-  // @ts-ignore - Creating module shim for Node.js imports
+  // @ts-expect-error - Creating module shim for Node.js imports
   window.async_hooks = {
     AsyncLocalStorage,
   };
 
   // Also provide as global for direct access
-  // @ts-ignore
+  // @ts-expect-error - Creating global for direct access
   window.AsyncLocalStorage = AsyncLocalStorage;
 
   console.log('[Polyfill] AsyncLocalStorage initialized for browser');

@@ -12,6 +12,7 @@ export interface Message {
   timestamp: number
   // Optional: Quote data for quote messages
   quoteData?: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     quote: any // MonorailQuote type
     fromToken: string
     toToken: string

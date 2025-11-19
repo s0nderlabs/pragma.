@@ -47,7 +47,8 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
 
   const components: Components = {
     // Code blocks with syntax highlighting
-    code: ({ inline, className, children, ...props }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    code: ({ inline, className, children, ...props }: any) => {
       const match = /language-(\w+)/.exec(className || '')
       const language = match ? match[1] : ''
 
@@ -67,7 +68,8 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
             }}
           >
             <SyntaxHighlighter
-              style={vscDarkPlus}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              style={vscDarkPlus as any}
               language={language}
               PreTag="div"
               customStyle={{

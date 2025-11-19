@@ -5,8 +5,6 @@
  * Mirrors CLI session state but adapted for browser storage.
  */
 
-import type { SignatureRequest } from "./signatureCoordinator";
-
 /**
  * Session state stored in localStorage
  * Matches CLI SessionState structure for compatibility
@@ -33,60 +31,9 @@ export type { AllowedToken } from "@pragma/core";
 export type MessageTuple = [string, string];
 
 /**
- * SSE event types from API
+ * SSE connection state (moved from sseClient.ts)
  */
-export interface SSETokenEvent {
-  type: "token";
-  content: string;
-}
-
-export interface SSEProgressEvent {
-  type: "progress";
-  message: string;
-  toolName?: string;
-  timestamp?: number;
-}
-
-export interface SSEToolStartEvent {
-  type: "tool_start";
-  toolName?: string;
-}
-
-export interface SSEToolEndEvent {
-  type: "tool_end";
-  toolName?: string;
-  output?: unknown;
-}
-
-export interface SSEToolErrorEvent {
-  type: "tool_error";
-  toolName?: string;
-  error?: string;
-}
-
-export interface SSESignatureRequestEvent {
-  type: "signature_request";
-  signatureRequest: SignatureRequest;
-}
-
-export interface SSEDoneEvent {
-  type: "done";
-}
-
-export interface SSEErrorEvent {
-  type: "error";
-  error?: string;
-}
-
-export type SSEEvent =
-  | SSETokenEvent
-  | SSEProgressEvent
-  | SSEToolStartEvent
-  | SSEToolEndEvent
-  | SSEToolErrorEvent
-  | SSESignatureRequestEvent
-  | SSEDoneEvent
-  | SSEErrorEvent;
+export type SSEConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected" | "error";
 
 /**
  * Chat message for display

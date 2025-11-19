@@ -21,6 +21,7 @@
 
 import type { BaseMessage } from "@langchain/core/messages";
 import { PRAGMA_H2_SYSTEM_PROMPT } from "@pragma/core";
+import type { AllowedToken } from "@pragma/core";
 import { onProgress, offProgress, type ProgressEvent } from "@pragma/core/h2/progress/emitter";
 
 /**
@@ -121,7 +122,7 @@ export interface BrowserAgentContext {
   quickMode?: boolean;
 
   /** Allowed tokens for swaps */
-  allowedTokens?: string[];
+  allowedTokens?: AllowedToken[];
 }
 
 /**
@@ -210,22 +211,22 @@ export async function runBrowserAgent(
             },
 
             // Handle tool execution start
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             handleToolStart(tool: any, input: string) {
-              // eslint-disable-line @typescript-eslint/no-explicit-any
               console.log("[BrowserAgent] Tool start:", tool.name);
               callbacks.onToolStart?.(tool.name, input);
             },
 
             // Handle tool execution end
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             handleToolEnd(output: any) {
-              // eslint-disable-line @typescript-eslint/no-explicit-any
               console.log("[BrowserAgent] Tool end");
               callbacks.onToolEnd?.(output.tool, output.output);
             },
 
             // Handle tool errors
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             handleToolError(error: Error, runnable: any) {
-              // eslint-disable-line @typescript-eslint/no-explicit-any
               console.error("[BrowserAgent] Tool error:", error);
               callbacks.onToolError?.(runnable.name, error.message);
             },

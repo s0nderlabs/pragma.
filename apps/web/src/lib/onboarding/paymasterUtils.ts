@@ -12,6 +12,7 @@ import type { PimlicoSponsorship } from "../pimlico";
 /**
  * UserOperation type compatible with smartAccount.signUserOperation
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type SignableUserOperation = Parameters<any>[0] & {
   callData: Hex;
   callGasLimit: bigint;

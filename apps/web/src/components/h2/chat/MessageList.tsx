@@ -5,7 +5,6 @@ import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { UserMessage } from './UserMessage'
 import { AIMessage } from './AIMessage'
 import { SystemMessage } from './SystemMessage'
-import { QuoteMessage } from './QuoteMessage'
 import { ToolMessage } from './ToolMessage'
 import { ThinkingIndicator } from './ThinkingIndicator'
 import { MessageSquare } from 'lucide-react'
@@ -41,9 +40,9 @@ export function MessageList() {
             Ask me anything about Monad - swaps, staking, NFTs, and more
           </p>
           <div className="mt-6 text-xs opacity-60 space-y-1">
-            <p>💬 Try: "what's my balance?"</p>
-            <p>🔄 Try: "swap 10 USDC to MON"</p>
-            <p>📊 Try: "show all my balances"</p>
+            <p>💬 Try: &quot;what&apos;s my balance?&quot;</p>
+            <p>🔄 Try: &quot;swap 10 USDC to MON&quot;</p>
+            <p>📊 Try: &quot;show all my balances&quot;</p>
           </div>
         </div>
       </div>
@@ -61,8 +60,6 @@ export function MessageList() {
               return <AIMessage key={message.id} message={message} />
             case 'system':
               return <SystemMessage key={message.id} message={message} />
-            case 'quote':
-              return <QuoteMessage key={message.id} message={message} />
             case 'tool':
               return <ToolMessage key={message.id} message={message as ToolMessageType} />
             default:
@@ -71,7 +68,8 @@ export function MessageList() {
         })}
 
         {/* Thinking Indicator - shows before AI starts responding */}
-        {isStreaming && messages.length > 0 && !messages[messages.length - 1]?.isStreaming && (
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        {isStreaming && messages.length > 0 && !(messages[messages.length - 1] as any)?.isStreaming && (
           <ThinkingIndicator />
         )}
 

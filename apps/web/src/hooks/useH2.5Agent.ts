@@ -368,7 +368,7 @@ export function useH2_5Agent() {
             // This ensures we're always appending to the latest state
             const currentMessages = useH2ChatStore.getState().messages;
             const currentMessage = currentMessages.find((msg) => msg.id === streamingId);
-            if (currentMessage) {
+            if (currentMessage && 'content' in currentMessage) {
               updateMessageContent(streamingId, currentMessage.content + contentToFlush);
             }
           } else {
@@ -498,10 +498,10 @@ export function useH2_5Agent() {
           {
             userAddress,
             sessionData: {
-              sessionKeyAddress: sessionData.sessionKeyAddress,
-              sessionKeyPrivateKey: sessionData.sessionKeyPrivateKey,
-              ownerAddress: sessionData.ownerAddress,
-              chainId: sessionData.chainId,
+              sessionKeyAddress: sessionData.sessionKeyAddress!,
+              sessionKeyPrivateKey: sessionData.sessionKeyPrivateKey!,
+              ownerAddress: sessionData.ownerAddress!,
+              chainId: sessionData.chainId!,
             },
             publicClient,
             web3authBridge,

@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 interface ModePopoverProps {
   isOpen: boolean
   onClose: () => void
-  anchorRef: React.RefObject<HTMLElement>
+  anchorRef: React.RefObject<HTMLElement | null>
 }
 
 /**

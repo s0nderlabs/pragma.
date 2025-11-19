@@ -12,6 +12,7 @@ import { SettingsTab } from './tabs/SettingsTab'
 
 interface MinimalSidebarProps {
   status: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   wallet: any
   connect: () => Promise<void>
   disconnect: () => Promise<void>
@@ -56,6 +57,7 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
     handleResize()
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Keyboard shortcut for collapse
@@ -69,6 +71,7 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
 
     window.addEventListener('keydown', handleKeydown)
     return () => window.removeEventListener('keydown', handleKeydown)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCollapsed])
 
   // Arc-style edge hover detection
@@ -84,6 +87,7 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
 
     window.addEventListener('mousemove', handleMouseMove)
     return () => window.removeEventListener('mousemove', handleMouseMove)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCollapsed, isHovering])
 
   // Handle mouse leave for hover-opened sidebar

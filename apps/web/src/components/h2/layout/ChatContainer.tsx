@@ -10,8 +10,10 @@ import { motion } from 'framer-motion'
 
 interface ChatContainerProps {
   status: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   wallet: any
-  connect: () => Promise<void>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  connect: () => Promise<any>
   disconnect: () => Promise<void>
 }
 

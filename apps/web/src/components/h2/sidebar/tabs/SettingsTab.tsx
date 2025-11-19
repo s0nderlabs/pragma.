@@ -5,7 +5,7 @@ import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { Moon, Sun, LogOut, Loader2, Copy, Check } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface SettingsTabProps {
   status: string
@@ -25,8 +25,14 @@ export function SettingsTab({ status, wallet, connect, disconnect }: SettingsTab
   const { resolvedTheme } = useTheme()
   const { setTheme: setZustandTheme } = useThemeStore()
   const [copied, setCopied] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
-  const isDark = resolvedTheme === 'dark'
+  // Prevent hydration mismatch - resolvedTheme is undefined during SSR
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const isDark = mounted && resolvedTheme === 'dark'
 
   const isConnecting = status === 'connecting' || status === 'initializing'
   const isConnected = status === 'connected' && wallet?.address

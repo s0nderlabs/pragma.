@@ -23,39 +23,41 @@ export interface ProgressEvent {
   message: string;
   timestamp: number;
   toolName?: string;
+  signature?: string; // Unique identifier for parallel tool matching (e.g., "MON-DAK")
 }
 
 // ============================================================================
 // Global Progress Emitter
 // ============================================================================
 
+// Use global symbol to ensure single instance across all imports
+// This prevents bundler from creating multiple module instances
+const EMITTER_KEY = Symbol.for('@pragma/core/progress-emitter');
+
 /**
  * Singleton event emitter for tool progress updates
  */
 class ProgressEmitter extends EventEmitter {
-  private static instance: ProgressEmitter;
+  private __instanceId: string;
 
-  private constructor() {
+  constructor() {
     super();
     // Set max listeners to avoid warnings in multi-step operations
     this.setMaxListeners(100);
-  }
-
-  static getInstance(): ProgressEmitter {
-    if (!ProgressEmitter.instance) {
-      ProgressEmitter.instance = new ProgressEmitter();
-    }
-    return ProgressEmitter.instance;
+    // Instance ID for debugging
+    this.__instanceId = Math.random().toString(36).substr(2, 9);
   }
 
   /**
    * Emit a progress update
    */
-  emitProgress(message: string, toolName?: string): void {
+  emitProgress(message: string, toolName?: string, signature?: string): void {
+    console.log(`[Emitter:${this.__instanceId}] Emit:`, signature || toolName || message.slice(0, 30));
     const event: ProgressEvent = {
       message,
       timestamp: Date.now(),
       toolName,
+      signature,
     };
     this.emit("progress", event);
   }
@@ -64,6 +66,7 @@ class ProgressEmitter extends EventEmitter {
    * Subscribe to progress updates
    */
   onProgress(callback: (event: ProgressEvent) => void): void {
+    console.log(`[Emitter:${this.__instanceId}] Subscribe`);
     this.on("progress", callback);
   }
 
@@ -82,6 +85,18 @@ class ProgressEmitter extends EventEmitter {
   }
 }
 
+/**
+ * Get the global progress emitter instance
+ * Uses globalThis to ensure single instance regardless of import path
+ */
+function getGlobalEmitter(): ProgressEmitter {
+  const g = globalThis as unknown as { [key: symbol]: ProgressEmitter };
+  if (!g[EMITTER_KEY]) {
+    g[EMITTER_KEY] = new ProgressEmitter();
+  }
+  return g[EMITTER_KEY];
+}
+
 // ============================================================================
 // Exports
 // ============================================================================
@@ -90,7 +105,7 @@ class ProgressEmitter extends EventEmitter {
  * Get the global progress emitter instance
  */
 export const getProgressEmitter = (): ProgressEmitter => {
-  return ProgressEmitter.getInstance();
+  return getGlobalEmitter();
 };
 
 /**
@@ -98,17 +113,18 @@ export const getProgressEmitter = (): ProgressEmitter => {
  *
  * @param message - Human-readable progress message with contextual data
  * @param toolName - Optional tool name (auto-detected if possible)
+ * @param signature - Optional unique identifier for parallel tool matching (e.g., "MON-DAK")
  *
  * @example
  * ```typescript
  * emitProgress(`Swapping 2.0 USDC → MON via Monorail...`);
  * emitProgress(`Building delegation with 5% slippage protection...`);
- * emitProgress(`Executing swap...`);
+ * emitProgress(`Executing swap...`, 'executeSwap', 'MON-USDC');
  * ```
  */
-export const emitProgress = (message: string, toolName?: string): void => {
+export const emitProgress = (message: string, toolName?: string, signature?: string): void => {
   const emitter = getProgressEmitter();
-  emitter.emitProgress(message, toolName);
+  emitter.emitProgress(message, toolName, signature);
 };
 
 /**

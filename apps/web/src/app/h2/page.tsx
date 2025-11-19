@@ -3,20 +3,18 @@
 import { useEffect } from 'react'
 import { H2Layout } from '@/components/h2/layout/H2Layout'
 import { AgentProvider } from '@/contexts/H2AgentContext'
-import { useH2Agent } from '@/hooks/useH2Agent'
+import { useH2_5Agent } from '@/hooks/useH2.5Agent'
 
 /**
- * H2 Page - Server-Side LangChain Agent
+ * H2 Page - Client-Side LangChain Agent
  *
- * Uses server-side agent execution with SSE streaming.
- * Provides useH2Agent via context to child components.
+ * Uses H2.5 client-side agent execution.
+ * Provides useH2_5Agent via context to child components.
  *
  * Architecture:
- * - LangChain agent runs on server (Node.js)
- * - SSE streaming for real-time updates
- * - Signature transport via SSE + HTTP POST (4 round-trips per swap)
- *
- * For client-side execution, see /h2.5 route.
+ * - LangChain agent runs in browser
+ * - Direct wallet access (no signature transport)
+ * - Real-time streaming callbacks
  */
 export default function H2Page() {
   useEffect(() => {
@@ -30,7 +28,7 @@ export default function H2Page() {
   }, [])
 
   return (
-    <AgentProvider hook={useH2Agent}>
+    <AgentProvider hook={useH2_5Agent}>
       <H2Layout />
     </AgentProvider>
   )

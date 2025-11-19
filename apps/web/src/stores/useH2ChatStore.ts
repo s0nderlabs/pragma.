@@ -20,6 +20,30 @@ import type {
 import type { SSEConnectionState } from "@/lib/h2/sseClient";
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Generate readable parent description for batch operations
+ * e.g., "getSwapQuote" → "Getting swap quotes"
+ */
+function getReadableParentDescription(toolName: string, count: number): string {
+  const baseDescriptions: Record<string, string> = {
+    getSwapQuote: 'Getting swap quotes',
+    executeSwap: 'Executing swaps',
+    getBalance: 'Checking balances',
+    transfer: 'Transferring tokens',
+    stake: 'Staking MON',
+    unstakeRequest: 'Requesting unstakes',
+    wrap: 'Wrapping MON',
+    unwrap: 'Unwrapping WMON',
+  };
+
+  const base = baseDescriptions[toolName] || toolName;
+  return `${base} (${count})`;
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -31,6 +55,7 @@ export interface H2ChatState {
   // Progress
   progress: ProgressState;
   activeTools: Map<string, ToolExecutionState>;
+  pendingSteps: Map<string, { toolName: string; message: string }[]>;
 
   // Connection
   connectionState: SSEConnectionState;
@@ -53,11 +78,12 @@ export interface H2ChatState {
   hideProgress: () => void;
 
   // Tool actions
-  startTool: (toolName: string, description?: string) => void;
-  addToolStep: (toolName: string, stepMessage: string) => void;
-  completeTool: (toolName: string, output?: unknown) => void;
-  errorTool: (toolName: string, error: string) => void;
+  startTool: (toolName: string, signature?: string, description?: string) => void;
+  addToolStep: (toolName: string, signature: string, stepMessage: string) => void;
+  completeTool: (toolName: string, signature: string, output?: unknown) => void;
+  errorTool: (toolName: string, signature: string, error: string) => void;
   clearTools: () => void;
+  completeAllRunningTools: () => void;
 
   // Connection actions
   setConnectionState: (state: SSEConnectionState) => void;
@@ -88,6 +114,7 @@ export const useH2ChatStore = create<H2ChatState>()(
           message: "",
         },
         activeTools: new Map(),
+        pendingSteps: new Map(),
 
         connectionState: "disconnected",
         isStreaming: false,
@@ -170,82 +197,227 @@ export const useH2ChatStore = create<H2ChatState>()(
         },
 
         // Tool actions
-        startTool: (toolName, description) => {
-          // Track in activeTools
-          const activeTools = new Map(get().activeTools);
-          activeTools.set(toolName, {
-            toolName,
-            status: "running",
-            startTime: Date.now(),
+        startTool: (toolName, signature, description) => {
+          // Use single functional update to ensure each call sees accumulated state
+          // This prevents race conditions when multiple tools start in rapid succession
+          set((state) => {
+            // Track in activeTools using signature as key for uniqueness
+            const activeTools = new Map(state.activeTools);
+            const toolKey = signature || toolName;
+            activeTools.set(toolKey, {
+              toolName,
+              status: "running",
+              startTime: Date.now(),
+            });
+
+            // Finalize current streaming message (if any)
+            // This splits the assistant response so tool appears between parts
+            let messages = state.messages;
+            let streamingMessageId = state.streamingMessageId;
+
+            if (streamingMessageId) {
+              messages = messages.map((msg) =>
+                msg.id === streamingMessageId ? { ...msg, isStreaming: false } : msg
+              );
+              streamingMessageId = null; // Clear so next tokens create new message
+            }
+
+            // Create tool message
+            const id = `tool-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+            // Check for pending steps that arrived before this tool started
+            const pendingSteps = new Map(state.pendingSteps);
+            const pending = signature ? pendingSteps.get(signature) : undefined;
+            const initialSteps: ToolStep[] = pending
+              ? pending.map((p, idx) => ({
+                  id: `step-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 9)}`,
+                  name: p.message,
+                  status: "running" as const,
+                }))
+              : [];
+
+            // Clear pending steps for this signature
+            if (signature && pending) {
+              pendingSteps.delete(signature);
+            }
+
+            const toolMessage: ToolMessage = {
+              id,
+              role: "tool",
+              toolName,
+              description,
+              status: "running",
+              steps: initialSteps,
+              timestamp: Date.now(),
+              signature, // Add signature for matching
+            };
+
+            // FIRST: Check for existing running parent for this toolName
+            // This handles 3rd, 4th, etc. tools being added to existing batch
+            const existingParent = messages.find(
+              (msg) =>
+                msg.role === "tool" &&
+                (msg as ToolMessage).isParent &&
+                (msg as ToolMessage).toolName === toolName &&
+                (msg as ToolMessage).status === "running"
+            ) as ToolMessage | undefined;
+
+            if (existingParent) {
+              // Add new tool as child to existing parent
+              return {
+                messages: messages.map((msg) => {
+                  if (msg.id === existingParent.id) {
+                    const parent = msg as ToolMessage;
+                    const newCount = (parent.children?.length || 0) + 1;
+                    return {
+                      ...parent,
+                      children: [...(parent.children || []), toolMessage],
+                      description: getReadableParentDescription(toolName, newCount),
+                    };
+                  }
+                  return msg;
+                }),
+                activeTools,
+                streamingMessageId,
+                pendingSteps,
+              };
+            }
+
+            // SECOND: Check for standalone running tools with same toolName
+            const runningToolsWithSameName = messages.filter(
+              (msg) =>
+                msg.role === "tool" &&
+                (msg as ToolMessage).toolName === toolName &&
+                (msg as ToolMessage).status === "running"
+            );
+
+            if (runningToolsWithSameName.length > 0) {
+              // Batch detected - create parent from first standalone + new tool
+              const firstTool = runningToolsWithSameName[0] as ToolMessage;
+              const parentId = `tool-parent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+              const parentMessage: ToolMessage = {
+                id: parentId,
+                role: "tool",
+                toolName,
+                description: getReadableParentDescription(toolName, 2),
+                status: "running",
+                steps: [],
+                timestamp: Date.now(),
+                isParent: true,
+                children: [firstTool, toolMessage],
+              };
+
+              // Replace first tool with parent containing both as children
+              return {
+                messages: messages.map((msg) =>
+                  msg.id === firstTool.id ? parentMessage : msg
+                ),
+                activeTools,
+                streamingMessageId,
+                pendingSteps,
+              };
+            }
+
+            // No batch - append tool message normally
+            return {
+              messages: [...messages, toolMessage],
+              activeTools,
+              streamingMessageId,
+              pendingSteps,
+            };
           });
-
-          // Finalize current streaming message (if any)
-          // This splits the assistant response so tool appears between parts
-          const streamingId = get().streamingMessageId;
-          if (streamingId) {
-            set((state) => ({
-              messages: state.messages.map((msg) =>
-                msg.id === streamingId ? { ...msg, isStreaming: false } : msg
-              ),
-              streamingMessageId: null, // Clear so next tokens create new message
-            }));
-          }
-
-          // Create tool message
-          const id = `tool-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          const toolMessage: ToolMessage = {
-            id,
-            role: "tool",
-            toolName,
-            description,
-            status: "running",
-            steps: [],
-            timestamp: Date.now(),
-          };
-
-          // Append tool message (after finalized assistant)
-          set((state) => ({
-            messages: [...state.messages, toolMessage],
-            activeTools,
-          }));
         },
 
-        addToolStep: (toolName, stepMessage) => {
-          set((state) => ({
-            messages: state.messages.map((msg) => {
-              if (msg.role === "tool" && (msg as ToolMessage).toolName === toolName && (msg as ToolMessage).status === "running") {
+        addToolStep: (toolName, signature, stepMessage) => {
+          set((state) => {
+            let foundTool = false;
+
+            const messages = state.messages.map((msg) => {
+              if (msg.role === "tool") {
                 const toolMsg = msg as ToolMessage;
-                const stepId = `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-                // Mark previous steps as completed
-                const updatedSteps = toolMsg.steps.map(s => ({
-                  ...s,
-                  status: "completed" as const,
-                }));
+                // Check if this is a parent with children
+                if (toolMsg.isParent && toolMsg.children) {
+                  // Find matching child by signature and add step to it
+                  const updatedChildren = toolMsg.children.map((child) => {
+                    if (child.signature === signature) {
+                      foundTool = true;
+                      const stepId = `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-                // Add new step as running
-                const newStep: ToolStep = {
-                  id: stepId,
-                  name: stepMessage,
-                  status: "running",
-                };
+                      // Mark previous steps as completed
+                      const updatedSteps = child.steps.map(s => ({
+                        ...s,
+                        status: "completed" as const,
+                      }));
 
-                return {
-                  ...toolMsg,
-                  steps: [...updatedSteps, newStep],
-                };
+                      // Add new step as running
+                      const newStep: ToolStep = {
+                        id: stepId,
+                        name: stepMessage,
+                        status: "running",
+                      };
+
+                      return {
+                        ...child,
+                        steps: [...updatedSteps, newStep],
+                      };
+                    }
+                    return child;
+                  });
+
+                  return {
+                    ...toolMsg,
+                    children: updatedChildren,
+                  };
+                }
+
+                // Check if this is a standalone tool matching by signature
+                if (toolMsg.signature === signature) {
+                  foundTool = true;
+                  const stepId = `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+                  // Mark previous steps as completed
+                  const updatedSteps = toolMsg.steps.map(s => ({
+                    ...s,
+                    status: "completed" as const,
+                  }));
+
+                  // Add new step as running
+                  const newStep: ToolStep = {
+                    id: stepId,
+                    name: stepMessage,
+                    status: "running",
+                  };
+
+                  return {
+                    ...toolMsg,
+                    steps: [...updatedSteps, newStep],
+                  };
+                }
               }
               return msg;
-            }),
-          }));
+            });
+
+            // If no tool found, buffer the step for later
+            // This handles race condition where progress arrives before tool_start
+            if (!foundTool) {
+              const pendingSteps = new Map(state.pendingSteps);
+              const existing = pendingSteps.get(signature) || [];
+              pendingSteps.set(signature, [...existing, { toolName, message: stepMessage }]);
+              return { messages, pendingSteps };
+            }
+
+            return { messages };
+          });
         },
 
-        completeTool: (toolName, output) => {
+        completeTool: (toolName, signature, output) => {
           // Update activeTools
           const activeTools = new Map(get().activeTools);
-          const activeTool = activeTools.get(toolName);
+          const toolKey = signature || toolName;
+          const activeTool = activeTools.get(toolKey);
           if (activeTool) {
-            activeTools.set(toolName, {
+            activeTools.set(toolKey, {
               ...activeTool,
               status: "completed",
               output,
@@ -257,32 +429,70 @@ export const useH2ChatStore = create<H2ChatState>()(
           // Update tool message - NO auto-delete
           set((state) => ({
             messages: state.messages.map((msg) => {
-              if (msg.role === "tool" && (msg as ToolMessage).toolName === toolName && (msg as ToolMessage).status === "running") {
+              if (msg.role === "tool") {
                 const toolMsg = msg as ToolMessage;
-                // Mark all steps as completed
-                const completedSteps = toolMsg.steps.map(s => ({
-                  ...s,
-                  status: "completed" as const,
-                }));
 
-                return {
-                  ...toolMsg,
-                  status: "completed",
-                  steps: completedSteps,
-                  output,
-                };
+                // Check if this is a parent with children
+                if (toolMsg.isParent && toolMsg.children) {
+                  // Find and complete matching child by signature
+                  const updatedChildren = toolMsg.children.map((child) => {
+                    if (child.signature === signature && child.status === "running") {
+                      // Mark all steps as completed
+                      const completedSteps = child.steps.map(s => ({
+                        ...s,
+                        status: "completed" as const,
+                      }));
+
+                      return {
+                        ...child,
+                        status: "completed" as const,
+                        steps: completedSteps,
+                        output,
+                      };
+                    }
+                    return child;
+                  });
+
+                  // Check if all children are completed
+                  const allChildrenCompleted = updatedChildren.every(
+                    (child) => child.status === "completed"
+                  );
+
+                  return {
+                    ...toolMsg,
+                    children: updatedChildren,
+                    status: allChildrenCompleted ? "completed" : toolMsg.status,
+                  };
+                }
+
+                // Check if this is a standalone tool matching by signature
+                if (toolMsg.signature === signature && toolMsg.status === "running") {
+                  // Mark all steps as completed
+                  const completedSteps = toolMsg.steps.map(s => ({
+                    ...s,
+                    status: "completed" as const,
+                  }));
+
+                  return {
+                    ...toolMsg,
+                    status: "completed",
+                    steps: completedSteps,
+                    output,
+                  };
+                }
               }
               return msg;
             }),
           }));
         },
 
-        errorTool: (toolName, error) => {
+        errorTool: (toolName, signature, error) => {
           // Update activeTools
           const activeTools = new Map(get().activeTools);
-          const activeTool = activeTools.get(toolName);
+          const toolKey = signature || toolName;
+          const activeTool = activeTools.get(toolKey);
           if (activeTool) {
-            activeTools.set(toolName, {
+            activeTools.set(toolKey, {
               ...activeTool,
               status: "error",
               error,
@@ -294,12 +504,43 @@ export const useH2ChatStore = create<H2ChatState>()(
           // Update tool message
           set((state) => ({
             messages: state.messages.map((msg) => {
-              if (msg.role === "tool" && (msg as ToolMessage).toolName === toolName && (msg as ToolMessage).status === "running") {
-                return {
-                  ...msg,
-                  status: "error",
-                  error,
-                };
+              if (msg.role === "tool") {
+                const toolMsg = msg as ToolMessage;
+
+                // Check if this is a parent with children
+                if (toolMsg.isParent && toolMsg.children) {
+                  // Find and error matching child by signature
+                  const updatedChildren = toolMsg.children.map((child) => {
+                    if (child.signature === signature && child.status === "running") {
+                      return {
+                        ...child,
+                        status: "error" as const,
+                        error,
+                      };
+                    }
+                    return child;
+                  });
+
+                  // Check if all children are done (completed or error)
+                  const allChildrenDone = updatedChildren.every(
+                    (child) => child.status === "completed" || child.status === "error"
+                  );
+
+                  return {
+                    ...toolMsg,
+                    children: updatedChildren,
+                    status: allChildrenDone ? "error" : toolMsg.status, // Parent errors if any child errors
+                  };
+                }
+
+                // Check if this is a standalone tool matching by signature
+                if (toolMsg.signature === signature && toolMsg.status === "running") {
+                  return {
+                    ...toolMsg,
+                    status: "error",
+                    error,
+                  };
+                }
               }
               return msg;
             }),
@@ -308,6 +549,42 @@ export const useH2ChatStore = create<H2ChatState>()(
 
         clearTools: () => {
           set({ activeTools: new Map() });
+        },
+
+        completeAllRunningTools: () => {
+          // Mark all running tools as completed to prevent cross-message pollution
+          set((state) => ({
+            messages: state.messages.map((msg) => {
+              if (msg.role === "tool") {
+                const toolMsg = msg as ToolMessage;
+
+                // Handle parent with children
+                if (toolMsg.isParent && toolMsg.children && toolMsg.status === "running") {
+                  const completedChildren = toolMsg.children.map((child) => ({
+                    ...child,
+                    status: "completed" as const,
+                    steps: child.steps.map((s) => ({ ...s, status: "completed" as const })),
+                  }));
+                  return {
+                    ...toolMsg,
+                    status: "completed",
+                    children: completedChildren,
+                  };
+                }
+
+                // Handle standalone tool
+                if (toolMsg.status === "running") {
+                  return {
+                    ...toolMsg,
+                    status: "completed",
+                    steps: toolMsg.steps.map((s) => ({ ...s, status: "completed" as const })),
+                  };
+                }
+              }
+              return msg;
+            }),
+            activeTools: new Map(), // Clear active tools
+          }));
         },
 
         // Connection actions

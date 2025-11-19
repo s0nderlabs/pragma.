@@ -151,6 +151,11 @@ export interface ExecuteSwapParams {
    * @fallback If not provided, creates temporary wallet (legacy behavior - not recommended for parallel ops)
    */
   sessionWallet?: any; // Type: viem WalletClient
+  /**
+   * Unique signature for parallel tool identification (e.g., "MON-USDC")
+   * Used to route progress messages to the correct tool instance
+   */
+  signature?: string;
 }
 
 /**
@@ -176,6 +181,7 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     chainId,
     smartAccount,
     bundlerClient,
+    signature,
   } = params;
 
   // Step 1: Retrieve and validate quote
@@ -231,7 +237,11 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
   });
 
   // Progress: Balance verified
-  emitProgress(`Swapping ${formatUnits(quote.amountWei, quote.fromTokenDecimals)} ${quote.fromTokenSymbol} → ${quote.toTokenSymbol}...`);
+  // Generate signature from quote if not provided
+  // Use toUpperCase for consistent matching with browserAgentRunner
+  // Prefix with executeSwap to prevent collisions with getSwapQuote
+  const toolSignature = signature || `executeSwap:${quote.fromTokenSymbol.toUpperCase()}-${quote.toTokenSymbol.toUpperCase()}`;
+  emitProgress(`Swapping ${formatUnits(quote.amountWei, quote.fromTokenDecimals)} ${quote.fromTokenSymbol} → ${quote.toTokenSymbol}...`, "executeSwap", toolSignature);
 
   // Step 3: Get balance before swap (to calculate actual output later)
   const balanceBefore = isNativeToken(quote.toToken, MON_ADDRESS)
@@ -288,7 +298,7 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
   // Step 5a: Create approve delegations if needed (smart allowance pattern)
   if (needsApprove) {
     // Progress: Approving router
-    emitProgress(`Approving Monorail router to access your ${quote.fromTokenSymbol}...`);
+    emitProgress(`Approving Monorail router to access your ${quote.fromTokenSymbol}...`, "executeSwap", toolSignature);
 
     // Case 1: Sufficient allowance - skip approve entirely (gas optimization)
     if (currentAllowance >= quote.amountWei) {
@@ -582,7 +592,7 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
   let finalTxHash: Hex = "0x" as Hex;
 
   // Progress: Building delegations complete
-  emitProgress(`Building swap delegation with ${(quote.slippageBps / 100).toFixed(1)}% slippage protection...`);
+  emitProgress(`Building swap delegation with ${(quote.slippageBps / 100).toFixed(1)}% slippage protection...`, "executeSwap", toolSignature);
 
   for (const bundle of delegationBundles) {
     const { delegation } = bundle.delegationResult;
@@ -595,7 +605,7 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
 
     // Progress: Executing delegation
     if (bundle.label === "swap") {
-      emitProgress(`Executing swap via Monorail...`);
+      emitProgress(`Executing swap via Monorail...`, "executeSwap", toolSignature);
     }
 
     let txHash: Hex | undefined;
@@ -615,7 +625,7 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
 
       // Progress: Waiting for confirmation
       if (bundle.label === "swap") {
-        emitProgress(`Waiting for blockchain confirmation...`);
+        emitProgress(`Waiting for blockchain confirmation...`, "executeSwap", toolSignature);
       }
 
       // Wait for confirmation with timeout (60 seconds)

@@ -145,6 +145,10 @@ export interface ToolMessage {
   timestamp: number;
   output?: unknown;
   error?: string;
+  // Batch execution support
+  signature?: string;        // Unique identifier from input (e.g., "MON-DAK" for swaps)
+  children?: ToolMessage[];  // Child tools for parallel batch operations
+  isParent?: boolean;        // Flag for visual grouping as parent container
 }
 
 /**

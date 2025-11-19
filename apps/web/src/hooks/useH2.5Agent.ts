@@ -31,7 +31,6 @@ import { streamBrowserAgent } from '@/lib/h2.5/browserAgentRunner';
 import type { MessageTuple, BrowserAgentCallbacks } from '@/lib/h2.5/browserAgentRunner';
 import { createHybridDelegatorHandle } from '@/lib/onboarding/hybridDelegator';
 import type { HybridDelegatorHandle } from '@/lib/onboarding/hybridDelegator';
-import { onProgress, offProgress } from '@pragma/core/h2/progress/emitter';
 
 /**
  * H2.5 Agent Hook
@@ -68,6 +67,7 @@ export function useH2_5Agent() {
   const completeTool = useH2ChatStore((state) => state.completeTool);
   const errorTool = useH2ChatStore((state) => state.errorTool);
   const setIsStreaming = useH2ChatStore((state) => state.setIsStreaming);
+  const completeAllRunningTools = useH2ChatStore((state) => state.completeAllRunningTools);
 
   /**
    * Format tool name to human-readable text
@@ -81,11 +81,61 @@ export function useH2_5Agent() {
   };
 
   /**
-   * Generate human-readable description from tool name
-   * Note: LangChain streamEvents doesn't provide input in on_tool_start
-   * Detailed values come through progress emitter as nested steps
+   * Generate human-readable description from tool name and signature
+   * Uses signature to provide specific details (e.g., "getSwapQuote:MON-DAK" → "Swap MON → DAK")
    */
-  const generateToolDescription = (toolName: string): string => {
+  const generateToolDescription = (toolName: string, signature?: string): string => {
+    // If we have a signature, use it to generate specific description
+    if (signature) {
+      // Strip toolName prefix if present (e.g., "getSwapQuote:MON-DAK" → "MON-DAK")
+      let payload = signature;
+      if (signature.includes(':')) {
+        payload = signature.split(':')[1];
+      }
+
+      switch (toolName) {
+        case 'getSwapQuote':
+        case 'executeSwap': {
+          // Payload format: "FROM-TO" (e.g., "MON-DAK")
+          const parts = payload.split('-');
+          if (parts.length === 2) {
+            const [from, to] = parts;
+            return toolName === 'getSwapQuote'
+              ? `Swap ${from} → ${to}`
+              : `Executing ${from} → ${to}`;
+          }
+          break;
+        }
+        case 'getBalance': {
+          // Payload is token symbol
+          return `Checking ${payload} balance`;
+        }
+        case 'transfer': {
+          // Payload format: "TOKEN-ADDR" (e.g., "USDC-0x1234...")
+          const parts = payload.split('-');
+          if (parts.length === 2) {
+            return `Transferring ${parts[0]}`;
+          }
+          break;
+        }
+        case 'stake':
+        case 'unstakeRequest': {
+          // Payload is amount
+          return toolName === 'stake'
+            ? `Staking ${payload} MON`
+            : `Unstaking ${payload} aprMON`;
+        }
+        case 'wrap':
+        case 'unwrap': {
+          // Payload is amount
+          return toolName === 'wrap'
+            ? `Wrapping ${payload} MON`
+            : `Unwrapping ${payload} WMON`;
+        }
+      }
+    }
+
+    // Fallback to generic descriptions
     switch (toolName) {
       // Swap operations
       case 'getSwapQuote':
@@ -209,44 +259,11 @@ export function useH2_5Agent() {
   }, [wallet, sessionData?.delegator]);
 
   /**
-   * Subscribe to global progress emitter
-   * Tools emit progress updates via emitProgress() - we listen and add as tree steps
-   */
-  useEffect(() => {
-    const progressHandler = (event: { message: string; toolName?: string }) => {
-      if (event.message) {
-        let runningToolName = event.toolName;
-
-        // Find currently running tool if not specified
-        // Most tools emit progress without toolName
-        if (!runningToolName) {
-          const activeTools = useH2ChatStore.getState().activeTools;
-          activeTools.forEach((tool, name) => {
-            if (tool.status === "running") {
-              runningToolName = name;
-            }
-          });
-        }
-
-        // Add as tree step if we have a running tool
-        if (runningToolName) {
-          addToolStep(runningToolName, event.message);
-        }
-      }
-    };
-
-    // Subscribe to progress events
-    onProgress(progressHandler);
-
-    // Cleanup on unmount
-    return () => {
-      offProgress(progressHandler);
-    };
-  }, [addToolStep]);
-
-  /**
    * Send message to agent
    * Runs agent in browser with direct wallet access
+   *
+   * Note: Progress events are handled via browserAgentRunner which subscribes
+   * to the global emitter and bridges to callbacks.onProgress
    */
   const sendMessage = useCallback(
     async (content: string) => {
@@ -389,42 +406,50 @@ export function useH2_5Agent() {
             tokenBufferRef.current += token;
           },
 
-          onProgress: (message, toolName) => {
+          onProgress: (message, toolName, signature) => {
             // Add progress as nested step in tool tree
+            // Use signature for matching in parallel execution
             if (message) {
-              let runningToolName = toolName;
+              let toolKey = signature || toolName;
 
               // Find currently running tool if not specified
-              if (!runningToolName) {
+              if (!toolKey) {
                 const activeTools = useH2ChatStore.getState().activeTools;
                 activeTools.forEach((tool, name) => {
                   if (tool.status === "running") {
-                    runningToolName = name;
+                    toolKey = name;
                   }
                 });
               }
 
-              if (runningToolName) {
-                addToolStep(runningToolName, message);
+              if (toolKey) {
+                const displayToolName = toolName || toolKey;
+                addToolStep(displayToolName, toolKey, message);
               }
             }
           },
 
-          onToolStart: (toolName) => {
-            const description = generateToolDescription(toolName);
-            startTool(toolName, description);
+          onToolStart: (toolName, _input, signature) => {
+            // Generate description using signature for specifics (e.g., "Swap MON → DAK")
+            const description = generateToolDescription(toolName, signature);
+            // Use signature as unique key for parallel tool matching
+            startTool(toolName, signature, description);
           },
 
-          onToolEnd: (toolName, output) => {
-            completeTool(toolName, output);
+          onToolEnd: (toolName, output, signature) => {
+            // Use signature to match the correct tool in parallel execution
+            const toolKey = signature || toolName;
+            completeTool(toolName, toolKey, output);
             hideProgress();
 
             // Set flag so next token gets automatic spacing if needed
             justCompletedToolRef.current = true;
           },
 
-          onToolError: (toolName, error) => {
-            errorTool(toolName, error);
+          onToolError: (toolName, error, signature) => {
+            // Use signature to match the correct tool in parallel execution
+            const toolKey = signature || toolName;
+            errorTool(toolName, toolKey, error);
             hideProgress();
           },
 
@@ -432,6 +457,9 @@ export function useH2_5Agent() {
             // Stop flush interval and flush any remaining tokens
             clearInterval(flushInterval);
             flushTokenBuffer();
+
+            // Mark all running tools as completed to prevent cross-message pollution
+            completeAllRunningTools();
 
             setStreamingMessage(null);
             setIsStreaming(false);
@@ -509,6 +537,7 @@ export function useH2_5Agent() {
       completeTool,
       errorTool,
       setIsStreaming,
+      completeAllRunningTools,
     ]
   );
 

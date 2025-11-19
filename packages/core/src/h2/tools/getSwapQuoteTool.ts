@@ -133,13 +133,20 @@ export const getSwapQuoteTool = tool(
         maxSlippageBps: validatedSlippageBps,
       };
 
-      // Progress: Requesting quote
-      emitProgress(`Requesting quote from Monorail...`);
+      // Create signature from resolved token symbols for parallel tool identification
+      // Use toUpperCase for consistent matching with browserAgentRunner
+      // Prefix with toolName to prevent collisions with executeSwap
+      const fromSymbol = (resolvedFromToken.symbol || fromToken).toUpperCase();
+      const toSymbol = (resolvedToToken.symbol || toToken).toUpperCase();
+      const signature = `getSwapQuote:${fromSymbol}-${toSymbol}`;
+
+      // Progress: Requesting quote (with signature for parallel tool routing)
+      emitProgress(`Requesting quote from Monorail...`, "getSwapQuote", signature);
 
       // Fetch quote from Monorail with net swap amount
       const monorailConfig = getMonorailConfig();
 
-      emitProgress(`Comparing routes across DEXs...`);
+      emitProgress(`Comparing routes across DEXs...`, "getSwapQuote", signature);
       const monorailQuote = await fetchMonorailQuote(quoteParams, monorailConfig);
 
       // Final output (no fee deduction from output - fee is charged separately on input)

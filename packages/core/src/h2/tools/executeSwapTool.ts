@@ -70,6 +70,9 @@ export const executeSwapTool = tool(
       // Retrieve quote to show details
       const quote = getSwapQuote(quoteId);
 
+      // Create signature from quote for parallel tool identification
+      const signature = `${quote.fromTokenSymbol}-${quote.toTokenSymbol}`;
+
       // Execute swap
       const result = await executeSwap({
         quoteId,
@@ -83,6 +86,7 @@ export const executeSwapTool = tool(
         smartAccount,
         bundlerClient,
         sessionWallet, // Pass shared wallet to prevent nonce collisions in parallel execution
+        signature, // Pass signature for parallel tool progress routing
       });
 
       // Format receipt

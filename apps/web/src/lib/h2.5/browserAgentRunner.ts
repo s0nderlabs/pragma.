@@ -21,6 +21,7 @@
 
 import type { BaseMessage } from "@langchain/core/messages";
 import { PRAGMA_H2_SYSTEM_PROMPT } from "@pragma/core";
+import { onProgress, offProgress, type ProgressEvent } from "@pragma/core/h2/progress/emitter";
 
 /**
  * Message tuple format used by LangChain
@@ -44,26 +45,30 @@ export interface BrowserAgentCallbacks {
   /**
    * Progress update callback
    * Called when agent provides status updates
+   * @param signature - Unique identifier for parallel tool matching (e.g., "MON-DAK")
    */
-  onProgress?: (message: string, toolName?: string) => void;
+  onProgress?: (message: string, toolName?: string, signature?: string) => void;
 
   /**
    * Tool execution started
    * Called when agent begins executing a tool
+   * @param signature - Unique identifier generated from tool input (e.g., "MON-DAK" for swaps)
    */
-  onToolStart?: (toolName: string, input: unknown) => void;
+  onToolStart?: (toolName: string, input: unknown, signature?: string) => void;
 
   /**
    * Tool execution completed
    * Called when tool finishes successfully
+   * @param signature - Unique identifier for matching tool start
    */
-  onToolEnd?: (toolName: string, output: string) => void;
+  onToolEnd?: (toolName: string, output: string, signature?: string) => void;
 
   /**
    * Tool execution error
    * Called when tool execution fails
+   * @param signature - Unique identifier for matching tool start
    */
-  onToolError?: (toolName: string, error: string) => void;
+  onToolError?: (toolName: string, error: string, signature?: string) => void;
 
   /**
    * Agent execution completed
@@ -279,10 +284,121 @@ export async function streamBrowserAgent(
   context: BrowserAgentContext,
   callbacks: BrowserAgentCallbacks = {}
 ): Promise<string> {
+  // Progress handler - declared here for catch block access
+  let progressHandler: ((event: ProgressEvent) => void) | undefined;
+
   try {
     console.log("[BrowserAgent] Starting streaming execution...");
 
     let currentResponse = "";
+
+    // Track signatures by run_id for matching tool_end/error to tool_start
+    const signatureMap = new Map<string, string>();
+
+    /**
+     * Generate signature from tool input based on tool type
+     * This creates a unique identifier for parallel tool execution
+     */
+    const generateSignatureFromInput = (toolName: string, input: unknown): string | undefined => {
+      if (!input) return undefined;
+
+      // Handle string input (LangChain may pass JSON string)
+      let inputObj: Record<string, unknown>;
+      if (typeof input === 'string') {
+        try {
+          inputObj = JSON.parse(input);
+        } catch {
+          return undefined;
+        }
+      } else if (typeof input === 'object') {
+        inputObj = input as Record<string, unknown>;
+      } else {
+        return undefined;
+      }
+
+      // Handle nested input structure from LangChain
+      // Input may be wrapped as { input: '{"fromToken":"MON",...}' }
+      if (inputObj.input && typeof inputObj.input === 'string') {
+        try {
+          inputObj = JSON.parse(inputObj.input);
+        } catch {
+          // Keep original if parsing fails
+        }
+      }
+
+      // All signatures are prefixed with toolName to prevent collisions
+      // between different tool types (e.g., getSwapQuote vs executeSwap)
+      switch (toolName) {
+        case 'getSwapQuote':
+          // For quotes: use toolName:fromToken-toToken
+          if (inputObj.fromToken && inputObj.toToken) {
+            const from = String(inputObj.fromToken).toUpperCase();
+            const to = String(inputObj.toToken).toUpperCase();
+            return `${toolName}:${from}-${to}`;
+          }
+          break;
+
+        case 'executeSwap':
+          // For execution: use toolName:fromToken-toToken from quote data
+          // The quoteId doesn't contain token info, so we need to extract from other fields
+          if (inputObj.fromToken && inputObj.toToken) {
+            const from = String(inputObj.fromToken).toUpperCase();
+            const to = String(inputObj.toToken).toUpperCase();
+            return `${toolName}:${from}-${to}`;
+          }
+          // Fallback: if only quoteId available, use it with prefix
+          if (inputObj.quoteId) {
+            return `${toolName}:${inputObj.quoteId}`;
+          }
+          break;
+
+        case 'getBalance':
+          // For balance checks: use toolName:token
+          if (inputObj.token) {
+            return `${toolName}:${String(inputObj.token).toUpperCase()}`;
+          }
+          break;
+
+        case 'transfer':
+          // For transfers: use toolName:token-recipient
+          if (inputObj.token && inputObj.to) {
+            const token = String(inputObj.token).toUpperCase();
+            const to = String(inputObj.to).slice(0, 8);
+            return `${toolName}:${token}-${to}`;
+          }
+          break;
+
+        case 'stake':
+        case 'unstakeRequest':
+        case 'unstakeClaim':
+          // For staking: use toolName:amount
+          if (inputObj.amount) {
+            return `${toolName}:${inputObj.amount}`;
+          }
+          break;
+
+        case 'wrap':
+        case 'unwrap':
+          // For wrap/unwrap: use toolName:amount
+          if (inputObj.amount) {
+            return `${toolName}:${inputObj.amount}`;
+          }
+          break;
+
+        // Tools that use toolName as signature (no parallel batching needed)
+        case 'checkSessionKeyBalance':
+        case 'fundSessionKey':
+        case 'getSessionKeyBalance':
+        case 'getAllBalances':
+        case 'getAccountInfo':
+        case 'listVerifiedTokens':
+        case 'withdrawSessionKeyBalance':
+          return toolName;
+      }
+
+      // Fallback: use toolName for any unmapped tools
+      return toolName;
+    };
 
     // Build execution mode instructions (same as H2 CLI)
     const modeInstructions = context.quickMode
@@ -392,6 +508,13 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
       }
     );
 
+    // Subscribe to global progress events from tools
+    // Tools call emitProgress() which we bridge to callbacks.onProgress
+    progressHandler = (event: ProgressEvent) => {
+      callbacks.onProgress?.(event.message, event.toolName, event.signature);
+    };
+    onProgress(progressHandler);
+
     // Process events
     for await (const event of stream) {
       if (event.event === "on_chat_model_stream") {
@@ -420,25 +543,66 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
         }
       } else if (event.event === "on_tool_start") {
         // Tool execution started
-        // Note: LangChain streamEvents doesn't provide input in on_tool_start
-        callbacks.onToolStart?.(event.name, event.data?.input);
+        const input = event.data?.input;
+
+        // DEBUG: Log input structure to identify parsing issues
+        console.log("[BrowserAgent] on_tool_start:", {
+          name: event.name,
+          inputType: typeof input,
+          input: input,
+          hasFromToken: input && typeof input === 'object' && 'fromToken' in input,
+        });
+
+        // Generate signature (always returns a value - toolName fallback)
+        const signature = generateSignatureFromInput(event.name, input) || event.name;
+
+        // Store signature by run_id for matching tool_end/error
+        if (event.run_id) {
+          signatureMap.set(event.run_id, signature);
+        }
+
+        callbacks.onToolStart?.(event.name, input, signature);
       } else if (event.event === "on_tool_end") {
         // Tool execution completed
-        callbacks.onToolEnd?.(event.name, event.data?.output);
+        // Retrieve signature from map using run_id
+        const signature = event.run_id ? signatureMap.get(event.run_id) : undefined;
+
+        callbacks.onToolEnd?.(event.name, event.data?.output, signature);
+
+        // Cleanup
+        if (event.run_id) {
+          signatureMap.delete(event.run_id);
+        }
       } else if (event.event === "on_tool_error") {
         // Tool execution failed
+        // Retrieve signature from map using run_id
+        const signature = event.run_id ? signatureMap.get(event.run_id) : undefined;
+
         callbacks.onToolError?.(
           event.name,
-          event.data?.error?.message || "Unknown error"
+          event.data?.error?.message || "Unknown error",
+          signature
         );
+
+        // Cleanup
+        if (event.run_id) {
+          signatureMap.delete(event.run_id);
+        }
       }
     }
+
+    // Cleanup progress subscription
+    offProgress(progressHandler);
 
     console.log("[BrowserAgent] Streaming complete");
     callbacks.onComplete?.();
 
     return currentResponse;
   } catch (error) {
+    // Cleanup progress subscription on error
+    if (progressHandler) {
+      offProgress(progressHandler);
+    }
     console.error("[BrowserAgent] Streaming failed:", error);
     callbacks.onError?.(
       error instanceof Error ? error : new Error(String(error))

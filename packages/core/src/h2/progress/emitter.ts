@@ -24,6 +24,7 @@ export interface ProgressEvent {
   timestamp: number;
   toolName?: string;
   signature?: string; // Unique identifier for parallel tool matching (e.g., "MON-DAK")
+  description?: string; // Resolved human-readable description for parent tool
 }
 
 // ============================================================================
@@ -51,13 +52,14 @@ class ProgressEmitter extends EventEmitter {
   /**
    * Emit a progress update
    */
-  emitProgress(message: string, toolName?: string, signature?: string): void {
+  emitProgress(message: string, toolName?: string, signature?: string, description?: string): void {
     console.log(`[Emitter:${this.__instanceId}] Emit:`, signature || toolName || message.slice(0, 30));
     const event: ProgressEvent = {
       message,
       timestamp: Date.now(),
       toolName,
       signature,
+      description,
     };
     this.emit("progress", event);
   }
@@ -114,17 +116,20 @@ export const getProgressEmitter = (): ProgressEmitter => {
  * @param message - Human-readable progress message with contextual data
  * @param toolName - Optional tool name (auto-detected if possible)
  * @param signature - Optional unique identifier for parallel tool matching (e.g., "MON-DAK")
+ * @param description - Optional resolved description to update parent tool display
  *
  * @example
  * ```typescript
  * emitProgress(`Swapping 2.0 USDC → MON via Monorail...`);
  * emitProgress(`Building delegation with 5% slippage protection...`);
  * emitProgress(`Executing swap...`, 'executeSwap', 'MON-USDC');
+ * // First progress with description to update parent:
+ * emitProgress(`Requesting quote...`, 'getSwapQuote', 'MON-USDC', 'Swap 1.0 MON → USDC');
  * ```
  */
-export const emitProgress = (message: string, toolName?: string, signature?: string): void => {
+export const emitProgress = (message: string, toolName?: string, signature?: string, description?: string): void => {
   const emitter = getProgressEmitter();
-  emitter.emitProgress(message, toolName, signature);
+  emitter.emitProgress(message, toolName, signature, description);
 };
 
 /**

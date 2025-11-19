@@ -66,6 +66,7 @@ export function useH2_5Agent() {
   const addToolStep = useH2ChatStore((state) => state.addToolStep);
   const completeTool = useH2ChatStore((state) => state.completeTool);
   const errorTool = useH2ChatStore((state) => state.errorTool);
+  const updateToolDescription = useH2ChatStore((state) => state.updateToolDescription);
   const setIsStreaming = useH2ChatStore((state) => state.setIsStreaming);
   const completeAllRunningTools = useH2ChatStore((state) => state.completeAllRunningTools);
 
@@ -406,7 +407,7 @@ export function useH2_5Agent() {
             tokenBufferRef.current += token;
           },
 
-          onProgress: (message, toolName, signature) => {
+          onProgress: (message, toolName, signature, description) => {
             // Add progress as nested step in tool tree
             // Use signature for matching in parallel execution
             if (message) {
@@ -425,6 +426,12 @@ export function useH2_5Agent() {
               if (toolKey) {
                 const displayToolName = toolName || toolKey;
                 addToolStep(displayToolName, toolKey, message);
+
+                // Update tool description if resolved description provided
+                // This happens when tool emits first progress with resolved symbols
+                if (description) {
+                  updateToolDescription(toolKey, description);
+                }
               }
             }
           },
@@ -536,6 +543,7 @@ export function useH2_5Agent() {
       addToolStep,
       completeTool,
       errorTool,
+      updateToolDescription,
       setIsStreaming,
       completeAllRunningTools,
     ]

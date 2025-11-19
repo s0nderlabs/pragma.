@@ -29,7 +29,7 @@ import { createErrorFromCode } from "../../errors/index.js";
 // ============================================================================
 
 export const executeSwapTool = tool(
-  async ({ quoteId }, config) => {
+  async ({ quoteId, fromToken, toToken, amountIn, amountOut }, config) => {
     try {
       // Get execution context from config
       const userAddress = config?.configurable?.userAddress;
@@ -70,8 +70,15 @@ export const executeSwapTool = tool(
       // Retrieve quote to show details
       const quote = getSwapQuote(quoteId);
 
-      // Create signature from quote for parallel tool identification
-      const signature = `${quote.fromTokenSymbol}-${quote.toTokenSymbol}`;
+      // Create signature for parallel tool identification
+      // Use input tokens if provided (for signature matching), fallback to quote
+      // This ensures signature matches browserAgentRunner which uses raw LLM input
+      const fromSymbol = (fromToken || quote.fromTokenSymbol).toUpperCase();
+      const toSymbol = (toToken || quote.toTokenSymbol).toUpperCase();
+      const signature = `executeSwap:${fromSymbol}-${toSymbol}`;
+
+      // Build resolved description for parent tool display (uses actual symbols from quote)
+      const resolvedDescription = `Execute ${quote.fromTokenSymbol} → ${quote.toTokenSymbol}`;
 
       // Execute swap
       const result = await executeSwap({
@@ -87,6 +94,7 @@ export const executeSwapTool = tool(
         bundlerClient,
         sessionWallet, // Pass shared wallet to prevent nonce collisions in parallel execution
         signature, // Pass signature for parallel tool progress routing
+        description: resolvedDescription, // Pass resolved description for parent display update
       });
 
       // Format receipt
@@ -149,7 +157,9 @@ Your ${quote.toTokenSymbol} balance has been updated.`;
 User: "swap 1 MON to USDC"
 AI: [calls getSwapQuote] → Shows "Quote abc123: 1 MON → 3.5 USDC. Execute?"
 User: "yes"
-AI: [calls executeSwap("abc123")] → IMMEDIATELY executes with same quote
+AI: [calls executeSwap({ quoteId: "abc123", fromToken: "MON", toToken: "USDC", amountIn: "1", amountOut: "3.5" })]
+
+**IMPORTANT:** Always pass fromToken, toToken, amountIn, and amountOut from the quote output for better progress tracking.
 
 **What NOT to Do:**
 ❌ After user says "yes", DO NOT call getSwapQuote again (wastes time, causes expiry)
@@ -176,6 +186,10 @@ Security:
 Returns: Conversational receipt with transaction details`,
     schema: z.object({
       quoteId: z.string().describe("Quote ID from getSwapQuote tool"),
+      fromToken: z.string().optional().describe("Source token symbol (e.g., 'MON') - pass this from the quote output for progress tracking"),
+      toToken: z.string().optional().describe("Destination token symbol (e.g., 'USDC') - pass this from the quote output for progress tracking"),
+      amountIn: z.string().optional().describe("Input amount (e.g., '1.5') - pass this from the quote output"),
+      amountOut: z.string().optional().describe("Expected output amount (e.g., '3.5') - pass this from the quote output"),
     }),
   }
 );

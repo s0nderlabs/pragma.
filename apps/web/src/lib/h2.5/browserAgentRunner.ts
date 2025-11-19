@@ -46,8 +46,9 @@ export interface BrowserAgentCallbacks {
    * Progress update callback
    * Called when agent provides status updates
    * @param signature - Unique identifier for parallel tool matching (e.g., "MON-DAK")
+   * @param description - Resolved human-readable description to update parent tool display
    */
-  onProgress?: (message: string, toolName?: string, signature?: string) => void;
+  onProgress?: (message: string, toolName?: string, signature?: string, description?: string) => void;
 
   /**
    * Tool execution started
@@ -511,7 +512,7 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
     // Subscribe to global progress events from tools
     // Tools call emitProgress() which we bridge to callbacks.onProgress
     progressHandler = (event: ProgressEvent) => {
-      callbacks.onProgress?.(event.message, event.toolName, event.signature);
+      callbacks.onProgress?.(event.message, event.toolName, event.signature, event.description);
     };
     onProgress(progressHandler);
 

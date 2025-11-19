@@ -156,6 +156,11 @@ export interface ExecuteSwapParams {
    * Used to route progress messages to the correct tool instance
    */
   signature?: string;
+  /**
+   * Resolved description for parent tool display (e.g., "Execute USDC → MON")
+   * Used to update parent tool description with human-readable text
+   */
+  description?: string;
 }
 
 /**
@@ -182,6 +187,7 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     smartAccount,
     bundlerClient,
     signature,
+    description,
   } = params;
 
   // Step 1: Retrieve and validate quote
@@ -241,7 +247,12 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
   // Use toUpperCase for consistent matching with browserAgentRunner
   // Prefix with executeSwap to prevent collisions with getSwapQuote
   const toolSignature = signature || `executeSwap:${quote.fromTokenSymbol.toUpperCase()}-${quote.toTokenSymbol.toUpperCase()}`;
-  emitProgress(`Swapping ${formatUnits(quote.amountWei, quote.fromTokenDecimals)} ${quote.fromTokenSymbol} → ${quote.toTokenSymbol}...`, "executeSwap", toolSignature);
+
+  // Build resolved description if not provided (uses actual token symbols from quote)
+  const resolvedDescription = description || `Execute ${quote.fromTokenSymbol} → ${quote.toTokenSymbol}`;
+
+  // First progress includes description to update parent tool display
+  emitProgress(`Swapping ${formatUnits(quote.amountWei, quote.fromTokenDecimals)} ${quote.fromTokenSymbol} → ${quote.toTokenSymbol}...`, "executeSwap", toolSignature, resolvedDescription);
 
   // Step 3: Get balance before swap (to calculate actual output later)
   const balanceBefore = isNativeToken(quote.toToken, MON_ADDRESS)

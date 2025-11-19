@@ -82,6 +82,7 @@ export interface H2ChatState {
   addToolStep: (toolName: string, signature: string, stepMessage: string) => void;
   completeTool: (toolName: string, signature: string, output?: unknown) => void;
   errorTool: (toolName: string, signature: string, error: string) => void;
+  updateToolDescription: (signature: string, description: string) => void;
   clearTools: () => void;
   completeAllRunningTools: () => void;
 
@@ -539,6 +540,46 @@ export const useH2ChatStore = create<H2ChatState>()(
                     ...toolMsg,
                     status: "error",
                     error,
+                  };
+                }
+              }
+              return msg;
+            }),
+          }));
+        },
+
+        updateToolDescription: (signature, description) => {
+          // Update tool description when resolved symbols are available
+          // This is called when a tool emits its first progress with resolved description
+          set((state) => ({
+            messages: state.messages.map((msg) => {
+              if (msg.role === "tool") {
+                const toolMsg = msg as ToolMessage;
+
+                // Check if this is a parent with children
+                if (toolMsg.isParent && toolMsg.children) {
+                  // Find and update matching child by signature
+                  const updatedChildren = toolMsg.children.map((child) => {
+                    if (child.signature === signature) {
+                      return {
+                        ...child,
+                        description, // Update with resolved description
+                      };
+                    }
+                    return child;
+                  });
+
+                  return {
+                    ...toolMsg,
+                    children: updatedChildren,
+                  };
+                }
+
+                // Check if this is a standalone tool matching by signature
+                if (toolMsg.signature === signature) {
+                  return {
+                    ...toolMsg,
+                    description, // Update with resolved description
                   };
                 }
               }

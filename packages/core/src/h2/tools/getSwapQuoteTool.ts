@@ -133,15 +133,16 @@ export const getSwapQuoteTool = tool(
         maxSlippageBps: validatedSlippageBps,
       };
 
-      // Create signature from resolved token symbols for parallel tool identification
-      // Use toUpperCase for consistent matching with browserAgentRunner
+      // Create signature from RAW input for matching with browserAgentRunner
+      // browserAgentRunner uses raw LLM input (may be addresses), so we must match exactly
       // Prefix with toolName to prevent collisions with executeSwap
-      const fromSymbol = (resolvedFromToken.symbol || fromToken).toUpperCase();
-      const toSymbol = (resolvedToToken.symbol || toToken).toUpperCase();
-      const signature = `getSwapQuote:${fromSymbol}-${toSymbol}`;
+      const signature = `getSwapQuote:${fromToken.toUpperCase()}-${toToken.toUpperCase()}`;
 
-      // Progress: Requesting quote (with signature for parallel tool routing)
-      emitProgress(`Requesting quote from Monorail...`, "getSwapQuote", signature);
+      // Build resolved description for parent tool display (uses actual symbols)
+      const resolvedDescription = `Swap ${amount} ${resolvedFromToken.symbol || fromToken} → ${resolvedToToken.symbol || toToken}`;
+
+      // Progress: Requesting quote (with signature for routing, description for parent display)
+      emitProgress(`Requesting quote from Monorail...`, "getSwapQuote", signature, resolvedDescription);
 
       // Fetch quote from Monorail with net swap amount
       const monorailConfig = getMonorailConfig();

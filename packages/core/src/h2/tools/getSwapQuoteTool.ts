@@ -138,8 +138,26 @@ export const getSwapQuoteTool = tool(
       // Prefix with toolName to prevent collisions with executeSwap
       const signature = `getSwapQuote:${fromToken.toUpperCase()}-${toToken.toUpperCase()}`;
 
-      // Build resolved description for parent tool display (uses actual symbols)
-      const resolvedDescription = `Swap ${amount} ${resolvedFromToken.symbol || fromToken} → ${resolvedToToken.symbol || toToken}`;
+      // Helper to get display symbol with proper fallbacks
+      const getDisplaySymbol = (token: { symbol?: string; address: string }, rawInput: string): string => {
+        // 1. Use resolved symbol if available
+        if (token.symbol) return token.symbol;
+
+        // 2. Check for native token address (0x000...0) - this is MON on Monad
+        const nativeAddress = "0x0000000000000000000000000000000000000000";
+        if (token.address.toLowerCase() === nativeAddress || rawInput.toLowerCase() === nativeAddress) {
+          return "MON";
+        }
+
+        // 3. Fallback to truncated address for unknown tokens
+        const addr = token.address || rawInput;
+        return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+      };
+
+      // Build resolved description for parent tool display (uses actual symbols with fallbacks)
+      const fromDisplaySymbol = getDisplaySymbol(resolvedFromToken, fromToken);
+      const toDisplaySymbol = getDisplaySymbol(resolvedToToken, toToken);
+      const resolvedDescription = `Swap ${amount} ${fromDisplaySymbol} → ${toDisplaySymbol}`;
 
       // Progress: Requesting quote (with signature for routing, description for parent display)
       emitProgress(`Requesting quote from Monorail...`, "getSwapQuote", signature, resolvedDescription);
@@ -167,8 +185,8 @@ export const getSwapQuoteTool = tool(
         quoteId,
         fromToken: fromTokenAddress,
         toToken: toTokenAddress,
-        fromTokenSymbol: resolvedFromToken.symbol || fromToken,
-        toTokenSymbol: resolvedToToken.symbol || toToken,
+        fromTokenSymbol: fromDisplaySymbol,
+        toTokenSymbol: toDisplaySymbol,
         fromTokenDecimals,
         toTokenDecimals,
         amount,

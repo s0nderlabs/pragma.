@@ -55,7 +55,8 @@ export interface H2ChatState {
   // Progress
   progress: ProgressState;
   activeTools: Map<string, ToolExecutionState>;
-  pendingSteps: Map<string, { toolName: string; message: string }[]>;
+  pendingSteps: Map<string, { toolName: string; message: string; description?: string }[]>;
+  pendingSignatures: Map<string, string[]>; // toolName → signatures waiting for tool_start
 
   // Connection
   connectionState: SSEConnectionState;
@@ -79,7 +80,7 @@ export interface H2ChatState {
 
   // Tool actions
   startTool: (toolName: string, signature?: string, description?: string) => void;
-  addToolStep: (toolName: string, signature: string, stepMessage: string) => void;
+  addToolStep: (toolName: string, signature: string, stepMessage: string, description?: string) => void;
   completeTool: (toolName: string, signature: string, output?: unknown) => void;
   errorTool: (toolName: string, signature: string, error: string) => void;
   updateToolDescription: (signature: string, description: string) => void;
@@ -116,6 +117,7 @@ export const useH2ChatStore = create<H2ChatState>()(
         },
         activeTools: new Map(),
         pendingSteps: new Map(),
+        pendingSignatures: new Map(),
 
         connectionState: "disconnected",
         isStreaming: false,
@@ -202,9 +204,21 @@ export const useH2ChatStore = create<H2ChatState>()(
           // Use single functional update to ensure each call sees accumulated state
           // This prevents race conditions when multiple tools start in rapid succession
           set((state) => {
+            // If no signature provided, look up from pending signatures
+            // This handles the case where progress events arrive before tool_start
+            const pendingSignatures = new Map(state.pendingSignatures);
+            let resolvedSignature = signature;
+            if (!signature) {
+              const pendingSigs = pendingSignatures.get(toolName);
+              if (pendingSigs && pendingSigs.length > 0) {
+                resolvedSignature = pendingSigs.shift(); // Take first pending signature
+                pendingSignatures.set(toolName, pendingSigs);
+              }
+            }
+
             // Track in activeTools using signature as key for uniqueness
             const activeTools = new Map(state.activeTools);
-            const toolKey = signature || toolName;
+            const toolKey = resolvedSignature || toolName;
             activeTools.set(toolKey, {
               toolName,
               status: "running",
@@ -228,7 +242,7 @@ export const useH2ChatStore = create<H2ChatState>()(
 
             // Check for pending steps that arrived before this tool started
             const pendingSteps = new Map(state.pendingSteps);
-            const pending = signature ? pendingSteps.get(signature) : undefined;
+            const pending = resolvedSignature ? pendingSteps.get(resolvedSignature) : undefined;
             const initialSteps: ToolStep[] = pending
               ? pending.map((p, idx) => ({
                   id: `step-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 9)}`,
@@ -237,20 +251,24 @@ export const useH2ChatStore = create<H2ChatState>()(
                 }))
               : [];
 
+            // Apply pending description if available (from first buffered progress event)
+            const pendingDescription = pending?.find((p) => p.description)?.description;
+            const finalDescription = pendingDescription || description;
+
             // Clear pending steps for this signature
-            if (signature && pending) {
-              pendingSteps.delete(signature);
+            if (resolvedSignature && pending) {
+              pendingSteps.delete(resolvedSignature);
             }
 
             const toolMessage: ToolMessage = {
               id,
               role: "tool",
               toolName,
-              description,
+              description: finalDescription,
               status: "running",
               steps: initialSteps,
               timestamp: Date.now(),
-              signature, // Add signature for matching
+              signature: resolvedSignature, // Add signature for matching
             };
 
             // FIRST: Check for existing running parent for this toolName
@@ -281,6 +299,7 @@ export const useH2ChatStore = create<H2ChatState>()(
                 activeTools,
                 streamingMessageId,
                 pendingSteps,
+                pendingSignatures,
               };
             }
 
@@ -316,6 +335,7 @@ export const useH2ChatStore = create<H2ChatState>()(
                 activeTools,
                 streamingMessageId,
                 pendingSteps,
+                pendingSignatures,
               };
             }
 
@@ -325,11 +345,12 @@ export const useH2ChatStore = create<H2ChatState>()(
               activeTools,
               streamingMessageId,
               pendingSteps,
+              pendingSignatures,
             };
           });
         },
 
-        addToolStep: (toolName, signature, stepMessage) => {
+        addToolStep: (toolName, signature, stepMessage, description) => {
           set((state) => {
             let foundTool = false;
 
@@ -404,8 +425,17 @@ export const useH2ChatStore = create<H2ChatState>()(
             if (!foundTool) {
               const pendingSteps = new Map(state.pendingSteps);
               const existing = pendingSteps.get(signature) || [];
-              pendingSteps.set(signature, [...existing, { toolName, message: stepMessage }]);
-              return { messages, pendingSteps };
+              pendingSteps.set(signature, [...existing, { toolName, message: stepMessage, description }]);
+
+              // Also track this signature for the toolName so startTool can find it
+              const pendingSignatures = new Map(state.pendingSignatures);
+              const existingSigs = pendingSignatures.get(toolName) || [];
+              // Only add if not already tracked (avoid duplicates from multiple progress events)
+              if (!existingSigs.includes(signature)) {
+                pendingSignatures.set(toolName, [...existingSigs, signature]);
+              }
+
+              return { messages, pendingSteps, pendingSignatures };
             }
 
             return { messages };

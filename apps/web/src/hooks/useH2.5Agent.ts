@@ -425,10 +425,11 @@ export function useH2_5Agent() {
 
               if (toolKey) {
                 const displayToolName = toolName || toolKey;
-                addToolStep(displayToolName, toolKey, message);
+                // Pass description to addToolStep so it gets buffered if tool not started yet
+                addToolStep(displayToolName, toolKey, message, description);
 
-                // Update tool description if resolved description provided
-                // This happens when tool emits first progress with resolved symbols
+                // Also try to update tool description directly (for tools already started)
+                // This handles the case where tool starts before progress arrives
                 if (description) {
                   updateToolDescription(toolKey, description);
                 }

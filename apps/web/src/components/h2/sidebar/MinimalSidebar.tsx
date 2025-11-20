@@ -1,16 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useSidebarStore } from '@/stores/useSidebarStore'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
+import { useThemeStore } from '@/stores/useThemeStore'
 import { useWalletBalance } from '@/hooks/useWalletBalance'
+import { useNotificationStore } from '@/stores/useNotificationStore'
 import { WalletCard } from './WalletCard'
 import { SpaceNavigation } from './SpaceNavigation'
 import { ActivityTab } from './tabs/ActivityTab'
 import { SessionsTab } from './tabs/SessionsTab'
 import { SettingsTab } from './tabs/SettingsTab'
+import { CopyNotification } from '../notifications/CopyNotification'
 
 interface MinimalSidebarProps {
   status: string
@@ -31,10 +35,21 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
   const { isOpen, toggle } = useSidebarStore()
   const sessionData = useH2ChatStore((state) => state.sessionData)
   const setBalanceRefreshCallback = useH2ChatStore((state) => state.setBalanceRefreshCallback)
+  const toggleQuickMode = useH2ChatStore((state) => state.toggleQuickMode)
+  const { resolvedTheme, setTheme } = useTheme()
+  const { setTheme: setZustandTheme } = useThemeStore()
   const { monBalance, usdValue, change24h, isLoading, refresh } = useWalletBalance()
+  const { showCopy, showCopyNotification } = useNotificationStore()
   const [activeTab, setActiveTab] = useState<'activity' | 'sessions' | 'settings'>('activity')
   const [openMethod, setOpenMethod] = useState<'hover' | 'keyboard' | null>(null)
   const [isHovering, setIsHovering] = useState(false)
+
+  // Theme toggle handler (memoized to prevent glitches)
+  const handleThemeToggle = useCallback(() => {
+    const newTheme = resolvedTheme === 'dark' ? 'light' : 'dark'
+    setTheme(newTheme)
+    setZustandTheme(newTheme === 'dark' ? 'pragma-dark' : 'pragma-light')
+  }, [resolvedTheme, setTheme, setZustandTheme])
 
   // Invert isOpen to get isCollapsed for clearer logic
   const isCollapsed = !isOpen
@@ -73,19 +88,57 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Keyboard shortcut for collapse
+  // Keyboard shortcuts (direct event listener - uses event.code for macOS compatibility)
   useEffect(() => {
-    const handleKeydown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === '\\') {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Alt + \ - Toggle sidebar
+      if (e.code === 'Backslash' && e.altKey) {
         e.preventDefault()
         setIsCollapsed(!isCollapsed, 'keyboard')
       }
+      // Alt + , - Settings
+      else if (e.code === 'Comma' && e.altKey) {
+        e.preventDefault()
+        setActiveTab('settings')
+      }
+      // Alt + a - Activity
+      else if (e.code === 'KeyA' && e.altKey) {
+        e.preventDefault()
+        setActiveTab('activity')
+      }
+      // Alt + s - Sessions
+      else if (e.code === 'KeyS' && e.altKey) {
+        e.preventDefault()
+        setActiveTab('sessions')
+      }
+      // Alt + m - Quick Mode
+      else if (e.code === 'KeyM' && e.altKey) {
+        e.preventDefault()
+        toggleQuickMode()
+      }
+      // Alt + t - Theme
+      else if (e.code === 'KeyT' && e.altKey) {
+        e.preventDefault()
+        handleThemeToggle()
+      }
+      // Alt + / - Focus chat input
+      else if (e.code === 'Slash' && e.altKey) {
+        e.preventDefault()
+        const chatInput = document.querySelector('textarea[placeholder*="Ask anything"]') as HTMLTextAreaElement
+        chatInput?.focus()
+      }
+      // Alt + c - Copy wallet address
+      else if (e.code === 'KeyC' && e.altKey) {
+        e.preventDefault()
+        const address = sessionData?.delegator || wallet?.address || '0x0000000000000000000000000000000000000000'
+        navigator.clipboard.writeText(address)
+        showCopyNotification()
+      }
     }
 
-    window.addEventListener('keydown', handleKeydown)
-    return () => window.removeEventListener('keydown', handleKeydown)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCollapsed])
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isCollapsed, handleThemeToggle, toggleQuickMode, sessionData, wallet])
 
   // Arc-style edge hover detection
   useEffect(() => {
@@ -233,7 +286,8 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
         )}
       </AnimatePresence>
 
-
+      {/* Copy notification toast */}
+      <CopyNotification show={showCopy} />
     </>
   )
 }

@@ -41,9 +41,10 @@ export function ChatInput() {
     // Clear input immediately for better UX
     setInput('')
 
-    // Reset textarea height
+    // Reset textarea height and restore focus for continuous typing
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
+      textareaRef.current.focus()
     }
 
     // Send message to H2 agent
@@ -97,7 +98,7 @@ export function ChatInput() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={tokensLoading ? "Loading tokens..." : "Ask anything about Monad..."}
-            disabled={isStreaming || tokensLoading}
+            disabled={tokensLoading}
             rows={1}
             className="flex-1 bg-transparent resize-none outline-none text-sm lg:text-base min-h-[24px] max-h-[200px] placeholder:opacity-50 disabled:opacity-50"
             style={{ overflow: 'hidden' }}

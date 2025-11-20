@@ -214,15 +214,6 @@ export function SettingsTab({ status, wallet, connect, disconnect }: SettingsTab
           </button>
         </div>
       </motion.div>
-
-      {/* Footer */}
-      <div className={cn(
-        "pt-6 text-center",
-        "text-xs",
-        "text-white/30"
-      )}>
-        Pragma H2.5
-      </div>
     </div>
   )
 }

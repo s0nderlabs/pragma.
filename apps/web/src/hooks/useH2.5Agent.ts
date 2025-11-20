@@ -452,6 +452,21 @@ export function useH2_5Agent() {
 
             // Set flag so next token gets automatic spacing if needed
             justCompletedToolRef.current = true;
+
+            // Trigger immediate balance refresh for transaction-based tools
+            const transactionTools = [
+              'executeSwap',
+              'executeTransfer',
+              'executeWrap',
+              'executeUnwrap',
+              'stake',
+              'unstakeRequest',
+              'unstakeClaim',
+            ];
+            if (transactionTools.includes(toolName)) {
+              // Trigger balance refresh immediately after transaction completes
+              useH2ChatStore.getState().triggerBalanceRefresh();
+            }
           },
 
           onToolError: (toolName, error, signature) => {

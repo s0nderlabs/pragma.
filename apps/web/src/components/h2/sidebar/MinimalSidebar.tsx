@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useSidebarStore } from '@/stores/useSidebarStore'
+import { useH2ChatStore } from '@/stores/useH2ChatStore'
+import { useWalletBalance } from '@/hooks/useWalletBalance'
 import { WalletCard } from './WalletCard'
 import { SpaceNavigation } from './SpaceNavigation'
 import { ActivityTab } from './tabs/ActivityTab'
@@ -27,6 +29,9 @@ interface MinimalSidebarProps {
  */
 export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalSidebarProps) {
   const { isOpen, toggle } = useSidebarStore()
+  const sessionData = useH2ChatStore((state) => state.sessionData)
+  const setBalanceRefreshCallback = useH2ChatStore((state) => state.setBalanceRefreshCallback)
+  const { monBalance, usdValue, change24h, isLoading, refresh } = useWalletBalance()
   const [activeTab, setActiveTab] = useState<'activity' | 'sessions' | 'settings'>('activity')
   const [openMethod, setOpenMethod] = useState<'hover' | 'keyboard' | null>(null)
   const [isHovering, setIsHovering] = useState(false)
@@ -45,6 +50,14 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Register balance refresh callback for immediate updates after transactions
+  useEffect(() => {
+    setBalanceRefreshCallback(refresh)
+    return () => {
+      setBalanceRefreshCallback(null)
+    }
+  }, [refresh, setBalanceRefreshCallback])
 
   // Auto-collapse on smaller screens
   useEffect(() => {
@@ -98,11 +111,12 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
     }
   }
 
-  // Use real wallet data from useIdentity hook
+  // Use real wallet data from Monorail API
   const walletData = {
-    balance: 2847.32, // TODO: Fetch real balance from blockchain
-    change24h: 5.2, // TODO: Calculate from historical data
-    address: wallet?.address || '0x0000000000000000000000000000000000000000'
+    balance: isLoading ? 0 : usdValue,
+    change24h: isLoading ? 0 : change24h,
+    address: sessionData?.delegator || wallet?.address || '0x0000000000000000000000000000000000000000',
+    monBalance: isLoading ? '0' : monBalance,
   }
 
   return (
@@ -156,6 +170,7 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
                   balance={walletData.balance}
                   change24h={walletData.change24h}
                   address={walletData.address}
+                  monBalance={walletData.monBalance}
                 />
               </div>
 

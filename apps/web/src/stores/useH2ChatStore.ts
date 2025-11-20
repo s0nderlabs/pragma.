@@ -68,6 +68,9 @@ export interface H2ChatState {
   allowedTokens: AllowedToken[];
   tokensLoading: boolean;
 
+  // Balance refresh
+  balanceRefreshCallback: (() => void) | null;
+
   // Actions
   addMessage: (message: Omit<ChatMessage, "id" | "timestamp">) => void;
   updateMessageContent: (id: string, content: string) => void;
@@ -97,6 +100,10 @@ export interface H2ChatState {
   setSessionData: (data: H2SessionState | null) => void;
   setAllowedTokens: (tokens: AllowedToken[]) => void;
   setTokensLoading: (loading: boolean) => void;
+
+  // Balance refresh actions
+  setBalanceRefreshCallback: (callback: (() => void) | null) => void;
+  triggerBalanceRefresh: () => void;
 }
 
 // ============================================================================
@@ -126,6 +133,8 @@ export const useH2ChatStore = create<H2ChatState>()(
         sessionData: null,
         allowedTokens: [],
         tokensLoading: false,
+
+        balanceRefreshCallback: null,
 
         // Message actions
         addMessage: (message) => {
@@ -694,6 +703,18 @@ export const useH2ChatStore = create<H2ChatState>()(
 
         setTokensLoading: (loading) => {
           set({ tokensLoading: loading });
+        },
+
+        // Balance refresh actions
+        setBalanceRefreshCallback: (callback) => {
+          set({ balanceRefreshCallback: callback });
+        },
+
+        triggerBalanceRefresh: () => {
+          const { balanceRefreshCallback } = get();
+          if (balanceRefreshCallback) {
+            balanceRefreshCallback();
+          }
         },
       }),
       {

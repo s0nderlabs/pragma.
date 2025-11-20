@@ -1,14 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Copy, Eye, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
+import { OdometerNumber } from '../ui/OdometerNumber'
 
 interface WalletCardProps {
   balance: number
   change24h: number
   address: string
+  monBalance: string
 }
 
 /**
@@ -18,9 +20,27 @@ interface WalletCardProps {
  * Always visible, never scrolls away
  * Clean, minimal design with perfect typography hierarchy
  */
-export function WalletCard({ balance, change24h, address }: WalletCardProps) {
+export function WalletCard({ balance, change24h, address, monBalance }: WalletCardProps) {
   const [balanceVisible, setBalanceVisible] = useState(true)
   const [copied, setCopied] = useState(false)
+
+  // Memoized format functions to prevent unnecessary re-renders in OdometerNumber
+  const formatUSD = useCallback((value: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value)
+  }, [])
+
+  const formatPercentage = useCallback((value: number) => {
+    return value.toFixed(1)
+  }, [])
+
+  const formatMON = useCallback((value: number) => {
+    return value.toFixed(1)
+  }, [])
 
   const formatAddress = (addr: string) => {
     // Handle zero address or invalid address
@@ -90,9 +110,18 @@ export function WalletCard({ balance, change24h, address }: WalletCardProps) {
       {/* Balance Display */}
       <div className="space-y-1">
         <div className="flex items-baseline justify-between">
-          <h2 className="text-3xl font-semibold tabular-nums text-white">
-            {balanceVisible ? formatBalance(balance) : '••••••'}
-          </h2>
+          {balanceVisible ? (
+            <OdometerNumber
+              value={balance}
+              format={formatUSD}
+              className="text-3xl font-semibold text-white"
+              duration={0.5}
+            />
+          ) : (
+            <h2 className="text-3xl font-semibold tabular-nums text-white">
+              ••••••
+            </h2>
+          )}
           <button
             onClick={() => setBalanceVisible(!balanceVisible)}
             className={cn(
@@ -123,7 +152,13 @@ export function WalletCard({ balance, change24h, address }: WalletCardProps) {
               "text-sm font-medium",
               change24h >= 0 ? "text-green-500" : "text-red-500"
             )}>
-              {change24h >= 0 ? '+' : ''}{change24h}%
+              {change24h >= 0 ? '+' : '-'}
+              <OdometerNumber
+                value={Math.abs(change24h)}
+                format={formatPercentage}
+                duration={0.4}
+              />
+              %
             </span>
             <span className="text-xs text-white/40">
               24h
@@ -139,7 +174,12 @@ export function WalletCard({ balance, change24h, address }: WalletCardProps) {
             MON Balance
           </div>
           <div className="text-lg font-mono font-semibold text-white">
-            124.5 MON
+            <OdometerNumber
+              value={parseFloat(monBalance) || 0}
+              format={formatMON}
+              duration={0.5}
+            />
+            {' '}MON
           </div>
         </div>
       </div>

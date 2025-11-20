@@ -43,7 +43,7 @@ export default function H25Page() {
 
   return (
     <AgentProvider hook={useH2_5Agent}>
-      <div className="min-h-screen terminal-grid-pattern bg-background">
+      <div className="min-h-screen bg-background">
         <H2Layout />
       </div>
     </AgentProvider>

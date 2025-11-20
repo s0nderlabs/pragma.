@@ -1,7 +1,5 @@
 'use client'
 
-import { motion } from 'framer-motion'
-
 interface ToggleProps {
   enabled: boolean
   onChange: (enabled: boolean) => void
@@ -10,10 +8,13 @@ interface ToggleProps {
 }
 
 /**
- * Toggle Component
+ * Toggle Component - H2.5 Radical Redesign
  *
- * iOS-style toggle switch with glass morphism design.
- * Purple accent (#836EF9) when active.
+ * Option 4: Dot Indicator (SpaceNavigation Pattern)
+ * - Dot that morphs width when active (8px → 32px)
+ * - Matches SpaceNavigation.tsx dot animation exactly
+ * - Ultra-minimal, very Dieter Rams
+ * - Text label for clarity
  */
 export function Toggle({ enabled, onChange, label, disabled = false }: ToggleProps) {
   return (
@@ -25,29 +26,33 @@ export function Toggle({ enabled, onChange, label, disabled = false }: TogglePro
       disabled={disabled}
       onClick={() => !disabled && onChange(!enabled)}
       className={`
-        relative inline-flex h-6 w-11 items-center rounded-full
-        transition-all duration-300 ease-out
+        inline-flex items-center gap-2
+        transition-all duration-200 ease-out
+        focus-visible:outline-none focus-visible:ring-2
+        focus-visible:ring-accent focus-visible:ring-offset-2
+        focus-visible:ring-offset-background
         ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-        ${enabled
-          ? 'bg-[#836EF9]/80 shadow-[0_0_20px_rgba(131,110,249,0.3)]'
-          : 'bg-white/10 backdrop-blur-sm'
-        }
       `}
     >
-      <motion.span
-        layout
-        transition={{
-          type: 'spring',
-          stiffness: 500,
-          damping: 30,
-        }}
+      {/* Morphing dot indicator */}
+      <div
         className={`
-          inline-block h-4 w-4 rounded-full
-          bg-white shadow-lg
-          ${enabled ? 'translate-x-6' : 'translate-x-1'}
-          transition-transform duration-300 ease-out
+          h-2 rounded-full
+          transition-all duration-300 ease-out
+          ${enabled
+            ? 'w-8 bg-accent'
+            : 'w-2 bg-white/20 hover:bg-white/30'
+          }
         `}
       />
+
+      {/* Text label */}
+      <span className={`
+        text-xs font-medium transition-colors duration-200
+        ${enabled ? 'text-white' : 'text-white/40'}
+      `}>
+        {enabled ? 'On' : 'Off'}
+      </span>
     </button>
   )
 }

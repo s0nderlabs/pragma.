@@ -32,8 +32,8 @@ export const MIN_SESSION_KEY_BALANCE = parseEther("0.1"); // 0.1 MON
 /** Standard funding amount (increased for batch operation support) */
 export const SESSION_KEY_FUNDING_AMOUNT = parseEther("1.0"); // 1.0 MON
 
-/** Average gas cost per operation (updated from real-world data) */
-export const AVG_GAS_PER_OPERATION = parseEther("0.095"); // ~0.095 MON per swap/transfer (actual: 0.093)
+/** Average gas cost per operation (updated from real-world data with overhead) */
+export const AVG_GAS_PER_OPERATION = parseEther("0.11"); // ~0.11 MON per swap/transfer (includes funding overhead)
 
 /** Safety buffer for batch operations */
 export const BATCH_SAFETY_BUFFER = parseEther("0.20"); // Extra 0.20 MON buffer (increased for reliability)
@@ -48,6 +48,53 @@ export const BATCH_SAFETY_BUFFER = parseEther("0.20"); // Extra 0.20 MON buffer 
  * - 0.10+ MON: No funding needed
  */
 export const MIN_GAS_FOR_DELEGATION = parseEther("0.05"); // 0.05 MON
+
+// ============================================================================
+// Dynamic Funding Calculation
+// ============================================================================
+
+/**
+ * Calculate optimal funding amount based on current balance and required balance
+ *
+ * Implements dynamic funding strategy that calculates exact amount needed
+ * instead of using a fixed 1.0 MON amount. This prevents:
+ * - Under-funding (fixed amount insufficient for large batches)
+ * - Over-funding (wasting gas on unnecessary transfers)
+ *
+ * @param currentBalance - Current session key balance (in wei)
+ * @param requiredBalance - Required balance for planned operations (in wei)
+ * @returns Optimal funding amount with safety margin (in wei)
+ *
+ * @example
+ * ```typescript
+ * // Need 1.815 MON for 17 swaps, have 0.647 MON
+ * const fundingAmount = calculateFundingAmount(
+ *   parseEther("0.647"),
+ *   parseEther("1.815")
+ * );
+ * // Returns: 1.268 MON (gap: 1.168 + buffer: 0.1)
+ * ```
+ */
+export function calculateFundingAmount(
+  currentBalance: bigint,
+  requiredBalance: bigint
+): bigint {
+  // Calculate gap between required and current
+  const gap = requiredBalance - currentBalance;
+
+  // Add safety margin to prevent edge case failures
+  const safetyMargin = parseEther("0.1");
+  const fundingAmount = gap + safetyMargin;
+
+  // Apply bounds to prevent dust funding and excessive single transfers
+  const minFunding = parseEther("0.5"); // Minimum to make funding worthwhile
+  const maxFunding = parseEther("3.0"); // Maximum for single funding operation
+
+  // Return bounded amount
+  if (fundingAmount < minFunding) return minFunding;
+  if (fundingAmount > maxFunding) return maxFunding;
+  return fundingAmount;
+}
 
 // ============================================================================
 // Gas Estimation (for Pre-Flight Checks)
@@ -151,39 +198,44 @@ export async function checkSessionKeyBalance(
  * - Initial funding (0 MON): Uses UserOp via bundler (no gas needed from session key)
  * - Refill funding (< 0.1 MON): Uses ephemeral delegation (session key pays gas from remaining balance)
  *
+ * **Dynamic Funding:**
+ * - If estimatedOperations provided, calculates exact amount needed
+ * - Otherwise uses fixed SESSION_KEY_FUNDING_AMOUNT (backward compatibility)
+ *
  * @param config - Funding configuration
  * @param publicClient - Viem public client
  * @param web3authBridge - Bridge with signTypedData method (used for delegation signing)
+ * @param estimatedOperations - Optional number of operations to fund for (enables dynamic funding)
  * @returns Funding result with transaction hash and new balance
  *
  * @throws {SessionKeyFundingError} If funding fails
  *
  * @example
  * ```typescript
+ * // Dynamic funding for 17 swaps
  * const result = await fundSessionKey(
  *   {
  *     smartAccountAddress: "0x...",
  *     sessionKeyAddress: "0x...",
- *     sessionKeyPrivateKey: "0x...",  // For delegation signing
- *     ownerAddress: "0x...",          // For delegation signing
+ *     sessionKeyPrivateKey: "0x...",
+ *     ownerAddress: "0x...",
  *     chainId: 10207,
  *     rpcUrl: "https://testnet.monad.xyz/",
  *     delegationManager: "0x...",
- *     smartAccount: smartAccount,      // For UserOp (initial funding)
- *     bundlerClient: bundlerClient,    // For UserOp (initial funding)
+ *     smartAccount: smartAccount,
+ *     bundlerClient: bundlerClient,
  *   },
  *   publicClient,
- *   web3authBridge
+ *   web3authBridge,
+ *   17  // Calculate funding for 17 operations
  * );
- *
- * console.log(`Funded ${formatEther(result.fundedAmount)} MON`);
- * console.log(`New balance: ${formatEther(result.newBalance)} MON`);
  * ```
  */
 export async function fundSessionKey(
   config: SessionKeyFundingConfig,
   publicClient: PublicClient,
   web3authBridge: any, // Web3AuthBridge or direct PK bridge (used for refills only)
+  estimatedOperations?: number,
 ): Promise<SessionKeyFundingResult> {
   try {
     // Validate inputs before attempting RPC calls
@@ -204,8 +256,22 @@ export async function fundSessionKey(
       address: getAddress(config.sessionKeyAddress),
     });
 
+    // Calculate required balance and funding amount
+    let requiredBalance: bigint;
+    let fundingAmount: bigint;
+
+    if (estimatedOperations !== undefined && estimatedOperations > 0) {
+      // Dynamic funding: Calculate based on operation count
+      requiredBalance = estimateGasForBatch(estimatedOperations);
+      fundingAmount = calculateFundingAmount(balanceBefore, requiredBalance);
+    } else {
+      // Fixed funding: Use traditional threshold check (backward compatibility)
+      requiredBalance = MIN_SESSION_KEY_BALANCE;
+      fundingAmount = SESSION_KEY_FUNDING_AMOUNT;
+    }
+
     // Check if funding is actually needed
-    if (balanceBefore >= MIN_SESSION_KEY_BALANCE) {
+    if (balanceBefore >= requiredBalance) {
       return {
         txHash: "0x" as Hex, // No tx needed
         newBalance: balanceBefore,
@@ -218,10 +284,10 @@ export async function fundSessionKey(
       address: getAddress(config.smartAccountAddress),
     });
 
-    if (smartAccountBalance < SESSION_KEY_FUNDING_AMOUNT) {
+    if (smartAccountBalance < fundingAmount) {
       throw new SessionKeyFundingError(
         `Insufficient smart account balance. ` +
-        `Need ${formatEther(SESSION_KEY_FUNDING_AMOUNT)} MON, ` +
+        `Need ${formatEther(fundingAmount)} MON for funding, ` +
         `have ${formatEther(smartAccountBalance)} MON`
       );
     }
@@ -245,6 +311,7 @@ export async function fundSessionKey(
         smartAccount: config.smartAccount,
         bundlerClient: config.bundlerClient,
         publicClient,
+        fundingAmount, // Pass dynamic funding amount
       });
 
       return {
@@ -271,6 +338,7 @@ export async function fundSessionKey(
       chainId: config.chainId,
       publicClient,
       web3authBridge,
+      fundingAmount, // Pass dynamic funding amount
     });
 
     return {

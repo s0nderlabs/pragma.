@@ -29,6 +29,7 @@ import {
   StakeIcon,
   UnstakeIcon,
   UnstakeClaimIcon,
+  FundingIcon,
 } from '../../icons/ActivityIcons'
 
 /**
@@ -112,6 +113,8 @@ export function ActivityTab() {
         return <UnstakeIcon className="w-7 h-7" />
       case 'unstakeClaim':
         return <UnstakeClaimIcon className="w-7 h-7" />
+      case 'funding':
+        return <FundingIcon className="w-7 h-7" />
       default:
         return null
     }
@@ -185,11 +188,11 @@ export function ActivityTab() {
                     : getStaggeredTransition('medium', index, staggerDelays.activityCard)
                 }
                 className={cn(
-                  'py-4',
+                  'py-4 -mx-4 px-4',
+                  'rounded-3xl',
                   'transition-colors duration-200',
                   'hover:bg-white/[0.02]',
-                  'cursor-pointer',
-                  !isLast && 'border-b border-white/5'
+                  'cursor-pointer'
                 )}
                 onClick={() => handleActivityClick(activity)}
               >

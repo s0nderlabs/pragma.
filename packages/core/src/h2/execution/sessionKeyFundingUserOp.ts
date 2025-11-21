@@ -18,7 +18,7 @@
  * - Paymaster bypasses reserve check (Pimlico's deposit pays gas, not smart account)
  */
 
-import { type Address, type Hex, type PublicClient, encodeFunctionData, parseEther } from "viem";
+import { type Address, type Hex, type PublicClient, encodeFunctionData, parseEther, formatEther } from "viem";
 import type { BundlerClient } from "viem/account-abstraction";
 import {
   getUserOpGasPrice,
@@ -64,14 +64,14 @@ const HYBRID_DELEGATOR_EXECUTE_ABI = [
 /**
  * Build execute() calldata for native MON transfer to session key
  */
-function buildSessionKeyFundingCallData(sessionKeyAddress: Address): Hex {
+function buildSessionKeyFundingCallData(sessionKeyAddress: Address, amount: bigint): Hex {
   return encodeFunctionData({
     abi: HYBRID_DELEGATOR_EXECUTE_ABI,
     functionName: "execute",
     args: [
       {
         target: sessionKeyAddress,
-        value: SESSION_KEY_FUNDING_AMOUNT,
+        value: amount,
         callData: "0x", // Native transfer (no contract call)
       },
     ],
@@ -93,6 +93,8 @@ export interface FundSessionKeyViaUserOpParams {
   bundlerClient: BundlerClient;
   /** Public client */
   publicClient: PublicClient;
+  /** Optional dynamic funding amount (defaults to SESSION_KEY_FUNDING_AMOUNT) */
+  fundingAmount?: bigint;
 }
 
 export interface FundSessionKeyViaUserOpResult {
@@ -124,13 +126,14 @@ export async function fundSessionKeyViaUserOp(
     smartAccount,
     bundlerClient,
     publicClient,
+    fundingAmount = SESSION_KEY_FUNDING_AMOUNT, // Default to fixed amount if not provided
   } = params;
 
   // Get balance before funding
   const balanceBefore = await publicClient.getBalance({ address: sessionKeyAddress });
 
-  // Step 1: Build execute() calldata
-  const callData = buildSessionKeyFundingCallData(sessionKeyAddress);
+  // Step 1: Build execute() calldata with dynamic funding amount
+  const callData = buildSessionKeyFundingCallData(sessionKeyAddress, fundingAmount);
 
   // Step 2: Get nonce from smart account
   const nonce = (await smartAccount.getNonce?.()) ?? 0n;
@@ -188,19 +191,49 @@ export async function fundSessionKeyViaUserOp(
 
   // Step 8: Wait for transaction confirmation if we have tx hash
   if (transactionHash) {
-    await publicClient.waitForTransactionReceipt({ hash: transactionHash });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash: transactionHash });
+
+    // Verify transaction succeeded (not reverted)
+    if (receipt.status !== "success") {
+      throw new Error(
+        `Session key funding transaction failed (reverted onchain). ` +
+        `TxHash: ${transactionHash}. Check block explorer for revert reason.`
+      );
+    }
+
+    // Wait for RPC state propagation (prevent stale balance reads)
+    // RPC nodes may have stale state immediately after waitForTransactionReceipt
+    // Adding 2s delay ensures balance updates have propagated across the network
+    await new Promise((resolve) => setTimeout(resolve, 2000));
   } else {
-    // Wait a bit for tx to be mined even if we don't have hash
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    // No transaction hash = bundler failed to return receipt
+    // This means UserOp was never confirmed or bundler timeout occurred
+    throw new Error(
+      `Session key funding UserOp submitted but no transaction hash returned. ` +
+      `UserOpHash: ${userOpHash}. Transaction may still be pending in bundler mempool. ` +
+      `Check bundler logs or wait and retry.`
+    );
   }
 
-  // Step 9: Get new balance
+  // Step 9: Get new balance and verify funding succeeded
   const balanceAfter = await publicClient.getBalance({ address: sessionKeyAddress });
+  const actualFunded = balanceAfter - balanceBefore;
+
+  // Verify actual balance increase matches expected (allow 10% tolerance for gas)
+  const minimumExpected = (fundingAmount * 90n) / 100n;
+  if (actualFunded < minimumExpected) {
+    throw new Error(
+      `Session key funding verification failed. ` +
+      `Expected: ${formatEther(fundingAmount)} MON, ` +
+      `Actual: ${formatEther(actualFunded)} MON. ` +
+      `Transaction may have partially failed or gas costs were unexpectedly high.`
+    );
+  }
 
   return {
     userOpHash,
     transactionHash,
     newBalance: balanceAfter,
-    fundedAmount: balanceAfter - balanceBefore,
+    fundedAmount: actualFunded,
   };
 }

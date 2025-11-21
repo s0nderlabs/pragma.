@@ -144,11 +144,6 @@ export function SpaceNavigation({ activeTab, onTabChange }: SpaceNavigationProps
               {spaces[currentIndex].name}
             </motion.div>
           </AnimatePresence>
-
-          {/* Keyboard Hint */}
-          <div className="text-xs mt-1 text-white/20">
-            Alt + ← →
-          </div>
         </div>
 
         {/* Next Arrow */}

@@ -6,7 +6,7 @@ import { useRef, useEffect } from 'react'
 interface OdometerDigitProps {
   digit: number
   duration?: number
-  ease?: number[]
+  ease?: [number, number, number, number]
   prefersReducedMotion?: boolean
 }
 

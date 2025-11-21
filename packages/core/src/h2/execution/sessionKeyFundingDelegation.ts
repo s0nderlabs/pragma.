@@ -68,6 +68,8 @@ export interface FundSessionKeyViaDelegationParams {
   publicClient: PublicClient;
   /** Web3Auth bridge for delegation signing */
   web3authBridge: any;
+  /** Optional dynamic funding amount (defaults to SESSION_KEY_FUNDING_AMOUNT) */
+  fundingAmount?: bigint;
 }
 
 export interface FundSessionKeyViaDelegationResult {
@@ -126,6 +128,7 @@ export async function fundSessionKeyViaDelegation(
     chainId,
     publicClient,
     web3authBridge,
+    fundingAmount = SESSION_KEY_FUNDING_AMOUNT, // Default to fixed amount if not provided
   } = params;
 
   // Step 1: Fetch current nonce from NonceEnforcer
@@ -136,11 +139,11 @@ export async function fundSessionKeyViaDelegation(
     args: [DELEGATION_MANAGER_ADDRESS, smartAccountAddress],
   }) as bigint;
 
-  // Step 2: Create delegation for native MON transfer
+  // Step 2: Create delegation for native MON transfer with dynamic funding amount
   // Use proven helper function (same pattern as transferToolDirect.ts)
   const { delegation, typedData } = createNativeTransferDelegation({
     recipient: sessionKeyAddress,  // Transfer to session key itself
-    amount: SESSION_KEY_FUNDING_AMOUNT,
+    amount: fundingAmount,
     delegator: getAddress(smartAccountAddress),
     sessionKey: getAddress(sessionKeyAddress),
     nonce,
@@ -156,10 +159,10 @@ export async function fundSessionKeyViaDelegation(
   delegation.signature = signature;
 
   // Step 4: Build native transfer execution
-  // Transfer 0.5 MON from smart account to session key
+  // Transfer dynamic funding amount from smart account to session key
   const execution = createExecution({
     target: sessionKeyAddress,
-    value: SESSION_KEY_FUNDING_AMOUNT,
+    value: fundingAmount,
     callData: "0x", // Native transfer (no contract call)
   });
 
@@ -198,6 +201,11 @@ export async function fundSessionKeyViaDelegation(
     throw new Error(`Session key refill transaction failed: ${txHash}`);
   }
 
+  // Wait for RPC state propagation (prevent stale balance reads)
+  // RPC nodes may have stale state immediately after waitForTransactionReceipt
+  // Adding 2s delay ensures balance updates have propagated across the network
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+
   const newBalance = await publicClient.getBalance({
     address: sessionKeyAddress,
   });
@@ -207,7 +215,7 @@ export async function fundSessionKeyViaDelegation(
     transactionHash: txHash,
     blockNumber: receipt.blockNumber,
     gasUsed: receipt.gasUsed,
-    fundedAmount: SESSION_KEY_FUNDING_AMOUNT,
+    fundedAmount: fundingAmount,
     newBalance,
   };
 }

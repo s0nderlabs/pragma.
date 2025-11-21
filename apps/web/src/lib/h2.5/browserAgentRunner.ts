@@ -415,16 +415,40 @@ Always prefer PARALLEL execution for independent operations.
 Before executing batch operations (2+ swaps/transfers), ALWAYS check session key balance:
 1. Count total operations planned (swaps, transfers, stakes, etc.)
 2. Call checkSessionKeyBalance with estimatedOperations parameter (e.g., {estimatedOperations: 3})
-3. If needsFunding = true, call fundSessionKey ONCE
-4. Then execute all operations in parallel
+3. If needsFunding = true, call fundSessionKey and WAIT for it to complete
+4. After fundSessionKey completes, call checkSessionKeyBalance AGAIN to verify funding succeeded
+5. If balance still insufficient after funding, retry fundSessionKey ONCE
+6. ONLY THEN execute all operations in parallel
+
+CRITICAL: Session key funding MUST complete and be verified before swaps start.
+Do NOT parallelize funding with swaps - this causes race conditions and stuck transactions.
+If funding fails after retry, report the error to user with the transaction hash for debugging.
 
 CRITICAL: Each operation costs ~0.095 MON. Examples:
 - 2 swaps → 0.39 MON needed (not 0.1!)
 - 3 swaps → 0.485 MON needed
 - 4 swaps → 0.58 MON needed
 
-For single operations: Just execute - if balance low, tool will error.
-AUTOMATICALLY call fundSessionKey (no user permission needed) then retry the operation.
+**SESSION KEY BALANCE CHECKING:**
+
+For SWAPS:
+1. Call getSwapQuote (no balance check needed - read-only operation)
+2. Show quote to user
+3. IMMEDIATELY BEFORE executeSwap → call checkSessionKeyBalance with estimatedOperations
+   - Single swap → {estimatedOperations: 1}
+   - Batch swaps → {estimatedOperations: N}
+4. If needsFunding = true → AUTOMATICALLY call fundSessionKey (no user permission needed)
+5. After funding completes → call checkSessionKeyBalance AGAIN to verify
+6. ONLY THEN call executeSwap
+
+For DIRECT operations (transfer/wrap/unwrap/stake/unstake):
+1. IMMEDIATELY BEFORE execution tool → call checkSessionKeyBalance
+   - Single operation → {estimatedOperations: 1}
+   - Batch operations → {estimatedOperations: N}
+2. If needsFunding = true → AUTOMATICALLY call fundSessionKey (no user permission needed)
+3. After funding completes → call checkSessionKeyBalance AGAIN to verify
+4. ONLY THEN call the execution tool
+
 Session key funding is a maintenance operation that does not require user confirmation.
 
 **BALANCE FETCHING:**
@@ -452,16 +476,41 @@ Always prefer PARALLEL execution for independent operations.
 Before executing batch operations (2+ swaps/transfers), ALWAYS check session key balance:
 1. Count total operations planned (swaps, transfers, stakes, etc.)
 2. Call checkSessionKeyBalance with estimatedOperations parameter (e.g., {estimatedOperations: 3})
-3. If needsFunding = true, call fundSessionKey ONCE
-4. Then execute all operations in parallel
+3. If needsFunding = true, call fundSessionKey and WAIT for it to complete
+4. After fundSessionKey completes, call checkSessionKeyBalance AGAIN to verify funding succeeded
+5. If balance still insufficient after funding, retry fundSessionKey ONCE
+6. ONLY THEN execute all operations in parallel
+
+CRITICAL: Session key funding MUST complete and be verified before swaps start.
+Do NOT parallelize funding with swaps - this causes race conditions and stuck transactions.
+If funding fails after retry, report the error to user with the transaction hash for debugging.
 
 CRITICAL: Each operation costs ~0.095 MON. Examples:
 - 2 swaps → 0.39 MON needed (not 0.1!)
 - 3 swaps → 0.485 MON needed
 - 4 swaps → 0.58 MON needed
 
-For single operations: Just execute - if balance low, tool will error.
-AUTOMATICALLY call fundSessionKey (no user permission needed) then retry the operation.
+**SESSION KEY BALANCE CHECKING:**
+
+For SWAPS:
+1. Call getSwapQuote (no balance check needed - read-only operation)
+2. Show quote to user and wait for approval ('yes', 'execute', 'proceed')
+3. AFTER user confirms → IMMEDIATELY BEFORE executeSwap → call checkSessionKeyBalance
+   - Single swap → {estimatedOperations: 1}
+   - Batch swaps → {estimatedOperations: N}
+4. If needsFunding = true → AUTOMATICALLY call fundSessionKey (no user permission needed)
+5. After funding completes → call checkSessionKeyBalance AGAIN to verify
+6. ONLY THEN call executeSwap
+
+For DIRECT operations (transfer/wrap/unwrap/stake/unstake):
+1. Show intent to user and wait for approval
+2. AFTER user confirms → IMMEDIATELY BEFORE execution tool → call checkSessionKeyBalance
+   - Single operation → {estimatedOperations: 1}
+   - Batch operations → {estimatedOperations: N}
+3. If needsFunding = true → AUTOMATICALLY call fundSessionKey (no user permission needed)
+4. After funding completes → call checkSessionKeyBalance AGAIN to verify
+5. ONLY THEN call the execution tool
+
 Session key funding is a maintenance operation that does not require user confirmation.
 
 **BALANCE FETCHING:**

@@ -1,8 +1,8 @@
-import type { AnyMessage } from '@/stores/useH2ChatStore'
+import type { AnyMessage } from '@/lib/h2/types'
 
 export interface ActivityRecord {
   id: string
-  type: 'swap' | 'transfer' | 'wrap' | 'unwrap' | 'stake' | 'unstake' | 'unstakeClaim'
+  type: 'swap' | 'transfer' | 'wrap' | 'unwrap' | 'stake' | 'unstake' | 'unstakeClaim' | 'funding'
   timestamp: number
   status: 'success' | 'failed' | 'pending'
 
@@ -44,6 +44,8 @@ export interface ActivityRecord {
   // Metadata
   toolName: string
   signature?: string
+  fundingMethod?: 'userOp' | 'delegation'
+  fromAddress?: string
 }
 
 export const EXECUTION_TOOLS = [
@@ -54,6 +56,7 @@ export const EXECUTION_TOOLS = [
   'stake',
   'unstakeRequest',
   'unstakeClaim',
+  'fundSessionKey',
 ] as const
 
 function parseOperationType(toolName: string): ActivityRecord['type'] {
@@ -64,6 +67,7 @@ function parseOperationType(toolName: string): ActivityRecord['type'] {
   if (toolName === 'stake') return 'stake'
   if (toolName === 'unstakeRequest') return 'unstake'
   if (toolName === 'unstakeClaim') return 'unstakeClaim'
+  if (toolName === 'fundSessionKey') return 'funding'
   return 'swap' // fallback
 }
 
@@ -204,7 +208,8 @@ function generateDisplayText(
   fromAmount?: string,
   fromToken?: string,
   toAmount?: string,
-  toToken?: string
+  toToken?: string,
+  fundingMethod?: string
 ): string {
   if (type === 'swap' && fromAmount && fromToken && toAmount && toToken) {
     return `Swapped ${formatAmountForDisplay(fromAmount)} ${fromToken} → Received ${formatAmountForDisplay(toAmount)} ${toToken}`
@@ -232,6 +237,12 @@ function generateDisplayText(
 
   if (type === 'unstakeClaim' && toAmount && toToken) {
     return `Claimed ${formatAmountForDisplay(toAmount)} ${toToken}`
+  }
+
+  if (type === 'funding' && fromAmount && fromToken) {
+    const method = fundingMethod === 'userOp' ? 'UserOp' : fundingMethod === 'delegation' ? 'Delegation' : ''
+    const methodSuffix = method ? ` (${method})` : ''
+    return `Funded ${formatAmountForDisplay(fromAmount)} ${fromToken}${methodSuffix}`
   }
 
   // Fallback
@@ -336,7 +347,8 @@ function extractFromToolMessage(msg: Extract<AnyMessage, { role: 'tool' }>): Act
         fromAmount,
         fromToken,
         toAmount,
-        toToken
+        toToken,
+        data.fundingMethod
       )
 
       // Extract delegation metadata

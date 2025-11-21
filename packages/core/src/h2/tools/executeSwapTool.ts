@@ -195,14 +195,20 @@ AI: [calls executeSwap({ quoteId: "abc123", fromToken: "MON", toToken: "USDC", a
 
 **IMPORTANT:** Always pass fromToken, toToken, amountIn, and amountOut from the quote output for better progress tracking.
 
+**Workflow:**
+1. User confirms swap with "yes"/"execute"/"proceed"
+2. Check session key balance (per system instructions)
+3. If funding needed, fund session key
+4. Call executeSwap with the quote ID
+
 **What NOT to Do:**
-❌ After user says "yes", DO NOT call getSwapQuote again (wastes time, causes expiry)
-❌ DO NOT check balance again before executing (already checked before quote fetch)
-✅ Just call executeSwap with the quote ID you already have
+❌ DO NOT call getSwapQuote again after user confirms (wastes time, causes expiry)
+❌ DO NOT check balance BEFORE calling getSwapQuote (read-only operation, no gas needed)
+✅ Balance checks happen AFTER user confirms, BEFORE executeSwap
 
 This tool will:
 - Validate the quote (not expired, still valid)
-- Check session key balance (fund if needed, automatic)
+- Check session key balance internally (fund if needed, automatic)
 - Create ephemeral delegation (5 min expiry, single-use)
 - Sign delegation with Web3Auth (owner's signature)
 - Sign transaction with session key

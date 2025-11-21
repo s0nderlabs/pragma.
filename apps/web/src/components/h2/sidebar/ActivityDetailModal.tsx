@@ -137,7 +137,87 @@ export function ActivityDetailModal({ activity, open, onClose }: ActivityDetailM
             animate="visible"
           >
             {/* Operation */}
-            {(activity.fromAmount || activity.toAmount) && (
+            {/* Funding Operation - Special Display */}
+            {activity.type === 'funding' && (
+              <>
+                <motion.div
+                  variants={modalSectionVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                  className="space-y-3"
+                >
+                  <div className="text-xs text-white/60 mb-3">Funding Operation</div>
+                  <motion.div
+                    className="space-y-1"
+                    variants={modalSectionRowsVariants}
+                    initial="hidden"
+                    animate="visible"
+                  >
+                    <motion.div
+                      className="flex justify-between text-xs"
+                      variants={modalRowVariants}
+                      initial="hidden"
+                      animate="visible"
+                    >
+                      <span className="text-white/60">From</span>
+                      <span className="text-white/90 font-mono">
+                        Smart Account
+                        {activity.fromAddress && (
+                          <span className="text-white/40 text-[10px] ml-2">
+                            {activity.fromAddress.slice(0, 6)}...{activity.fromAddress.slice(-4)}
+                          </span>
+                        )}
+                      </span>
+                    </motion.div>
+                    <motion.div
+                      className="flex justify-between text-xs"
+                      variants={modalRowVariants}
+                      initial="hidden"
+                      animate="visible"
+                    >
+                      <span className="text-white/60">To</span>
+                      <span className="text-white/90 font-mono">
+                        Session Key
+                        {activity.recipientAddress && (
+                          <span className="text-white/40 text-[10px] ml-2">
+                            {activity.recipientAddress.slice(0, 6)}...{activity.recipientAddress.slice(-4)}
+                          </span>
+                        )}
+                      </span>
+                    </motion.div>
+                    <motion.div
+                      className="flex justify-between text-xs"
+                      variants={modalRowVariants}
+                      initial="hidden"
+                      animate="visible"
+                    >
+                      <span className="text-white/60">Amount</span>
+                      <span className="text-white/90 font-mono">
+                        {activity.fromAmount} MON
+                      </span>
+                    </motion.div>
+                    {activity.fundingMethod && (
+                      <motion.div
+                        className="flex justify-between text-xs"
+                        variants={modalRowVariants}
+                        initial="hidden"
+                        animate="visible"
+                      >
+                        <span className="text-white/60">Method</span>
+                        <span className="text-white/90">
+                          {activity.fundingMethod === 'userOp' ? 'UserOp (Paymaster)' : 'Delegation (Self-paid)'}
+                        </span>
+                      </motion.div>
+                    )}
+                  </motion.div>
+                </motion.div>
+                <hr className="border-white/10 my-4" />
+              </>
+            )}
+
+            {/* Generic Operation - Skip for funding */}
+            {activity.type !== 'funding' && (activity.fromAmount || activity.toAmount) && (
               <>
                 <motion.div
                   variants={modalSectionVariants}

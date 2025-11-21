@@ -337,12 +337,15 @@ export const useH2ChatStore = create<H2ChatState>()(
             // SECOND: Check for standalone running tools with same toolName
             // CRITICAL: Only batch genuinely parallel operations, not retries
             // Exclude tools that aren't children (standalone only, ignore parents)
+            // CRITICAL: Exclude retries by checking signature equality
+            // When swap fails mid-tx and AI retries, signatures will differ → no batching
             const runningToolsWithSameName = messages.filter(
               (msg) =>
                 msg.role === "tool" &&
                 !(msg as ToolMessage).isParent && // Exclude existing parents
                 (msg as ToolMessage).toolName === toolName &&
-                (msg as ToolMessage).status === "running"
+                (msg as ToolMessage).status === "running" &&
+                (msg as ToolMessage).signature !== signature // Exclude retries (different signatures)
             );
 
             if (runningToolsWithSameName.length > 0) {

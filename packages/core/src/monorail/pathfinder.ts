@@ -106,6 +106,8 @@ export interface QuoteRequestParams {
   sender: Address;
   destination?: Address;
   maxSlippageBps?: number;
+  /** Transaction deadline in seconds from now. Defaults to 300 (5 minutes). */
+  deadline?: number;
 }
 
 export class PathfinderError extends Error {
@@ -191,6 +193,10 @@ export const fetchMonorailQuote = async (
   if (params.maxSlippageBps && Number.isFinite(params.maxSlippageBps)) {
     url.searchParams.set("max_slippage", `${params.maxSlippageBps}`);
   }
+  // Set deadline to 5 minutes (300 seconds) to match our quote expiry
+  // This ensures on-chain transaction deadline aligns with our quote validity window
+  const deadline = params.deadline ?? 300; // Default: 5 minutes
+  url.searchParams.set("deadline", `${deadline}`);
 
   const response = await getFetchFn(config)(url.toString(), { headers: buildHeaders(config.apiKey) });
   if (!response.ok) {

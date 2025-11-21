@@ -16,7 +16,9 @@ import { formatEther } from "viem";
 import {
   checkSessionKeyBalance,
   shouldFundForBatch,
-  MIN_SESSION_KEY_BALANCE
+  MIN_SESSION_KEY_BALANCE,
+  estimateGasForBatch,
+  calculateFundingAmount,
 } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 
@@ -43,25 +45,38 @@ export const checkSessionKeyBalanceTool = tool(
         publicClient
       );
 
-      // Use batch-aware logic if operation count provided, otherwise use simple threshold
-      const needsFunding = estimatedOperations > 0
-        ? shouldFundForBatch(balance, estimatedOperations)
-        : balance < MIN_SESSION_KEY_BALANCE;
+      // Calculate required balance based on operations
+      let requiredBalance: bigint;
+      let actualFundingAmount: bigint;
+
+      if (estimatedOperations > 0) {
+        // Dynamic: Calculate based on operation count
+        requiredBalance = estimateGasForBatch(estimatedOperations);
+        actualFundingAmount = calculateFundingAmount(balance, requiredBalance);
+      } else {
+        // Fixed: Use traditional threshold
+        requiredBalance = MIN_SESSION_KEY_BALANCE;
+        actualFundingAmount = recommendedFundingAmount;
+      }
+
+      // CRITICAL FIX: Check against requiredBalance, not MIN_SESSION_KEY_BALANCE
+      const needsFunding = balance < requiredBalance;
 
       // Build response message
       const balanceFormatted = formatEther(balance);
-      const thresholdFormatted = formatEther(MIN_SESSION_KEY_BALANCE);
-      const fundingAmountFormatted = formatEther(recommendedFundingAmount);
+      const requiredFormatted = formatEther(requiredBalance);
+      const fundingAmountFormatted = formatEther(actualFundingAmount);
 
       if (needsFunding) {
         return `**Session Key Balance Check**
 
 Current Balance: ${balanceFormatted} MON
-Status: ⚠️ LOW (below ${thresholdFormatted} MON threshold)
+Required Balance: ${requiredFormatted} MON
+Status: ⚠️ LOW (need ${fundingAmountFormatted} MON more)
 
 **Action Required:**
-Call fundSessionKey to add ${fundingAmountFormatted} MON to the session key.
-This ensures gas costs are covered for upcoming operations.
+Call fundSessionKey${estimatedOperations > 0 ? `({estimatedOperations: ${estimatedOperations}})` : "()"} to add ${fundingAmountFormatted} MON to the session key.
+This ensures gas costs are covered for ${estimatedOperations > 0 ? `${estimatedOperations} operations` : "upcoming operations"}.
 
 Session Key Address: ${sessionKeyAddress}`;
       }
@@ -69,9 +84,10 @@ Session Key Address: ${sessionKeyAddress}`;
       return `**Session Key Balance Check**
 
 Current Balance: ${balanceFormatted} MON
-Status: ✅ SUFFICIENT (above ${thresholdFormatted} MON threshold)
+Required Balance: ${requiredFormatted} MON
+Status: ✅ SUFFICIENT
 
-No funding needed. Session key has enough balance for operations.
+No funding needed. Session key has enough balance for ${estimatedOperations > 0 ? `${estimatedOperations} operations` : "operations"}.
 
 Session Key Address: ${sessionKeyAddress}`;
     } catch (error) {
@@ -86,17 +102,23 @@ Session Key Address: ${sessionKeyAddress}`;
     description: `Check session key balance to determine if funding is needed. FREE operation (read-only).
 
 ⚡ **WHEN TO CALL THIS TOOL:**
-- At the START when user FIRST requests a batch operation (2+ swaps/transfers)
+- **For swaps:** AFTER user confirms with "yes"/"execute"/"proceed", IMMEDIATELY BEFORE calling executeSwap
+  - DO NOT check before getSwapQuote (read-only operation, no gas needed)
+  - Single swap → Call with {estimatedOperations: 1}
+  - Batch swaps → Call with {estimatedOperations: N}
+- **For direct operations (transfer/wrap/unwrap/stake/unstake):** IMMEDIATELY BEFORE calling the execution tool
+  - Single operation → Call with {estimatedOperations: 1}
+  - Batch operations → Call with {estimatedOperations: N}
 - After fundSessionKey completes (to verify funding succeeded)
 - When execution fails with low balance error
 - When user explicitly asks "check my session key balance" or "do I have enough gas?"
 
 ⚡ **WHEN NOT TO CALL THIS TOOL:**
-- After showing quotes to user (balance doesn't change during quote fetch)
-- After user confirms with "yes"/"execute"/"proceed" (still same operation, already checked)
+- Before getSwapQuote (read-only operation, doesn't require gas or session key balance)
+- Before showing quotes to user (balance check happens AFTER user confirms, not before)
 - Between multiple tool calls in the same operation (unless funding just occurred)
 
-**Reasoning:** Balance only changes when funding occurs. Checking repeatedly wastes time and doesn't add value.
+**Reasoning:** Only write operations (executeSwap, transfer, etc.) require gas. Read operations (getSwapQuote, getBalance) are FREE and don't need balance checks. Balance only changes when funding occurs.
 
 Returns:
 - Current session key balance
@@ -106,7 +128,10 @@ Returns:
 
 If needsFunding = true, call fundSessionKey before proceeding with operations.
 
-Example: User says "swap to USDC, USDT, USDM" → Call checkSessionKeyBalance ONCE at start`,
+Examples:
+- User says "swap 1 MON to USDC" → getSwapQuote → show quote → user confirms "yes" → checkSessionKeyBalance({estimatedOperations: 1}) → executeSwap
+- User says "transfer 10 USDC to 0x123..." → checkSessionKeyBalance({estimatedOperations: 1}) → transfer
+- User says "swap to USDC, USDT, USDM" → getSwapQuote (3 quotes) → show quotes → user confirms → checkSessionKeyBalance({estimatedOperations: 3}) → executeSwap (batch)`,
     schema: z.object({
       estimatedOperations: z.number().optional().describe(
         "Number of operations planned (swaps, transfers, etc.). " +

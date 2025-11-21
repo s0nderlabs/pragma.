@@ -10,7 +10,7 @@ interface OdometerNumberProps {
   format?: (value: number) => string
   className?: string
   duration?: number
-  ease?: number[]
+  ease?: [number, number, number, number]
 }
 
 /**

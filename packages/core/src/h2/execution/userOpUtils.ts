@@ -240,8 +240,11 @@ export async function submitUserOp(
     { retryCount: 0 },
   )) as Hex;
 
-  // Wait for receipt with timeout (2 seconds)
-  const USER_OPERATION_WAIT_TIMEOUT_MS = 2000;
+  // Wait for receipt with timeout (30 seconds)
+  // Increased from 2s → 10s → 30s based on production experience
+  // Pimlico docs recommend 10-30s timeout for reliable UserOp confirmation
+  // Monad testnet can experience delays during congestion requiring longer timeouts
+  const USER_OPERATION_WAIT_TIMEOUT_MS = 30000;
 
   const waitWithTimeout = <T>(promise: Promise<T>): Promise<T> =>
     new Promise<T>((resolve, reject) => {
@@ -293,9 +296,14 @@ export async function submitUserOp(
         userOpHash,
         transactionHash: txHash ? (txHash as Hex) : undefined,
       };
-    } catch {
-      // Return just the userOpHash if receipt fetch fails
-      return { userOpHash };
+    } catch (receiptError) {
+      // Don't return success without transaction hash - bundler failure should throw
+      // If receipt fetch fails after timeout, UserOp is either still pending or bundler is broken
+      throw new Error(
+        `Failed to fetch UserOp receipt after ${USER_OPERATION_WAIT_TIMEOUT_MS}ms timeout. ` +
+        `UserOpHash: ${userOpHash}. Transaction may still be pending in bundler mempool. ` +
+        `Bundler error: ${receiptError instanceof Error ? receiptError.message : String(receiptError)}`
+      );
     }
   }
 }

@@ -31,6 +31,7 @@ import {
   getAddress,
   encodeFunctionData,
   erc20Abi,
+  parseEventLogs,
   WaitForTransactionReceiptTimeoutError,
   TransactionNotFoundError,
   TransactionReceiptNotFoundError,
@@ -750,16 +751,97 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     throw error;
   }
 
-  // Step 10: Calculate actual output (balance after - balance before)
-  const balanceAfter = isNativeToken(quote.toToken, MON_ADDRESS)
-    ? await publicClient.getBalance({ address: userAddress })
-    : (await publicClient.readContract({
-        address: quote.toToken,
-        abi: erc20Abi,
-        functionName: "balanceOf",
-        args: [userAddress],
-      }) as bigint);
-  const actualOutput = balanceAfter - balanceBefore;
+  // Step 10: Calculate actual output using event parsing (safe for parallel swaps)
+  // CRITICAL: Cannot use balance difference for parallel swaps due to race conditions
+  // All parallel swaps read balanceBefore simultaneously, then all read balanceAfter after completion
+  // Result: Each swap claims credit for TOTAL balance change (7x individual amount for 7 parallel swaps)
+  //
+  // Solution: Parse transaction logs for exact amounts
+  // - Strategy 1: ERC20 Transfer events (for WMON and other ERC20 outputs)
+  // - Strategy 2: WMON Withdrawal events (for native MON outputs after unwrapping)
+  // - Strategy 3: Balance difference fallback (for single swaps or edge cases)
+  let actualOutput: bigint;
+
+  try {
+    debugLog("Parsing transaction events for exact output amount");
+
+    // Strategy 1: Try to find ERC20 Transfer TO user (works for WMON)
+    const transferEvents = parseEventLogs({
+      abi: erc20Abi,
+      logs: receipt.logs,
+      eventName: 'Transfer'
+    });
+
+    const transferToUser = transferEvents.find(event =>
+      event.address.toLowerCase() === quote.toToken.toLowerCase() &&
+      event.args.to?.toLowerCase() === userAddress.toLowerCase()
+    );
+
+    if (transferToUser && transferToUser.args.value) {
+      actualOutput = transferToUser.args.value;
+      debugLog("✓ Detected output amount from Transfer event", {
+        amount: formatUnits(actualOutput, quote.toTokenDecimals),
+        token: quote.toTokenSymbol
+      });
+    } else {
+      // Strategy 2: Try to find WMON Withdrawal event (native MON output)
+      // When Monorail routes through WMON pool, it unwraps to native MON
+      // Event signature: Withdrawal(address indexed src, uint256 wad)
+      const withdrawalAbi = [{
+        type: 'event',
+        name: 'Withdrawal',
+        inputs: [
+          { name: 'src', type: 'address', indexed: true },
+          { name: 'wad', type: 'uint256', indexed: false }
+        ]
+      }] as const;
+
+      const withdrawalEvents = parseEventLogs({
+        abi: withdrawalAbi,
+        logs: receipt.logs,
+        eventName: 'Withdrawal'
+      });
+
+      if (withdrawalEvents.length > 0) {
+        // Take the last withdrawal event (most likely our unwrap)
+        actualOutput = withdrawalEvents[withdrawalEvents.length - 1].args.wad!;
+        debugLog("✓ Detected output amount from Withdrawal event (native MON)", {
+          amount: formatEther(actualOutput),
+          token: 'MON'
+        });
+      } else {
+        // Strategy 3: Fallback to balance difference (for single swaps or unknown cases)
+        debugLog("⚠ No Transfer or Withdrawal events found, falling back to balance difference");
+        const balanceAfter = isNativeToken(quote.toToken, MON_ADDRESS)
+          ? await publicClient.getBalance({ address: userAddress })
+          : (await publicClient.readContract({
+              address: quote.toToken,
+              abi: erc20Abi,
+              functionName: "balanceOf",
+              args: [userAddress],
+            }) as bigint);
+        actualOutput = balanceAfter - balanceBefore;
+        debugLog("Balance difference calculation result", {
+          balanceBefore: formatUnits(balanceBefore, quote.toTokenDecimals),
+          balanceAfter: formatUnits(balanceAfter, quote.toTokenDecimals),
+          actualOutput: formatUnits(actualOutput, quote.toTokenDecimals),
+          warning: "This may be inaccurate for parallel swaps"
+        });
+      }
+    }
+  } catch (error) {
+    // If event parsing fails entirely, fall back to balance difference
+    debugLog("Event parsing failed, using balance difference fallback", { error });
+    const balanceAfter = isNativeToken(quote.toToken, MON_ADDRESS)
+      ? await publicClient.getBalance({ address: userAddress })
+      : (await publicClient.readContract({
+          address: quote.toToken,
+          abi: erc20Abi,
+          functionName: "balanceOf",
+          args: [userAddress],
+        }) as bigint);
+    actualOutput = balanceAfter - balanceBefore;
+  }
 
   // Step 10.5: Determine transaction status
   // CRITICAL: Check if swap actually succeeded (actualOutput > 0)

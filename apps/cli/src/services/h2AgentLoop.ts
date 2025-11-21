@@ -278,8 +278,26 @@ CRITICAL: Each operation costs ~0.095 MON. Examples:
 - 3 swaps → 0.485 MON needed
 - 4 swaps → 0.58 MON needed
 
-For single operations: Just execute - if balance low, tool will error.
-AUTOMATICALLY call fundSessionKey (no user permission needed) then retry the operation.
+**SESSION KEY BALANCE CHECKING:**
+
+For SWAPS:
+1. Call getSwapQuote (no balance check needed - read-only operation)
+2. Show quote to user
+3. IMMEDIATELY BEFORE executeSwap → call checkSessionKeyBalance with estimatedOperations
+   - Single swap → {estimatedOperations: 1}
+   - Batch swaps → {estimatedOperations: N}
+4. If needsFunding = true → AUTOMATICALLY call fundSessionKey (no user permission needed)
+5. After funding completes → call checkSessionKeyBalance AGAIN to verify
+6. ONLY THEN call executeSwap
+
+For DIRECT operations (transfer/wrap/unwrap/stake/unstake):
+1. IMMEDIATELY BEFORE execution tool → call checkSessionKeyBalance
+   - Single operation → {estimatedOperations: 1}
+   - Batch operations → {estimatedOperations: N}
+2. If needsFunding = true → AUTOMATICALLY call fundSessionKey (no user permission needed)
+3. After funding completes → call checkSessionKeyBalance AGAIN to verify
+4. ONLY THEN call the execution tool
+
 Session key funding is a maintenance operation that does not require user confirmation.
 
 **BALANCE FETCHING:**
@@ -313,8 +331,26 @@ CRITICAL: Each operation costs ~0.095 MON. Examples:
 - 3 swaps → 0.485 MON needed
 - 4 swaps → 0.58 MON needed
 
-For single operations: Just execute - if balance low, tool will error.
-AUTOMATICALLY call fundSessionKey (no user permission needed) then retry the operation.
+**SESSION KEY BALANCE CHECKING:**
+
+For SWAPS:
+1. Call getSwapQuote (no balance check needed - read-only operation)
+2. Show quote to user
+3. IMMEDIATELY BEFORE executeSwap → call checkSessionKeyBalance with estimatedOperations
+   - Single swap → {estimatedOperations: 1}
+   - Batch swaps → {estimatedOperations: N}
+4. If needsFunding = true → AUTOMATICALLY call fundSessionKey (no user permission needed)
+5. After funding completes → call checkSessionKeyBalance AGAIN to verify
+6. ONLY THEN call executeSwap
+
+For DIRECT operations (transfer/wrap/unwrap/stake/unstake):
+1. IMMEDIATELY BEFORE execution tool → call checkSessionKeyBalance
+   - Single operation → {estimatedOperations: 1}
+   - Batch operations → {estimatedOperations: N}
+2. If needsFunding = true → AUTOMATICALLY call fundSessionKey (no user permission needed)
+3. After funding completes → call checkSessionKeyBalance AGAIN to verify
+4. ONLY THEN call the execution tool
+
 Session key funding is a maintenance operation that does not require user confirmation.
 
 **BALANCE FETCHING:**
@@ -469,8 +505,26 @@ CRITICAL: Each operation costs ~0.095 MON. Examples:
 - 3 swaps → 0.485 MON needed
 - 4 swaps → 0.58 MON needed
 
-For single operations: Just execute - if balance low, tool will error.
-AUTOMATICALLY call fundSessionKey (no user permission needed) then retry the operation.
+**SESSION KEY BALANCE CHECKING:**
+
+For SWAPS:
+1. Call getSwapQuote (no balance check needed - read-only operation)
+2. Show quote to user
+3. IMMEDIATELY BEFORE executeSwap → call checkSessionKeyBalance with estimatedOperations
+   - Single swap → {estimatedOperations: 1}
+   - Batch swaps → {estimatedOperations: N}
+4. If needsFunding = true → AUTOMATICALLY call fundSessionKey (no user permission needed)
+5. After funding completes → call checkSessionKeyBalance AGAIN to verify
+6. ONLY THEN call executeSwap
+
+For DIRECT operations (transfer/wrap/unwrap/stake/unstake):
+1. IMMEDIATELY BEFORE execution tool → call checkSessionKeyBalance
+   - Single operation → {estimatedOperations: 1}
+   - Batch operations → {estimatedOperations: N}
+2. If needsFunding = true → AUTOMATICALLY call fundSessionKey (no user permission needed)
+3. After funding completes → call checkSessionKeyBalance AGAIN to verify
+4. ONLY THEN call the execution tool
+
 Session key funding is a maintenance operation that does not require user confirmation.
 
 **BALANCE FETCHING:**

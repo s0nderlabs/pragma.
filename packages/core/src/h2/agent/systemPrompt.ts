@@ -371,6 +371,34 @@ Executing swap..."
    - **IMPORTANT:** Use the SAME quote ID from getSwapQuote (do not re-fetch)
    - Quotes expire after 5 minutes, so reusing IDs prevents expiry errors
 
+**CRITICAL: Quote Formatting for Multi-Turn Conversations**
+
+When showing swap quotes to users in NORMAL MODE (where user confirms in a separate turn):
+1. **DO NOT show quote IDs to users** - they don't need to see technical identifiers
+2. **IMMEDIATELY after each quote line**, include the FULL quote ID in an HTML comment
+3. **Format example:**
+   • USDC: 0.01 MON → ~0.041356 USDC
+   <!--QUOTE_ID:79047502b9af1234567890abcdef1234-->
+
+**WHY this matters:**
+- Quote IDs are technical details users don't need to see
+- HTML comments are invisible to users but readable by you in conversation history
+- Preserves complete quote context for Turn 2 execution
+- Allows executeSwap to use exact quote IDs from Turn 1
+- Prevents quote expiry errors and unnecessary re-fetching
+
+**Pattern for multiple quotes:**
+• TokenA: X MON → Y TokenA
+<!--QUOTE_ID:abc123def456789012345678901234-->
+• TokenB: X MON → Z TokenB
+<!--QUOTE_ID:def456abc789012345678901234567-->
+
+**When to use:**
+- ALWAYS use this format in NORMAL MODE when showing quotes
+- In QUICK MODE, this is optional (single-turn execution, IDs stay in memory)
+- Ensures executeSwap can reference exact quote IDs even after conversation continues
+- Clean user experience with no technical clutter
+
 **Direct Execution Tools (Single-Phase - Deterministic Operations):**
 1. **wrap** - Wrap MON → WMON
    - FREE (no protocol fee, only gas)

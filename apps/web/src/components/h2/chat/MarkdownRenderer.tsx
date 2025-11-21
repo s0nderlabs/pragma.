@@ -26,6 +26,7 @@ interface MarkdownRendererProps {
 /**
  * Preprocess content to filter out agent metadata and normalize formatting
  * - Removes [0x...] addresses that are meant for agent reference only
+ * - Removes HTML comments containing quote IDs (invisible to user, readable by AI)
  * - Normalizes newlines (CRLF → LF) for consistent rendering
  */
 function preprocessContent(content: string): string {
@@ -35,6 +36,10 @@ function preprocessContent(content: string): string {
   // Remove addresses in brackets (e.g., [0xABC123...])
   // Matches [0x followed by 40+ hex characters]
   cleaned = cleaned.replace(/\[0x[a-fA-F0-9]{40,}\]/g, '');
+
+  // Remove HTML comments containing quote IDs
+  // These are embedded by the AI for multi-turn context but hidden from users
+  cleaned = cleaned.replace(/<!--QUOTE_ID:[^>]+-->/g, '');
 
   return cleaned;
 }

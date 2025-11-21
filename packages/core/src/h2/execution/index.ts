@@ -31,8 +31,12 @@ export {
   fundSessionKey,
   formatSessionKeyBalance,
   getSessionKeyFundingMessage,
+  shouldFundForBatch,
+  estimateGasForBatch,
   MIN_SESSION_KEY_BALANCE,
   SESSION_KEY_FUNDING_AMOUNT,
+  AVG_GAS_PER_OPERATION,
+  BATCH_SAFETY_BUFFER,
 } from "./sessionKeyManager.js";
 
 // Quote Store

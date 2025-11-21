@@ -196,16 +196,41 @@ export const wrapTool = tool(
       // Wait for confirmation
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
 
-      // Return result
-      return `✅ Wrap successful!
+      // Format message for LLM (clean, human-readable)
+      const message = `Wrap executed successfully! 🎉
 
-• Wrapped: ${amountFormatted} MON → ${amountFormatted} WMON
-• Transaction: ${txHash}
+📊 Receipt:
+• Wrapped: ${amountFormatted} MON
+• Received: ${amountFormatted} WMON
+• Tx Hash: ${txHash}
 • Block: ${receipt.blockNumber}
-• Gas Used: ${receipt.gasUsed}
-• Status: ${receipt.status}
+• Gas Used: ${receipt.gasUsed} units
 
-You now have ${amountFormatted} WMON in your account.`;
+Your MON has been wrapped into WMON!`;
+
+      // Prepare metadata for activity extraction
+      const metadata = {
+        txHash,
+        blockNumber: receipt.blockNumber.toString(),
+        gasUsed: receipt.gasUsed.toString(),
+        status: receipt.status === 'success' ? 'success' : 'failed',
+        fromToken: 'MON',
+        toToken: 'WMON',
+        fromAmount: amountFormatted,
+        toAmount: amountFormatted,
+        delegationMetadata: {
+          delegator: userAddress,
+          sessionKey: sessionData.sessionKeyAddress,
+          nonce: nonce.toString(), // Convert BigInt to string
+          delegationCount: 1,
+          delegationTypes: ['wrap'],
+          expiresAt: Math.floor(Date.now() / 1000) + 300, // 5 minutes in seconds
+          feeEnforced: false, // Wraps are FREE (gas only)
+        },
+      };
+
+      // Return message with embedded metadata (hidden from LLM via HTML comment)
+      return `${message}\n\n<!--PRAGMA_METADATA:${JSON.stringify(metadata)}-->`;
     } catch (error) {
       throw createErrorFromCode("EXEC_DELEGATION_REDEEM_REVERT", {
         message: `Failed to wrap: ${(error as Error).message}`,

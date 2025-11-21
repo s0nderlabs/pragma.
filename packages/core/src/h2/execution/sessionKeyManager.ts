@@ -32,11 +32,11 @@ export const MIN_SESSION_KEY_BALANCE = parseEther("0.1"); // 0.1 MON
 /** Standard funding amount (increased for batch operation support) */
 export const SESSION_KEY_FUNDING_AMOUNT = parseEther("1.0"); // 1.0 MON
 
-/** Average gas cost per operation (conservative estimate) */
-export const AVG_GAS_PER_OPERATION = parseEther("0.08"); // ~0.08 MON per swap/transfer
+/** Average gas cost per operation (updated from real-world data) */
+export const AVG_GAS_PER_OPERATION = parseEther("0.095"); // ~0.095 MON per swap/transfer (actual: 0.093)
 
 /** Safety buffer for batch operations */
-export const BATCH_SAFETY_BUFFER = parseEther("0.15"); // Extra 0.15 MON buffer
+export const BATCH_SAFETY_BUFFER = parseEther("0.20"); // Extra 0.20 MON buffer (increased for reliability)
 
 /**
  * Minimum balance needed to pay gas for delegation-based refill

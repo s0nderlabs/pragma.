@@ -71,11 +71,9 @@ export const executeSwapTool = tool(
       const quote = getSwapQuote(quoteId);
 
       // Create signature for parallel tool identification
-      // Use input tokens if provided (for signature matching), fallback to quote
-      // This ensures signature matches browserAgentRunner which uses raw LLM input
-      const fromSymbol = (fromToken || quote.fromTokenSymbol).toUpperCase();
-      const toSymbol = (toToken || quote.toTokenSymbol).toUpperCase();
-      const signature = `executeSwap:${fromSymbol}-${toSymbol}`;
+      // Use quoteId-only format for guaranteed matching with browserAgentRunner
+      // QuoteId is cryptographically unique, preventing signature collisions
+      const signature = `executeSwap:${quoteId}`;
 
       // Build resolved description for parent tool display (uses actual symbols from quote)
       const resolvedDescription = `Execute ${quote.fromTokenSymbol} → ${quote.toTokenSymbol}`;
@@ -100,7 +98,8 @@ export const executeSwapTool = tool(
       // Format receipt
       const gasUsedFormatted = formatUnits(result.gasUsed, 18);
 
-      return `Swap executed successfully!
+      // Format message for LLM (clean, human-readable)
+      const message = `Swap executed successfully!
 
 📊 Receipt:
 • Swapped: ${quote.amount} ${quote.fromTokenSymbol}
@@ -111,29 +110,64 @@ export const executeSwapTool = tool(
 • Tx Hash: ${result.txHash}
 
 Your ${quote.toTokenSymbol} balance has been updated.`;
+
+      // Prepare metadata for activity extraction (convert BigInt to string)
+      const metadata = {
+        txHash: result.txHash,
+        blockNumber: result.blockNumber.toString(),
+        gasUsed: result.gasUsed.toString(),
+        status: result.status,
+        fromToken: result.fromToken || quote.fromTokenSymbol,
+        toToken: result.toToken || quote.toTokenSymbol,
+        fromAmount: result.fromAmount || quote.amount,
+        toAmount: result.actualOutputFormatted,
+        delegationMetadata: result.delegationMetadata ? {
+          delegator: result.delegationMetadata.delegator,
+          sessionKey: result.delegationMetadata.sessionKey,
+          nonce: result.delegationMetadata.nonce.toString(), // Convert BigInt to string
+          delegationCount: result.delegationMetadata.delegationCount,
+          delegationTypes: result.delegationMetadata.delegationTypes,
+          expiresAt: result.delegationMetadata.expiresAt,
+          feeEnforced: result.delegationMetadata.feeEnforced,
+        } : undefined,
+      };
+
+      // Return message with embedded metadata (hidden from LLM via HTML comment)
+      return `${message}\n\n<!--PRAGMA_METADATA:${JSON.stringify(metadata)}-->`;
     } catch (error) {
       // Handle specific errors
+      // CRITICAL: Throw errors instead of returning strings so LangChain marks tool as "error" not "completed"
+      // This prevents phantom "success" activities from being created for pre-execution failures
       const err = error as Error;
 
       if (err.name === "QuoteNotFoundError" || err.name === "QuoteExpiredError") {
-        return `❌ ${err.message}\n\nPlease request a new quote by asking for a swap again.`;
+        throw createErrorFromCode("QUOTE_ERROR", {
+          message: `${err.message}\n\nPlease request a new quote by asking for a swap again.`,
+          cause: error,
+        });
       }
 
       if (err.name === "SessionKeyFundingError") {
-        return `❌ Session key funding failed: ${err.message}\n\nPlease try again or contact support.`;
+        throw createErrorFromCode("FUNDING_ERROR", {
+          message: `Session key funding failed: ${err.message}\n\nPlease try again or contact support.`,
+          cause: error,
+        });
       }
 
       // If execution not fully implemented yet
       if (err.message.includes("not fully implemented")) {
-        return `⚠️  Swap execution is not fully implemented yet.\n\n` +
-               `This is a placeholder response. The actual implementation requires:\n` +
-               `- Web3Auth bridge integration for delegation signing\n` +
-               `- Delegation redemption via bundler\n` +
-               `- Transaction confirmation handling\n\n` +
-               `Quote details:\n` +
-               `• From: ${getSwapQuote(quoteId).amount} ${getSwapQuote(quoteId).fromTokenSymbol}\n` +
-               `• To: ~${getSwapQuote(quoteId).expectedOutput} ${getSwapQuote(quoteId).toTokenSymbol}\n` +
-               `• Quote ID: ${quoteId}`;
+        throw createErrorFromCode("NOT_IMPLEMENTED", {
+          message: `Swap execution is not fully implemented yet.\n\n` +
+                 `This is a placeholder response. The actual implementation requires:\n` +
+                 `- Web3Auth bridge integration for delegation signing\n` +
+                 `- Delegation redemption via bundler\n` +
+                 `- Transaction confirmation handling\n\n` +
+                 `Quote details:\n` +
+                 `• From: ${getSwapQuote(quoteId).amount} ${getSwapQuote(quoteId).fromTokenSymbol}\n` +
+                 `• To: ~${getSwapQuote(quoteId).expectedOutput} ${getSwapQuote(quoteId).toTokenSymbol}\n` +
+                 `• Quote ID: ${quoteId}`,
+          cause: error,
+        });
       }
 
       throw createErrorFromCode("EXECUTION_FAILED", {

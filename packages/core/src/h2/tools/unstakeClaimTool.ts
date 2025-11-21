@@ -241,16 +241,47 @@ export const unstakeClaimTool = tool(
       const aprioriFeeBps = 10n; // 10 basis points = 0.1%
       const aprioriFee = (totalClaimableAssets * aprioriFeeBps) / 10000n;
 
-      return `✅ Unstake claim successful!
+      // Format amounts for display
+      const claimedAmountFormatted = formatUnits(claimedAmount, 18);
+      const aprioriFeeFormatted = formatUnits(aprioriFee, 18);
 
+      // Format message for LLM (clean, human-readable)
+      const message = `Unstake claim executed successfully! 🎉
+
+📊 Receipt:
 • Request ID${isBatch ? "s" : ""}: ${requestIds}
-• Claimed: ${formatUnits(claimedAmount, 18)} MON
-• aPriori Fee: ${formatUnits(aprioriFee, 18)} MON (0.1%)
-• Transaction: ${txHash}
+• Claimed: ${claimedAmountFormatted} MON
+• aPriori Fee: ${aprioriFeeFormatted} MON (0.1%)
+• Tx Hash: ${txHash}
 • Block: ${receipt.blockNumber}
-• Gas Used: ${receipt.gasUsed}
+• Gas Used: ${receipt.gasUsed} units
 
 Your MON has been returned from staking. ${isBatch ? `${requestIdArray.length} requests` : "Request"} successfully claimed.`;
+
+      // Prepare metadata for activity extraction
+      const metadata = {
+        txHash,
+        blockNumber: receipt.blockNumber.toString(),
+        gasUsed: receipt.gasUsed.toString(),
+        status: receipt.status === 'success' ? 'success' : 'failed',
+        fromToken: undefined, // Claiming previously unstaked amount
+        toToken: 'MON',
+        fromAmount: undefined, // We don't have the original aprMON amount here
+        toAmount: claimedAmountFormatted,
+        requestIds, // Store claimed request IDs
+        delegationMetadata: {
+          delegator: userAddress,
+          sessionKey: sessionData.sessionKeyAddress,
+          nonce: nonce.toString(), // Convert BigInt to string
+          delegationCount: 1,
+          delegationTypes: ['unstakeClaim'],
+          expiresAt: Math.floor(Date.now() / 1000) + 300, // 5 minutes in seconds
+          feeEnforced: false, // No Pragma fee (aPriori charges 0.1% protocol fee)
+        },
+      };
+
+      // Return message with embedded metadata
+      return `${message}\n\n<!--PRAGMA_METADATA:${JSON.stringify(metadata)}-->`;
     } catch (error) {
       throw createErrorFromCode("EXEC_DELEGATION_REDEEM_REVERT", {
         message: `Failed to claim unstake: ${(error as Error).message}`,

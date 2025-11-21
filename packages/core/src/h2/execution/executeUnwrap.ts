@@ -228,5 +228,14 @@ export async function executeUnwrap(params: ExecuteUnwrapParams): Promise<Execut
     status: receipt.status === "success" ? "success" : "reverted",
     actualOutput: quote.amountWei,
     actualOutputFormatted: quote.amount,
+    delegationMetadata: {
+      delegator: userAddress,
+      sessionKey: sessionKeyAddress,
+      nonce,
+      delegationCount: 1, // Unwrap uses 1 delegation
+      delegationTypes: ['unwrap'],
+      expiresAt: Math.floor(Date.now() / 1000) + 300, // 5 minutes in seconds
+      feeEnforced: false, // Unwraps are FREE (gas only)
+    },
   };
 }

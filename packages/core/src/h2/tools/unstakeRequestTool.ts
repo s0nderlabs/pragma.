@@ -247,26 +247,56 @@ export const unstakeRequestTool = tool(
 
       // Dynamic messaging based on whether unstaking completed instantly
       if (hasInstantClaim) {
-        return `✅ Unstake complete! MON received instantly
+        const claimedAssetsFormatted = formatUnits(claimedAssets || 0n, 18);
 
-• Amount: ${sharesFormatted} aprMON → ${formatUnits(claimedAssets || 0n, 18)} MON
+        // Format message for LLM (clean, human-readable)
+        const message = `Unstake executed successfully! 🎉
+
+📊 Receipt:
+• Unstaked: ${sharesFormatted} aprMON → ${claimedAssetsFormatted} MON
 • Request ID: ${requestId}
-• Transaction: ${txHash}
+• Tx Hash: ${txHash}
 • Block: ${receipt.blockNumber}
-• Gas Used: ${receipt.gasUsed}
+• Gas Used: ${receipt.gasUsed} units
 
 ⚡ **Testnet Mode:** Withdrawals are instant (withdrawalDelay = 0 epochs)
 
-Note: On mainnet, unstaking will have 12-18 hour epoch-based delays for security.
-The two-step process (request → wait → claim) will be required when delays are enabled.`;
-      } else {
-        return `✅ Unstake request submitted!
+Your aprMON has been converted back to MON instantly!`;
 
+        // Prepare metadata for activity extraction
+        const metadata = {
+          txHash,
+          blockNumber: receipt.blockNumber.toString(),
+          gasUsed: receipt.gasUsed.toString(),
+          status: receipt.status === 'success' ? 'success' : 'failed',
+          fromToken: 'aprMON',
+          toToken: 'MON',
+          fromAmount: sharesFormatted,
+          toAmount: claimedAssetsFormatted,
+          requestId: requestId.toString(),
+          delegationMetadata: {
+            delegator: userAddress,
+            sessionKey: sessionData.sessionKeyAddress,
+            nonce: nonce.toString(), // Convert BigInt to string
+            delegationCount: 1,
+            delegationTypes: ['unstakeRequest'],
+            expiresAt: Math.floor(Date.now() / 1000) + 300, // 5 minutes in seconds
+            feeEnforced: false, // FREE operation
+          },
+        };
+
+        // Return message with embedded metadata
+        return `${message}\n\n<!--PRAGMA_METADATA:${JSON.stringify(metadata)}-->`;
+      } else {
+        // Format message for LLM (clean, human-readable)
+        const message = `Unstake request submitted! 🎉
+
+📊 Receipt:
 • Request ID: ${requestId}
 • aprMON Requested: ${sharesFormatted}
-• Transaction: ${txHash}
+• Tx Hash: ${txHash}
 • Block: ${receipt.blockNumber}
-• Gas Used: ${receipt.gasUsed}
+• Gas Used: ${receipt.gasUsed} units
 
 ⏳ **Next Steps:**
 1. Wait 12-18 hours for the epoch to pass
@@ -274,6 +304,31 @@ The two-step process (request → wait → claim) will be required when delays a
 3. Once claimable, use: "claim unstake ${requestId}"
 
 Your withdrawal request is queued and will be claimable after the current staking epoch ends.`;
+
+        // Prepare metadata for activity extraction
+        const metadata = {
+          txHash,
+          blockNumber: receipt.blockNumber.toString(),
+          gasUsed: receipt.gasUsed.toString(),
+          status: receipt.status === 'success' ? 'success' : 'failed',
+          fromToken: 'aprMON',
+          toToken: 'MON',
+          fromAmount: sharesFormatted,
+          toAmount: undefined, // Will be claimed later
+          requestId: requestId.toString(),
+          delegationMetadata: {
+            delegator: userAddress,
+            sessionKey: sessionData.sessionKeyAddress,
+            nonce: nonce.toString(), // Convert BigInt to string
+            delegationCount: 1,
+            delegationTypes: ['unstakeRequest'],
+            expiresAt: Math.floor(Date.now() / 1000) + 300, // 5 minutes in seconds
+            feeEnforced: false, // FREE operation
+          },
+        };
+
+        // Return message with embedded metadata
+        return `${message}\n\n<!--PRAGMA_METADATA:${JSON.stringify(metadata)}-->`;
       }
     } catch (error) {
       throw createErrorFromCode("EXEC_DELEGATION_REDEEM_REVERT", {

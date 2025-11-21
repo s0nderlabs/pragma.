@@ -43,7 +43,7 @@ import {
   redeemDelegations,
 } from "@metamask/delegation-toolkit";
 
-import type { ExecutionResult, SwapQuoteData } from "./types.js";
+import type { ExecutionResult, SwapQuoteData, DelegationMetadata } from "./types.js";
 import { createApproveDelegation } from "../delegation/approveDelegation.js";
 import { createSwapDelegation } from "../delegation/swapDelegation.js";
 import { getSwapQuote, deleteSwapQuote } from "./quoteStore.js";
@@ -244,9 +244,8 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
 
   // Progress: Balance verified
   // Generate signature from quote if not provided
-  // Use toUpperCase for consistent matching with browserAgentRunner
-  // Prefix with executeSwap to prevent collisions with getSwapQuote
-  const toolSignature = signature || `executeSwap:${quote.fromTokenSymbol.toUpperCase()}-${quote.toTokenSymbol.toUpperCase()}`;
+  // Use quoteId-only format for guaranteed matching with browserAgentRunner
+  const toolSignature = signature || `executeSwap:${quoteId}`;
 
   // Build resolved description if not provided (uses actual token symbols from quote)
   const resolvedDescription = description || `Execute ${quote.fromTokenSymbol} → ${quote.toTokenSymbol}`;
@@ -573,6 +572,29 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     debugLog("Swap delegation args updated with fee allowance");
   }
 
+  // Step 6d: Collect delegation metadata for activity tracking
+  const delegationTypes: string[] = delegationBundles.map(b => b.label);
+  const delegationMetadata = {
+    delegator: userAddress,
+    sessionKey: sessionKeyAddress,
+    nonce,
+    delegationCount: delegationBundles.length + (feeAllowanceDelegation ? 1 : 0),
+    delegationTypes,
+    expiresAt: Math.floor(Date.now() / 1000) + 300, // 5 minutes from now
+    feeEnforced: !!feeEnforcedSwap,
+
+    // Detailed per-delegation breakdown for transparency
+    delegations: delegationBundles.map(bundle => ({
+      type: bundle.label,
+      target: bundle.execution.target,
+      functionSelector: bundle.execution.callData.slice(0, 10),
+      value: bundle.execution.value.toString(),
+      enforcers: bundle.delegationResult.delegation.caveats.map((c: any) => c.enforcer),
+    })),
+  };
+
+  debugLog("Delegation Metadata", delegationMetadata);
+
   // Step 7: Get or create session wallet client
   // Use provided wallet for proper nonce management (prevents parallel tx collisions)
   // Or create temporary wallet as fallback (legacy behavior)
@@ -739,16 +761,37 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
       }) as bigint);
   const actualOutput = balanceAfter - balanceBefore;
 
+  // Step 10.5: Determine transaction status
+  // CRITICAL: Check if swap actually succeeded (actualOutput > 0)
+  // Transaction may be mined successfully (receipt.status = "success")
+  // but swap can still fail due to slippage, price movement, etc.
+  let status: "success" | "reverted" | "failed";
+  if (receipt.status !== "success") {
+    status = "reverted"; // Transaction itself reverted
+  } else if (actualOutput <= 0n) {
+    status = "failed"; // Transaction succeeded but swap failed (zero output)
+  } else {
+    status = "success"; // Transaction succeeded and swap succeeded
+  }
+
   // Step 11: Clean up quote from store
   deleteSwapQuote(quoteId);
 
-  // Step 12: Return execution result
+  // Step 12: Return execution result with full metadata
   return {
     txHash: finalTxHash,
     blockNumber: receipt.blockNumber,
     gasUsed: receipt.gasUsed,
-    status: receipt.status === "success" ? "success" : "reverted",
+    status,
     actualOutput,
     actualOutputFormatted: formatUnits(actualOutput, quote.toTokenDecimals),
+
+    // Token metadata for activity display
+    fromToken: quote.fromTokenSymbol,
+    toToken: quote.toTokenSymbol,
+    fromAmount: formatUnits(quote.amountWei, quote.fromTokenDecimals),
+
+    // Delegation metadata for activity tracking
+    delegationMetadata,
   };
 }

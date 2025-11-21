@@ -233,15 +233,45 @@ export const stakeTool = tool(
         args: [getAddress(userAddress)],
       }) as bigint;
 
-      return `✅ Stake successful!
+      // Format amounts for display
+      const stakeAmountFormatted = formatUnits(stakeAmount, 18);
+      const aprMonBalanceFormatted = formatUnits(aprMonBalance, 18);
 
-• Staked: ${formatUnits(stakeAmount, 18)} MON → aprMON
-• aprMON Balance: ${formatUnits(aprMonBalance, 18)}
-• Transaction: ${txHash}
+      // Format message for LLM (clean, human-readable)
+      const message = `Stake executed successfully! 🎉
+
+📊 Receipt:
+• Staked: ${stakeAmountFormatted} MON → aprMON
+• aprMON Balance: ${aprMonBalanceFormatted}
+• Tx Hash: ${txHash}
 • Block: ${receipt.blockNumber}
-• Gas Used: ${receipt.gasUsed}
+• Gas Used: ${receipt.gasUsed} units
 
 Your MON is now earning staking rewards through aPriori. aprMON appreciates in value over time.`;
+
+      // Prepare metadata for activity extraction
+      const metadata = {
+        txHash,
+        blockNumber: receipt.blockNumber.toString(),
+        gasUsed: receipt.gasUsed.toString(),
+        status: receipt.status === 'success' ? 'success' : 'failed',
+        fromToken: 'MON',
+        toToken: 'aprMON',
+        fromAmount: stakeAmountFormatted,
+        toAmount: aprMonBalanceFormatted,
+        delegationMetadata: {
+          delegator: userAddress,
+          sessionKey: sessionData.sessionKeyAddress,
+          nonce: nonce.toString(), // Convert BigInt to string
+          delegationCount: 1,
+          delegationTypes: ['stake'],
+          expiresAt: Math.floor(Date.now() / 1000) + 300, // 5 minutes in seconds
+          feeEnforced: false, // No Pragma fee on staking
+        },
+      };
+
+      // Return message with embedded metadata (hidden from LLM via HTML comment)
+      return `${message}\n\n<!--PRAGMA_METADATA:${JSON.stringify(metadata)}-->`;
     } catch (error) {
       throw createErrorFromCode("EXEC_DELEGATION_REDEEM_REVERT", {
         message: `Failed to stake: ${(error as Error).message}`,

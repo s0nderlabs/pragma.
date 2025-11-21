@@ -197,14 +197,41 @@ export const unwrapTool = tool(
       // Wait for confirmation
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
 
-      return `✅ Unwrap successful!
+      // Format message for LLM (clean, human-readable)
+      const message = `Unwrap executed successfully! 🎉
 
-• Unwrapped: ${amountFormatted} WMON → ${amountFormatted} MON
-• Transaction: ${txHash}
+📊 Receipt:
+• Unwrapped: ${amountFormatted} WMON
+• Received: ${amountFormatted} MON
+• Tx Hash: ${txHash}
 • Block: ${receipt.blockNumber}
-• Gas Used: ${receipt.gasUsed}
+• Gas Used: ${receipt.gasUsed} units
 
-You now have ${amountFormatted} MON back.`;
+Your WMON has been unwrapped back to MON!`;
+
+      // Prepare metadata for activity extraction
+      const metadata = {
+        txHash,
+        blockNumber: receipt.blockNumber.toString(),
+        gasUsed: receipt.gasUsed.toString(),
+        status: receipt.status === 'success' ? 'success' : 'failed',
+        fromToken: 'WMON',
+        toToken: 'MON',
+        fromAmount: amountFormatted,
+        toAmount: amountFormatted,
+        delegationMetadata: {
+          delegator: userAddress,
+          sessionKey: sessionData.sessionKeyAddress,
+          nonce: nonce.toString(), // Convert BigInt to string
+          delegationCount: 1,
+          delegationTypes: ['unwrap'],
+          expiresAt: Math.floor(Date.now() / 1000) + 300, // 5 minutes in seconds
+          feeEnforced: false, // Unwraps are FREE (gas only)
+        },
+      };
+
+      // Return message with embedded metadata (hidden from LLM via HTML comment)
+      return `${message}\n\n<!--PRAGMA_METADATA:${JSON.stringify(metadata)}-->`;
     } catch (error) {
       throw createErrorFromCode("EXEC_DELEGATION_REDEEM_REVERT", {
         message: `Failed to unwrap: ${(error as Error).message}`,

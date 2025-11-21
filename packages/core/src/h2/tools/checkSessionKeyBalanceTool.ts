@@ -13,7 +13,11 @@ import { z } from "zod";
 import type { Address, PublicClient } from "viem";
 import { formatEther } from "viem";
 
-import { checkSessionKeyBalance, MIN_SESSION_KEY_BALANCE } from "../execution/sessionKeyManager.js";
+import {
+  checkSessionKeyBalance,
+  shouldFundForBatch,
+  MIN_SESSION_KEY_BALANCE
+} from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 
 // ============================================================================
@@ -21,10 +25,11 @@ import { createErrorFromCode } from "../../errors/index.js";
 // ============================================================================
 
 export const checkSessionKeyBalanceTool = tool(
-  async (_input, config) => {
+  async (input, config) => {
     try {
       const sessionKeyAddress = config?.configurable?.sessionData?.sessionKeyAddress as Address;
       const publicClient = config?.configurable?.publicClient as PublicClient;
+      const estimatedOperations = input.estimatedOperations || 0;
 
       if (!sessionKeyAddress || !publicClient) {
         throw createErrorFromCode("CONFIG_MISSING", {
@@ -32,11 +37,16 @@ export const checkSessionKeyBalanceTool = tool(
         });
       }
 
-      // Check balance
-      const { balance, needsFunding, recommendedFundingAmount } = await checkSessionKeyBalance(
+      // Check balance (batch-aware if estimatedOperations provided)
+      const { balance, recommendedFundingAmount } = await checkSessionKeyBalance(
         sessionKeyAddress,
         publicClient
       );
+
+      // Use batch-aware logic if operation count provided, otherwise use simple threshold
+      const needsFunding = estimatedOperations > 0
+        ? shouldFundForBatch(balance, estimatedOperations)
+        : balance < MIN_SESSION_KEY_BALANCE;
 
       // Build response message
       const balanceFormatted = formatEther(balance);
@@ -90,13 +100,19 @@ Session Key Address: ${sessionKeyAddress}`;
 
 Returns:
 - Current session key balance
-- Whether funding is needed (balance < 0.1 MON threshold)
+- Whether funding is needed (smart calculation: uses batch requirements if estimatedOperations provided, otherwise 0.1 MON threshold)
 - Recommended funding amount if needed
 - Session key address for reference
 
 If needsFunding = true, call fundSessionKey before proceeding with operations.
 
 Example: User says "swap to USDC, USDT, USDM" → Call checkSessionKeyBalance ONCE at start`,
-    schema: z.object({}),
+    schema: z.object({
+      estimatedOperations: z.number().optional().describe(
+        "Number of operations planned (swaps, transfers, etc.). " +
+        "If provided, tool calculates required balance: (N × 0.095 MON) + 0.20 MON buffer. " +
+        "Examples: 2 swaps = 0.39 MON needed, 3 swaps = 0.485 MON needed, 4 swaps = 0.58 MON needed"
+      ),
+    }),
   }
 );

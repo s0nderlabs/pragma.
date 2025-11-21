@@ -87,8 +87,8 @@ export const executeTransferTool = tool(
         bundlerClient,
       });
 
-      // Return conversational receipt
-      return `Transfer executed successfully! 🎉
+      // Format message for LLM (clean, human-readable)
+      const message = `Transfer executed successfully! 🎉
 
 📊 Receipt:
 • Sent: ${quote.amount} ${quote.tokenSymbol}
@@ -99,6 +99,29 @@ export const executeTransferTool = tool(
 • Status: ${result.status}
 
 The transfer has been confirmed on-chain!`;
+
+      // Prepare metadata for activity extraction
+      const metadata = {
+        txHash: result.txHash,
+        blockNumber: result.blockNumber.toString(),
+        gasUsed: result.gasUsed.toString(),
+        status: result.status,
+        fromToken: quote.tokenSymbol,
+        fromAmount: quote.amount,
+        toToken: quote.tokenSymbol, // Same token (transfer)
+        delegationMetadata: result.delegationMetadata ? {
+          delegator: result.delegationMetadata.delegator,
+          sessionKey: result.delegationMetadata.sessionKey,
+          nonce: result.delegationMetadata.nonce.toString(), // Convert BigInt to string
+          delegationCount: result.delegationMetadata.delegationCount,
+          delegationTypes: result.delegationMetadata.delegationTypes,
+          expiresAt: result.delegationMetadata.expiresAt,
+          feeEnforced: result.delegationMetadata.feeEnforced,
+        } : undefined,
+      };
+
+      // Return message with embedded metadata (hidden from LLM via HTML comment)
+      return `${message}\n\n<!--PRAGMA_METADATA:${JSON.stringify(metadata)}-->`;
     } catch (error) {
       throw createErrorFromCode("EXECUTION_ERROR", {
         message: `Failed to execute transfer: ${(error as Error).message}`,

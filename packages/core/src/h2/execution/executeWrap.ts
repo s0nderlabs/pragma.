@@ -228,5 +228,14 @@ export async function executeWrap(params: ExecuteWrapParams): Promise<ExecutionR
     status: receipt.status === "success" ? "success" : "reverted",
     actualOutput: quote.amountWei,
     actualOutputFormatted: quote.amount,
+    delegationMetadata: {
+      delegator: userAddress,
+      sessionKey: sessionKeyAddress,
+      nonce,
+      delegationCount: 1, // Wrap uses 1 delegation
+      delegationTypes: ['wrap'],
+      expiresAt: Math.floor(Date.now() / 1000) + 300, // 5 minutes in seconds
+      feeEnforced: false, // Wraps are FREE (gas only)
+    },
   };
 }

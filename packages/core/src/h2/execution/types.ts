@@ -218,6 +218,28 @@ export interface H2ExecutionContext {
 }
 
 /**
+ * Delegation metadata for activity tracking
+ */
+export interface DelegationMetadata {
+  /** Smart account address (delegator) */
+  delegator: Address;
+  /** Session key address (delegate/executor) */
+  sessionKey: Address;
+  /** Delegation nonce (shared across batch) */
+  nonce: bigint;
+  /** Number of delegations created (1-4 depending on operation) */
+  delegationCount: number;
+  /** Types of delegations created (e.g., ["approve", "swap"]) */
+  delegationTypes: string[];
+  /** Delegation expiry timestamp (Unix seconds) */
+  expiresAt: number;
+  /** Whether protocol fee enforcer was used */
+  feeEnforced?: boolean;
+  /** Optional: Delegation hashes from DelegationManager */
+  delegationHashes?: Hex[];
+}
+
+/**
  * Result of transaction execution
  */
 export interface ExecutionResult {
@@ -227,12 +249,24 @@ export interface ExecutionResult {
   blockNumber: bigint;
   /** Gas used */
   gasUsed: bigint;
-  /** Status: 'success' or 'reverted' */
-  status: "success" | "reverted";
+  /** Status: 'success' (tx succeeded), 'reverted' (tx reverted), or 'failed' (tx succeeded but business logic failed) */
+  status: "success" | "reverted" | "failed";
   /** Actual output amount (for swaps, transfers) */
   actualOutput?: bigint;
   /** Formatted output amount */
   actualOutputFormatted?: string;
+
+  // Token metadata (for activity display)
+  /** From token symbol (e.g., "USDC") */
+  fromToken?: string;
+  /** To token symbol (e.g., "MON") */
+  toToken?: string;
+  /** From amount (formatted, e.g., "1.0") */
+  fromAmount?: string;
+
+  // Delegation metadata (for activity tracking)
+  /** Delegation information for this execution */
+  delegationMetadata?: DelegationMetadata;
 }
 
 // ============================================================================

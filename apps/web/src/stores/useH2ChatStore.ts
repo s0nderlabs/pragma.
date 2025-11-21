@@ -280,15 +280,36 @@ export const useH2ChatStore = create<H2ChatState>()(
               signature: resolvedSignature, // Add signature for matching
             };
 
-            // FIRST: Check for existing running parent for this toolName
-            // This handles 3rd, 4th, etc. tools being added to existing batch
-            const existingParent = messages.find(
-              (msg) =>
-                msg.role === "tool" &&
-                (msg as ToolMessage).isParent &&
-                (msg as ToolMessage).toolName === toolName &&
-                (msg as ToolMessage).status === "running"
-            ) as ToolMessage | undefined;
+            // FIRST: Check for existing parent within batch window (10 seconds)
+            // This handles late-arriving tools (3rd, 4th, etc.) joining their batch
+            // Time window prevents joining old batches from previous user messages
+            const BATCH_WINDOW_MS = 10000; // 10 seconds
+
+            let existingParent = messages
+              .filter(
+                (msg) => {
+                  const tool = msg as ToolMessage;
+                  return (
+                    msg.role === "tool" &&
+                    tool.isParent &&
+                    tool.toolName === toolName
+                  );
+                }
+              )
+              .sort((a, b) => {
+                // Get most recent parent (in case multiple exist)
+                const timeA = (a as ToolMessage).timestamp || 0;
+                const timeB = (b as ToolMessage).timestamp || 0;
+                return timeB - timeA;
+              })[0] as ToolMessage | undefined;
+
+            // Only join if parent was created within batch window
+            if (existingParent) {
+              const timeSinceCreation = Date.now() - (existingParent.timestamp || 0);
+              if (timeSinceCreation > BATCH_WINDOW_MS) {
+                existingParent = undefined; // Too old, don't join
+              }
+            }
 
             if (existingParent) {
               // Add new tool as child to existing parent
@@ -301,6 +322,7 @@ export const useH2ChatStore = create<H2ChatState>()(
                       ...parent,
                       children: [...(parent.children || []), toolMessage],
                       description: getReadableParentDescription(toolName, newCount),
+                      status: "running", // Reopen parent if it was completed
                     };
                   }
                   return msg;
@@ -313,9 +335,12 @@ export const useH2ChatStore = create<H2ChatState>()(
             }
 
             // SECOND: Check for standalone running tools with same toolName
+            // CRITICAL: Only batch genuinely parallel operations, not retries
+            // Exclude tools that aren't children (standalone only, ignore parents)
             const runningToolsWithSameName = messages.filter(
               (msg) =>
                 msg.role === "tool" &&
+                !(msg as ToolMessage).isParent && // Exclude existing parents
                 (msg as ToolMessage).toolName === toolName &&
                 (msg as ToolMessage).status === "running"
             );

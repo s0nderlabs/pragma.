@@ -1,174 +1,259 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { ArrowUpRight, ArrowDownLeft, RefreshCw, Layers } from 'lucide-react'
+import { Layers } from 'lucide-react'
+import { useH2ChatStore } from '@/stores/useH2ChatStore'
+import { useActivityStore } from '@/stores/useActivityStore'
+import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion'
+import { ActivityDetailModal } from '../ActivityDetailModal'
+import {
+  extractActivityRecords,
+  getRelativeTime,
+  type ActivityRecord,
+  EXECUTION_TOOLS,
+} from '@/lib/h2/activityExtractor'
+import {
+  activityCardVariants,
+  getStaggeredTransition,
+  springTransition,
+  staggerDelays,
+  disabledTransition,
+} from '@/lib/h2/motionVariants'
+import {
+  SwapIcon,
+  TransferIcon,
+  WrapIcon,
+  UnwrapIcon,
+  StakeIcon,
+  UnstakeIcon,
+  UnstakeClaimIcon,
+} from '../../icons/ActivityIcons'
 
 /**
- * ActivityTab - Transaction History
+ * ActivityTab - Real Transaction History from H2 Tool Executions
  *
- * Clean list of recent transactions
- * Monospace amounts, clear status indicators
- * No decoration, pure information
+ * Shows all executed transactions (swaps, transfers, stakes, etc.)
+ * Automatically updates when new transactions complete
+ * Persists per-user in localStorage via useActivityStore
  */
 export function ActivityTab() {
+  const messages = useH2ChatStore((state) => state.messages)
+  const sessionData = useH2ChatStore((state) => state.sessionData)
+  const wallet = sessionData?.delegator?.toLowerCase() || ''
 
-  // Sample transactions - will be replaced with real data
-  const transactions = [
-    {
-      id: 1,
-      type: 'swap',
-      from: 'ETH',
-      to: 'USDC',
-      amount: '0.5',
-      value: '$892.50',
-      status: 'success',
-      time: '2 min ago',
-    },
-    {
-      id: 2,
-      type: 'send',
-      to: '0xabcd...1234',
-      amount: '100 USDC',
-      value: '$100.00',
-      status: 'success',
-      time: '15 min ago',
-    },
-    {
-      id: 3,
-      type: 'receive',
-      from: '0x5678...90ab',
-      amount: '0.25 ETH',
-      value: '$446.25',
-      status: 'success',
-      time: '1 hour ago',
-    },
-    {
-      id: 4,
-      type: 'stake',
-      amount: '50 MON',
-      value: '$125.00',
-      apr: '12.4%',
-      status: 'pending',
-      time: '2 hours ago',
-    },
-    {
-      id: 5,
-      type: 'swap',
-      from: 'USDC',
-      to: 'MON',
-      amount: '250',
-      value: '$250.00',
-      status: 'success',
-      time: '5 hours ago',
-    },
-  ]
+  // Select raw data directly for stable reference
+  const activitiesByWallet = useActivityStore((state) => state.activitiesByWallet)
+  const addActivity = useActivityStore((state) => state.addActivity)
 
-  const getIcon = (type: string) => {
+  // Get activities for current wallet with useMemo for stable reference
+  const activities = useMemo(() => {
+    return activitiesByWallet[wallet] || []
+  }, [wallet, activitiesByWallet])
+
+  // Check if any execution tools are currently running
+  const hasRunningTools = useMemo(
+    () =>
+      messages.some((msg) => {
+        if (msg.role !== 'tool') return false
+        if (!EXECUTION_TOOLS.includes(msg.toolName as (typeof EXECUTION_TOOLS)[number])) return false
+
+        const toolMsg = msg
+
+        // If parent, check if any children are running
+        if (toolMsg.isParent && Array.isArray(toolMsg.children)) {
+          return toolMsg.children.some((child) => child.status === 'running')
+        }
+
+        // Otherwise check standalone tool status
+        return toolMsg.status === 'running'
+      }),
+    [messages]
+  )
+
+  // Modal state
+  const [selectedActivity, setSelectedActivity] = useState<ActivityRecord | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
+
+  // Accessibility: Detect reduced motion preference
+  const prefersReducedMotion = usePrefersReducedMotion()
+
+  const handleActivityClick = (activity: ActivityRecord) => {
+    setSelectedActivity(activity)
+    setModalOpen(true)
+  }
+
+  // Sync new completed tools to ActivityStore
+  useEffect(() => {
+    if (!wallet || hasRunningTools) return
+
+    const newActivities = extractActivityRecords(messages)
+
+    // Upsert all activities - store handles deduplication and change detection
+    newActivities.forEach((activity) => {
+      addActivity(activity, wallet)
+    })
+  }, [messages, wallet, hasRunningTools, addActivity])
+
+  const getIcon = (type: ActivityRecord['type']) => {
     switch (type) {
       case 'swap':
-        return <RefreshCw className="w-4 h-4" />
-      case 'send':
-        return <ArrowUpRight className="w-4 h-4" />
-      case 'receive':
-        return <ArrowDownLeft className="w-4 h-4" />
+        return <SwapIcon className="w-7 h-7" />
+      case 'transfer':
+        return <TransferIcon className="w-7 h-7" />
+      case 'wrap':
+        return <WrapIcon className="w-7 h-7" />
+      case 'unwrap':
+        return <UnwrapIcon className="w-7 h-7" />
       case 'stake':
-        return <Layers className="w-4 h-4" />
+        return <StakeIcon className="w-7 h-7" />
+      case 'unstake':
+        return <UnstakeIcon className="w-7 h-7" />
+      case 'unstakeClaim':
+        return <UnstakeClaimIcon className="w-7 h-7" />
       default:
         return null
     }
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: ActivityRecord['status']) => {
     switch (status) {
       case 'success':
-        return 'text-green-500'
+        return 'text-green-400'
       case 'pending':
-        return 'text-yellow-500'
+        return 'text-yellow-400'
       case 'failed':
-        return 'text-red-500'
+        return 'text-red-400'
       default:
         return 'text-white/40'
     }
   }
 
+  const getTypeName = (type: ActivityRecord['type']): string => {
+    switch (type) {
+      case 'swap':
+        return 'Swap'
+      case 'transfer':
+        return 'Transfer'
+      case 'wrap':
+        return 'Wrap'
+      case 'unwrap':
+        return 'Unwrap'
+      case 'stake':
+        return 'Stake'
+      case 'unstake':
+        return 'Unstake Request'
+      case 'unstakeClaim':
+        return 'Unstake Claim'
+      default:
+        return type
+    }
+  }
+
+  // Empty state
+  if (activities.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+        <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
+          <Layers className="w-8 h-8 text-white/40" />
+        </div>
+        <div className="text-sm font-medium text-white/60 mb-1">
+          No transactions yet
+        </div>
+        <div className="text-xs text-white/40 max-w-[200px]">
+          Execute a swap or transfer to see your activity here
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-2">
-      {transactions.map((tx, index) => (
-        <motion.div
-          key={tx.id}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: index * 0.05 }}
-          className={cn(
-            "p-4 rounded-[24px]",
-            "transition-all duration-200",
-            "cursor-pointer border",
-            "bg-white/10",
-            "hover:bg-white/15",
-            "border-white/10"
-          )}
-        >
-          <div className="flex items-center justify-between mb-1">
-            {/* Left: Icon and Type */}
-            <div className="flex items-center gap-2">
-              <div className={cn(
-                "w-8 h-8 rounded-[12px]",
-                "flex items-center justify-center",
-                "bg-white/10",
-                "text-white/60"
-              )}>
-                {getIcon(tx.type)}
-              </div>
-              <div>
-                <div className="text-sm font-medium capitalize text-white">
-                  {tx.type === 'swap' && `${tx.from} → ${tx.to}`}
-                  {tx.type === 'send' && `Send to ${tx.to}`}
-                  {tx.type === 'receive' && `From ${tx.from}`}
-                  {tx.type === 'stake' && `Stake ${tx.apr}`}
-                </div>
-                <div className="text-xs text-white/40">
-                  {tx.time}
-                </div>
-              </div>
-            </div>
-
-            {/* Right: Amount and Status */}
-            <div className="text-right">
-              <div className="text-sm font-mono font-medium text-white">
-                {tx.value}
-              </div>
-              <div className={cn(
-                "text-xs font-medium",
-                getStatusColor(tx.status)
-              )}>
-                {tx.status === 'pending' && (
-                  <span className="flex items-center gap-1 justify-end">
-                    <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-                    {tx.status}
-                  </span>
+    <>
+      <div className="space-y-0 will-change-scroll">
+        {activities.map((activity, index) => {
+            const isLast = index === activities.length - 1
+            return (
+              <motion.div
+                key={activity.id}
+                variants={activityCardVariants}
+                initial="initial"
+                animate="animate"
+                transition={
+                  prefersReducedMotion
+                    ? disabledTransition
+                    : getStaggeredTransition('medium', index, staggerDelays.activityCard)
+                }
+                className={cn(
+                  'py-4',
+                  'transition-colors duration-200',
+                  'hover:bg-white/[0.02]',
+                  'cursor-pointer',
+                  !isLast && 'border-b border-white/5'
                 )}
-                {tx.status !== 'pending' && tx.status}
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      ))}
+                onClick={() => handleActivityClick(activity)}
+              >
+            <div className="flex items-start justify-between gap-3">
+              {/* Left: Icon and Details */}
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                <div className="flex-shrink-0 text-white/60">
+                  {getIcon(activity.type)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  {/* Display Text with Amounts */}
+                  <div className="text-sm font-medium text-white mb-0.5">
+                    {activity.displayText || getTypeName(activity.type)}
+                  </div>
 
-      {/* Load More Button */}
-      <button
-        className={cn(
-          "w-full py-3 rounded-[24px]",
-          "text-sm font-medium",
-          "transition-all duration-200 border",
-          "text-white/60",
-          "hover:text-white",
-          "border-white/10",
-          "hover:bg-white/10"
-        )}
-      >
-        View all transactions
-      </button>
-    </div>
+                  {/* Original Description (fallback) */}
+                  {!activity.displayText && (
+                    <div className="text-xs text-white/60 mb-1.5 truncate">
+                      {activity.description}
+                    </div>
+                  )}
+
+                  {/* Timestamp only */}
+                  <div className="text-xs text-white/40">
+                    {getRelativeTime(activity.timestamp)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right: Status (only show non-success states) */}
+              {activity.status !== 'success' && (
+                <div className="flex-shrink-0 text-right">
+                  <div
+                    className={cn(
+                      'text-xs font-medium capitalize',
+                      getStatusColor(activity.status)
+                    )}
+                  >
+                    {activity.status === 'pending' && (
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+                        {activity.status}
+                      </span>
+                    )}
+                    {activity.status === 'failed' && (
+                      <span className="flex items-center gap-1.5">
+                        ✗ {activity.status}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+            )
+          })}
+      </div>
+
+      {/* Activity Detail Modal */}
+      <ActivityDetailModal
+        activity={selectedActivity}
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+      />
+    </>
   )
 }

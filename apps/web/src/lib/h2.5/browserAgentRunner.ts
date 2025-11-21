@@ -341,14 +341,8 @@ export async function streamBrowserAgent(
           break;
 
         case 'executeSwap':
-          // For execution: use toolName:fromToken-toToken from quote data
-          // The quoteId doesn't contain token info, so we need to extract from other fields
-          if (inputObj.fromToken && inputObj.toToken) {
-            const from = String(inputObj.fromToken).toUpperCase();
-            const to = String(inputObj.toToken).toUpperCase();
-            return `${toolName}:${from}-${to}`;
-          }
-          // Fallback: if only quoteId available, use it with prefix
+          // For execution: use quoteId-only format for guaranteed matching
+          // QuoteId is cryptographically unique, preventing signature collisions
           if (inputObj.quoteId) {
             return `${toolName}:${inputObj.quoteId}`;
           }
@@ -419,9 +413,15 @@ Always prefer PARALLEL execution for independent operations.
 
 **SESSION KEY FUNDING:**
 Before executing batch operations (2+ swaps/transfers), ALWAYS check session key balance:
-1. Call checkSessionKeyBalance
-2. If needsFunding = true, call fundSessionKey ONCE
-3. Then execute all operations in parallel
+1. Count total operations planned (swaps, transfers, stakes, etc.)
+2. Call checkSessionKeyBalance with estimatedOperations parameter (e.g., {estimatedOperations: 3})
+3. If needsFunding = true, call fundSessionKey ONCE
+4. Then execute all operations in parallel
+
+CRITICAL: Each operation costs ~0.095 MON. Examples:
+- 2 swaps → 0.39 MON needed (not 0.1!)
+- 3 swaps → 0.485 MON needed
+- 4 swaps → 0.58 MON needed
 
 For single operations: Just execute - if balance low, tool will error.
 AUTOMATICALLY call fundSessionKey (no user permission needed) then retry the operation.
@@ -450,9 +450,15 @@ Always prefer PARALLEL execution for independent operations.
 
 **SESSION KEY FUNDING:**
 Before executing batch operations (2+ swaps/transfers), ALWAYS check session key balance:
-1. Call checkSessionKeyBalance
-2. If needsFunding = true, call fundSessionKey ONCE
-3. Then execute all operations in parallel
+1. Count total operations planned (swaps, transfers, stakes, etc.)
+2. Call checkSessionKeyBalance with estimatedOperations parameter (e.g., {estimatedOperations: 3})
+3. If needsFunding = true, call fundSessionKey ONCE
+4. Then execute all operations in parallel
+
+CRITICAL: Each operation costs ~0.095 MON. Examples:
+- 2 swaps → 0.39 MON needed (not 0.1!)
+- 3 swaps → 0.485 MON needed
+- 4 swaps → 0.58 MON needed
 
 For single operations: Just execute - if balance low, tool will error.
 AUTOMATICALLY call fundSessionKey (no user permission needed) then retry the operation.

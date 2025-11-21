@@ -58,8 +58,8 @@ export const executeWrapTool = tool(
         chainId,
       });
 
-      // Return receipt
-      return `Wrap executed successfully! 🎉
+      // Format message for LLM (clean, human-readable)
+      const message = `Wrap executed successfully! 🎉
 
 📊 Receipt:
 • Wrapped: ${quote.amount} MON
@@ -69,6 +69,30 @@ export const executeWrapTool = tool(
 • Status: ${result.status}
 
 Your MON has been wrapped into WMON!`;
+
+      // Prepare metadata for activity extraction
+      const metadata = {
+        txHash: result.txHash,
+        blockNumber: result.blockNumber.toString(),
+        gasUsed: result.gasUsed.toString(),
+        status: result.status,
+        fromToken: 'MON',
+        toToken: 'WMON',
+        fromAmount: quote.amount,
+        toAmount: result.actualOutputFormatted,
+        delegationMetadata: result.delegationMetadata ? {
+          delegator: result.delegationMetadata.delegator,
+          sessionKey: result.delegationMetadata.sessionKey,
+          nonce: result.delegationMetadata.nonce.toString(), // Convert BigInt to string
+          delegationCount: result.delegationMetadata.delegationCount,
+          delegationTypes: result.delegationMetadata.delegationTypes,
+          expiresAt: result.delegationMetadata.expiresAt,
+          feeEnforced: result.delegationMetadata.feeEnforced,
+        } : undefined,
+      };
+
+      // Return message with embedded metadata (hidden from LLM via HTML comment)
+      return `${message}\n\n<!--PRAGMA_METADATA:${JSON.stringify(metadata)}-->`;
     } catch (error) {
       throw createErrorFromCode("EXECUTION_ERROR", {
         message: `Failed to execute wrap: ${(error as Error).message}`,

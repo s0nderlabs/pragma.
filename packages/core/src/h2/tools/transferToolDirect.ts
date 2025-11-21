@@ -301,15 +301,42 @@ export const transferTool = tool(
       // Wait for confirmation
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
 
-      return `✅ Transfer successful!
+      // Format message for LLM (clean, human-readable)
+      const message = `Transfer executed successfully! 🎉
 
+📊 Receipt:
 • Sent: ${amountFormatted} ${tokenSymbol}
 • To: ${recipient}
-• Transaction: ${txHash}
+• Tx Hash: ${txHash}
 • Block: ${receipt.blockNumber}
-• Gas Used: ${receipt.gasUsed}
+• Gas Used: ${receipt.gasUsed} units
 
-Transfer complete!`;
+The transfer has been confirmed on-chain!`;
+
+      // Prepare metadata for activity extraction
+      const metadata = {
+        txHash,
+        blockNumber: receipt.blockNumber.toString(),
+        gasUsed: receipt.gasUsed.toString(),
+        status: receipt.status === 'success' ? 'success' : 'failed',
+        fromToken: tokenSymbol,
+        toToken: tokenSymbol,
+        fromAmount: amountFormatted,
+        toAmount: amountFormatted,
+        recipientAddress: recipient,
+        delegationMetadata: {
+          delegator: userAddress,
+          sessionKey: sessionData.sessionKeyAddress,
+          nonce: nonce.toString(), // Convert BigInt to string
+          delegationCount: 1,
+          delegationTypes: ['transfer'],
+          expiresAt: Math.floor(Date.now() / 1000) + 300, // 5 minutes in seconds
+          feeEnforced: false, // Transfers are FREE (gas only)
+        },
+      };
+
+      // Return message with embedded metadata (hidden from LLM via HTML comment)
+      return `${message}\n\n<!--PRAGMA_METADATA:${JSON.stringify(metadata)}-->`;
     } catch (error) {
       throw createErrorFromCode("EXEC_DELEGATION_REDEEM_REVERT", {
         message: `Failed to transfer: ${(error as Error).message}`,

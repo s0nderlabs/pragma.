@@ -119,13 +119,13 @@ export const APRIORI_FEE_RATE = 0.005;
  */
 export const PROTOCOL_FEES = {
   swap: 0.005,      // 0.5% on DEX swaps (deducted from input)
-  stake: 0,         // FREE - to be decided whether to charge on stake or unstake
+  stake: 0.005,     // 0.5% on MON being staked (deducted from input)
   nftBuy: 0.005,    // 0.5% on NFT purchases
   nftSell: 0,       // FREE - no fee on NFT listings
   transfer: 0,      // FREE - no fee on transfers
   wrap: 0,          // FREE - no fee on MON wrapping
   unwrap: 0,        // FREE - no fee on MON unwrapping
-  unstake: 0,       // FREE - to be decided whether to charge on stake or unstake
+  unstake: 0,       // FREE - no fee on unstaking
 } as const;
 
 // ============================================================================

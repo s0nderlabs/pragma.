@@ -4,12 +4,12 @@ import { fetchPortfolioValue } from "@pragma/core/monorail/balances";
 
 import {
   MONORAIL_DATA_API_URL,
-  MONORAIL_API_KEY,
 } from "../../../../lib/config";
 
+// Server-only secrets (never exposed to browser)
 const config = {
   dataApiUrl: MONORAIL_DATA_API_URL,
-  apiKey: MONORAIL_API_KEY,
+  apiKey: process.env.MONORAIL_API_KEY,
 };
 
 export async function GET(request: Request) {

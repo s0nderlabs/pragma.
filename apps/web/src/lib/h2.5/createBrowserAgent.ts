@@ -36,17 +36,15 @@ import { h2ToolRegistry } from '@pragma/core';
  */
 export interface BrowserAgentConfig {
   /**
-   * OpenAI API key (REQUIRED in browser)
+   * OpenAI API key (OPTIONAL - proxy handles authentication)
    *
-   * Security: Never embed API keys in client code!
-   * Best practices:
-   * 1. Use proxy endpoint (/api/h2.5/proxy) to hide real key
-   * 2. Or get key from secure source (not localStorage/env)
+   * Security: API key is never sent from browser!
+   * The proxy endpoint (/api/h2/chat) uses server-side OPENAI_API_KEY.
    *
-   * For development: Can pass real key temporarily
-   * For production: MUST use proxy endpoint
+   * You can pass any string here (e.g., 'proxy' or 'not-used').
+   * The actual API key is stored server-side and never exposed to browser.
    */
-  apiKey: string;
+  apiKey?: string;
 
   /**
    * Model to use (defaults to gpt-5-mini)
@@ -106,13 +104,8 @@ export interface BrowserAgentConfig {
  * ```
  */
 export function createBrowserAgent(config: BrowserAgentConfig): ReturnType<typeof createAgent> {
-  // Validate API key
-  if (!config.apiKey) {
-    throw new Error(
-      'OpenAI API key is required for browser agent. ' +
-      'Use proxy endpoint (/api/h2.5/proxy) or pass key directly.'
-    );
-  }
+  // API key is optional now (proxy handles authentication)
+  // No validation needed - proxy will handle errors
 
   // Validate polyfills loaded (Zone.js + AsyncLocalStorage)
   if (typeof window !== 'undefined') {
@@ -137,14 +130,20 @@ export function createBrowserAgent(config: BrowserAgentConfig): ReturnType<typeo
     console.log('[BrowserAgent] Polyfills verified ✓');
   }
 
-  // Initialize ChatOpenAI model (same as server-side)
+  // Initialize ChatOpenAI model (routes through proxy for security)
   const model = new ChatOpenAI({
     model: config.model || 'gpt-5-mini',
-    apiKey: config.apiKey,
+    apiKey: config.apiKey || 'proxy-not-used', // Proxy doesn't validate
     streaming: config.streaming ?? true, // Enable streaming by default
     useResponsesApi: true, // Use OpenAI Responses API
     timeout: config.timeout || 60000, // 60 second timeout
     maxRetries: 2, // Retry failed requests
+    configuration: {
+      // Absolute URL required by OpenAI SDK's URL constructor
+      baseURL: typeof window !== 'undefined'
+        ? `${window.location.origin}/api/h2`
+        : 'http://localhost:3000/api/h2',
+    },
   });
 
   console.log('[BrowserAgent] Created ChatOpenAI model:', {

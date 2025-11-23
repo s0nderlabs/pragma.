@@ -345,9 +345,11 @@ import {
   MONAD_WRAPPED_TOKEN_SYMBOL,
   MONAD_WMON_ADDRESS,
   MONORAIL_DATA_API_URL,
-  MONORAIL_API_KEY,
   PRAGMA_AGENT_STREAM_INSIGHTS,
 } from "../../../../lib/config";
+
+// Server-only secrets (never exposed to browser)
+const MONORAIL_API_KEY = process.env.MONORAIL_API_KEY;
 
 interface AgentRequestBody {
   message?: unknown;
@@ -395,11 +397,7 @@ const toSessionDelegation = (artifact: DelegationArtifact): SessionDelegationInf
 };
 
 const createConfiguredAgent = () => {
-  const openAiKey = process.env.OPENAI_API_KEY ?? process.env.NEXT_PUBLIC_OPENAI_API_KEY;
-  if (openAiKey && !process.env.OPENAI_API_KEY) {
-    process.env.OPENAI_API_KEY = openAiKey;
-  }
-
+  // Server-side only - no NEXT_PUBLIC fallback for security
   const hasApiKey = Boolean(process.env.OPENAI_API_KEY?.trim());
 
   const trendingConfig = MONORAIL_API_KEY

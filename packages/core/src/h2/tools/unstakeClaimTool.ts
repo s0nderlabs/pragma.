@@ -103,7 +103,12 @@ export const unstakeClaimTool = tool(
 
       // Parse requestIds (comma-separated string to bigint array)
       const requestIdArray = requestIds.split(",").map((id) => BigInt(id.trim()));
-      const isBatch = requestIdArray.length > 1;
+
+      // ALWAYS use batch redeem (even for single claims) due to aPriori contract bug
+      // Issue: Single redeem(uint256,address) requires operator approval via setOperator()
+      // Fix: Batch redeem(uint256[],address) correctly checks direct controller permission
+      // This allows claims to work without needing operator approval
+      const isBatch = true;
 
       // Check session key balance (throw error if insufficient)
       const sessionKeyBalance = await publicClient.getBalance({

@@ -40,6 +40,17 @@ import { MIN_SESSION_KEY_BALANCE } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import { APRIORI_ADDRESS, APRIORI_FEE_RATE } from "../config.js";
 import { emitProgress } from "../progress/emitter.js";
+import {
+  addPragmaFeeEnforcer,
+  calculateProtocolFee,
+  requiresFee
+} from "../delegation/withFeeEnforcer.js";
+import {
+  PROTOCOL_FEES,
+  MON_ADDRESS,
+  DELEGATION_MANAGER_ABI
+} from "../config.js";
+import { buildDelegationTypedData } from "../../delegations/typedData.js";
 
 // ============================================================================
 // Constants
@@ -48,9 +59,6 @@ import { emitProgress } from "../progress/emitter.js";
 const MONAD_RPC_URL = process.env.MONAD_EXECUTION_RPC_URL || "https://testnet.monad.xyz/";
 const DELEGATION_MANAGER_ADDRESS = (process.env.DELEGATION_MANAGER_ADDRESS as Address) || "0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3" as Address;
 const NONCE_ENFORCER_ADDRESS = (process.env.NONCE_ENFORCER_ADDRESS as Address) || "0xDE4f2FAC4B3D87A1d9953Ca5FC09FCa7F366254f" as Address;
-
-/** Pragma treasury address for fee collection */
-const PRAGMA_TREASURY_ADDRESS = (process.env.PRAGMA_TREASURY_ADDRESS as Address) || "0x0000000000000000000000000000000000000000" as Address; // TODO: Update with real treasury
 
 const NONCE_ENFORCER_ABI = [
   {
@@ -138,8 +146,11 @@ export const stakeTool = tool(
       // Progress: Staking into aPriori
       emitProgress(`Staking ${amountFormatted} MON into aPriori...`);
 
-      // No Pragma protocol fee on staking (fee structure to be decided)
-      const stakeAmount = amountWei; // Stake full amount
+      // Calculate protocol fee (0.5% on input)
+      const feeAmount = calculateProtocolFee(amountWei, PROTOCOL_FEES.stake);
+      const netStakeAmount = amountWei - feeAmount;
+      const netStakeAmountFormatted = formatUnits(netStakeAmount, 18);
+      const feeAmountFormatted = formatUnits(feeAmount, 18);
 
       // Check session key balance (throw error if insufficient)
       const sessionKeyBalance = await publicClient.getBalance({
@@ -162,18 +173,18 @@ export const stakeTool = tool(
 
       // Build deposit calldata
       // deposit(uint256 assets, address receiver)
-      // - assets: Amount of MON being deposited (matches msg.value)
+      // - assets: Amount of MON being deposited (net amount after fee)
       // - receiver: Address to receive aprMON tokens (user's smart account)
       const depositCalldata = encodeFunctionData({
         abi: APRIORI_ABI,
         functionName: "deposit",
-        args: [stakeAmount, getAddress(userAddress)],
+        args: [netStakeAmount, getAddress(userAddress)],
       });
 
       // Create ephemeral delegation for stake
       const { delegation, typedData } = createStakeDelegation({
         aprioriAddress: getAddress(APRIORI_ADDRESS),
-        amount: stakeAmount,
+        amount: netStakeAmount,  // Net amount (after fee)
         delegator: getAddress(userAddress),
         sessionKey: getAddress(sessionData.sessionKeyAddress),
         nonce,
@@ -181,17 +192,72 @@ export const stakeTool = tool(
         delegationManager: DELEGATION_MANAGER_ADDRESS,
       });
 
-      // Sign delegation
+      // Add fee enforcer if protocol fees are enabled
+      let feeEnforcedStake = null;
+      let feeAllowanceDelegation = null;
+
+      if (requiresFee("stake", PROTOCOL_FEES) && feeAmount > 0n) {
+        feeEnforcedStake = addPragmaFeeEnforcer({ delegation, typedData }, {
+          feeAmount,
+          swapAmount: amountWei,  // Original input amount (for percentage validation)
+          tokenAddress: MON_ADDRESS,
+          isNative: true,
+          sessionKey: getAddress(sessionData.sessionKeyAddress),
+        });
+
+        // CRITICAL: Rebuild typedData to include fee enforcer caveat
+        feeEnforcedStake.mainDelegation.typedData = buildDelegationTypedData(
+          feeEnforcedStake.mainDelegation.delegation,
+          sessionData.chainId,
+          DELEGATION_MANAGER_ADDRESS
+        );
+      }
+
+      // Use fee-enforced delegation if available
+      const finalDelegation = feeEnforcedStake?.mainDelegation.delegation || delegation;
+      const finalTypedData = feeEnforcedStake?.mainDelegation.typedData || typedData;
+
+      // Sign delegation (with fee enforcer if added)
       const { signature } = await web3authBridge.signTypedData({
-        typedDataJson: JSON.stringify(typedData),
+        typedDataJson: JSON.stringify(finalTypedData),
         from: sessionData.ownerAddress,
       });
-      delegation.signature = signature;
+      finalDelegation.signature = signature;
+
+      // If fee enforcer added, get hash and create fee allowance
+      if (feeEnforcedStake) {
+        // Get delegation hash
+        const stakeDelegationHash = await publicClient.readContract({
+          address: DELEGATION_MANAGER_ADDRESS,
+          abi: DELEGATION_MANAGER_ABI,
+          functionName: "getDelegationHash",
+          args: [finalDelegation as any],
+        });
+
+        // Create fee allowance delegation
+        feeAllowanceDelegation = feeEnforcedStake.createFeeAllowanceDelegation(stakeDelegationHash);
+
+        // Sign fee allowance delegation
+        const feeAllowanceTypedData = buildDelegationTypedData(
+          feeAllowanceDelegation,
+          sessionData.chainId,
+          DELEGATION_MANAGER_ADDRESS
+        );
+
+        const feeSignatureResult = await web3authBridge.signTypedData({
+          typedDataJson: JSON.stringify(feeAllowanceTypedData),
+          from: sessionData.ownerAddress,
+        });
+        feeAllowanceDelegation.signature = feeSignatureResult.signature;
+
+        // Update stake delegation's caveat args (no re-signing needed!)
+        feeEnforcedStake.updateMainDelegationArgs(feeAllowanceDelegation);
+      }
 
       // Create execution
       const execution = createExecution({
         target: getAddress(APRIORI_ADDRESS),
-        value: stakeAmount,
+        value: netStakeAmount,  // Net amount (after fee)
         callData: depositCalldata,
       });
 
@@ -216,7 +282,7 @@ export const stakeTool = tool(
         publicClient,
         DELEGATION_MANAGER_ADDRESS,
         [{
-          permissionContext: [delegation],
+          permissionContext: [finalDelegation],  // Use final delegation (with updated args)
           executions: [execution],
           mode: ExecutionMode.SingleDefault,
         }],
@@ -234,14 +300,15 @@ export const stakeTool = tool(
       }) as bigint;
 
       // Format amounts for display
-      const stakeAmountFormatted = formatUnits(stakeAmount, 18);
       const aprMonBalanceFormatted = formatUnits(aprMonBalance, 18);
 
       // Format message for LLM (clean, human-readable)
       const message = `Stake executed successfully! 🎉
 
 📊 Receipt:
-• Staked: ${stakeAmountFormatted} MON → aprMON
+• Input: ${amountFormatted} MON
+• Pragma Fee: ${feeAmountFormatted} MON (0.5%)
+• Staked: ${netStakeAmountFormatted} MON → aprMON
 • aprMON Balance: ${aprMonBalanceFormatted}
 • Tx Hash: ${txHash}
 • Block: ${receipt.blockNumber}
@@ -257,16 +324,18 @@ Your MON is now earning staking rewards through aPriori. aprMON appreciates in v
         status: receipt.status === 'success' ? 'success' : 'failed',
         fromToken: 'MON',
         toToken: 'aprMON',
-        fromAmount: stakeAmountFormatted,
+        fromAmount: amountFormatted,
         toAmount: aprMonBalanceFormatted,
+        pragmaFee: feeAmountFormatted,  // NEW: Show fee in metadata
+        netStaked: netStakeAmountFormatted,  // NEW: Show net staked
         delegationMetadata: {
           delegator: userAddress,
           sessionKey: sessionData.sessionKeyAddress,
           nonce: nonce.toString(), // Convert BigInt to string
-          delegationCount: 1,
+          delegationCount: feeAllowanceDelegation ? 2 : 1,  // Main + fee allowance
           delegationTypes: ['stake'],
           expiresAt: Math.floor(Date.now() / 1000) + 300, // 5 minutes in seconds
-          feeEnforced: false, // No Pragma fee on staking
+          feeEnforced: !!feeEnforcedStake,  // Dynamic flag
         },
       };
 
@@ -293,11 +362,13 @@ Use when user wants to:
 
 Process:
 1. Validates you have enough MON
-2. Creates ephemeral delegation (1-time use)
-3. Executes stake via aPriori.deposit()
-4. Returns transaction receipt with aprMON balance
+2. Deducts 0.5% Pragma protocol fee
+3. Creates ephemeral delegation (1-time use)
+4. Executes stake via aPriori.deposit() with net amount
+5. Returns transaction receipt with aprMON balance
 
-Fee: No Pragma fee (aPriori charges from rewards over time)
+Fee: 0.5% on input amount (deducted before staking)
+Example: Stake 1.0 MON → 0.005 MON fee, 0.995 MON staked
 
 Example: "stake 1 MON" or "stake all my MON"`,
     schema: z.object({

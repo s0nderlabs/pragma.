@@ -93,10 +93,10 @@ test("calculateProtocolFee: different fee rates", () => {
 test("requiresFee: returns true for operations with fees", () => {
   assert.equal(requiresFee("swap", PROTOCOL_FEES), true);
   assert.equal(requiresFee("nftBuy", PROTOCOL_FEES), true);
+  assert.equal(requiresFee("stake", PROTOCOL_FEES), true);  // 0.5% fee on staking
 });
 
 test("requiresFee: returns false for free operations", () => {
-  assert.equal(requiresFee("stake", PROTOCOL_FEES), false);  // No fee on staking (to be decided)
   assert.equal(requiresFee("transfer", PROTOCOL_FEES), false);
   assert.equal(requiresFee("wrap", PROTOCOL_FEES), false);
   assert.equal(requiresFee("unwrap", PROTOCOL_FEES), false);

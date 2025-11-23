@@ -198,19 +198,10 @@ export function useH2_5Agent() {
       // Validate browser environment (Zone.js, AsyncLocalStorage, etc)
       validateBrowserEnvironment();
 
-      // Get OpenAI API key
-      // TODO: In production, use proxy endpoint instead of direct key
-      const apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
-      if (!apiKey) {
-        throw new Error(
-          'NEXT_PUBLIC_OPENAI_API_KEY not set. ' +
-          'For production, use proxy endpoint at /api/h2.5/proxy instead.'
-        );
-      }
-
-      // Create agent (reuse same instance for all messages)
+      // Create agent (routes OpenAI calls through /api/h2/chat proxy)
+      // API key is stored server-side and never exposed to browser
       agentRef.current = createBrowserAgent({
-        apiKey,
+        apiKey: 'proxy', // Not used - proxy handles authentication
         model: 'gpt-5-mini',
         streaming: true,
       });
@@ -324,7 +315,7 @@ export function useH2_5Agent() {
         // Create public client for blockchain reads
         const publicClient = createPublicClient({
           chain: monadDevnet,
-          transport: http(process.env.NEXT_PUBLIC_MONAD_RPC_URL),
+          transport: http('/api/rpc'),  // Use RPC proxy (keeps Ankr API key server-side)
         });
 
         // Create session wallet with correct RPC URL and nonceManager
@@ -337,7 +328,7 @@ export function useH2_5Agent() {
             { nonceManager }  // Enable atomic nonce management for parallel operations
           ),
           chain: monadDevnet,
-          transport: http(process.env.NEXT_PUBLIC_MONAD_RPC_URL),
+          transport: http('/api/rpc'),  // Use RPC proxy (keeps Ankr API key server-side)
         });
 
         // Create direct Web3Auth bridge (no network transport!)

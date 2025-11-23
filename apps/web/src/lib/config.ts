@@ -3,9 +3,9 @@ const env = {
   NEXT_PUBLIC_MONAD_RPC_URL: process.env.NEXT_PUBLIC_MONAD_RPC_URL,
   NEXT_PUBLIC_MONAD_EXECUTION_RPC_URL: process.env.NEXT_PUBLIC_MONAD_EXECUTION_RPC_URL,
   NEXT_PUBLIC_MONAD_ENVIO_READ_RPC_URL: process.env.NEXT_PUBLIC_MONAD_ENVIO_READ_RPC_URL,
-  NEXT_PUBLIC_MONAD_HYPERSYNC_URL: process.env.NEXT_PUBLIC_MONAD_HYPERSYNC_URL,
-  NEXT_PUBLIC_ENVIO_TOKEN_API: process.env.NEXT_PUBLIC_ENVIO_TOKEN_API,
-  NEXT_PUBLIC_PIMLICO_API_KEY: process.env.NEXT_PUBLIC_PIMLICO_API_KEY,
+  // Removed: NEXT_PUBLIC_MONAD_HYPERSYNC_URL (unused)
+  // Removed: NEXT_PUBLIC_ENVIO_TOKEN_API (server-only secret)
+  // Removed: NEXT_PUBLIC_PIMLICO_API_KEY (server-only secret)
   NEXT_PUBLIC_PIMLICO_CHAIN: process.env.NEXT_PUBLIC_PIMLICO_CHAIN,
   NEXT_PUBLIC_PIMLICO_BUNDLER_URL: process.env.NEXT_PUBLIC_PIMLICO_BUNDLER_URL,
   NEXT_PUBLIC_PIMLICO_PAYMASTER_URL: process.env.NEXT_PUBLIC_PIMLICO_PAYMASTER_URL,
@@ -14,7 +14,7 @@ const env = {
   NEXT_PUBLIC_WEB3_AUTH_NETWORK: process.env.NEXT_PUBLIC_WEB3_AUTH_NETWORK,
   NEXT_PUBLIC_MONORAIL_PATHFINDER_URL: process.env.NEXT_PUBLIC_MONORAIL_PATHFINDER_URL,
   NEXT_PUBLIC_MONORAIL_DATA_API_URL: process.env.NEXT_PUBLIC_MONORAIL_DATA_API_URL,
-  NEXT_PUBLIC_MONORAIL_API_KEY: process.env.NEXT_PUBLIC_MONORAIL_API_KEY,
+  // Removed: NEXT_PUBLIC_MONORAIL_API_KEY (server-only secret)
   NEXT_PUBLIC_MONORAIL_APP_ID: process.env.NEXT_PUBLIC_MONORAIL_APP_ID,
   NEXT_PUBLIC_MONORAIL_AGGREGATOR_ADDRESS: process.env.NEXT_PUBLIC_MONORAIL_AGGREGATOR_ADDRESS,
   NEXT_PUBLIC_MONAD_NATIVE_TOKEN_ADDRESS: process.env.NEXT_PUBLIC_MONAD_NATIVE_TOKEN_ADDRESS,
@@ -23,11 +23,11 @@ const env = {
   NEXT_PUBLIC_MONAD_WMON_ADDRESS: process.env.NEXT_PUBLIC_MONAD_WMON_ADDRESS,
   NEXT_PUBLIC_APRIORI_ADDRESS: process.env.NEXT_PUBLIC_APRIORI_ADDRESS,
   NEXT_PUBLIC_PRAGMA_IDENTITY_PROVIDER: process.env.NEXT_PUBLIC_PRAGMA_IDENTITY_PROVIDER,
-  NEXT_PUBLIC_PRIVY_ID: process.env.NEXT_PUBLIC_PRIVY_ID,
-  NEXT_PUBLIC_PRIVY_SECRET: process.env.NEXT_PUBLIC_PRIVY_SECRET,
-  NEXT_PUBLIC_PRAGMA_ADMIN_TEST_PK: process.env.NEXT_PUBLIC_PRAGMA_ADMIN_TEST_PK,
-  NEXT_PUBLIC_OPENAI_API_KEY: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
-  NEXT_PUBLIC_PRAGMA_DISABLE_HYPERSYNC: process.env.NEXT_PUBLIC_PRAGMA_DISABLE_HYPERSYNC,
+  // Removed: NEXT_PUBLIC_PRIVY_ID (unused)
+  // Removed: NEXT_PUBLIC_PRIVY_SECRET (unused secret)
+  // Removed: NEXT_PUBLIC_PRAGMA_ADMIN_TEST_PK (critical secret - server-only)
+  // Removed: NEXT_PUBLIC_OPENAI_API_KEY (server-only secret)
+  // Removed: NEXT_PUBLIC_PRAGMA_DISABLE_HYPERSYNC (unused)
   NEXT_PUBLIC_PRAGMA_AGENT_STREAM_INSIGHTS: process.env.NEXT_PUBLIC_PRAGMA_AGENT_STREAM_INSIGHTS,
 } as const;
 
@@ -49,20 +49,13 @@ export const MONAD_EXECUTION_RPC_URL =
   MONAD_RPC_URL;
 export const MONAD_READ_RPC_URL =
   getEnv("NEXT_PUBLIC_MONAD_ENVIO_READ_RPC_URL") ?? "https://monad-testnet.rpc.hypersync.xyz";
-export const MONAD_HYPERSYNC_URL =
-  getEnv("NEXT_PUBLIC_MONAD_HYPERSYNC_URL") ?? "https://monad-testnet.hypersync.xyz";
-export const ENVIO_TOKEN_API = getEnv("NEXT_PUBLIC_ENVIO_TOKEN_API");
+// Removed: MONAD_HYPERSYNC_URL (unused - no code references)
 
-const PIMLICO_API_KEY = getEnv("NEXT_PUBLIC_PIMLICO_API_KEY");
-const PIMLICO_CHAIN = getEnv("NEXT_PUBLIC_PIMLICO_CHAIN") ?? "monad-testnet";
-const buildPimlicoUrl = (override?: string) => {
-  if (override) return override;
-  if (!PIMLICO_API_KEY) return "";
-  return `https://api.pimlico.io/v2/${PIMLICO_CHAIN}/rpc?apikey=${PIMLICO_API_KEY}`;
-};
+// Removed: ENVIO_TOKEN_API (server-only, use in API routes only)
 
-export const PIMLICO_BUNDLER_URL = buildPimlicoUrl(getEnv("NEXT_PUBLIC_PIMLICO_BUNDLER_URL"));
-export const PIMLICO_PAYMASTER_URL = buildPimlicoUrl(getEnv("NEXT_PUBLIC_PIMLICO_PAYMASTER_URL"));
+// Pimlico - Use proxy endpoints (API key stored server-side)
+export const PIMLICO_BUNDLER_URL = getEnv("NEXT_PUBLIC_PIMLICO_BUNDLER_URL") ?? "/api/pimlico";
+export const PIMLICO_PAYMASTER_URL = getEnv("NEXT_PUBLIC_PIMLICO_PAYMASTER_URL") ?? "/api/pimlico";
 export const PIMLICO_SPONSORSHIP_POLICY_ID = getEnv("NEXT_PUBLIC_PIMLICO_SPONSORSHIP_POLICY_ID");
 
 export const WEB3AUTH_CLIENT_ID = getEnv("NEXT_PUBLIC_WEB3_AUTH_ID");
@@ -73,8 +66,7 @@ export const MONORAIL_PATHFINDER_URL =
   getEnv("NEXT_PUBLIC_MONORAIL_PATHFINDER_URL") ?? "https://testnet-pathfinder.monorail.xyz/v4";
 export const MONORAIL_DATA_API_URL =
   getEnv("NEXT_PUBLIC_MONORAIL_DATA_API_URL") ?? "https://testnet-api.monorail.xyz/v1";
-export const MONORAIL_API_KEY =
-  getEnv("NEXT_PUBLIC_MONORAIL_API_KEY") ?? getEnv("NEXT_PUBLIC_ENVIO_TOKEN_API");
+// Removed: MONORAIL_API_KEY (server-only, use in API routes only)
 export const MONORAIL_APP_ID = getEnv("NEXT_PUBLIC_MONORAIL_APP_ID") ?? "";
 export const MONORAIL_AGGREGATOR_ADDRESS =
   getEnv("NEXT_PUBLIC_MONORAIL_AGGREGATOR_ADDRESS") ?? "0x525B929fCd6a64AfF834f4eeCc6E860486cED700";
@@ -93,11 +85,12 @@ export const APRIORI_ADDRESS =
 
 export const PRAGMA_IDENTITY_PROVIDER =
   (getEnv("NEXT_PUBLIC_PRAGMA_IDENTITY_PROVIDER") ?? "web3auth").toLowerCase();
-export const PRIVY_APP_ID = getEnv("NEXT_PUBLIC_PRIVY_ID");
-export const PRIVY_APP_SECRET = getEnv("NEXT_PUBLIC_PRIVY_SECRET");
-export const PRAGMA_ADMIN_TEST_PK = getEnv("NEXT_PUBLIC_PRAGMA_ADMIN_TEST_PK");
 
-export const OPENAI_API_KEY = getEnv("NEXT_PUBLIC_OPENAI_API_KEY");
-export const PRAGMA_DISABLE_HYPERSYNC = getEnv("NEXT_PUBLIC_PRAGMA_DISABLE_HYPERSYNC") === "1";
+// Removed: PRIVY_APP_ID (unused)
+// Removed: PRIVY_APP_SECRET (unused secret)
+// Removed: PRAGMA_ADMIN_TEST_PK (critical secret - use server-only env var in API routes)
+// Removed: OPENAI_API_KEY (server-only secret - use in proxy routes only)
+// Removed: PRAGMA_DISABLE_HYPERSYNC (unused - no code references)
+
 export const PRAGMA_AGENT_STREAM_INSIGHTS =
   getEnv("NEXT_PUBLIC_PRAGMA_AGENT_STREAM_INSIGHTS") !== "0";

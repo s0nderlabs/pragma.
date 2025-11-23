@@ -35,9 +35,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unsupported factory address" }, { status: 400 });
     }
 
-    const adminKey = process.env.PRAGMA_ADMIN_TEST_PK ?? process.env.NEXT_PUBLIC_PRAGMA_ADMIN_TEST_PK;
+    // Use server-only admin key (never NEXT_PUBLIC_)
+    const adminKey = process.env.PRAGMA_ADMIN_TEST_PK;
     if (!adminKey) {
-      return NextResponse.json({ error: "Admin fallback not configured" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Admin fallback not configured (PRAGMA_ADMIN_TEST_PK required)" },
+        { status: 500 }
+      );
     }
 
     const account = privateKeyToAccount(adminKey as Hex);

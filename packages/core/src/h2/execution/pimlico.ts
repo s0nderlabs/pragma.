@@ -20,10 +20,9 @@ import type { RpcUserOperation } from "viem/account-abstraction";
 
 /**
  * Pimlico API Key
- * Supports both server-side and client-side environments
+ * Server-side only - no NEXT_PUBLIC fallback for security
  */
-const PIMLICO_API_KEY =
-  process.env.PIMLICO_API_KEY || process.env.NEXT_PUBLIC_PIMLICO_API_KEY;
+const PIMLICO_API_KEY = process.env.PIMLICO_API_KEY;
 
 /**
  * Pimlico Chain Identifier

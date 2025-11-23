@@ -9,7 +9,7 @@
  * - Single-use delegation (limitedCalls: 1)
  * - 5-minute expiry
  * - Nonce-based revocation support
- * - Supports BOTH single and batch claiming (gas optimization)
+ * - ALWAYS uses batch mode (even for single claims - see below)
  *
  * Why No Enforcement:
  * - redeem(uint256 requestId) - single claim
@@ -18,10 +18,13 @@
  * - Target enforcement (aPriori contract) provides sufficient protection
  * - Only claimable requests can be claimed (protocol-level validation)
  *
- * Batch Support:
- * - User can claim multiple completed requests in one transaction
- * - Saves gas compared to multiple individual claims
- * - Same delegation pattern, just different function selector
+ * Batch Mode Workaround (IMPORTANT):
+ * - ALWAYS use batch selector (0x492e47d2) even for single claims
+ * - Reason: aPriori contract bug in single redeem() function
+ * - Single redeem(uint256,address) requires operator approval (broken permission check)
+ * - Batch redeem(uint256[],address) correctly checks direct controller permission
+ * - This allows claims to work without calling setOperator() first
+ * - Confirmed working: Nov 23, 2025
  *
  * @example
  * ```typescript

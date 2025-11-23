@@ -8,14 +8,15 @@ import {
   MONORAIL_APP_ID,
   MONORAIL_PATHFINDER_URL,
   MONORAIL_AGGREGATOR_ADDRESS,
-  MONORAIL_API_KEY,
 } from "../config";
 
+// Browser routes through /api/monorail/quote proxy (no API key needed)
+// SSR fallback config (API key stored server-side in proxy routes)
 const config = {
   appId: MONORAIL_APP_ID ?? "",
   pathfinderUrl: MONORAIL_PATHFINDER_URL,
   aggregatorAddress: getAddress(MONORAIL_AGGREGATOR_ADDRESS),
-  apiKey: MONORAIL_API_KEY,
+  apiKey: undefined, // Not needed - browser uses proxy, SSR shouldn't happen
 };
 
 type SerializableQuote = Omit<MonorailQuote, "transactionValue" | "rawInput" | "rawOutput" | "rawMinOutput" | "gasEstimate" | "fees"> & {

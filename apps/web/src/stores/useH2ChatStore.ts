@@ -18,6 +18,7 @@ import type {
   AnyMessage,
   SSEConnectionState,
 } from "@/lib/h2/types";
+import type { RawTokenBalance } from "@pragma/core/monorail/balances";
 
 // ============================================================================
 // Helper Functions
@@ -71,6 +72,15 @@ export interface H2ChatState {
   // Balance refresh
   balanceRefreshCallback: (() => void) | null;
 
+  // Wallet balance
+  monBalance: string;
+  usdValue: number;
+  change24h: number;
+  allTokens: RawTokenBalance[];
+  isLoadingBalance: boolean;
+  isFetchingBalance: boolean;
+  balanceError: string | null;
+
   // Actions
   addMessage: (message: Omit<ChatMessage, "id" | "timestamp">) => void;
   updateMessageContent: (id: string, content: string) => void;
@@ -104,6 +114,17 @@ export interface H2ChatState {
   // Balance refresh actions
   setBalanceRefreshCallback: (callback: (() => void) | null) => void;
   triggerBalanceRefresh: () => void;
+
+  // Wallet balance actions
+  setWalletBalance: (data: {
+    monBalance: string;
+    usdValue: number;
+    change24h: number;
+    allTokens: RawTokenBalance[];
+  }) => void;
+  setBalanceLoading: (isLoading: boolean) => void;
+  setBalanceFetching: (isFetching: boolean) => void;
+  setBalanceError: (error: string | null) => void;
 }
 
 // ============================================================================
@@ -135,6 +156,15 @@ export const useH2ChatStore = create<H2ChatState>()(
         tokensLoading: false,
 
         balanceRefreshCallback: null,
+
+        // Wallet balance initial state
+        monBalance: '0',
+        usdValue: 0,
+        change24h: 0,
+        allTokens: [],
+        isLoadingBalance: true,
+        isFetchingBalance: false,
+        balanceError: null,
 
         // Message actions
         addMessage: (message) => {
@@ -743,6 +773,35 @@ export const useH2ChatStore = create<H2ChatState>()(
           if (balanceRefreshCallback) {
             balanceRefreshCallback();
           }
+        },
+
+        // Wallet balance actions
+        setWalletBalance: (data) => {
+          set({
+            monBalance: data.monBalance,
+            usdValue: data.usdValue,
+            change24h: data.change24h,
+            allTokens: data.allTokens,
+            isLoadingBalance: false,
+            isFetchingBalance: false,
+            balanceError: null,
+          });
+        },
+
+        setBalanceLoading: (isLoading) => {
+          set({ isLoadingBalance: isLoading });
+        },
+
+        setBalanceFetching: (isFetching) => {
+          set({ isFetchingBalance: isFetching });
+        },
+
+        setBalanceError: (error) => {
+          set({
+            balanceError: error,
+            isLoadingBalance: false,
+            isFetchingBalance: false,
+          });
         },
       }),
       {

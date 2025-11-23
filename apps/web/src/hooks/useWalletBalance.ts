@@ -4,11 +4,13 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { formatUnits } from 'viem'
 import { saveBalanceSnapshot, get24hChange } from '@/lib/balanceSnapshots'
+import type { RawTokenBalance } from '@pragma/core/monorail/balances'
 
 interface WalletBalanceData {
   monBalance: string
   usdValue: number
   change24h: number
+  allTokens: RawTokenBalance[]
   isLoading: boolean
   isFetching: boolean
   error: string | null
@@ -31,15 +33,22 @@ interface WalletBalanceData {
  * - Pauses when no wallet connected
  */
 export function useWalletBalance(): WalletBalanceData {
+  // Read from Zustand store (shared state across all hook instances)
   const sessionData = useH2ChatStore((state) => state.sessionData)
-  const [data, setData] = useState<Omit<WalletBalanceData, 'refresh'>>({
-    monBalance: '0',
-    usdValue: 0,
-    change24h: 0,
-    isLoading: true,
-    isFetching: false,
-    error: null,
-  })
+  const monBalance = useH2ChatStore((state) => state.monBalance)
+  const usdValue = useH2ChatStore((state) => state.usdValue)
+  const change24h = useH2ChatStore((state) => state.change24h)
+  const allTokens = useH2ChatStore((state) => state.allTokens)
+  const isLoading = useH2ChatStore((state) => state.isLoadingBalance)
+  const isFetching = useH2ChatStore((state) => state.isFetchingBalance)
+  const error = useH2ChatStore((state) => state.balanceError)
+
+  // Store actions
+  const setWalletBalance = useH2ChatStore((state) => state.setWalletBalance)
+  const setBalanceLoading = useH2ChatStore((state) => state.setBalanceLoading)
+  const setBalanceFetching = useH2ChatStore((state) => state.setBalanceFetching)
+  const setBalanceError = useH2ChatStore((state) => state.setBalanceError)
+
   const [refreshInterval, setRefreshInterval] = useState(10000) // 10s default
   const mountedRef = useRef(true)
 
@@ -48,21 +57,15 @@ export function useWalletBalance(): WalletBalanceData {
     // Skip if no smart account address
     if (!sessionData?.delegator) {
       if (mountedRef.current) {
-        setData({
-          monBalance: '0',
-          usdValue: 0,
-          change24h: 0,
-          isLoading: false,
-          isFetching: false,
-          error: 'No wallet connected',
-        })
+        setBalanceError('No wallet connected')
+        setBalanceLoading(false)
       }
       return
     }
 
     // Set fetching state (different from initial loading)
     if (mountedRef.current) {
-      setData((prev) => ({ ...prev, isFetching: true }))
+      setBalanceFetching(true)
     }
 
     try {
@@ -115,27 +118,20 @@ export function useWalletBalance(): WalletBalanceData {
       const change24h = get24hChange(sessionData.delegator)
 
       if (mountedRef.current) {
-        setData({
+        setWalletBalance({
           monBalance,
           usdValue,
           change24h,
-          isLoading: false,
-          isFetching: false,
-          error: null,
+          allTokens: balancesRes,
         })
       }
     } catch (err) {
       console.error('[useWalletBalance] Error fetching balance:', err)
       if (mountedRef.current) {
-        setData((prev) => ({
-          ...prev,
-          isLoading: false,
-          isFetching: false,
-          error: err instanceof Error ? err.message : 'Failed to fetch balance',
-        }))
+        setBalanceError(err instanceof Error ? err.message : 'Failed to fetch balance')
       }
     }
-  }, [sessionData?.delegator])
+  }, [sessionData?.delegator, setWalletBalance, setBalanceError, setBalanceFetching, setBalanceLoading])
 
   // Visibility detection: Adjust polling based on tab visibility
   useEffect(() => {
@@ -177,5 +173,14 @@ export function useWalletBalance(): WalletBalanceData {
     }
   }, [])
 
-  return { ...data, refresh: fetchBalance }
+  return {
+    monBalance,
+    usdValue,
+    change24h,
+    allTokens,
+    isLoading,
+    isFetching,
+    error,
+    refresh: fetchBalance,
+  }
 }

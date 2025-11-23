@@ -12,7 +12,7 @@ import { useNotificationStore } from '@/stores/useNotificationStore'
 import { WalletCard } from './WalletCard'
 import { SpaceNavigation } from './SpaceNavigation'
 import { ActivityTab } from './tabs/ActivityTab'
-import { SessionsTab } from './tabs/SessionsTab'
+import { BalancesTab } from './tabs/BalancesTab'
 import { SettingsTab } from './tabs/SettingsTab'
 import { CopyNotification } from '../notifications/CopyNotification'
 
@@ -40,7 +40,7 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
   const { setTheme: setZustandTheme } = useThemeStore()
   const { monBalance, usdValue, change24h, isLoading, refresh } = useWalletBalance()
   const { showCopy, showCopyNotification } = useNotificationStore()
-  const [activeTab, setActiveTab] = useState<'activity' | 'sessions' | 'settings'>('activity')
+  const [activeTab, setActiveTab] = useState<'activity' | 'balances' | 'settings'>('activity')
   const [openMethod, setOpenMethod] = useState<'hover' | 'keyboard' | null>(null)
   const [isHovering, setIsHovering] = useState(false)
 
@@ -106,10 +106,10 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
         e.preventDefault()
         setActiveTab('activity')
       }
-      // Alt + s - Sessions
-      else if (e.code === 'KeyS' && e.altKey) {
+      // Alt + b - Balances
+      else if (e.code === 'KeyB' && e.altKey) {
         e.preventDefault()
-        setActiveTab('sessions')
+        setActiveTab('balances')
       }
       // Alt + m - Quick Mode
       else if (e.code === 'KeyM' && e.altKey) {
@@ -252,15 +252,15 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
                       <ActivityTab />
                     </motion.div>
                   )}
-                  {activeTab === 'sessions' && (
+                  {activeTab === 'balances' && (
                     <motion.div
-                      key="sessions"
+                      key="balances"
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.2 }}
                     >
-                      <SessionsTab />
+                      <BalancesTab />
                     </motion.div>
                   )}
                   {activeTab === 'settings' && (

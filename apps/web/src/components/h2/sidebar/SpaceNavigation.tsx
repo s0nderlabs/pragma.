@@ -6,8 +6,8 @@ import { cn } from '@/lib/utils'
 import { useEffect, useRef } from 'react'
 
 interface SpaceNavigationProps {
-  activeTab: 'activity' | 'sessions' | 'settings'
-  onTabChange: (tab: 'activity' | 'sessions' | 'settings') => void
+  activeTab: 'activity' | 'balances' | 'settings'
+  onTabChange: (tab: 'activity' | 'balances' | 'settings') => void
 }
 
 /**
@@ -22,7 +22,7 @@ export function SpaceNavigation({ activeTab, onTabChange }: SpaceNavigationProps
 
   const spaces = [
     { id: 'activity' as const, name: 'Activity' },
-    { id: 'sessions' as const, name: 'Sessions' },
+    { id: 'balances' as const, name: 'Balances' },
     { id: 'settings' as const, name: 'Settings' },
   ]
 

@@ -48,7 +48,7 @@ export const MONAD_EXECUTION_RPC_URL =
   getEnv("NEXT_PUBLIC_MONAD_EXECUTION_RPC_URL") ??
   MONAD_RPC_URL;
 export const MONAD_READ_RPC_URL =
-  getEnv("NEXT_PUBLIC_MONAD_ENVIO_READ_RPC_URL") ?? "https://monad-testnet.rpc.hypersync.xyz";
+  getEnv("NEXT_PUBLIC_MONAD_ENVIO_READ_RPC_URL") ?? "/api/rpc";
 // Removed: MONAD_HYPERSYNC_URL (unused - no code references)
 
 // Removed: ENVIO_TOKEN_API (server-only, use in API routes only)

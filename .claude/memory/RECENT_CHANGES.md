@@ -6,6 +6,37 @@
 
 ---
 
+## 2025-11-25: Session Key Funding Fix for New Accounts
+
+- **Summary:** Fixed 401 errors preventing new account onboarding by adding authenticated RPC transport and deployment check
+- **Impact:** New accounts can now onboard successfully, session key funding works for all accounts
+- **Type:** Bug Fix (CRITICAL - P1)
+- **Status:** ✅ Complete (Build ✅)
+
+**What Was Fixed:**
+- Added authenticated transport to `createMonadPublicClient()` and `createMonadExecutionClient()` for `/api/rpc` proxy
+- Added deployment check to auto-onboarding flow to ensure smart account deployed before session key operations
+- Updated `buildTransport()` in core package to support custom fetch functions
+- Both RPC clients now conditionally authenticate when using proxy route (`/api/`)
+
+**Root Cause (Dual Issue):**
+1. RPC client used plain `http()` transport without auth headers when calling `/api/rpc` proxy
+2. Auto-onboarding created session keys before deploying smart account, causing EntryPoint.getNonce() to fail
+3. DTK's `smartAccount.getNonce()` calls EntryPoint via RPC client, requires authentication
+4. New accounts had deterministic address but no deployed code on-chain
+
+**Files:** 3 modified (+62 LOC core, +25 LOC web)
+
+**Key Files:**
+- `packages/core/src/clients/publicClient.ts` - Added `fetchFn` parameter support
+- `apps/web/src/lib/clients.ts` - Added authenticated transport to RPC clients
+- `apps/web/src/hooks/useH2Onboarding.ts` - Added deployment check before session creation
+
+**Documentation:**
+- Details: `.claude/memory/features/session-key-funding-fix.md`
+
+---
+
 ## 2025-11-25: Pimlico Proxy Authentication Fix
 
 - **Summary:** Fixed authentication for Pimlico bundler and paymaster calls through `/api/pimlico` proxy

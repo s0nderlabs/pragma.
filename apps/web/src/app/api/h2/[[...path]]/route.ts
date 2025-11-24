@@ -10,10 +10,16 @@
  * Security: API key stored in server-only OPENAI_API_KEY env var
  */
 
+import { authMiddleware } from "@/lib/auth/authMiddleware";
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
+  // ✅ SECURITY: Authenticate request before allowing OpenAI API usage
+  const authError = await authMiddleware(request);
+  if (authError) return authError;
+
   try {
     // Get API key from server-only environment variable
     const apiKey = process.env.OPENAI_API_KEY;

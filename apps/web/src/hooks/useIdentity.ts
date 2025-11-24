@@ -20,6 +20,8 @@ import { createWalletClientFromProvider, monadChain, type WalletWithAddress } fr
 import { createHybridDelegatorHandle } from "../lib/onboarding/hybridDelegator";
 import { setActiveDelegator, clearActiveDelegator, IDENTITY_EVENT } from "../lib/storage/active-delegator";
 import { clearOwnerDelegator, getOwnerDelegator, setOwnerDelegator } from "../lib/storage/owner-delegators";
+import { setIdToken, clearIdToken } from "../lib/api/authenticatedFetch";
+import { useH2ChatStore } from "../stores/useH2ChatStore";
 
 export type IdentityStatus =
   | "idle"
@@ -263,6 +265,19 @@ const ensureBootstrap = () => {
         const walletClient = await createWalletClientFromProvider(instance.provider);
         if (cancelled) return;
         walletRef = walletClient;
+
+        // Retrieve and store Web3Auth ID token for existing session
+        try {
+          const userInfo = await instance.getUserInfo();
+          if (userInfo.idToken) {
+            setIdToken(userInfo.idToken);
+            useH2ChatStore.getState().setTokenReady(true);
+            console.log('[Web3Auth] ID token retrieved from existing session');
+          }
+        } catch (tokenError) {
+          console.warn('[Web3Auth] Could not retrieve ID token from existing session:', tokenError);
+        }
+
         setIdentitySnapshot({ status: "connected", wallet: walletClient, error: undefined });
         await announceIdentity(walletClient);
       } else {
@@ -346,6 +361,22 @@ const connectIdentity = async (): Promise<WalletWithAddress> => {
 
     const walletClient = await createWalletClientFromProvider(provider);
     walletRef = walletClient;
+
+    // Retrieve and store Web3Auth ID token for API authentication
+    try {
+      const userInfo = await instance.getUserInfo();
+      if (userInfo.idToken) {
+        setIdToken(userInfo.idToken);
+        useH2ChatStore.getState().setTokenReady(true);
+        console.log('[Web3Auth] ID token retrieved and stored for API authentication');
+      } else {
+        console.warn('[Web3Auth] No ID token returned from getUserInfo');
+      }
+    } catch (tokenError) {
+      console.error('[Web3Auth] Failed to retrieve ID token:', tokenError);
+      // Continue without token - API calls will fail auth but connection succeeds
+    }
+
     setIdentitySnapshot({ status: "connected", wallet: walletClient, error: undefined });
     updateMockIdentityState("connected", walletClient.address);
     await announceIdentity(walletClient);
@@ -383,6 +414,11 @@ const disconnectIdentity = async () => {
       console.warn("Web3Auth logout/clear cache failed", error);
     }
   }
+
+  // Clear ID token on logout
+  clearIdToken();
+  useH2ChatStore.getState().setTokenReady(false);
+  console.log('[Web3Auth] ID token cleared on logout');
 
   const previous = walletRef;
   walletRef = null;

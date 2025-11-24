@@ -81,6 +81,9 @@ export interface H2ChatState {
   isFetchingBalance: boolean;
   balanceError: string | null;
 
+  // Authentication
+  isTokenReady: boolean;
+
   // Actions
   addMessage: (message: Omit<ChatMessage, "id" | "timestamp">) => void;
   updateMessageContent: (id: string, content: string) => void;
@@ -125,6 +128,9 @@ export interface H2ChatState {
   setBalanceLoading: (isLoading: boolean) => void;
   setBalanceFetching: (isFetching: boolean) => void;
   setBalanceError: (error: string | null) => void;
+
+  // Authentication actions
+  setTokenReady: (ready: boolean) => void;
 }
 
 // ============================================================================
@@ -165,6 +171,9 @@ export const useH2ChatStore = create<H2ChatState>()(
         isLoadingBalance: true,
         isFetchingBalance: false,
         balanceError: null,
+
+        // Authentication initial state
+        isTokenReady: false,
 
         // Message actions
         addMessage: (message) => {
@@ -802,6 +811,11 @@ export const useH2ChatStore = create<H2ChatState>()(
             isLoadingBalance: false,
             isFetchingBalance: false,
           });
+        },
+
+        // Authentication actions
+        setTokenReady: (ready) => {
+          set({ isTokenReady: ready });
         },
       }),
       {

@@ -20,6 +20,7 @@ import {
   type Address,
   type Hex,
   type PublicClient,
+  type Transport,
   createWalletClient,
   http,
   formatUnits,
@@ -73,6 +74,8 @@ export interface ExecuteUnwrapParams {
   publicClient: PublicClient;
   /** Web3Auth bridge for delegation signing */
   web3authBridge: any;
+  /** Authenticated transport for wallet client (e.g., /api/rpc proxy) */
+  transport: Transport;
   /** Chain ID */
   chainId: number;
   /** Smart account instance from DTK (for UserOp-based session key funding) */
@@ -93,6 +96,7 @@ export async function executeUnwrap(params: ExecuteUnwrapParams): Promise<Execut
     ownerAddress,
     publicClient,
     web3authBridge,
+    transport,
     chainId,
     smartAccount,
     bundlerClient,
@@ -126,7 +130,8 @@ export async function executeUnwrap(params: ExecuteUnwrapParams): Promise<Execut
         bundlerClient,
       },
       publicClient,
-      web3authBridge
+      web3authBridge,
+      transport // Authenticated transport from params
     );
 
     console.log(`✓ Session key funded: ${formatEther(fundingResult.newBalance)} MON`);

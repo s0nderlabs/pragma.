@@ -12,7 +12,7 @@
  * - User permission required before funding
  */
 
-import { type Address, type Hex, type PublicClient, parseEther, formatEther, getAddress } from "viem";
+import { type Address, type Hex, type PublicClient, type Transport, parseEther, formatEther, getAddress } from "viem";
 import type {
   SessionKeyBalance,
   SessionKeyFundingConfig,
@@ -235,6 +235,7 @@ export async function fundSessionKey(
   config: SessionKeyFundingConfig,
   publicClient: PublicClient,
   web3authBridge: any, // Web3AuthBridge or direct PK bridge (used for refills only)
+  transport: Transport, // Authenticated transport for wallet client (e.g., /api/rpc proxy)
   estimatedOperations?: number,
 ): Promise<SessionKeyFundingResult> {
   try {
@@ -338,6 +339,7 @@ export async function fundSessionKey(
       chainId: config.chainId,
       publicClient,
       web3authBridge,
+      transport, // Pass authenticated transport from caller
       fundingAmount, // Pass dynamic funding amount
     });
 

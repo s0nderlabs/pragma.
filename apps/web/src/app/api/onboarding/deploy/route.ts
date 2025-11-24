@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { http, createWalletClient, createPublicClient, type Hex, getAddress } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { authMiddleware } from "@/lib/auth/authMiddleware";
 
 const MONAD_RPC_URL =
   process.env.MONAD_RPC_URL ?? process.env.NEXT_PUBLIC_MONAD_RPC_URL ?? "https://testnet-rpc.monad.xyz";
@@ -18,6 +19,10 @@ const monadChain = {
 } as const;
 
 export async function POST(request: NextRequest) {
+  // ✅ SECURITY: Authenticate request before allowing privileged admin wallet usage
+  const authError = await authMiddleware(request);
+  if (authError) return authError;
+
   try {
     const body = (await request.json()) as {
       factory?: string;

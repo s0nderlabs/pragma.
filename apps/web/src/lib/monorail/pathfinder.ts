@@ -3,6 +3,7 @@
 import { getAddress } from "viem";
 import type { QuoteRequestParams, MonorailQuote } from "@pragma/core/monorail/pathfinder";
 import { fetchMonorailQuote as coreFetchMonorailQuote } from "@pragma/core/monorail/pathfinder";
+import { authenticatedFetch } from "../api/authenticatedFetch";
 
 import {
   MONORAIL_APP_ID,
@@ -69,11 +70,8 @@ export const fetchMonorailQuote = async (params: QuoteRequestParams): Promise<Mo
     return coreFetchMonorailQuote(params, config);
   }
 
-  const response = await fetch("/api/monorail/quote", {
+  const response = await authenticatedFetch("/api/monorail/quote", {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
     body: JSON.stringify(params),
   });
 

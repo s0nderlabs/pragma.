@@ -49,40 +49,43 @@ export const getSessionKeyPrivateKeyTool = tool(
         });
       }
 
-      // Return private key with comprehensive security warning
-      return `🔑 **Session Key Private Key**
+      // ⚠️ SECURITY FIX: Do NOT return private key in LLM response (P1 vulnerability)
+      // Private keys should never be sent to OpenAI's API servers
+      // Instead, return only the address and security context
+      return `🔑 **Session Key Information**
 
-**Private Key:** ${sessionData.sessionKeyPrivateKey}
-**Address:** ${sessionData.sessionKeyAddress}
+**Session Key Address:** ${sessionData.sessionKeyAddress}
+**Status:** Active and operational
 
-⚠️ **SECURITY WARNING:**
+⚠️ **SECURITY NOTICE:**
 
-**What this key controls:**
-• Session key only holds ~1 MON for gas payments
-• Compromise = max 1 MON loss (NOT your main tokens)
+For your security, the private key is stored client-side only and is **never sent to AI servers**.
+
+**What this session key controls:**
+• Session key holds ~1 MON for gas payments only
 • Cannot access your smart account tokens directly
-• Session key can only execute delegations you sign
-• Private key is ephemeral - generated fresh on each login
+• Can only execute delegations you explicitly sign
+• Private key is ephemeral - regenerated on each login
 
-**Why we share this:**
-• Full transparency - you control everything
-• Can import into MetaMask if needed
-• Can verify session key address independently
-• You own the session key, you should see the key
+**To access your private key securely:**
+The private key is stored in your browser and can be retrieved client-side through the developer console:
+1. Open browser developer tools (F12)
+2. Navigate to Application → Local Storage
+3. Find the session key data
 
-**Important reminders:**
-• Store securely if saving (offline storage recommended)
-• Treat like any private key (don't share publicly)
-• Session key regenerates on logout/login (this key won't work after re-login)
-• Your main tokens in smart account are NOT at risk from session key compromise
+**Why we don't show private keys here:**
+• Private keys should never be transmitted through AI APIs
+• Your security is more important than convenience
+• Client-side storage keeps your keys under your control
+• OpenAI's data retention policies mean transmitted keys are logged
 
-**How to use this:**
-1. Copy the private key above
-2. Import into MetaMask: Settings → Import Account → Private Key
-3. Verify the address matches: ${sessionData.sessionKeyAddress}
-4. You can now see session key transactions in MetaMask
+**Session Key Security:**
+• Maximum risk: ~1 MON gas funds (not your main tokens)
+• Smart account assets remain protected by owner key
+• Session key regenerates on logout/login
+• No permanent security impact from session key exposure
 
-Your session key is working for you - full transparency guaranteed! 🔓`;
+Your session key is working securely for you! 🔒`;
     } catch (error) {
       throw createErrorFromCode("SESSION_KEY_EXPORT_FAILED", {
         message: `Failed to get session key private key: ${(error as Error).message}`,

@@ -27,8 +27,8 @@ import {
   type Address,
   type Hex,
   type PublicClient,
+  type Transport,
   createWalletClient,
-  http,
   formatEther,
   getAddress,
 } from "viem";
@@ -43,7 +43,6 @@ import { SESSION_KEY_FUNDING_AMOUNT } from "./sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import { createNativeTransferDelegation } from "../delegation/transferDelegation.js";
 import {
-  MONAD_RPC_URL,
   DELEGATION_MANAGER_ADDRESS,
   NONCE_ENFORCER_ADDRESS,
   NONCE_ENFORCER_ABI,
@@ -68,6 +67,8 @@ export interface FundSessionKeyViaDelegationParams {
   publicClient: PublicClient;
   /** Web3Auth bridge for delegation signing */
   web3authBridge: any;
+  /** Transport for wallet client (e.g., authenticated RPC proxy) */
+  transport: Transport;
   /** Optional dynamic funding amount (defaults to SESSION_KEY_FUNDING_AMOUNT) */
   fundingAmount?: bigint;
 }
@@ -128,6 +129,7 @@ export async function fundSessionKeyViaDelegation(
     chainId,
     publicClient,
     web3authBridge,
+    transport,
     fundingAmount = SESSION_KEY_FUNDING_AMOUNT, // Default to fixed amount if not provided
   } = params;
 
@@ -168,15 +170,16 @@ export async function fundSessionKeyViaDelegation(
 
   // Step 5: Create session wallet client
   // Session key will sign the transaction and pay gas from its remaining balance
+  // Uses authenticated transport passed from caller (e.g., /api/rpc proxy)
   const sessionWallet = createWalletClient({
     account: privateKeyToAccount(sessionKeyPrivateKey),
     chain: {
       id: chainId,
       name: "Monad",
       nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
-      rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
+      rpcUrls: { default: { http: [] }, public: { http: [] } }, // RPC URLs not needed (transport handles routing)
     },
-    transport: http(MONAD_RPC_URL),
+    transport, // Use authenticated transport from caller
   });
 
   // Step 6: Submit transaction via delegation redemption

@@ -28,6 +28,7 @@ export const executeWrapTool = tool(
       const ownerAddress = config?.configurable?.ownerAddress as Address;
       const publicClient = config?.configurable?.publicClient;
       const web3authBridge = config?.configurable?.web3authBridge;
+      const transport = config?.configurable?.transport;
       const chainId = config?.configurable?.chainId as number;
 
       // Validate required context
@@ -37,9 +38,9 @@ export const executeWrapTool = tool(
         });
       }
 
-      if (!publicClient || !web3authBridge || !chainId) {
+      if (!publicClient || !web3authBridge || !transport || !chainId) {
         throw createErrorFromCode("CONFIG_MISSING", {
-          message: "Missing public client, web3authBridge, or chainId.",
+          message: "Missing public client, web3authBridge, transport, or chainId.",
         });
       }
 
@@ -55,6 +56,7 @@ export const executeWrapTool = tool(
         ownerAddress,
         publicClient,
         web3authBridge,
+        transport,
         chainId,
       });
 

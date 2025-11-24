@@ -11,7 +11,7 @@
 
 import { tool } from "langchain";
 import { z } from "zod";
-import type { Address, PublicClient, Hex } from "viem";
+import type { Address, PublicClient, Hex, Transport } from "viem";
 import { formatEther, getAddress } from "viem";
 
 import {
@@ -42,10 +42,11 @@ export const fundSessionKeyTool = tool(
       const web3authBridge = config?.configurable?.web3authBridge;
       const smartAccount = config?.configurable?.smartAccount;
       const bundlerClient = config?.configurable?.bundlerClient;
+      const transport = config?.configurable?.transport as Transport;
 
-      if (!sessionData || !publicClient || !web3authBridge) {
+      if (!sessionData || !publicClient || !web3authBridge || !transport) {
         throw createErrorFromCode("CONFIG_MISSING", {
-          message: "Missing required configuration for session key funding",
+          message: "Missing required configuration for session key funding (sessionData, publicClient, web3authBridge, or transport)",
         });
       }
 
@@ -72,6 +73,7 @@ export const fundSessionKeyTool = tool(
         fundingConfig,
         publicClient,
         web3authBridge,
+        transport, // Authenticated transport from config (e.g., /api/rpc proxy)
         input.estimatedOperations // Pass through for dynamic funding calculation
       );
 

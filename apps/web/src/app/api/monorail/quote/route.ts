@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAddress } from "viem";
 import { fetchMonorailQuote as coreFetchMonorailQuote } from "@pragma/core/monorail/pathfinder";
 import type { QuoteRequestParams } from "@pragma/core/monorail/pathfinder";
+import { authMiddleware } from "@/lib/auth/authMiddleware";
 
 import {
   MONORAIL_AGGREGATOR_ADDRESS,
@@ -26,6 +27,10 @@ const sanitizePayload = (payload: QuoteRequestParams): QuoteRequestParams => ({
 });
 
 export async function POST(request: Request) {
+  // ✅ SECURITY: Authenticate request
+  const authError = await authMiddleware(request);
+  if (authError) return authError;
+
   if (!config.appId || !config.pathfinderUrl) {
     return NextResponse.json({ error: "Monorail configuration is missing" }, { status: 500 });
   }

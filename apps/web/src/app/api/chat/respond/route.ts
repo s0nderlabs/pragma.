@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { getAddress, type Address, type Hex } from "viem";
+import { authMiddleware } from "@/lib/auth/authMiddleware";
 import { PragmaAgent } from "@pragma/core/agent/pragmaAgent";
 import {
   createOpenAiClarifier,
@@ -427,6 +428,10 @@ const sanitizeArtifact = (artifact: DelegationArtifact): DelegationArtifact => (
 });
 
 export const POST = async (request: Request) => {
+  // ✅ SECURITY: Authenticate request before allowing H1 agent usage
+  const authError = await authMiddleware(request);
+  if (authError) return authError;
+
   try {
     const body = (await request.json()) as AgentRequestBody;
 

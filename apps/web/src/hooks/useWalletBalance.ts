@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { formatUnits } from 'viem'
 import { saveBalanceSnapshot, get24hChange } from '@/lib/balanceSnapshots'
+import { authenticatedFetch } from '@/lib/api/authenticatedFetch'
 import type { RawTokenBalance } from '@pragma/core/monorail/balances'
 
 interface WalletBalanceData {
@@ -35,6 +36,7 @@ interface WalletBalanceData {
 export function useWalletBalance(): WalletBalanceData {
   // Read from Zustand store (shared state across all hook instances)
   const sessionData = useH2ChatStore((state) => state.sessionData)
+  const isTokenReady = useH2ChatStore((state) => state.isTokenReady)
   const monBalance = useH2ChatStore((state) => state.monBalance)
   const usdValue = useH2ChatStore((state) => state.usdValue)
   const change24h = useH2ChatStore((state) => state.change24h)
@@ -54,6 +56,12 @@ export function useWalletBalance(): WalletBalanceData {
 
   // Fetch balance function (can be called manually or by polling)
   const fetchBalance = useCallback(async () => {
+    // Skip if authentication token not ready (prevents race condition)
+    if (!isTokenReady) {
+      console.log('[useWalletBalance] Skipping fetch - token not ready yet')
+      return
+    }
+
     // Skip if no smart account address
     if (!sessionData?.delegator) {
       if (mountedRef.current) {
@@ -69,10 +77,10 @@ export function useWalletBalance(): WalletBalanceData {
     }
 
     try {
-      // Fetch from Next.js API routes (avoids CORS issues)
+      // Fetch from Next.js API routes (authenticated with JWT + signature)
       const [portfolioResponse, balancesResponse] = await Promise.all([
-        fetch(`/api/monorail/portfolio?address=${sessionData.delegator}`),
-        fetch(`/api/monorail/balances?address=${sessionData.delegator}`),
+        authenticatedFetch(`/api/monorail/portfolio?address=${sessionData.delegator}`),
+        authenticatedFetch(`/api/monorail/balances?address=${sessionData.delegator}`),
       ])
 
       // Check for errors
@@ -131,7 +139,7 @@ export function useWalletBalance(): WalletBalanceData {
         setBalanceError(err instanceof Error ? err.message : 'Failed to fetch balance')
       }
     }
-  }, [sessionData?.delegator, setWalletBalance, setBalanceError, setBalanceFetching, setBalanceLoading])
+  }, [isTokenReady, sessionData?.delegator, setWalletBalance, setBalanceError, setBalanceFetching, setBalanceLoading])
 
   // Visibility detection: Adjust polling based on tab visibility
   useEffect(() => {

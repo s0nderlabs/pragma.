@@ -20,6 +20,7 @@ import {
   type Address,
   type Hex,
   type PublicClient,
+  type Transport,
   createWalletClient,
   http,
   formatUnits,
@@ -64,6 +65,8 @@ export interface ExecuteTransferParams {
   publicClient: PublicClient;
   /** Web3Auth bridge for delegation signing */
   web3authBridge: any; // Type: Web3AuthBridge from apps/cli (has signTypedData method)
+  /** Authenticated transport for wallet client (e.g., /api/rpc proxy) */
+  transport: Transport;
   /** Chain ID */
   chainId: number;
   /** Smart account instance from DTK (for UserOp-based session key funding) */
@@ -92,6 +95,7 @@ export async function executeTransfer(params: ExecuteTransferParams): Promise<Ex
     ownerAddress,
     publicClient,
     web3authBridge,
+    transport,
     chainId,
     smartAccount,
     bundlerClient,
@@ -125,7 +129,8 @@ export async function executeTransfer(params: ExecuteTransferParams): Promise<Ex
         bundlerClient,
       },
       publicClient,
-      web3authBridge
+      web3authBridge,
+      transport // Authenticated transport from params
     );
 
     console.log(`✓ Session key funded: ${formatEther(fundingResult.newBalance)} MON`);

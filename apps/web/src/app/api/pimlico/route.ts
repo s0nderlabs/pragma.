@@ -7,11 +7,16 @@
  * Security: API key stored in server-only PIMLICO_API_KEY env var
  */
 
+import { authMiddleware } from "@/lib/auth/authMiddleware";
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
+    // ✅ SECURITY: Authenticate request
+    const authError = await authMiddleware(request);
+    if (authError) return authError;
     // Get API key and chain from server-only environment variables
     const apiKey = process.env.PIMLICO_API_KEY;
     const chain = process.env.NEXT_PUBLIC_PIMLICO_CHAIN || 'monad-testnet';

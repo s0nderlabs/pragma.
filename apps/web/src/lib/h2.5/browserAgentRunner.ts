@@ -109,6 +109,9 @@ export interface BrowserAgentContext {
   /** Direct Web3Auth bridge (no network transport) */
   web3authBridge: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
+  /** Authenticated RPC transport (proxies calls through /api/rpc with JWT + signature) */
+  transport: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
   /** Smart account instance (optional, for account abstraction) */
   smartAccount?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -194,6 +197,7 @@ export async function runBrowserAgent(
           sessionData: context.sessionData,
           publicClient: context.publicClient,
           web3authBridge: context.web3authBridge,
+          transport: context.transport,
           smartAccount: context.smartAccount,
           bundlerClient: context.bundlerClient,
           sessionWallet: context.sessionWallet,
@@ -556,6 +560,7 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
           sessionData: context.sessionData,
           publicClient: context.publicClient,
           web3authBridge: context.web3authBridge,
+          transport: context.transport,
           smartAccount: context.smartAccount,
           bundlerClient: context.bundlerClient,
           sessionWallet: context.sessionWallet,

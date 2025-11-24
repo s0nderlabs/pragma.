@@ -27,6 +27,7 @@
 import { createAgent } from 'langchain';
 import { ChatOpenAI } from '@langchain/openai';
 import { h2ToolRegistry } from '@pragma/core';
+import { authenticatedFetch } from '@/lib/api/authenticatedFetch';
 
 /**
  * Browser agent configuration
@@ -143,6 +144,8 @@ export function createBrowserAgent(config: BrowserAgentConfig): ReturnType<typeo
       baseURL: typeof window !== 'undefined'
         ? `${window.location.origin}/api/h2`
         : 'http://localhost:3000/api/h2',
+      // Use authenticated fetch for JWT + signature authentication
+      fetch: authenticatedFetch as typeof fetch,
     },
   });
 

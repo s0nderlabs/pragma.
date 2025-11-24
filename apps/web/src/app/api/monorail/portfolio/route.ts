@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAddress, type Address } from "viem";
 import { fetchPortfolioValue } from "@pragma/core/monorail/balances";
+import { authMiddleware } from "@/lib/auth/authMiddleware";
 
 import {
   MONORAIL_DATA_API_URL,
@@ -13,6 +14,10 @@ const config = {
 };
 
 export async function GET(request: Request) {
+  // ✅ SECURITY: Authenticate request
+  const authError = await authMiddleware(request);
+  if (authError) return authError;
+
   if (!config.dataApiUrl) {
     return NextResponse.json({ error: "Monorail Data API configuration is missing" }, { status: 500 });
   }

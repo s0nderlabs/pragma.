@@ -32,6 +32,7 @@ export const executeTransferTool = tool(
       const ownerAddress = config?.configurable?.ownerAddress as Address;
       const publicClient = config?.configurable?.publicClient;
       const web3authBridge = config?.configurable?.web3authBridge;
+      const transport = config?.configurable?.transport;
       const chainId = config?.configurable?.chainId as number;
       const smartAccount = config?.configurable?.smartAccount;
       const bundlerClient = config?.configurable?.bundlerClient;
@@ -70,6 +71,13 @@ export const executeTransferTool = tool(
         });
       }
 
+      if (!transport) {
+        throw createErrorFromCode("CONFIG_MISSING", {
+          message: "Transport is required but not provided in context.",
+          context: { field: "transport" },
+        });
+      }
+
       // Retrieve quote (for display in success message)
       const quote = getTransferQuote(quoteId);
 
@@ -82,6 +90,7 @@ export const executeTransferTool = tool(
         ownerAddress,
         publicClient,
         web3authBridge,
+        transport,
         chainId,
         smartAccount,
         bundlerClient,

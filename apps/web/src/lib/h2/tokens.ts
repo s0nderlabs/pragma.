@@ -11,6 +11,7 @@
 
 import type { AllowedToken } from "@pragma/core";
 import { loadCachedTokens, saveCachedTokens } from "./tokenCache";
+import { authenticatedFetch } from "../api/authenticatedFetch";
 
 /**
  * Load allowed tokens from /api/tokens endpoint with client-side caching
@@ -34,7 +35,7 @@ export async function loadAllowedTokens(): Promise<AllowedToken[]> {
 
     // Fetch from API endpoint (server handles @pragma/core buildAllowedTokens)
     console.log("[tokens.ts] 📡 Fetching from /api/tokens...");
-    const response = await fetch("/api/tokens");
+    const response = await authenticatedFetch("/api/tokens");
     console.log("[tokens.ts] 📥 API response:", {
       status: response.status,
       ok: response.ok,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { AllowedToken, TokenCache, TokenCacheEntry } from "@pragma/core/monorail/tokens";
 import { buildAllowedTokens, normalizeAllowedTokensList, sortAllowedTokens } from "@pragma/core/monorail/tokens";
 import { getAddress } from "viem";
+import { authMiddleware } from "@/lib/auth/authMiddleware";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -404,6 +405,10 @@ const TOKEN_METADATA = {
 };
 
 export async function GET(request: Request) {
+  // ✅ SECURITY: Authenticate request
+  const authError = await authMiddleware(request);
+  if (authError) return authError;
+
   // Support test-only query parameter to force fallback
   const { searchParams } = new URL(request.url);
   const forceFallback = searchParams.get("forceFallback") === "true";

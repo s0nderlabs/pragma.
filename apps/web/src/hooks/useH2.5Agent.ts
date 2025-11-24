@@ -21,9 +21,10 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { useH2ChatStore } from '@/stores/useH2ChatStore';
 import { useIdentity } from './useIdentity';
-import { createPublicClient, createWalletClient, http, type Hex } from 'viem';
+import { createPublicClient, createWalletClient, custom, type Hex } from 'viem';
 import { privateKeyToAccount, nonceManager } from 'viem/accounts';
 import { monadDevnet } from '@/lib/chains';
+import { authenticatedFetch } from '@/lib/api/authenticatedFetch';
 
 import { createBrowserAgent, validateBrowserEnvironment } from '@/lib/h2.5/createBrowserAgent';
 import { createDirectWeb3AuthBridge } from '@/lib/h2.5/directWeb3AuthBridge';
@@ -69,6 +70,36 @@ export function useH2_5Agent() {
   const updateToolDescription = useH2ChatStore((state) => state.updateToolDescription);
   const setIsStreaming = useH2ChatStore((state) => state.setIsStreaming);
   const completeAllRunningTools = useH2ChatStore((state) => state.completeAllRunningTools);
+
+  /**
+   * Create authenticated RPC transport
+   * Uses authenticatedFetch to proxy RPC calls through /api/rpc with JWT + signature
+   */
+  const createAuthenticatedRpcTransport = () => custom({
+    async request({ method, params }) {
+      const response = await authenticatedFetch('/api/rpc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method,
+          params,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`RPC request failed: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (data.error) {
+        throw new Error(data.error.message || 'RPC error');
+      }
+
+      return data.result;
+    },
+  });
 
   /**
    * Format tool name to human-readable text
@@ -312,10 +343,14 @@ export function useH2_5Agent() {
       setIsStreaming(true);
 
       try {
-        // Create public client for blockchain reads
+        // Create authenticated transport (shared by both clients)
+        // This transport proxies all RPC calls through /api/rpc with JWT + signature
+        const authenticatedTransport = createAuthenticatedRpcTransport();
+
+        // Create public client for blockchain reads (with authenticated transport)
         const publicClient = createPublicClient({
           chain: monadDevnet,
-          transport: http('/api/rpc'),  // Use RPC proxy (keeps Ankr API key server-side)
+          transport: authenticatedTransport,  // Authenticated RPC proxy
         });
 
         // Create session wallet with correct RPC URL and nonceManager
@@ -328,7 +363,7 @@ export function useH2_5Agent() {
             { nonceManager }  // Enable atomic nonce management for parallel operations
           ),
           chain: monadDevnet,
-          transport: http('/api/rpc'),  // Use RPC proxy (keeps Ankr API key server-side)
+          transport: authenticatedTransport,  // Authenticated RPC proxy
         });
 
         // Create direct Web3Auth bridge (no network transport!)
@@ -512,6 +547,7 @@ export function useH2_5Agent() {
             publicClient,
             web3authBridge,
             sessionWallet,
+            transport: authenticatedTransport, // Pass authenticated transport to tools
             quickMode,
             allowedTokens,
             smartAccount: smartAccount || undefined,

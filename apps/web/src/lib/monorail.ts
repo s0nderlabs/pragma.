@@ -3,6 +3,7 @@
 import type { AllowedToken } from "@pragma/core/monorail/tokens";
 import { ensureTokenSet, normalizeAllowedTokensList } from "@pragma/core/monorail/tokens";
 import { getAddress } from "viem";
+import { authenticatedFetch } from "./api/authenticatedFetch";
 
 const STORAGE_KEY = "pragma.h1.token-cache.v3";
 const CACHE_VERSION = "v3";
@@ -495,14 +496,14 @@ const writeCachedTokens = (tokens: AllowedToken[]): void => {
 };
 
 /**
- * Fetch tokens from API with timeout
+ * Fetch tokens from API with timeout (authenticated)
  */
 const fetchWithTimeout = async (url: string, timeout: number): Promise<Response> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
-    const response = await fetch(url, {
+    const response = await authenticatedFetch(url, {
       cache: "no-store",
       signal: controller.signal,
     });

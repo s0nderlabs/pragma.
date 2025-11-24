@@ -2,7 +2,6 @@
 
 import { custom, createWalletClient, type Address, type Chain, type Transport, type WalletClient } from "viem";
 import { createReadOnlyPublicClient } from "@pragma/core/clients/publicClient";
-import { authenticatedFetch } from "./api/authenticatedFetch";
 
 import {
   MONAD_CHAIN_ID,
@@ -34,33 +33,19 @@ export const monadChain: Chain = {
 
 export type MonadPublicClient = ReturnType<typeof createReadOnlyPublicClient>;
 
-export const createMonadPublicClient = (): MonadPublicClient => {
-  // Use authenticated fetch if RPC URLs use /api/ proxy
-  // Only authenticate if using the proxy route
-  const fetchFn =
-    MONAD_READ_RPC_URL.startsWith('/api/') || MONAD_EXECUTION_RPC_URL.startsWith('/api/')
-      ? authenticatedFetch
-      : undefined;
-
-  return createReadOnlyPublicClient({
+export const createMonadPublicClient = (): MonadPublicClient =>
+  createReadOnlyPublicClient({
     chain: monadChain,
     readUrl: MONAD_READ_RPC_URL,
     fallbackUrl: MONAD_READ_RPC_URL === MONAD_EXECUTION_RPC_URL ? undefined : MONAD_EXECUTION_RPC_URL,
-    fetchFn,
   });
-};
 
-export const createMonadExecutionClient = (): MonadPublicClient => {
-  // Use authenticated fetch if using /api/ proxy
-  const fetchFn = MONAD_EXECUTION_RPC_URL.startsWith('/api/') ? authenticatedFetch : undefined;
-
-  return createReadOnlyPublicClient({
+export const createMonadExecutionClient = (): MonadPublicClient =>
+  createReadOnlyPublicClient({
     chain: monadChain,
     readUrl: MONAD_EXECUTION_RPC_URL,
     fallbackUrl: MONAD_EXECUTION_RPC_URL,
-    fetchFn,
   });
-};
 
 export interface WalletWithAddress {
   walletClient: WalletClient<Transport, typeof monadChain>;

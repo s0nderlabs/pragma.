@@ -15,42 +15,26 @@ export interface ReadClientConfig {
   fallbackUrl?: string;
   /** Optional custom transport tuning. */
   transportConfig?: HttpTransportConfig;
-  /** Optional custom fetch function for authentication. */
-  fetchFn?: (url: string, init?: RequestInit) => Promise<Response>;
 }
 
-const buildTransport = (
-  url: string,
-  transportConfig?: HttpTransportConfig,
-  fetchFn?: (url: string, init?: RequestInit) => Promise<Response>,
-) => {
-  const httpConfig: Record<string, unknown> = {
+const buildTransport = (url: string, transportConfig?: HttpTransportConfig) =>
+  http(url, {
     batch: true,
     retryCount: transportConfig?.retryCount ?? 3,
     retryDelay: transportConfig?.retryDelay ?? 300,
     timeout: transportConfig?.timeout ?? 120_000, // 120s for slow RPCs
-  };
-
-  // Add custom fetch function if provided
-  if (fetchFn) {
-    httpConfig.fetchOptions = {
-      fetch: fetchFn,
-    };
-  }
-
-  return http(url, httpConfig);
-};
+  });
 
 /**
  * Creates a read-only viem PublicClient backed by HyperRPC with optional fallback.
  * The resulting client MUST NOT be used for write operations.
  */
 export const createReadOnlyPublicClient = (config: ReadClientConfig): PublicClient => {
-  const { chain, readUrl, fallbackUrl, transportConfig, fetchFn } = config;
+  const { chain, readUrl, fallbackUrl, transportConfig } = config;
 
-  const transports = [buildTransport(readUrl, transportConfig, fetchFn)];
+  const transports = [buildTransport(readUrl, transportConfig)];
   if (fallbackUrl && fallbackUrl !== readUrl) {
-    transports.push(buildTransport(fallbackUrl, transportConfig, fetchFn));
+    transports.push(buildTransport(fallbackUrl, transportConfig));
   }
 
   const transport = transports.length === 1 ? transports[0] : fallback(transports, {

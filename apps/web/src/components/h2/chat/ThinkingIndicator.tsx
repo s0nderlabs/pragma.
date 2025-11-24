@@ -3,78 +3,76 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-const THINKING_VERBS = [
-  'Routing...',
-  'Simulating...',
-  'Analyzing...',
-  'Optimizing...',
-  'Processing...',
-  'Computing...',
-  'Thinking...',
+const SPINNER_FRAMES = ['✦', '✧', '✶', '✷', '✸', '✹', '✺', '✻']
+
+const PRAGMA_VIBES = [
+  'Finding Alpha',
+  'Building Magic',
+  'Securing Vibes',
+  'Preparing Execution',
+  'Summoning Liquidity',
+  'Channeling Protocols',
+  'Consulting The Chain',
+  'Brewing Transactions',
+  'Weaving Smart Contracts',
+  'Harmonizing Validators',
 ]
 
 /**
  * ThinkingIndicator Component
  *
- * Shows rotating Pragma-specific verbs with purple shimmer animation.
- * Indicates agent is processing the request.
+ * Shows Unicode star spinner with rotating Pragma-style phrases.
+ * Claude-inspired elegant animation with terracotta brand color.
  */
 export function ThinkingIndicator() {
-  const [currentIndex, setCurrentIndex] = useState(0)
+  const [frameIndex, setFrameIndex] = useState(0)
+  const [phraseIndex, setPhraseIndex] = useState(
+    Math.floor(Math.random() * PRAGMA_VIBES.length)
+  )
 
+  // Spinner rotation: 100ms per frame (smooth 8-frame rotation)
   useEffect(() => {
-    // Rotate through verbs every 1.2 seconds
     const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % THINKING_VERBS.length)
-    }, 1200)
+      setFrameIndex((prev) => (prev + 1) % SPINNER_FRAMES.length)
+    }, 100)
+    return () => clearInterval(interval)
+  }, [])
 
+  // Phrase rotation: 1500ms per phrase
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPhraseIndex((prev) => (prev + 1) % PRAGMA_VIBES.length)
+    }, 1500)
     return () => clearInterval(interval)
   }, [])
 
   return (
     <div className="mb-6">
-      <div className="relative inline-block">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        transition={{ duration: 0.3 }}
+        className="flex items-center gap-2"
+      >
+        <span className="text-2xl font-mono text-[#E07A5F]">
+          {SPINNER_FRAMES[frameIndex]}
+        </span>
+
         <AnimatePresence mode="wait">
-          <motion.div
-            key={currentIndex}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
+          <motion.span
+            key={phraseIndex}
+            initial={{ opacity: 0, x: -5 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 5 }}
             transition={{ duration: 0.3 }}
-            className="shimmer-text text-base text-[#F2A694]/80"
+            className="text-sm font-medium text-[#E07A5F]"
+            style={{ opacity: 0.9 }}
           >
-            {THINKING_VERBS[currentIndex]}
-          </motion.div>
+            {PRAGMA_VIBES[phraseIndex]}...
+          </motion.span>
         </AnimatePresence>
-      </div>
-
-      <style jsx>{`
-        .shimmer-text {
-          background: linear-gradient(
-            90deg,
-            rgba(131, 110, 249, 0.4) 0%,
-            rgba(131, 110, 249, 1) 50%,
-            rgba(131, 110, 249, 0.4) 100%
-          );
-          background-size: 200% 100%;
-          background-clip: text;
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          animation: shimmer 2s ease-in-out infinite;
-        }
-
-        @keyframes shimmer {
-          0% {
-            background-position: -100% 0;
-          }
-          50% {
-            background-position: 100% 0;
-          }
-          100% {
-            background-position: -100% 0;
-          }
-        }
-      `}</style>
+      </motion.div>
     </div>
   )
 }

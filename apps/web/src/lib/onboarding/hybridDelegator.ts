@@ -8,6 +8,7 @@ import {
   toMetaMaskSmartAccount,
   getDeleGatorEnvironment,
 } from "@metamask/delegation-toolkit";
+import { authenticatedFetch } from "../api/authenticatedFetch";
 
 import {
   createMonadPublicClient,
@@ -49,9 +50,8 @@ const deployViaAdminFallback = async ({
   owner: Address;
   delegator: Address;
 }): Promise<{ transactionHash: Hex }> => {
-  const response = await fetch("/api/onboarding/deploy", {
+  const response = await authenticatedFetch("/api/onboarding/deploy", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       factory,
       factoryData,
@@ -104,9 +104,24 @@ export const createHybridDelegatorHandle = async (
     deploySalt: "0x",
   });
 
+  // Create authenticated transport for Pimlico bundler
+  // If using /api/pimlico proxy, requests must include auth headers
+  const bundlerTransport = http(PIMLICO_BUNDLER_URL, {
+    fetchOptions: {
+      fetch: async (url: string, init?: RequestInit): Promise<Response> => {
+        // Only authenticate if using the proxy route
+        if (PIMLICO_BUNDLER_URL.startsWith('/api/')) {
+          return authenticatedFetch(url, init);
+        }
+        // Direct Pimlico URL (has API key in URL) - use plain fetch
+        return fetch(url, init);
+      },
+    } as Record<string, unknown>,
+  });
+
   const bundlerClient = createBundlerClient({
     chain: monadChain,
-    transport: http(PIMLICO_BUNDLER_URL),
+    transport: bundlerTransport,
     client: publicClient,
   });
 

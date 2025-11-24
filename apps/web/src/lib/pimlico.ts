@@ -4,6 +4,7 @@ import type { RpcUserOperation } from "viem/account-abstraction";
 import type { Hex } from "viem";
 
 import { PIMLICO_PAYMASTER_URL, PIMLICO_SPONSORSHIP_POLICY_ID } from "./config";
+import { authenticatedFetch } from "./api/authenticatedFetch";
 
 type PimlicoSponsorParams = {
   userOperation: RpcUserOperation;
@@ -50,7 +51,12 @@ export const sponsorUserOperation = async (
     requestParams.push(options);
   }
 
-  const response = await fetch(PIMLICO_PAYMASTER_URL, {
+  // Use authenticated fetch if using /api/pimlico proxy
+  const fetchFn = PIMLICO_PAYMASTER_URL.startsWith('/api/')
+    ? authenticatedFetch
+    : fetch;
+
+  const response = await fetchFn(PIMLICO_PAYMASTER_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

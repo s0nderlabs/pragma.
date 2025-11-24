@@ -7,8 +7,9 @@
  * Flow:
  * 1. Detects Web3Auth connection (wallet connected)
  * 2. Creates HybridDelegator handle (derives delegator address)
- * 3. Generates or retrieves session key
- * 4. Stores complete H2 session in localStorage + Zustand
+ * 3. Deploys smart account if not already deployed
+ * 4. Generates or retrieves session key
+ * 5. Stores complete H2 session in localStorage + Zustand
  *
  * Note: Session key funding is handled LAZILY on first transaction,
  * not during onboarding. This matches CLI behavior and avoids
@@ -19,7 +20,11 @@ import { useEffect, useState } from "react";
 import { useIdentity } from "./useIdentity";
 import { useH2Session } from "./useH2Session";
 import { useH2ChatStore } from "@/stores/useH2ChatStore";
-import { createHybridDelegatorHandle } from "@/lib/onboarding/hybridDelegator";
+import {
+  createHybridDelegatorHandle,
+  ensureHybridDelegatorDeployed,
+  isSmartAccountDeployed,
+} from "@/lib/onboarding/hybridDelegator";
 import { getOrCreateSessionKey } from "@/lib/storage/session-keys";
 import { loadAllowedTokens } from "@/lib/h2/tokens";
 import { MONAD_CHAIN_ID } from "@/lib/config";
@@ -49,7 +54,24 @@ export function useH2Onboarding() {
         const handle = await createHybridDelegatorHandle(wallet.walletClient, wallet.address);
         console.log("[H2Onboarding] Delegator address:", handle.delegator);
 
-        // Step 2: Get or create session key for this delegator
+        // Step 2: Ensure smart account is deployed before creating session
+        const isDeployed = await isSmartAccountDeployed(handle);
+        if (!isDeployed) {
+          console.log("[H2Onboarding] Deploying smart account...");
+          const deployResult = await ensureHybridDelegatorDeployed(handle, {
+            allowDirectFallback: true,
+          });
+          if (deployResult) {
+            console.log("[H2Onboarding] Smart account deployed:", {
+              userOpHash: deployResult.userOpHash,
+              transactionHash: deployResult.transactionHash,
+            });
+          }
+        } else {
+          console.log("[H2Onboarding] Smart account already deployed");
+        }
+
+        // Step 3: Get or create session key for this delegator
         const sessionKey = getOrCreateSessionKey(handle.delegator);
         console.log(
           "[H2Onboarding] Session key:",
@@ -57,7 +79,7 @@ export function useH2Onboarding() {
           sessionKey.isNew ? "(new)" : "(existing)"
         );
 
-        // Step 3: Create complete H2 session state
+        // Step 4: Create complete H2 session state
         // Note: Session key funding is handled lazily on first transaction,
         // not during onboarding. This matches CLI behavior and avoids unnecessary
         // gas costs for users who may not immediately use the session.

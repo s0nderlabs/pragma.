@@ -29,8 +29,8 @@ import { fundSessionKeyViaDelegation } from "./sessionKeyFundingDelegation.js";
 /** Minimum balance threshold (if below this, funding is needed) */
 export const MIN_SESSION_KEY_BALANCE = parseEther("0.1"); // 0.1 MON
 
-/** Standard funding amount (increased for batch operation support) */
-export const SESSION_KEY_FUNDING_AMOUNT = parseEther("1.0"); // 1.0 MON
+/** Standard funding amount */
+export const SESSION_KEY_FUNDING_AMOUNT = parseEther("0.5"); // 0.5 MON
 
 /** Average gas cost per operation (updated from real-world data with overhead) */
 export const AVG_GAS_PER_OPERATION = parseEther("0.11"); // ~0.11 MON per swap/transfer (includes funding overhead)
@@ -313,6 +313,7 @@ export async function fundSessionKey(
         bundlerClient: config.bundlerClient,
         publicClient,
         fundingAmount, // Pass dynamic funding amount
+        // Note: sponsorUserOperationFn removed - session key funding is now self-paid
       });
 
       return {

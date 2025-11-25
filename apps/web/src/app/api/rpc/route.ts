@@ -5,20 +5,19 @@
  * Optional: Can use public RPC directly in browser for better performance.
  *
  * Security: RPC URL with API key stored in server-only MONAD_RPC_URL env var
+ *
+ * NOTE: NO AUTHENTICATION - RPC is read-only public blockchain data.
+ * This endpoint is called:
+ * - During page load (before login)
+ * - During onboarding (to check smart account deployment)
+ * - By viem clients that don't have auth headers
  */
-
-import { authMiddleware } from "@/lib/auth/authMiddleware";
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    // ✅ SECURITY: Authenticate request
-    const authError = await authMiddleware(request);
-    if (authError) {
-      return authError;
-    }
     // Get RPC URL from server-only environment variable (may contain API key)
     const rpcUrl = process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz';
 

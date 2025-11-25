@@ -37,7 +37,9 @@ export const createMonadPublicClient = (): MonadPublicClient =>
   createReadOnlyPublicClient({
     chain: monadChain,
     readUrl: MONAD_READ_RPC_URL,
-    fallbackUrl: MONAD_READ_RPC_URL === MONAD_EXECUTION_RPC_URL ? undefined : MONAD_EXECUTION_RPC_URL,
+    // CRITICAL: Use same proxy URL as fallback to prevent bypass to direct RPC
+    // Previous: fallbackUrl: MONAD_EXECUTION_RPC_URL (= testnet-rpc.monad.xyz) ← BYPASSES AUTH
+    fallbackUrl: MONAD_READ_RPC_URL,
   });
 
 export const createMonadExecutionClient = (): MonadPublicClient =>

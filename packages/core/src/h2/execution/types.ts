@@ -48,6 +48,7 @@ export interface SessionKeyFundingConfig {
   smartAccount?: any;
   /** Bundler client (required for initial funding via UserOp) */
   bundlerClient?: any;
+  // Note: sponsorUserOperationFn removed - session key funding is now self-paid (no paymaster)
 }
 
 /**

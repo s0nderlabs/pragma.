@@ -105,18 +105,18 @@ export const createHybridDelegatorHandle = async (
   });
 
   // Create authenticated transport for Pimlico bundler
-  // If using /api/pimlico proxy, requests must include auth headers
+  // NOTE: `fetchFn` must be a top-level property, NOT inside fetchOptions
+  // viem's http() transport expects custom fetch function at the root level
   const bundlerTransport = http(PIMLICO_BUNDLER_URL, {
-    fetchOptions: {
-      fetch: async (url: string, init?: RequestInit): Promise<Response> => {
-        // Only authenticate if using the proxy route
-        if (PIMLICO_BUNDLER_URL.startsWith('/api/')) {
-          return authenticatedFetch(url, init);
-        }
-        // Direct Pimlico URL (has API key in URL) - use plain fetch
-        return fetch(url, init);
-      },
-    } as Record<string, unknown>,
+    fetchFn: async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+      const urlString = typeof url === 'string' ? url : url instanceof URL ? url.toString() : url.url;
+      // Only authenticate if using the proxy route
+      if (PIMLICO_BUNDLER_URL.startsWith('/api/')) {
+        return authenticatedFetch(urlString, init);
+      }
+      // Direct Pimlico URL (has API key in URL) - use plain fetch
+      return fetch(url, init);
+    },
   });
 
   const bundlerClient = createBundlerClient({
@@ -229,6 +229,10 @@ export const ensureHybridDelegatorDeployed = async (
   });
   applySponsorshipToUserOp(userOp, sponsorship);
 
+  // DO NOT modify gas values after paymaster signs - per Pimlico docs:
+  // "make sure you do not modify any fields after the paymaster signs over it (except signature)"
+  // The paymaster already accounts for its data overhead in returned gas values.
+
   let gasAdjusted = false;
   const setGasValue = (
     field: "callGasLimit" | "verificationGasLimit" | "preVerificationGas",
@@ -312,6 +316,9 @@ export const ensureHybridDelegatorDeployed = async (
     if (!userOp.preVerificationGas || userOp.preVerificationGas === 0n) {
       userOp.preVerificationGas = FALLBACK_PRE_VERIFICATION_GAS;
     }
+
+    // DO NOT modify gas values after paymaster signs - per Pimlico docs:
+    // "make sure you do not modify any fields after the paymaster signs over it (except signature)"
   }
 
   const signature = await smartAccount.signUserOperation(userOp);

@@ -26,15 +26,13 @@ export const monadDevnet = defineChain({
     decimals: 18,
   },
   rpcUrls: {
+    // CRITICAL: Use proxy URL for all RPC calls to ensure authentication
+    // Viem uses chain.rpcUrls.default even when custom transport is passed
     default: {
-      http: [
-        process.env.NEXT_PUBLIC_MONAD_RPC_URL ?? "https://testnet-rpc.monad.xyz",
-      ],
+      http: ["/api/rpc"],
     },
     public: {
-      http: [
-        process.env.NEXT_PUBLIC_MONAD_RPC_URL ?? "https://testnet-rpc.monad.xyz",
-      ],
+      http: ["/api/rpc"],
     },
   },
   blockExplorers: {

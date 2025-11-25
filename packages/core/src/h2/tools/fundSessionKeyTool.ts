@@ -60,6 +60,7 @@ export const fundSessionKeyTool = tool(
         delegationManager: DELEGATION_MANAGER_ADDRESS,
         smartAccount,
         bundlerClient,
+        // Note: sponsorUserOperationFn removed - session key funding is now self-paid
       };
 
       // Check balance before funding to determine which method will be used

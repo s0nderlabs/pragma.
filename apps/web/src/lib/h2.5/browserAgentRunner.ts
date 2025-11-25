@@ -126,6 +126,7 @@ export interface BrowserAgentContext {
 
   /** Allowed tokens for swaps */
   allowedTokens?: AllowedToken[];
+  // Note: sponsorUserOperationFn removed - session key funding is now self-paid (no paymaster)
 }
 
 /**
@@ -566,6 +567,7 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
           sessionWallet: context.sessionWallet,
           quickMode: context.quickMode,
           allowedTokens: context.allowedTokens,
+          // Note: sponsorUserOperationFn removed - session key funding is now self-paid
         },
       }
     );

@@ -31,6 +31,7 @@ import { createDirectWeb3AuthBridge } from '@/lib/h2.5/directWeb3AuthBridge';
 import { streamBrowserAgent } from '@/lib/h2.5/browserAgentRunner';
 import type { MessageTuple, BrowserAgentCallbacks } from '@/lib/h2.5/browserAgentRunner';
 import { createHybridDelegatorHandle } from '@/lib/onboarding/hybridDelegator';
+// Note: sponsorUserOperation import removed - session key funding is now self-paid
 import type { HybridDelegatorHandle } from '@/lib/onboarding/hybridDelegator';
 
 /**
@@ -248,7 +249,17 @@ export function useH2_5Agent() {
 
   /**
    * Initialize smartAccount and bundlerClient for session key funding
-   * These are needed for UserOp-based funding when session key has 0 balance
+   *
+   * CRITICAL: Must use the SAME smartAccount instance from onboarding, NOT recreate it.
+   * Recreating smartAccount causes AA34 signature errors because:
+   * - DTK's toMetaMaskSmartAccount() caches signer state internally
+   * - Web3Auth provider state may change between calls
+   * - New instance produces different signatures → AA34
+   *
+   * Flow:
+   * 1. Check Zustand store for smartAccount saved during onboarding
+   * 2. Use stored instance if available (prevents AA34)
+   * 3. Only recreate as fallback (rarely needed, shows warning)
    */
   useEffect(() => {
     if (!wallet || !sessionData?.delegator) {
@@ -258,7 +269,22 @@ export function useH2_5Agent() {
       return;
     }
 
-    console.log('[H2.5Agent] Creating smartAccount and bundlerClient for session key funding');
+    // CRITICAL FIX: Get smartAccount from store (saved during onboarding)
+    // This preserves the SAME instance used for deployment, preventing AA34
+    const store = useH2ChatStore.getState();
+    const storedSmartAccount = store.smartAccount;
+    const storedBundlerClient = store.bundlerClient;
+
+    if (storedSmartAccount && storedBundlerClient) {
+      console.log('[H2.5Agent] Using smartAccount from onboarding (prevents AA34)');
+      setSmartAccount(storedSmartAccount);
+      setBundlerClient(storedBundlerClient);
+      return;
+    }
+
+    // Fallback: Recreate if not in store (should rarely happen)
+    // This handles edge cases like page refresh without full re-onboarding
+    console.warn('[H2.5Agent] No stored smartAccount found, recreating (may cause AA34 on funding)');
 
     (async () => {
       try {
@@ -271,7 +297,11 @@ export function useH2_5Agent() {
         setSmartAccount(handle.smartAccount);
         setBundlerClient(handle.bundlerClient);
 
-        console.log('[H2.5Agent] SmartAccount and bundlerClient ready');
+        // Save to store for consistency (in case this path is taken)
+        store.setSmartAccount(handle.smartAccount);
+        store.setBundlerClient(handle.bundlerClient);
+
+        console.log('[H2.5Agent] SmartAccount and bundlerClient recreated and stored');
       } catch (error) {
         console.error('[H2.5Agent] Failed to create smartAccount/bundlerClient:', error);
         // Don't fail the whole app - session key funding will fall back to delegation pattern
@@ -550,8 +580,12 @@ export function useH2_5Agent() {
             transport: authenticatedTransport, // Pass authenticated transport to tools
             quickMode,
             allowedTokens,
-            smartAccount: smartAccount || undefined,
-            bundlerClient: bundlerClient || undefined,
+            // CRITICAL FIX: Read directly from Zustand store, not local state
+            // This avoids React state timing race where local state hasn't updated yet
+            // after onboarding stores the smartAccount. Using getState() is synchronous.
+            smartAccount: useH2ChatStore.getState().smartAccount || undefined,
+            bundlerClient: useH2ChatStore.getState().bundlerClient || undefined,
+            // Note: sponsorUserOperationFn removed - session key funding is now self-paid
           },
           callbacks
         );
@@ -576,8 +610,7 @@ export function useH2_5Agent() {
       messages,
       quickMode,
       allowedTokens,
-      smartAccount,
-      bundlerClient,
+      // Note: smartAccount and bundlerClient removed - now read directly from store
       addMessage,
       updateMessageContent,
       setStreamingMessage,

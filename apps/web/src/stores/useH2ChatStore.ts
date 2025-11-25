@@ -84,6 +84,14 @@ export interface H2ChatState {
   // Authentication
   isTokenReady: boolean;
 
+  // Smart Account (runtime, not persisted)
+  // Stores the smartAccount and bundlerClient from onboarding to preserve signer state
+  // Critical: Must use the SAME instance for deployment and session key funding
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  smartAccount: any | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  bundlerClient: any | null;
+
   // Actions
   addMessage: (message: Omit<ChatMessage, "id" | "timestamp">) => void;
   updateMessageContent: (id: string, content: string) => void;
@@ -131,6 +139,12 @@ export interface H2ChatState {
 
   // Authentication actions
   setTokenReady: (ready: boolean) => void;
+
+  // Smart Account actions (runtime, not persisted)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setSmartAccount: (account: any | null) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setBundlerClient: (client: any | null) => void;
 }
 
 // ============================================================================
@@ -174,6 +188,10 @@ export const useH2ChatStore = create<H2ChatState>()(
 
         // Authentication initial state
         isTokenReady: false,
+
+        // Smart Account initial state (runtime, NOT persisted)
+        smartAccount: null,
+        bundlerClient: null,
 
         // Message actions
         addMessage: (message) => {
@@ -816,6 +834,17 @@ export const useH2ChatStore = create<H2ChatState>()(
         // Authentication actions
         setTokenReady: (ready) => {
           set({ isTokenReady: ready });
+        },
+
+        // Smart Account actions (runtime, NOT persisted)
+        setSmartAccount: (account) => {
+          console.log('[H2ChatStore] Setting smartAccount:', account ? 'present' : 'null');
+          set({ smartAccount: account });
+        },
+
+        setBundlerClient: (client) => {
+          console.log('[H2ChatStore] Setting bundlerClient:', client ? 'present' : 'null');
+          set({ bundlerClient: client });
         },
       }),
       {

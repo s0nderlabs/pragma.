@@ -1,12 +1,15 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Coins } from 'lucide-react';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
 import { useH2ChatStore } from '@/stores/useH2ChatStore';
 import { TOKEN_LOGO_MAP } from '@/lib/token-logos';
 import { formatUnits } from 'viem';
+
+/** Filter out tokens worth less than this USD amount */
+const USD_DUST_THRESHOLD = 0.01;
 
 interface DisplayToken {
   address: string;
@@ -22,6 +25,7 @@ interface DisplayToken {
 export function BalancesTab() {
   const { allTokens, isLoading, error, refresh } = useWalletBalance();
   const setBalanceRefreshCallback = useH2ChatStore((state) => state.setBalanceRefreshCallback);
+  const [showDust, setShowDust] = useState(false);
 
   // Register refresh callback for immediate updates after transactions
   useEffect(() => {
@@ -67,6 +71,12 @@ export function BalancesTab() {
           verified: token.categories?.includes('verified') || false,
         };
       })
+      // Filter dust by USD value (keeps high-value tokens even with small amounts)
+      .filter((token) => {
+        if (showDust) return true;
+        const usdValue = parseFloat(token.usdValue) || 0;
+        return usdValue >= USD_DUST_THRESHOLD;
+      })
       // Sort by USD value (highest first)
       .sort((a, b) => {
         const aValue = parseFloat(a.usdValue) || 0;
@@ -75,7 +85,7 @@ export function BalancesTab() {
       });
 
     return tokens;
-  }, [allTokens]);
+  }, [allTokens, showDust]);
 
   // Format balance for display
   const formatBalance = (balance: string): string => {
@@ -151,6 +161,26 @@ export function BalancesTab() {
     );
   }
 
+  // Count how many tokens are hidden by dust filter
+  const dustCount = useMemo(() => {
+    if (showDust) return 0;
+    return allTokens.filter((token) => {
+      let usdValue = 0;
+      try {
+        const balanceBigInt = BigInt(token.balance);
+        const formattedBalance = formatUnits(balanceBigInt, token.decimals);
+        const balanceNum = parseFloat(formattedBalance);
+        const pricePerToken = parseFloat(token.usd_per_token || '0');
+        if (!isNaN(balanceNum) && !isNaN(pricePerToken) && pricePerToken > 0) {
+          usdValue = balanceNum * pricePerToken;
+        }
+      } catch {
+        // Ignore
+      }
+      return usdValue < USD_DUST_THRESHOLD;
+    }).length;
+  }, [allTokens, showDust]);
+
   return (
     <div className="space-y-0 will-change-scroll">
       {displayTokens.map((token, index) => (
@@ -202,6 +232,16 @@ export function BalancesTab() {
           </div>
         </motion.div>
       ))}
+
+      {/* Dust toggle */}
+      {(dustCount > 0 || showDust) && (
+        <button
+          onClick={() => setShowDust(!showDust)}
+          className="w-full py-3 text-xs text-white/40 hover:text-white/60 transition-colors"
+        >
+          {showDust ? 'Show fewer tokens' : 'Show all tokens'}
+        </button>
+      )}
     </div>
   );
 }

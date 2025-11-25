@@ -159,6 +159,7 @@ export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInpu
 
           {/* Textarea */}
           <textarea
+            id="chat-input"
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -174,11 +175,11 @@ export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInpu
           <button
             onClick={handleSend}
             disabled={!input.trim() || isStreaming || tokensLoading}
-            className="group relative flex-shrink-0 flex items-center gap-1 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full active:scale-[0.985] transition-all bg-black dark:bg-white text-white dark:text-black"
+            className="group relative flex-shrink-0 flex items-center justify-center gap-1 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full active:scale-[0.985] transition-all bg-black dark:bg-white text-white dark:text-black"
             aria-label="Send message"
           >
             <span className="hidden sm:inline text-sm font-medium">Send</span>
-            <ArrowUpRight className="w-5 h-5 -mr-4 opacity-0 group-hover:-mr-0 group-hover:opacity-100 group-active:-rotate-45 transition-all duration-200" />
+            <ArrowUpRight className="w-0 h-5 overflow-hidden opacity-0 group-hover:w-5 group-hover:opacity-100 group-active:-rotate-45 transition-all duration-200" />
           </button>
         </div>
 

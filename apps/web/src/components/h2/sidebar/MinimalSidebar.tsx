@@ -123,7 +123,7 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
       // Alt + / - Focus chat input
       else if (e.code === 'Slash' && e.altKey) {
         e.preventDefault()
-        const chatInput = document.querySelector('textarea[placeholder*="Ask anything"]') as HTMLTextAreaElement
+        const chatInput = document.getElementById('chat-input') as HTMLTextAreaElement
         chatInput?.focus()
       }
       // Alt + c - Copy wallet address
@@ -195,7 +195,7 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
     <>
       {/* Main Sidebar Container */}
       <AnimatePresence mode="wait">
-        {!isCollapsed && (
+        {mounted && !isCollapsed && (
           <motion.aside
             // Skip initial animation on page load to prevent glitch
             initial={mounted ? { x: -380 } : { x: 0 }}

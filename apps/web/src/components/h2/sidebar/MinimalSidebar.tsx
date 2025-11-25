@@ -32,7 +32,7 @@ interface MinimalSidebarProps {
  * Drawer slide collapse with floating balance trigger
  */
 export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalSidebarProps) {
-  const { isOpen, toggle } = useSidebarStore()
+  const { isOpen, toggle, toggleBalance } = useSidebarStore()
   const sessionData = useH2ChatStore((state) => state.sessionData)
   const setBalanceRefreshCallback = useH2ChatStore((state) => state.setBalanceRefreshCallback)
   const toggleQuickMode = useH2ChatStore((state) => state.toggleQuickMode)
@@ -138,6 +138,11 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
         e.preventDefault()
         toggleShortcutPanel()
       }
+      // Alt + h - Hide/show balance
+      else if (e.code === 'KeyH' && e.altKey) {
+        e.preventDefault()
+        toggleBalance()
+      }
       // Alt + Arrow Left/Right - Navigate tabs
       else if (e.code === 'ArrowLeft' && e.altKey) {
         e.preventDefault()
@@ -157,7 +162,7 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isCollapsed, handleThemeToggle, toggleQuickMode, sessionData, wallet, toggleShortcutPanel, activeTab])
+  }, [isCollapsed, handleThemeToggle, toggleQuickMode, toggleBalance, sessionData, wallet, toggleShortcutPanel, activeTab])
 
   // Arc-style edge hover detection
   useEffect(() => {

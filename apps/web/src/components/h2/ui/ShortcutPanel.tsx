@@ -36,6 +36,7 @@ const shortcutCategories: ShortcutCategory[] = [
     icon: <Zap className="w-4 h-4" />,
     shortcuts: [
       { winKey: 'Alt + C', macKey: '⌥ C', description: 'Copy wallet address' },
+      { winKey: 'Alt + H', macKey: '⌥ H', description: 'Toggle balance visibility' },
       { winKey: 'Alt + T', macKey: '⌥ T', description: 'Toggle theme' },
       { winKey: 'Alt + M', macKey: '⌥ M', description: 'Toggle Quick Mode' },
     ],

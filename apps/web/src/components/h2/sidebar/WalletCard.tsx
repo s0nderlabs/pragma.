@@ -5,6 +5,7 @@ import { Copy, Eye, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 import { OdometerNumber } from '../ui/OdometerNumber'
+import { useSidebarStore } from '@/stores/useSidebarStore'
 
 interface WalletCardProps {
   balance: number
@@ -21,7 +22,7 @@ interface WalletCardProps {
  * Clean, minimal design with perfect typography hierarchy
  */
 export function WalletCard({ balance, change24h, address, monBalance }: WalletCardProps) {
-  const [balanceVisible, setBalanceVisible] = useState(true)
+  const { balanceVisible, toggleBalance } = useSidebarStore()
   const [copied, setCopied] = useState(false)
 
   // Memoized format functions to prevent unnecessary re-renders in OdometerNumber
@@ -126,7 +127,7 @@ export function WalletCard({ balance, change24h, address, monBalance }: WalletCa
             </h2>
           )}
           <button
-            onClick={() => setBalanceVisible(!balanceVisible)}
+            onClick={toggleBalance}
             className={cn(
               "p-1.5 rounded-lg",
               "transition-colors duration-200",

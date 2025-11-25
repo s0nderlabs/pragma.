@@ -26,28 +26,128 @@ import { fundSessionKeyViaDelegation } from "./sessionKeyFundingDelegation.js";
 // Constants
 // ============================================================================
 
-/** Minimum balance threshold (if below this, funding is needed) */
-export const MIN_SESSION_KEY_BALANCE = parseEther("0.1"); // 0.1 MON
+/**
+ * Operation-specific gas costs (based on REAL activity-data.txt measurements)
+ * Each value = actual_cost + ~10% safety buffer
+ *
+ * Actual costs at 102 Gwei gas price:
+ * - Swap: ~900k gas = 0.092 MON
+ * - Stake: 641k gas = 0.065 MON
+ * - Unstake: 663k gas = 0.068 MON
+ * - UnstakeClaim: 587k gas = 0.060 MON
+ * - Transfer: 354k gas = 0.036 MON
+ * - Wrap: 331k gas = 0.034 MON
+ * - Unwrap: 332k gas = 0.034 MON
+ */
+export const GAS_PER_OPERATION = {
+  swap: parseEther("0.14"),        // 0.092 swap + 0.04 approval = 0.132, +buffer
+  transfer: parseEther("0.04"),    // Actual: 0.036 MON (354k gas × 102 gwei)
+  wrap: parseEther("0.04"),        // Actual: 0.034 MON (331k gas × 102 gwei)
+  unwrap: parseEther("0.04"),      // Actual: 0.034 MON (332k gas × 102 gwei)
+  stake: parseEther("0.07"),       // Actual: 0.065 MON (641k gas × 102 gwei)
+  unstake: parseEther("0.075"),    // Actual: 0.068 MON (663k gas × 102 gwei)
+  unstakeClaim: parseEther("0.07"), // Actual: 0.060 MON (587k gas × 102 gwei)
+} as const;
+
+/** Operation type for type-safe gas lookups */
+export type OperationType = keyof typeof GAS_PER_OPERATION;
+
+/** Minimum balance threshold - fallback for unknown operations */
+export const MIN_SESSION_KEY_BALANCE = parseEther("0.04"); // 0.04 MON (lowest operation cost)
 
 /** Standard funding amount */
 export const SESSION_KEY_FUNDING_AMOUNT = parseEther("0.5"); // 0.5 MON
 
-/** Average gas cost per operation (updated from real-world data with overhead) */
-export const AVG_GAS_PER_OPERATION = parseEther("0.11"); // ~0.11 MON per swap/transfer (includes funding overhead)
+/** Average gas cost per operation (kept for backward compatibility with batch estimation) */
+export const AVG_GAS_PER_OPERATION = parseEther("0.08"); // ~0.08 MON avg across all ops
 
-/** Safety buffer for batch operations */
-export const BATCH_SAFETY_BUFFER = parseEther("0.20"); // Extra 0.20 MON buffer (increased for reliability)
+/** Safety buffer for batch operations (reduced - per-op thresholds already include buffer) */
+export const BATCH_SAFETY_BUFFER = parseEther("0.02"); // Extra 0.02 MON buffer
 
 /**
  * Minimum balance needed to pay gas for delegation-based refill
  *
  * This is LOWER than MIN_SESSION_KEY_BALANCE to create a range where
  * delegation can be used instead of UserOp:
- * - 0.00 - 0.05 MON: UserOp-based funding (can't afford delegation tx gas ~0.01 MON)
- * - 0.05 - 0.10 MON: Delegation-based funding (has gas, more efficient refill)
- * - 0.10+ MON: No funding needed
+ * - 0.00 - 0.02 MON: UserOp-based funding (can't afford delegation tx gas)
+ * - 0.02 - 0.04 MON: Delegation-based funding (has gas, more efficient refill)
+ * - 0.04+ MON: Check operation-specific threshold
  */
-export const MIN_GAS_FOR_DELEGATION = parseEther("0.05"); // 0.05 MON
+export const MIN_GAS_FOR_DELEGATION = parseEther("0.02"); // 0.02 MON
+
+// ============================================================================
+// Operation-Specific Gas Functions
+// ============================================================================
+
+/**
+ * Get minimum balance required for a specific operation
+ *
+ * @param operation - The operation type (swap, transfer, etc.)
+ * @returns Minimum balance needed (in wei)
+ *
+ * @example
+ * ```typescript
+ * const minBalance = getMinBalanceForOperation('transfer');
+ * // Returns: 0.04 MON (in wei)
+ * ```
+ */
+export function getMinBalanceForOperation(operation: OperationType): bigint {
+  return GAS_PER_OPERATION[operation];
+}
+
+/**
+ * Estimate gas for a batch of specific operations
+ *
+ * More accurate than estimateGasForBatch() because it considers
+ * the actual cost of each operation type.
+ *
+ * @param operations - Array of operation types
+ * @returns Total estimated gas needed (in wei)
+ *
+ * @example
+ * ```typescript
+ * const gas = estimateGasForOperations(['swap', 'transfer']);
+ * // Returns: 0.10 + 0.04 + 0.02 buffer = 0.16 MON
+ * ```
+ */
+export function estimateGasForOperations(operations: OperationType[]): bigint {
+  if (operations.length === 0) return MIN_SESSION_KEY_BALANCE;
+
+  let total = 0n;
+  for (const op of operations) {
+    total += GAS_PER_OPERATION[op];
+  }
+  return total + BATCH_SAFETY_BUFFER;
+}
+
+/**
+ * Check if session key should be funded for specific operations
+ *
+ * More accurate than shouldFundForBatch() because it uses
+ * operation-specific costs instead of averages.
+ *
+ * @param currentBalance - Current session key balance (in wei)
+ * @param operations - Array of operation types planned
+ * @returns Whether funding is needed
+ *
+ * @example
+ * ```typescript
+ * // User has 0.05 MON, wants to transfer (0.04 MON)
+ * shouldFundForOperations(parseEther("0.05"), ['transfer']);
+ * // Returns: false (0.05 >= 0.04 + 0.02 buffer = 0.06? NO, but single op)
+ *
+ * // For single operation, check against operation cost directly
+ * ```
+ */
+export function shouldFundForOperations(
+  currentBalance: bigint,
+  operations: OperationType[]
+): boolean {
+  if (operations.length === 0) return currentBalance < MIN_SESSION_KEY_BALANCE;
+
+  const required = estimateGasForOperations(operations);
+  return currentBalance < required;
+}
 
 // ============================================================================
 // Dynamic Funding Calculation

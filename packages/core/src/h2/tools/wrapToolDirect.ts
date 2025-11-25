@@ -31,7 +31,7 @@ import {
 } from "@metamask/delegation-toolkit";
 
 import { createWrapDelegation } from "../delegation/wrapDelegation.js";
-import { MIN_SESSION_KEY_BALANCE } from "../execution/sessionKeyManager.js";
+import { getMinBalanceForOperation } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import {
   WMON_ADDRESS,
@@ -113,9 +113,10 @@ export const wrapTool = tool(
         address: sessionData.sessionKeyAddress,
       });
 
-      if (sessionKeyBalance < MIN_SESSION_KEY_BALANCE) {
+      const minWrapBalance = getMinBalanceForOperation('wrap');
+      if (sessionKeyBalance < minWrapBalance) {
         throw createErrorFromCode("SESSION_KEY_LOW_BALANCE", {
-          message: `Session key balance too low: ${formatEther(sessionKeyBalance)} MON (minimum: ${formatEther(MIN_SESSION_KEY_BALANCE)} MON). Fund session key first using fundSessionKey tool.`,
+          message: `Session key balance too low: ${formatEther(sessionKeyBalance)} MON (minimum for wrap: ${formatEther(minWrapBalance)} MON). Fund session key first using fundSessionKey tool.`,
         });
       }
 

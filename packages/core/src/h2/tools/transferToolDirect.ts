@@ -35,7 +35,7 @@ import {
   createNativeTransferDelegation,
   type TransferDelegationResult,
 } from "../delegation/transferDelegation.js";
-import { MIN_SESSION_KEY_BALANCE } from "../execution/sessionKeyManager.js";
+import { getMinBalanceForOperation } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import {
   DELEGATION_MANAGER_ADDRESS,
@@ -195,9 +195,10 @@ export const transferTool = tool(
         address: sessionData.sessionKeyAddress,
       });
 
-      if (sessionKeyBalance < MIN_SESSION_KEY_BALANCE) {
+      const minTransferBalance = getMinBalanceForOperation('transfer');
+      if (sessionKeyBalance < minTransferBalance) {
         throw createErrorFromCode("SESSION_KEY_LOW_BALANCE", {
-          message: `Session key balance too low: ${formatEther(sessionKeyBalance)} MON (minimum: ${formatEther(MIN_SESSION_KEY_BALANCE)} MON). Fund session key first using fundSessionKey tool.`,
+          message: `Session key balance too low: ${formatEther(sessionKeyBalance)} MON (minimum for transfer: ${formatEther(minTransferBalance)} MON). Fund session key first using fundSessionKey tool.`,
         });
       }
 

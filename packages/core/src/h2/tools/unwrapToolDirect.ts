@@ -27,7 +27,7 @@ import {
 } from "@metamask/delegation-toolkit";
 
 import { createUnwrapDelegation } from "../delegation/unwrapDelegation.js";
-import { MIN_SESSION_KEY_BALANCE } from "../execution/sessionKeyManager.js";
+import { getMinBalanceForOperation } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import {
   WMON_ADDRESS,
@@ -118,9 +118,10 @@ export const unwrapTool = tool(
         address: sessionData.sessionKeyAddress,
       });
 
-      if (sessionKeyBalance < MIN_SESSION_KEY_BALANCE) {
+      const minUnwrapBalance = getMinBalanceForOperation('unwrap');
+      if (sessionKeyBalance < minUnwrapBalance) {
         throw createErrorFromCode("SESSION_KEY_LOW_BALANCE", {
-          message: `Session key balance too low: ${formatEther(sessionKeyBalance)} MON (minimum: ${formatEther(MIN_SESSION_KEY_BALANCE)} MON). Fund session key first using fundSessionKey tool.`,
+          message: `Session key balance too low: ${formatEther(sessionKeyBalance)} MON (minimum for unwrap: ${formatEther(minUnwrapBalance)} MON). Fund session key first using fundSessionKey tool.`,
         });
       }
 

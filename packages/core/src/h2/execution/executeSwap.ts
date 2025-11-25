@@ -48,7 +48,7 @@ import type { ExecutionResult, SwapQuoteData, DelegationMetadata } from "./types
 import { createApproveDelegation } from "../delegation/approveDelegation.js";
 import { createSwapDelegation } from "../delegation/swapDelegation.js";
 import { getSwapQuote, deleteSwapQuote } from "./quoteStore.js";
-import { MIN_SESSION_KEY_BALANCE } from "./sessionKeyManager.js";
+import { getMinBalanceForOperation } from "./sessionKeyManager.js";
 import { patchMonorailMinOutput } from "../../monorail/calldataPatcher.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import { emitProgress } from "../progress/emitter.js";
@@ -220,9 +220,10 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
   // Step 2: Check session key balance (throw error if insufficient - LLM will fund via fundSessionKeyTool)
   const sessionKeyBalance = await publicClient.getBalance({ address: sessionKeyAddress });
 
-  if (sessionKeyBalance < MIN_SESSION_KEY_BALANCE) {
+  const minSwapBalance = getMinBalanceForOperation('swap');
+  if (sessionKeyBalance < minSwapBalance) {
     throw createErrorFromCode("SESSION_KEY_LOW_BALANCE", {
-      message: `Session key balance too low: ${formatEther(sessionKeyBalance)} MON (minimum: ${formatEther(MIN_SESSION_KEY_BALANCE)} MON). Fund session key first using fundSessionKey tool.`,
+      message: `Session key balance too low: ${formatEther(sessionKeyBalance)} MON (minimum for swap: ${formatEther(minSwapBalance)} MON). Fund session key first using fundSessionKey tool.`,
     });
   }
 

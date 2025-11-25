@@ -172,11 +172,11 @@ export function BalancesTab() {
   if (displayTokens.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center">
-        <div className="w-12 h-12 rounded-full bg-[#1A1D23] flex items-center justify-center mb-4">
-          <Coins className="w-6 h-6 text-gray-400" />
+        <div className="flex items-center justify-center mb-4">
+          <Coins className="w-8 h-8 text-white/30" />
         </div>
-        <p className="text-sm text-gray-400 mb-1">No tokens found</p>
-        <p className="text-xs text-gray-500">Your balance will appear here</p>
+        <p className="text-sm text-white/60 mb-1">No tokens found</p>
+        <p className="text-xs text-white/40">Your balance will appear here</p>
       </div>
     );
   }

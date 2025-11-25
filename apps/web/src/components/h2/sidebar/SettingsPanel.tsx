@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useIdentity } from '@/hooks/useIdentity'
 import { useH2Session } from '@/hooks/useH2Session'
+import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { Sun, Moon, Wallet, Key, LogOut, LogIn, Loader2 } from 'lucide-react'
 
 /**
@@ -27,6 +28,8 @@ export function SettingsPanel() {
     // Clear both Web3Auth and H2 session
     await disconnect()
     clearSession()
+    // Clear chat messages from UI
+    useH2ChatStore.getState().clearMessages()
   }
 
   return (

@@ -3,7 +3,9 @@
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { useThemeStore } from '@/stores/useThemeStore'
-import { Moon, Sun, LogOut, Loader2, Copy, Check } from 'lucide-react'
+import { useH2Session } from '@/hooks/useH2Session'
+import { ExportSessionKeyModal } from '@/components/h2/session/ExportSessionKeyModal'
+import { Moon, Sun, LogOut, Loader2, Copy, Check, Key } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 interface SettingsTabProps {
@@ -23,8 +25,10 @@ interface SettingsTabProps {
 export function SettingsTab({ status, wallet, connect, disconnect }: SettingsTabProps) {
   // Read from Zustand directly (source of truth) to avoid race condition with next-themes
   const { theme: pragmaTheme, setTheme: setZustandTheme } = useThemeStore()
+  const { sessionData } = useH2Session()
   const [copied, setCopied] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [showExportModal, setShowExportModal] = useState(false)
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -214,6 +218,48 @@ export function SettingsTab({ status, wallet, connect, disconnect }: SettingsTab
           </button>
         </div>
       </motion.div>
+
+      {/* Session Key - Export Private Key */}
+      {sessionData?.sessionKeyAddress && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className={cn(
+            "p-5 rounded-[24px]",
+            "transition-colors duration-200 border",
+            "bg-white/10",
+            "border-white/10"
+          )}
+        >
+          <div className="text-sm font-medium text-white mb-4">
+            Session Key
+          </div>
+
+          <button
+            onClick={() => setShowExportModal(true)}
+            className={cn(
+              "w-full py-2.5 px-4 rounded-[12px]",
+              "flex items-center justify-center gap-2",
+              "text-sm font-medium",
+              "transition-all duration-200",
+              "bg-red-500/10 hover:bg-red-500/20",
+              "border border-red-500/20",
+              "text-red-400"
+            )}
+          >
+            <Key className="w-4 h-4" />
+            Export Private Key
+          </button>
+        </motion.div>
+      )}
+
+      {/* Export Session Key Modal */}
+      <ExportSessionKeyModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        privateKey={sessionData?.sessionKeyPrivateKey ?? null}
+      />
     </div>
   )
 }

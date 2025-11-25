@@ -1,7 +1,6 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { Moon, Sun, LogOut, Loader2, Copy, Check } from 'lucide-react'
@@ -22,17 +21,18 @@ interface SettingsTabProps {
  * Mathematical precision in spacing and alignment
  */
 export function SettingsTab({ status, wallet, connect, disconnect }: SettingsTabProps) {
-  const { resolvedTheme } = useTheme()
-  const { setTheme: setZustandTheme } = useThemeStore()
+  // Read from Zustand directly (source of truth) to avoid race condition with next-themes
+  const { theme: pragmaTheme, setTheme: setZustandTheme } = useThemeStore()
   const [copied, setCopied] = useState(false)
   const [mounted, setMounted] = useState(false)
 
-  // Prevent hydration mismatch - resolvedTheme is undefined during SSR
+  // Prevent hydration mismatch
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  const isDark = mounted && resolvedTheme === 'dark'
+  // Read isDark from Zustand (immediate) instead of next-themes (async)
+  const isDark = mounted && pragmaTheme === 'pragma-dark'
 
   const isConnecting = status === 'connecting' || status === 'initializing'
   const isConnected = status === 'connected' && wallet?.address

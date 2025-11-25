@@ -9,7 +9,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { useTheme } from 'next-themes'
+import { useThemeStore } from '@/stores/useThemeStore'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import { Check, Loader2, XCircle, Circle } from 'lucide-react'
 
@@ -29,7 +29,7 @@ interface MultiStepTimelineProps {
 }
 
 export function MultiStepTimeline({ steps, title = 'Multi-Step Operation' }: MultiStepTimelineProps) {
-  const { resolvedTheme } = useTheme()
+  const { theme: pragmaTheme } = useThemeStore()
 
   // Calculate overall progress
   const completedSteps = steps.filter(s => s.status === 'completed').length
@@ -38,7 +38,7 @@ export function MultiStepTimeline({ steps, title = 'Multi-Step Operation' }: Mul
   return (
     <div className="mb-6">
       <LiquidGlassPanel
-        theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
+        theme={pragmaTheme === 'pragma-dark' ? 'dark' : 'light'}
         className="rounded-2xl p-6"
         blurAmount={6}
         displacementScale={0.3}

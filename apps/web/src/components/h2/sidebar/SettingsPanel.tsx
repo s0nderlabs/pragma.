@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useTheme } from 'next-themes'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useIdentity } from '@/hooks/useIdentity'
 import { useH2Session } from '@/hooks/useH2Session'
@@ -15,7 +14,6 @@ import { Sun, Moon, Wallet, Key, LogOut, LogIn, Loader2 } from 'lucide-react'
  * - Session key status
  */
 export function SettingsPanel() {
-  const { resolvedTheme } = useTheme()
   const { theme, toggleTheme } = useThemeStore()
   const [mounted, setMounted] = useState(false)
   const { status, wallet, connect, disconnect } = useIdentity()

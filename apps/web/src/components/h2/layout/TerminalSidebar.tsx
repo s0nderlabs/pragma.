@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { useSidebarStore } from '@/stores/useSidebarStore'
-import { useTheme } from 'next-themes'
 import { TerminalCard } from '@/components/ui/terminal/TerminalCard'
 import { AsciiDivider, AsciiHeader, AsciiStatus } from '@/components/ui/terminal/AsciiComponents'
 import { BalanceTerminal } from '../sidebar/BalanceTerminal'
@@ -22,7 +21,6 @@ import { SettingsPanel } from '../sidebar/SettingsPanel'
  */
 export function TerminalSidebar() {
   const { activeSection, setActiveSection, setMobileOpen } = useSidebarStore()
-  const { resolvedTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {

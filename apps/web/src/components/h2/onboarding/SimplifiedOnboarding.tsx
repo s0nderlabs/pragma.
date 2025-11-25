@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useIdentity } from '@/hooks/useIdentity'
-import { useTheme } from 'next-themes'
+import { useThemeStore } from '@/stores/useThemeStore'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import { Loader2 } from 'lucide-react'
 
@@ -27,7 +27,7 @@ import { Loader2 } from 'lucide-react'
  */
 export function SimplifiedOnboarding() {
   const { connect, status } = useIdentity()
-  const { resolvedTheme } = useTheme()
+  const { theme: pragmaTheme } = useThemeStore()
   const [error, setError] = useState<string | null>(null)
 
   const isConnecting = status === 'connecting' || status === 'initializing'
@@ -57,7 +57,7 @@ export function SimplifiedOnboarding() {
     <div className="w-full h-screen flex items-center justify-center p-4">
       {/* Center Card */}
       <LiquidGlassPanel
-        theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
+        theme={pragmaTheme === 'pragma-dark' ? 'dark' : 'light'}
         className="w-full max-w-md p-8"
         blurAmount={6}
         displacementScale={0.5}
@@ -87,7 +87,7 @@ export function SimplifiedOnboarding() {
               }
             `}
             style={{
-              background: resolvedTheme === 'light'
+              background: pragmaTheme === 'pragma-light'
                 ? 'linear-gradient(135deg, #E07A5F 0%, #7D3F2B 100%)'
                 : 'linear-gradient(135deg, #F2A694 0%, #E07A5F 100%)',
               color: '#FFFFFF',

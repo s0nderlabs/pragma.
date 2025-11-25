@@ -1,29 +1,86 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { useAgentContext } from '@/contexts/H2AgentContext'
-import { ArrowUpRight } from 'lucide-react'
+import { useIdentity } from '@/hooks/useIdentity'
+import { ArrowUpRight, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { motion, useMotionValue, useMotionTemplate, animate } from 'framer-motion'
+
+interface ChatInputProps {
+  /** Pre-fill text to insert into input */
+  prefillText?: string
+  /** Callback when prefill has been applied */
+  onPrefillApplied?: () => void
+  /** Additional class names for positioning */
+  className?: string
+}
+
+// Action prompts for empty state with wallet connected
+const ACTION_PROMPTS = [
+  "Swap some tokens...",
+  "Check my balance...",
+  "Stake some MON...",
+  "Send to a friend...",
+  "What's the play?",
+]
 
 /**
  * ChatInput Component (H2/H2.5 Compatible)
  *
- * Auto-resize textarea with send button and inline Quick Mode toggle.
+ * Auto-resize textarea with send button and Quick Mode toggle.
  * Works with both H2 (server-side) and H2.5 (client-side) agents via context.
  *
- * Redesigned following Dieter Rams' "Less, but better" philosophy:
- * - Removed popover complexity (was 4/10 Rams score)
- * - Inline toggle with morphing dot indicator (now 10/10 Rams score)
- * - Single click instead of two (gear → toggle vs click → wait → click)
+ * Features:
+ * - Context-aware dynamic placeholder
+ * - Rotating beam effect when Quick Mode enabled (terracotta)
+ * - Clean, minimal design following Dieter Rams philosophy
  */
-export function ChatInput() {
+export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInputProps) {
   const tokensLoading = useH2ChatStore((state) => state.tokensLoading)
   const quickMode = useH2ChatStore((state) => state.quickMode)
   const setQuickMode = useH2ChatStore((state) => state.setQuickMode)
+  const messages = useH2ChatStore((state) => state.messages)
   const { sendMessage, isStreaming } = useAgentContext()
+  const { status, wallet } = useIdentity()
   const [input, setInput] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Derive wallet connection from identity hook (fixes undefined isConnected bug)
+  const isWalletConnected = status === 'connected' && !!wallet?.address
+
+  // Random action prompt - selected once on mount to avoid hydration issues
+  const [randomPrompt, setRandomPrompt] = useState<string | null>(null)
+  useEffect(() => {
+    setRandomPrompt(ACTION_PROMPTS[Math.floor(Math.random() * ACTION_PROMPTS.length)])
+  }, [])
+
+  // Rotating beam animation for Quick Mode
+  const turn = useMotionValue(0)
+
+  useEffect(() => {
+    if (quickMode) {
+      const controls = animate(turn, 1, {
+        ease: "linear",
+        duration: 3,
+        repeat: Infinity,
+      })
+      return () => controls.stop()
+    } else {
+      turn.set(0)
+    }
+  }, [quickMode, turn])
+
+  const beamGradient = useMotionTemplate`conic-gradient(from ${turn}turn, #D4622A00 75%, #FF7A42 100%)`
+
+  // Context-aware dynamic placeholder
+  const placeholder = useMemo(() => {
+    if (tokensLoading) return "Loading..."
+    if (!isWalletConnected) return "Connect wallet to start"
+    if (messages.length > 0) return "What else?"
+    return randomPrompt || "What's the play?"
+  }, [tokensLoading, isWalletConnected, messages.length, randomPrompt])
 
   // Auto-resize textarea
   useEffect(() => {
@@ -32,6 +89,21 @@ export function ChatInput() {
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
     }
   }, [input])
+
+  // Handle prefill text from quick action chips
+  useEffect(() => {
+    if (prefillText) {
+      setInput(prefillText)
+      onPrefillApplied?.()
+      // Focus and move cursor to end
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus()
+          textareaRef.current.setSelectionRange(prefillText.length, prefillText.length)
+        }
+      }, 0)
+    }
+  }, [prefillText, onPrefillApplied])
 
   const handleSend = async () => {
     if (!input.trim() || isStreaming || tokensLoading) return
@@ -59,36 +131,30 @@ export function ChatInput() {
   }
 
   return (
-    <div className="px-4 pt-4 pb-8 flex justify-center">
-      <div className="w-full max-w-4xl">
+    <div className={cn("px-4 pt-4 pb-8 flex justify-center", className)}>
+      <div className="w-full max-w-4xl relative">
+        {/* Main input container */}
         <div
-          className="rounded-[32px] p-3 flex items-center gap-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700"
+          className={cn(
+            "rounded-[32px] p-3 flex items-center gap-2 bg-white dark:bg-zinc-800 border transition-all duration-300",
+            quickMode
+              ? "border-terracotta/50"
+              : "border-gray-200 dark:border-zinc-700"
+          )}
         >
-          {/* Quick Mode Toggle - Inside Input Box */}
+          {/* Quick Mode Toggle - Lightning icon for both states */}
           <button
             onClick={() => setQuickMode(!quickMode)}
-            title="Quick Mode: Auto-execute without confirmation. Faster, but skips review step."
+            title={quickMode ? "Quick Mode ON: Auto-execute enabled" : "Quick Mode OFF: Confirmation required"}
             className={cn(
-              "flex-shrink-0 flex items-center gap-1.5 px-2 py-1.5 rounded-lg",
-              "hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+              "flex-shrink-0 p-2 rounded-full transition-all duration-200",
+              quickMode
+                ? "text-terracotta hover:bg-terracotta/10"
+                : "text-gray-400 dark:text-white/30 hover:bg-gray-100 dark:hover:bg-white/10"
             )}
-            aria-label={quickMode ? "Quick Mode enabled" : "Quick Mode disabled"}
+            aria-label={quickMode ? "Quick Mode enabled - click to disable" : "Quick Mode disabled - click to enable"}
           >
-            {/* Morphing dot indicator */}
-            <div
-              className={cn(
-                "h-2 rounded-full transition-all duration-300",
-                quickMode ? "w-8 bg-accent" : "w-2 bg-gray-400 dark:bg-white/20"
-              )}
-            />
-
-            {/* Text label */}
-            <span className={cn(
-              "text-xs font-medium transition-colors duration-200",
-              quickMode ? "text-accent" : "text-gray-500 dark:text-white/40"
-            )}>
-              Quick
-            </span>
+            <Zap className={cn("w-4 h-4", quickMode && "fill-current")} />
           </button>
 
           {/* Textarea */}
@@ -97,7 +163,7 @@ export function ChatInput() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={tokensLoading ? "Loading tokens..." : "Ask anything about Monad..."}
+            placeholder={placeholder}
             disabled={tokensLoading}
             rows={1}
             className="flex-1 bg-transparent resize-none outline-none text-sm lg:text-base min-h-[24px] max-h-[200px] placeholder:opacity-50 disabled:opacity-50"
@@ -115,6 +181,15 @@ export function ChatInput() {
             <ArrowUpRight className="w-5 h-5 -mr-4 opacity-0 group-hover:-mr-0 group-hover:opacity-100 group-active:-rotate-45 transition-all duration-200" />
           </button>
         </div>
+
+        {/* Rotating beam overlay - only when Quick Mode ON */}
+        {/* Uses negative z-index so input container acts as natural "inner cover" */}
+        {quickMode && (
+          <motion.div
+            style={{ backgroundImage: beamGradient }}
+            className="pointer-events-none absolute -inset-[1px] -z-10 rounded-[33px]"
+          />
+        )}
       </div>
     </div>
   )

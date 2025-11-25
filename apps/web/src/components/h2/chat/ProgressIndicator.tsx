@@ -10,11 +10,11 @@
 import { useState, useEffect } from 'react'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
-import { useTheme } from 'next-themes'
+import { useThemeStore } from '@/stores/useThemeStore'
 import { Zap } from 'lucide-react'
 
 export function ProgressIndicator() {
-  const { resolvedTheme } = useTheme()
+  const { theme: pragmaTheme } = useThemeStore()
   const progress = useH2ChatStore((state) => state.progress)
 
   if (!progress.isVisible) {
@@ -30,7 +30,7 @@ export function ProgressIndicator() {
 
       {/* Progress Message */}
       <LiquidGlassPanel
-        theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
+        theme={pragmaTheme === 'pragma-dark' ? 'dark' : 'light'}
         className="flex-1 rounded-2xl p-4"
         blurAmount={6}
         displacementScale={0.3}

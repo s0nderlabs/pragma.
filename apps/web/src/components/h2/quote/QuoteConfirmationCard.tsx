@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useTheme } from 'next-themes'
+import { useThemeStore } from '@/stores/useThemeStore'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import { ArrowRight, Loader2, AlertTriangle } from 'lucide-react'
 import type { MonorailQuote } from '@pragma/core/monorail/pathfinder'
@@ -45,7 +45,7 @@ export function QuoteConfirmationCard({
   onConfirm,
   onCancel,
 }: QuoteConfirmationCardProps) {
-  const { resolvedTheme } = useTheme()
+  const { theme: pragmaTheme } = useThemeStore()
   const [isConfirming, setIsConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -80,7 +80,7 @@ export function QuoteConfirmationCard({
 
   return (
     <LiquidGlassPanel
-      theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
+      theme={pragmaTheme === 'pragma-dark' ? 'dark' : 'light'}
       className="w-full max-w-md p-6 space-y-4"
       blurAmount={6}
       displacementScale={0.5}
@@ -196,7 +196,7 @@ export function QuoteConfirmationCard({
               }
             `}
             style={{
-              background: resolvedTheme === 'light'
+              background: pragmaTheme === 'pragma-light'
                 ? 'rgba(0, 0, 0, 0.05)'
                 : 'rgba(255, 255, 255, 0.05)',
               border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -219,7 +219,7 @@ export function QuoteConfirmationCard({
             }
           `}
           style={{
-            background: resolvedTheme === 'light'
+            background: pragmaTheme === 'pragma-light'
               ? 'linear-gradient(135deg, #E07A5F 0%, #7D3F2B 100%)'
               : 'linear-gradient(135deg, #F2A694 0%, #E07A5F 100%)',
             color: '#FFFFFF',

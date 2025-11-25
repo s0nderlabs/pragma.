@@ -10,7 +10,7 @@
 import { useState, useEffect } from 'react'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { useH2Session } from '@/hooks/useH2Session'
-import { useTheme } from 'next-themes'
+import { useThemeStore } from '@/stores/useThemeStore'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import { Wallet, ArrowDownToLine, ArrowUpFromLine, Key, Copy, Check, ExternalLink } from 'lucide-react'
 import { formatEther, type Address } from 'viem'
@@ -22,7 +22,7 @@ interface SessionKeyStatusProps {
 }
 
 export function SessionKeyStatus({ onFund, onWithdraw, onExportKey }: SessionKeyStatusProps) {
-  const { resolvedTheme } = useTheme()
+  const { theme: pragmaTheme } = useThemeStore()
   const { sessionData } = useH2Session()
   const [balance, setBalance] = useState<bigint | null>(null)
   const [isLoadingBalance, setIsLoadingBalance] = useState(false)
@@ -65,7 +65,7 @@ export function SessionKeyStatus({ onFund, onWithdraw, onExportKey }: SessionKey
     <div className="space-y-4">
       {/* Session Key Info */}
       <LiquidGlassPanel
-        theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
+        theme={pragmaTheme === 'pragma-dark' ? 'dark' : 'light'}
         className="p-4 rounded-xl"
         blurAmount={4}
         displacementScale={0.2}

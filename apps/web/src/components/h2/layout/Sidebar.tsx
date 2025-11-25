@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { X, MessageSquare, Activity, Settings } from 'lucide-react'
 import { useSidebarStore } from '@/stores/useSidebarStore'
-import { useTheme } from 'next-themes'
+import { useThemeStore } from '@/stores/useThemeStore'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/Accordion'
 import { BalanceCard } from '../sidebar/BalanceCard'
@@ -25,13 +25,13 @@ import { SettingsPanel } from '../sidebar/SettingsPanel'
  */
 export function Sidebar() {
   const { activeSection, setActiveSection, setMobileOpen } = useSidebarStore()
-  const { resolvedTheme } = useTheme()
+  const { theme: pragmaTheme } = useThemeStore()
 
   return (
     <div className="h-full p-4">
       {/* Main Glass Container */}
       <LiquidGlassPanel
-        theme={resolvedTheme === 'dark' ? 'pragma-dark' : 'pragma-light'}
+        theme={pragmaTheme}
         className="h-full rounded-[32px] flex flex-col p-4 relative"
         blurAmount={6}
         displacementScale={0.3}
@@ -46,7 +46,7 @@ export function Sidebar() {
         <div className="flex-1 overflow-y-auto space-y-4 px-1 py-1">
           {/* Card 1: Chat */}
           <LiquidGlassPanel
-            theme={resolvedTheme === 'dark' ? 'pragma-dark' : 'pragma-light'}
+            theme={pragmaTheme}
             className="rounded-[32px] overflow-hidden transition-all duration-300 hover:shadow-lg"
             blurAmount={4}
             displacementScale={0.2}
@@ -74,7 +74,7 @@ export function Sidebar() {
 
           {/* Card 2: Activity */}
           <LiquidGlassPanel
-            theme={resolvedTheme === 'dark' ? 'pragma-dark' : 'pragma-light'}
+            theme={pragmaTheme}
             className="rounded-[32px] overflow-hidden transition-all duration-300 hover:shadow-lg"
             blurAmount={4}
             displacementScale={0.2}
@@ -102,7 +102,7 @@ export function Sidebar() {
 
           {/* Card 3: Settings */}
           <LiquidGlassPanel
-            theme={resolvedTheme === 'dark' ? 'pragma-dark' : 'pragma-light'}
+            theme={pragmaTheme}
             className="rounded-[32px] overflow-hidden transition-all duration-300 hover:shadow-lg"
             blurAmount={4}
             displacementScale={0.2}

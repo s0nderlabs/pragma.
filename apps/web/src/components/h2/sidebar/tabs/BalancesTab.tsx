@@ -87,6 +87,26 @@ export function BalancesTab() {
     return tokens;
   }, [allTokens, showDust]);
 
+  // Count how many tokens are hidden by dust filter (must be before early returns per React rules of hooks)
+  const dustCount = useMemo(() => {
+    if (showDust) return 0;
+    return allTokens.filter((token) => {
+      let usdValue = 0;
+      try {
+        const balanceBigInt = BigInt(token.balance);
+        const formattedBalance = formatUnits(balanceBigInt, token.decimals);
+        const balanceNum = parseFloat(formattedBalance);
+        const pricePerToken = parseFloat(token.usd_per_token || '0');
+        if (!isNaN(balanceNum) && !isNaN(pricePerToken) && pricePerToken > 0) {
+          usdValue = balanceNum * pricePerToken;
+        }
+      } catch {
+        // Ignore
+      }
+      return usdValue < USD_DUST_THRESHOLD;
+    }).length;
+  }, [allTokens, showDust]);
+
   // Format balance for display
   const formatBalance = (balance: string): string => {
     const num = parseFloat(balance);
@@ -160,26 +180,6 @@ export function BalancesTab() {
       </div>
     );
   }
-
-  // Count how many tokens are hidden by dust filter
-  const dustCount = useMemo(() => {
-    if (showDust) return 0;
-    return allTokens.filter((token) => {
-      let usdValue = 0;
-      try {
-        const balanceBigInt = BigInt(token.balance);
-        const formattedBalance = formatUnits(balanceBigInt, token.decimals);
-        const balanceNum = parseFloat(formattedBalance);
-        const pricePerToken = parseFloat(token.usd_per_token || '0');
-        if (!isNaN(balanceNum) && !isNaN(pricePerToken) && pricePerToken > 0) {
-          usdValue = balanceNum * pricePerToken;
-        }
-      } catch {
-        // Ignore
-      }
-      return usdValue < USD_DUST_THRESHOLD;
-    }).length;
-  }, [allTokens, showDust]);
 
   return (
     <div className="space-y-0 will-change-scroll">

@@ -101,6 +101,25 @@ let walletRef: WalletWithAddress | null = null;
 let bootstrapCleanup: (() => void) | null = null;
 let mockApiInitialised = false;
 
+// Timeout constants
+const CONNECTION_TIMEOUT_MS = 60000; // 60 seconds for Web3Auth modal
+const API_TIMEOUT_MS = 10000; // 10 seconds for API/RPC calls
+
+/**
+ * Wraps a promise with a timeout to prevent infinite hangs
+ */
+const withTimeout = <T>(
+  promise: Promise<T>,
+  ms: number,
+  errorMessage: string
+): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(errorMessage)), ms);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+};
+
 const announceIdentity = async (walletClient: WalletWithAddress | null) => {
   if (!walletClient || isMockIdentity) {
     return;
@@ -259,16 +278,26 @@ const ensureBootstrap = () => {
   (async () => {
     try {
       const instance = await initializeWeb3Auth();
-      if (cancelled) return;
+      // NOTE: We intentionally do NOT check `cancelled` here.
+      // React StrictMode in dev causes mount/unmount/remount, which sets cancelled=true.
+      // But the bootstrapCleanup guard prevents new bootstraps, so we must let this one complete.
+      // State updates are idempotent - safe to run even after component unmount.
 
       if (instance.provider) {
-        const walletClient = await createWalletClientFromProvider(instance.provider);
-        if (cancelled) return;
+        const walletClient = await withTimeout(
+          createWalletClientFromProvider(instance.provider),
+          API_TIMEOUT_MS,
+          "Timeout creating wallet client. Please check your network connection."
+        );
         walletRef = walletClient;
 
         // Retrieve and store Web3Auth ID token for existing session
         try {
-          const userInfo = await instance.getUserInfo();
+          const userInfo = await withTimeout(
+            instance.getUserInfo(),
+            API_TIMEOUT_MS,
+            "Timeout retrieving user info"
+          );
           if (userInfo.idToken) {
             setIdToken(userInfo.idToken);
             useH2ChatStore.getState().setTokenReady(true);
@@ -279,12 +308,19 @@ const ensureBootstrap = () => {
         }
 
         setIdentitySnapshot({ status: "connected", wallet: walletClient, error: undefined });
-        await announceIdentity(walletClient);
+        // announceIdentity is non-fatal - wrap with timeout but don't fail connection
+        await withTimeout(
+          announceIdentity(walletClient),
+          API_TIMEOUT_MS,
+          "Timeout announcing identity"
+        ).catch(err => {
+          console.warn("[Web3Auth] announceIdentity timed out:", err);
+        });
       } else {
         setIdentitySnapshot({ status: "ready" });
       }
     } catch (error) {
-      if (cancelled) return;
+      // Don't check cancelled - let error handling complete for better UX
 
       // Check if this is a session validation error that was already handled
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -354,17 +390,29 @@ const connectIdentity = async (): Promise<WalletWithAddress> => {
     setIdentitySnapshot({ status: "connecting" });
     updateMockIdentityState("connecting", walletRef?.address ?? null);
 
-    const provider = await instance.connect();
+    const provider = await withTimeout(
+      instance.connect(),
+      CONNECTION_TIMEOUT_MS,
+      "Connection timed out. Please check your network and try again."
+    );
     if (!provider) {
       throw new Error("Web3Auth connection did not return a provider");
     }
 
-    const walletClient = await createWalletClientFromProvider(provider);
+    const walletClient = await withTimeout(
+      createWalletClientFromProvider(provider),
+      API_TIMEOUT_MS,
+      "Timeout creating wallet client. Please check your network connection."
+    );
     walletRef = walletClient;
 
     // Retrieve and store Web3Auth ID token for API authentication
     try {
-      const userInfo = await instance.getUserInfo();
+      const userInfo = await withTimeout(
+        instance.getUserInfo(),
+        API_TIMEOUT_MS,
+        "Timeout retrieving user info"
+      );
       if (userInfo.idToken) {
         setIdToken(userInfo.idToken);
         useH2ChatStore.getState().setTokenReady(true);
@@ -379,7 +427,14 @@ const connectIdentity = async (): Promise<WalletWithAddress> => {
 
     setIdentitySnapshot({ status: "connected", wallet: walletClient, error: undefined });
     updateMockIdentityState("connected", walletClient.address);
-    await announceIdentity(walletClient);
+    // announceIdentity is non-fatal - wrap with timeout but don't fail connection
+    await withTimeout(
+      announceIdentity(walletClient),
+      API_TIMEOUT_MS,
+      "Timeout announcing identity"
+    ).catch(err => {
+      console.warn("[Web3Auth] announceIdentity timed out:", err);
+    });
     return walletClient;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -419,6 +474,16 @@ const disconnectIdentity = async () => {
   clearIdToken();
   useH2ChatStore.getState().setTokenReady(false);
   console.log('[Web3Auth] ID token cleared on logout');
+
+  // Clear wallet balance data (prevents stale balance showing after disconnect)
+  useH2ChatStore.getState().setWalletBalance({
+    monBalance: '0',
+    usdValue: 0,
+    change24h: 0,
+    allTokens: [],
+  });
+  useH2ChatStore.getState().setBalanceError(null);
+  console.log('[Web3Auth] Wallet balance cleared on logout');
 
   const previous = walletRef;
   walletRef = null;

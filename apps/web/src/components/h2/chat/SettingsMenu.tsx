@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useTheme } from 'next-themes'
+import { useThemeStore } from '@/stores/useThemeStore'
 import { useYoloStore } from '@/stores/useYoloStore'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import { X, Zap } from 'lucide-react'
@@ -19,7 +19,7 @@ interface SettingsMenuProps {
  * Features: Yolo mode toggle
  */
 export function SettingsMenu({ isOpen, onClose }: SettingsMenuProps) {
-  const { resolvedTheme } = useTheme()
+  const { theme: pragmaTheme } = useThemeStore()
   const { enabled: yoloEnabled, toggle: toggleYolo } = useYoloStore()
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -52,7 +52,7 @@ export function SettingsMenu({ isOpen, onClose }: SettingsMenuProps) {
           className="absolute bottom-full left-4 mb-2 z-50 w-64"
         >
           <LiquidGlassPanel
-            theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
+            theme={pragmaTheme === 'pragma-dark' ? 'dark' : 'light'}
             className="rounded-[20px] p-4"
             blurAmount={8}
             displacementScale={0.4}

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useSidebarStore } from '@/stores/useSidebarStore'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
@@ -36,20 +35,18 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
   const sessionData = useH2ChatStore((state) => state.sessionData)
   const setBalanceRefreshCallback = useH2ChatStore((state) => state.setBalanceRefreshCallback)
   const toggleQuickMode = useH2ChatStore((state) => state.toggleQuickMode)
-  const { resolvedTheme, setTheme } = useTheme()
-  const { setTheme: setZustandTheme } = useThemeStore()
+  const { theme: pragmaTheme, setTheme: setZustandTheme } = useThemeStore()
   const { monBalance, usdValue, change24h, isLoading, refresh } = useWalletBalance()
   const { showCopy, showCopyNotification } = useNotificationStore()
   const [activeTab, setActiveTab] = useState<'activity' | 'balances' | 'settings'>('activity')
   const [openMethod, setOpenMethod] = useState<'hover' | 'keyboard' | null>(null)
   const [isHovering, setIsHovering] = useState(false)
 
-  // Theme toggle handler (memoized to prevent glitches)
+  // Theme toggle handler - write ONLY to Zustand (ThemeSynchronizer handles next-themes sync)
   const handleThemeToggle = useCallback(() => {
-    const newTheme = resolvedTheme === 'dark' ? 'light' : 'dark'
-    setTheme(newTheme)
-    setZustandTheme(newTheme === 'dark' ? 'pragma-dark' : 'pragma-light')
-  }, [resolvedTheme, setTheme, setZustandTheme])
+    const newPragmaTheme = pragmaTheme === 'pragma-dark' ? 'pragma-light' : 'pragma-dark'
+    setZustandTheme(newPragmaTheme)
+  }, [pragmaTheme, setZustandTheme])
 
   // Invert isOpen to get isCollapsed for clearer logic
   const isCollapsed = !isOpen

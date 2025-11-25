@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import { Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
+import { useThemeStore } from "@/stores/useThemeStore";
 
 import { Button } from "./ui/button";
 
 export function ThemeToggle() {
-  const { setTheme, resolvedTheme } = useTheme();
+  const { theme: pragmaTheme, toggleTheme } = useThemeStore();
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
@@ -19,8 +19,7 @@ export function ThemeToggle() {
       return;
     }
 
-    const target = resolvedTheme === "dark" ? "light" : "dark";
-    setTheme(target);
+    toggleTheme();
   };
 
   return (

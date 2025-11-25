@@ -20,10 +20,9 @@ import { tool } from "langchain";
 import { z } from "zod";
 import {
   type Address,
-  type Hex,
   type PublicClient,
+  type Transport,
   createWalletClient,
-  http,
   formatEther,
   parseEther,
   getAddress,
@@ -31,15 +30,10 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 
 import { createErrorFromCode } from "../../errors/index.js";
+import { MONAD_CHAIN } from "../config.js";
 
-// ============================================================================
-// Constants
-// ============================================================================
-
-const MONAD_RPC_URL = process.env.MONAD_EXECUTION_RPC_URL || "https://testnet.monad.xyz/";
-
-/** Minimum gas reserve to leave in session key (0.001 MON for withdrawal tx gas) */
-const MIN_GAS_RESERVE = parseEther("0.001");
+/** Minimum gas reserve to leave in session key (0.005 MON for withdrawal tx gas) */
+const MIN_GAS_RESERVE = parseEther("0.005");
 
 // ============================================================================
 // Withdraw Session Key Balance Tool Implementation
@@ -51,10 +45,18 @@ export const withdrawSessionKeyBalanceTool = tool(
       const userAddress = config?.configurable?.userAddress as Address;
       const publicClient = config?.configurable?.publicClient as PublicClient;
       const sessionData = config?.configurable?.sessionData as any;
+      const transport = config?.configurable?.transport as Transport;
 
       if (!userAddress || !publicClient || !sessionData) {
         throw createErrorFromCode("CONFIG_MISSING", {
           message: "Missing required context",
+        });
+      }
+
+      // Transport is required - no fallback to direct RPC
+      if (!transport) {
+        throw createErrorFromCode("CONFIG_MISSING", {
+          message: "Transport is required for RPC calls - cannot use direct RPC",
         });
       }
 
@@ -104,12 +106,13 @@ Balance too low to withdraw. The entire balance is needed for gas.`;
         }
 
         // Estimate gas for the withdrawal transaction
+        // Note: Session key withdrawal uses ~40k gas (not standard 21k) due to Monad's account model
         const gasPrice = await publicClient.getGasPrice();
-        const estimatedGas = 21000n; // Standard ETH transfer gas
+        const estimatedGas = 50000n; // Conservative estimate (actual ~39802)
         const gasCost = gasPrice * estimatedGas;
 
-        // Add safety margin (20%)
-        const gasCostWithMargin = (gasCost * 120n) / 100n;
+        // Add 100% safety margin for gas price volatility on Monad
+        const gasCostWithMargin = gasCost * 2n;
 
         if (sessionKeyBalance <= gasCostWithMargin) {
           return `**Session Key Withdrawal**
@@ -139,9 +142,10 @@ Balance too low to withdraw. Entire balance needed for gas.`;
         }
 
         // Check if enough left for gas
+        // Note: Session key withdrawal uses ~40k gas (not standard 21k) due to Monad's account model
         const gasPrice = await publicClient.getGasPrice();
-        const estimatedGas = 21000n;
-        const gasCost = (gasPrice * estimatedGas * 120n) / 100n; // 20% margin
+        const estimatedGas = 50000n; // Conservative estimate (actual ~39802)
+        const gasCost = gasPrice * estimatedGas * 2n; // 100% margin for gas volatility
 
         if (sessionKeyBalance - withdrawalAmount < gasCost) {
           return `**Session Key Withdrawal**
@@ -155,16 +159,11 @@ Not enough MON left to pay for gas. Try withdrawing less or use "all" to withdra
         }
       }
 
-      // Create session wallet for withdrawal
+      // Create session wallet for withdrawal using transport from config
       const sessionWallet = createWalletClient({
         account: privateKeyToAccount(sessionData.sessionKeyPrivateKey),
-        chain: {
-          id: sessionData.chainId,
-          name: "Monad",
-          nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
-          rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
-        },
-        transport: http(MONAD_RPC_URL),
+        chain: MONAD_CHAIN,
+        transport,
       });
 
       // Execute withdrawal (direct EOA transfer, no delegation needed)
@@ -181,7 +180,21 @@ Not enough MON left to pay for gas. Try withdrawing less or use "all" to withdra
         address: sessionData.sessionKeyAddress,
       });
 
-      return `✅ Session Key Withdrawal Complete!
+      // Build metadata for activity tracking
+      const metadata = {
+        txHash,
+        blockNumber: receipt.blockNumber.toString(),
+        gasUsed: receipt.gasUsed.toString(),
+        status: receipt.status === 'success' ? 'success' : 'failed',
+        fromToken: 'MON',
+        toToken: 'MON',
+        fromAmount: formatEther(withdrawalAmount),
+        toAmount: formatEther(withdrawalAmount),
+        recipientAddress,
+        description: `Withdraw ${formatEther(withdrawalAmount)} MON from session key`,
+      };
+
+      const humanReadableMessage = `✅ Session Key Withdrawal Complete!
 
 • Withdrawn: ${formatEther(withdrawalAmount)} MON
 • To: ${recipientAddress}${recipient ? "" : " (your smart account)"}
@@ -191,6 +204,9 @@ Not enough MON left to pay for gas. Try withdrawing less or use "all" to withdra
 • Gas Used: ${receipt.gasUsed}
 
 ${recipient ? `MON sent to ${recipientAddress}` : "MON returned to your smart account. You have full control."}`;
+
+      // Include metadata for activity extractor
+      return `${humanReadableMessage}\n\n<!--PRAGMA_METADATA:${JSON.stringify(metadata)}-->`;
     } catch (error) {
       throw createErrorFromCode("TRANSACTION_EXECUTION_FAILED", {
         message: `Failed to withdraw session key balance: ${(error as Error).message}`,

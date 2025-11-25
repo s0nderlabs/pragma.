@@ -2,7 +2,7 @@ import type { AnyMessage } from '@/lib/h2/types'
 
 export interface ActivityRecord {
   id: string
-  type: 'swap' | 'transfer' | 'wrap' | 'unwrap' | 'stake' | 'unstake' | 'unstakeClaim' | 'funding'
+  type: 'swap' | 'transfer' | 'wrap' | 'unwrap' | 'stake' | 'unstake' | 'unstakeClaim' | 'funding' | 'withdrawal'
   timestamp: number
   status: 'success' | 'failed' | 'pending'
 
@@ -57,6 +57,7 @@ export const EXECUTION_TOOLS = [
   'unstakeRequest',
   'unstakeClaim',
   'fundSessionKey',
+  'withdrawSessionKeyBalance',
 ] as const
 
 function parseOperationType(toolName: string): ActivityRecord['type'] {
@@ -68,6 +69,7 @@ function parseOperationType(toolName: string): ActivityRecord['type'] {
   if (toolName === 'unstakeRequest') return 'unstake'
   if (toolName === 'unstakeClaim') return 'unstakeClaim'
   if (toolName === 'fundSessionKey') return 'funding'
+  if (toolName === 'withdrawSessionKeyBalance') return 'withdrawal'
   return 'swap' // fallback
 }
 
@@ -243,6 +245,10 @@ function generateDisplayText(
     const method = fundingMethod === 'userOp' ? 'UserOp' : fundingMethod === 'delegation' ? 'Delegation' : ''
     const methodSuffix = method ? ` (${method})` : ''
     return `Funded ${formatAmountForDisplay(fromAmount)} ${fromToken}${methodSuffix}`
+  }
+
+  if (type === 'withdrawal' && fromAmount && fromToken) {
+    return `Withdraw ${formatAmountForDisplay(fromAmount)} ${fromToken}`
   }
 
   // Fallback

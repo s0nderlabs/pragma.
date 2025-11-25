@@ -21,13 +21,7 @@ import {
   type SessionKeyFundingConfig,
 } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const MONAD_RPC_URL = process.env.MONAD_EXECUTION_RPC_URL || "https://testnet.monad.xyz/";
-const DELEGATION_MANAGER_ADDRESS = (process.env.DELEGATION_MANAGER_ADDRESS as Address) || "0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3" as Address;
+import { DELEGATION_MANAGER_ADDRESS } from "../config.js";
 
 // ============================================================================
 // Fund Session Key Tool Implementation
@@ -56,11 +50,9 @@ export const fundSessionKeyTool = tool(
         sessionKeyPrivateKey: sessionData.sessionKeyPrivateKey as Hex,
         ownerAddress: sessionData.ownerAddress as Address,
         chainId: sessionData.chainId,
-        rpcUrl: MONAD_RPC_URL,
         delegationManager: DELEGATION_MANAGER_ADDRESS,
         smartAccount,
         bundlerClient,
-        // Note: sponsorUserOperationFn removed - session key funding is now self-paid
       };
 
       // Check balance before funding to determine which method will be used

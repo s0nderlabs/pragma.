@@ -20,6 +20,7 @@ import {
   Hourglass,
   HandCoins,
   Wallet,
+  ArrowSquareOut,
 } from '@phosphor-icons/react'
 
 interface IconProps {
@@ -80,4 +81,11 @@ export function UnstakeClaimIcon({ className }: IconProps) {
  */
 export function FundingIcon({ className }: IconProps) {
   return <Wallet weight="thin" size={20} className={className} />
+}
+
+/**
+ * Withdrawal Icon - Session key withdrawal
+ */
+export function WithdrawalIcon({ className }: IconProps) {
+  return <ArrowSquareOut weight="thin" size={20} className={className} />
 }

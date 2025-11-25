@@ -220,13 +220,13 @@ export async function checkSessionKeyBalance(
  *     sessionKeyPrivateKey: "0x...",
  *     ownerAddress: "0x...",
  *     chainId: 10207,
- *     rpcUrl: "https://testnet.monad.xyz/",
  *     delegationManager: "0x...",
  *     smartAccount: smartAccount,
  *     bundlerClient: bundlerClient,
  *   },
  *   publicClient,
  *   web3authBridge,
+ *   transport,  // Authenticated transport (e.g., /api/rpc proxy)
  *   17  // Calculate funding for 17 operations
  * );
  * ```

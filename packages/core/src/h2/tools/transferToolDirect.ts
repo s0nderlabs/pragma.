@@ -11,8 +11,8 @@ import {
   type Address,
   type Hex,
   type PublicClient,
+  type Transport,
   createWalletClient,
-  http,
   formatUnits,
   formatEther,
   parseUnits,
@@ -38,10 +38,10 @@ import {
 import { MIN_SESSION_KEY_BALANCE } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import {
-  MONAD_RPC_URL,
   DELEGATION_MANAGER_ADDRESS,
   NONCE_ENFORCER_ADDRESS,
   NONCE_ENFORCER_ABI,
+  MONAD_CHAIN,
 } from "../config.js";
 
 const ERC20_ABI = [
@@ -92,10 +92,18 @@ export const transferTool = tool(
       const web3authBridge = config?.configurable?.web3authBridge as any;
       const allowedTokens = config?.configurable?.allowedTokens as any[];
       let sessionWallet = config?.configurable?.sessionWallet;
+      const transport = config?.configurable?.transport as Transport;
 
       if (!userAddress || !publicClient || !sessionData || !web3authBridge || !allowedTokens) {
         throw createErrorFromCode("CONFIG_MISSING", {
           message: "Missing required context",
+        });
+      }
+
+      // Transport is required if sessionWallet not provided
+      if (!sessionWallet && !transport) {
+        throw createErrorFromCode("CONFIG_MISSING", {
+          message: "Transport is required for RPC calls - cannot use direct RPC",
         });
       }
 
@@ -272,17 +280,12 @@ export const transferTool = tool(
         callData: calldata,
       });
 
-      // Get or create session wallet
+      // Get or create session wallet using transport from config
       if (!sessionWallet) {
         sessionWallet = createWalletClient({
           account: privateKeyToAccount(sessionData.sessionKeyPrivateKey),
-          chain: {
-            id: sessionData.chainId,
-            name: "Monad",
-            nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
-            rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
-          },
-          transport: http(MONAD_RPC_URL),
+          chain: MONAD_CHAIN,
+          transport: transport!,
         });
       }
 

@@ -20,8 +20,8 @@ import {
   type Address,
   type Hex,
   type PublicClient,
+  type Transport,
   createWalletClient,
-  http,
   formatUnits,
   formatEther,
   parseUnits,
@@ -38,40 +38,23 @@ import {
 import { createStakeDelegation } from "../delegation/stakeDelegation.js";
 import { MIN_SESSION_KEY_BALANCE } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
-import { APRIORI_ADDRESS, APRIORI_FEE_RATE } from "../config.js";
+import {
+  APRIORI_ADDRESS,
+  DELEGATION_MANAGER_ADDRESS,
+  NONCE_ENFORCER_ADDRESS,
+  NONCE_ENFORCER_ABI,
+  MONAD_CHAIN,
+  PROTOCOL_FEES,
+  MON_ADDRESS,
+  DELEGATION_MANAGER_ABI,
+} from "../config.js";
 import { emitProgress } from "../progress/emitter.js";
 import {
   addPragmaFeeEnforcer,
   calculateProtocolFee,
   requiresFee
 } from "../delegation/withFeeEnforcer.js";
-import {
-  PROTOCOL_FEES,
-  MON_ADDRESS,
-  DELEGATION_MANAGER_ABI
-} from "../config.js";
 import { buildDelegationTypedData } from "../../delegations/typedData.js";
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const MONAD_RPC_URL = process.env.MONAD_EXECUTION_RPC_URL || "https://testnet.monad.xyz/";
-const DELEGATION_MANAGER_ADDRESS = (process.env.DELEGATION_MANAGER_ADDRESS as Address) || "0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3" as Address;
-const NONCE_ENFORCER_ADDRESS = (process.env.NONCE_ENFORCER_ADDRESS as Address) || "0xDE4f2FAC4B3D87A1d9953Ca5FC09FCa7F366254f" as Address;
-
-const NONCE_ENFORCER_ABI = [
-  {
-    type: "function",
-    name: "currentNonce",
-    stateMutability: "view",
-    inputs: [
-      { name: "delegationManager", type: "address" },
-      { name: "delegator", type: "address" },
-    ],
-    outputs: [{ name: "nonce", type: "uint256" }],
-  },
-] as const;
 
 const APRIORI_ABI = [
   {
@@ -110,10 +93,18 @@ export const stakeTool = tool(
       const smartAccount = config?.configurable?.smartAccount;
       const bundlerClient = config?.configurable?.bundlerClient;
       let sessionWallet = config?.configurable?.sessionWallet; // Shared wallet for nonce management
+      const transport = config?.configurable?.transport as Transport;
 
       if (!userAddress || !publicClient || !sessionData || !web3authBridge) {
         throw createErrorFromCode("CONFIG_MISSING", {
           message: "Missing required context",
+        });
+      }
+
+      // Transport is required if sessionWallet not provided
+      if (!sessionWallet && !transport) {
+        throw createErrorFromCode("CONFIG_MISSING", {
+          message: "Transport is required for RPC calls - cannot use direct RPC",
         });
       }
 
@@ -261,18 +252,12 @@ export const stakeTool = tool(
         callData: depositCalldata,
       });
 
-      // Get or create session wallet (prefer shared wallet for proper nonce management)
+      // Get or create session wallet using transport from config
       if (!sessionWallet) {
-        // FALLBACK: Create temporary wallet (backward compatibility)
         sessionWallet = createWalletClient({
           account: privateKeyToAccount(sessionData.sessionKeyPrivateKey),
-          chain: {
-            id: sessionData.chainId,
-            name: "Monad",
-            nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
-            rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
-          },
-          transport: http(MONAD_RPC_URL),
+          chain: MONAD_CHAIN,
+          transport: transport!,
         });
       }
 

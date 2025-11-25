@@ -10,8 +10,8 @@ import {
   type Address,
   type Hex,
   type PublicClient,
+  type Transport,
   createWalletClient,
-  http,
   formatUnits,
   formatEther,
   parseUnits,
@@ -29,24 +29,13 @@ import {
 import { createUnwrapDelegation } from "../delegation/unwrapDelegation.js";
 import { MIN_SESSION_KEY_BALANCE } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
-
-const WMON_ADDRESS = (process.env.MONAD_WMON_ADDRESS || "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701") as Address;
-const MONAD_RPC_URL = process.env.MONAD_EXECUTION_RPC_URL || "https://testnet.monad.xyz/";
-const DELEGATION_MANAGER_ADDRESS = (process.env.DELEGATION_MANAGER_ADDRESS as Address) || "0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3" as Address;
-const NONCE_ENFORCER_ADDRESS = (process.env.NONCE_ENFORCER_ADDRESS as Address) || "0xDE4f2FAC4B3D87A1d9953Ca5FC09FCa7F366254f" as Address;
-
-const NONCE_ENFORCER_ABI = [
-  {
-    type: "function",
-    name: "currentNonce",
-    stateMutability: "view",
-    inputs: [
-      { name: "delegationManager", type: "address" },
-      { name: "delegator", type: "address" },
-    ],
-    outputs: [{ name: "nonce", type: "uint256" }],
-  },
-] as const;
+import {
+  WMON_ADDRESS,
+  DELEGATION_MANAGER_ADDRESS,
+  NONCE_ENFORCER_ADDRESS,
+  NONCE_ENFORCER_ABI,
+  MONAD_CHAIN,
+} from "../config.js";
 
 const WRAPPED_NATIVE_ABI = [
   {
@@ -78,10 +67,18 @@ export const unwrapTool = tool(
       const smartAccount = config?.configurable?.smartAccount;
       let sessionWallet = config?.configurable?.sessionWallet;
       const bundlerClient = config?.configurable?.bundlerClient;
+      const transport = config?.configurable?.transport as Transport;
 
       if (!userAddress || !publicClient || !sessionData || !web3authBridge) {
         throw createErrorFromCode("CONFIG_MISSING", {
           message: "Missing required context",
+        });
+      }
+
+      // Transport is required if sessionWallet not provided
+      if (!sessionWallet && !transport) {
+        throw createErrorFromCode("CONFIG_MISSING", {
+          message: "Transport is required for RPC calls - cannot use direct RPC",
         });
       }
 
@@ -168,17 +165,12 @@ export const unwrapTool = tool(
         callData: withdrawCalldata,
       });
 
-      // Get or create session wallet
+      // Get or create session wallet using transport from config
       if (!sessionWallet) {
         sessionWallet = createWalletClient({
           account: privateKeyToAccount(sessionData.sessionKeyPrivateKey),
-          chain: {
-            id: sessionData.chainId,
-            name: "Monad",
-            nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
-            rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
-          },
-          transport: http(MONAD_RPC_URL),
+          chain: MONAD_CHAIN,
+          transport: transport!,
         });
       }
 

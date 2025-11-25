@@ -21,20 +21,25 @@ export { ROOT_AUTHORITY };
 // ============================================================================
 
 /**
- * Monad RPC URL
- * Supports both server-side (MONAD_EXECUTION_RPC_URL) and client-side (NEXT_PUBLIC_MONAD_EXECUTION_RPC_URL) environments
- * @default https://testnet.monad.xyz/
- */
-export const MONAD_RPC_URL =
-  (process.env.MONAD_EXECUTION_RPC_URL as string) ||
-  (process.env.NEXT_PUBLIC_MONAD_EXECUTION_RPC_URL as string) ||
-  "https://testnet.monad.xyz/";
-
-/**
  * Monad Chain ID
  * @default 10143 (Monad testnet)
  */
 export const MONAD_CHAIN_ID = 10143;
+
+/**
+ * Monad Chain definition for viem
+ * Used by tools that need to create walletClient with transport from config
+ * NOTE: rpcUrls are empty - transport MUST be provided from config.configurable.transport
+ */
+export const MONAD_CHAIN = {
+  id: MONAD_CHAIN_ID,
+  name: "Monad Testnet",
+  nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
+  rpcUrls: {
+    default: { http: [] as string[] },
+    public: { http: [] as string[] },
+  },
+} as const;
 
 // ============================================================================
 // Core Contract Addresses

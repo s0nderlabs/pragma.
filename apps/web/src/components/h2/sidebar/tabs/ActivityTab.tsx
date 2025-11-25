@@ -30,6 +30,7 @@ import {
   UnstakeIcon,
   UnstakeClaimIcon,
   FundingIcon,
+  WithdrawalIcon,
 } from '../../icons/ActivityIcons'
 
 /**
@@ -115,6 +116,8 @@ export function ActivityTab() {
         return <UnstakeClaimIcon className="w-7 h-7" />
       case 'funding':
         return <FundingIcon className="w-7 h-7" />
+      case 'withdrawal':
+        return <WithdrawalIcon className="w-7 h-7" />
       default:
         return null
     }
@@ -149,6 +152,10 @@ export function ActivityTab() {
         return 'Unstake Request'
       case 'unstakeClaim':
         return 'Unstake Claim'
+      case 'funding':
+        return 'Fund'
+      case 'withdrawal':
+        return 'Withdraw'
       default:
         return type
     }

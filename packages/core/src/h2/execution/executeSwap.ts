@@ -23,8 +23,8 @@ import {
   type Address,
   type Hex,
   type PublicClient,
+  type Transport,
   createWalletClient,
-  http,
   formatUnits,
   formatEther,
   getContract,
@@ -53,7 +53,6 @@ import { patchMonorailMinOutput } from "../../monorail/calldataPatcher.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import { emitProgress } from "../progress/emitter.js";
 import {
-  MONAD_RPC_URL,
   DELEGATION_MANAGER_ADDRESS,
   NONCE_ENFORCER_ADDRESS,
   NONCE_ENFORCER_ABI,
@@ -62,6 +61,7 @@ import {
   PRAGMA_FEE_ENFORCER_ADDRESS,
   ARGS_EQUALITY_CHECK_ENFORCER_ADDRESS,
   ROOT_AUTHORITY,
+  MONAD_CHAIN,
 } from "../config.js";
 import { addPragmaFeeEnforcer, requiresFee } from "../delegation/withFeeEnforcer.js";
 import { buildDelegationTypedData } from "../../delegations/typedData.js";
@@ -153,6 +153,11 @@ export interface ExecuteSwapParams {
    */
   sessionWallet?: any; // Type: viem WalletClient
   /**
+   * Authenticated transport for wallet client (e.g., /api/rpc proxy)
+   * Required if sessionWallet not provided
+   */
+  transport?: Transport;
+  /**
    * Unique signature for parallel tool identification (e.g., "MON-USDC")
    * Used to route progress messages to the correct tool instance
    */
@@ -189,7 +194,15 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     bundlerClient,
     signature,
     description,
+    transport,
   } = params;
+
+  // Transport is required if sessionWallet not provided
+  if (!params.sessionWallet && !transport) {
+    throw createErrorFromCode("CONFIG_MISSING", {
+      message: "Transport is required for RPC calls - cannot use direct RPC",
+    });
+  }
 
   // Step 1: Retrieve and validate quote
   const quote = getSwapQuote(quoteId);
@@ -602,7 +615,7 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
   let sessionWallet = params.sessionWallet;
 
   if (!sessionWallet) {
-    // FALLBACK: Create temporary wallet (backward compatibility)
+    // FALLBACK: Create temporary wallet using transport from params
     // WARNING: This creates nonce collisions in parallel execution
     if (DEBUG || process.env.H2_WARN_NONCE) {
       console.log("\n⚠️  Creating temporary session wallet (deprecated for parallel ops)");
@@ -611,13 +624,8 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
 
     sessionWallet = createWalletClient({
       account: privateKeyToAccount(sessionKeyPrivateKey),
-      chain: {
-        id: chainId,
-        name: "Monad",
-        nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
-        rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
-      },
-      transport: http(MONAD_RPC_URL),
+      chain: MONAD_CHAIN,
+      transport: transport!,
     });
   }
 

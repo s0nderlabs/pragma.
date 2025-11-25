@@ -22,7 +22,6 @@ import {
   type PublicClient,
   type Transport,
   createWalletClient,
-  http,
   formatUnits,
   formatEther,
   encodeFunctionData,
@@ -39,10 +38,10 @@ import { createEphemeralDelegation } from "../delegation/ephemeral.js";
 import { getUnwrapQuote, deleteUnwrapQuote } from "./quoteStore.js";
 import { checkSessionKeyBalance, fundSessionKey, SESSION_KEY_FUNDING_AMOUNT } from "./sessionKeyManager.js";
 import {
-  MONAD_RPC_URL,
   DELEGATION_MANAGER_ADDRESS,
   NONCE_ENFORCER_ADDRESS,
   NONCE_ENFORCER_ABI,
+  MONAD_CHAIN,
 } from "../config.js";
 
 const WRAPPED_NATIVE_ABI = [
@@ -124,7 +123,6 @@ export async function executeUnwrap(params: ExecuteUnwrapParams): Promise<Execut
         sessionKeyPrivateKey,
         ownerAddress,
         chainId,
-        rpcUrl: MONAD_RPC_URL,
         delegationManager: DELEGATION_MANAGER_ADDRESS,
         smartAccount,
         bundlerClient,
@@ -193,16 +191,11 @@ export async function executeUnwrap(params: ExecuteUnwrapParams): Promise<Execut
     callData: withdrawCalldata,
   });
 
-  // Step 8: Create session wallet client
+  // Step 8: Create session wallet client using transport from params
   const sessionWallet = createWalletClient({
     account: privateKeyToAccount(sessionKeyPrivateKey),
-    chain: {
-      id: chainId,
-      name: "Monad",
-      nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
-      rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
-    },
-    transport: http(MONAD_RPC_URL),
+    chain: MONAD_CHAIN,
+    transport,
   });
 
   // Step 9: Submit transaction via delegation redemption

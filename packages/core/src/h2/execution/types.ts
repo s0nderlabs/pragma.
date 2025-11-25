@@ -40,8 +40,7 @@ export interface SessionKeyFundingConfig {
   ownerAddress?: Address;
   /** Chain ID (e.g., 10207 for Monad testnet) */
   chainId: number;
-  /** RPC URL for the chain */
-  rpcUrl: string;
+  // Note: rpcUrl removed - transport is passed directly to fundSessionKey()
   /** DelegationManager contract address */
   delegationManager: Address;
   /** Smart account instance from DTK (required for initial funding via UserOp) */

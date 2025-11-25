@@ -6,6 +6,7 @@ import { MessageList } from '../chat/MessageList'
 import { ChatInput } from '../chat/ChatInput'
 import { EmptyState } from '../chat/EmptyState'
 import { SettingsMenu } from '../chat/SettingsMenu'
+import { ShortcutPanel } from '../ui/ShortcutPanel'
 import { useSidebarStore } from '@/stores/useSidebarStore'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
@@ -139,6 +140,9 @@ export function ChatContainer({ status, wallet, connect, disconnect }: ChatConta
           </div>
         </div>
       </motion.div>
+
+      {/* Keyboard Shortcuts Panel */}
+      <ShortcutPanel />
     </div>
   )
 }

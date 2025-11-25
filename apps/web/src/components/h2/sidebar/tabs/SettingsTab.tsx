@@ -5,8 +5,9 @@ import { cn } from '@/lib/utils'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useH2Session } from '@/hooks/useH2Session'
 import { ExportSessionKeyModal } from '@/components/h2/session/ExportSessionKeyModal'
-import { Moon, Sun, LogOut, Loader2, Copy, Check, Key } from 'lucide-react'
+import { Moon, Sun, LogOut, Loader2, Copy, Check, Key, Keyboard } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { useShortcutPanelStore } from '@/stores/useShortcutPanelStore'
 
 interface SettingsTabProps {
   status: string
@@ -26,6 +27,7 @@ export function SettingsTab({ status, wallet, connect, disconnect }: SettingsTab
   // Read from Zustand directly (source of truth) to avoid race condition with next-themes
   const { theme: pragmaTheme, setTheme: setZustandTheme } = useThemeStore()
   const { sessionData } = useH2Session()
+  const openShortcutPanel = useShortcutPanelStore((state) => state.open)
   const [copied, setCopied] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
@@ -63,7 +65,7 @@ export function SettingsTab({ status, wallet, connect, disconnect }: SettingsTab
 
   return (
     <div className="space-y-3">
-      {/* Wallet - Priority component */}
+      {/* Wallet - Combined with Session Key Export */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -79,46 +81,67 @@ export function SettingsTab({ status, wallet, connect, disconnect }: SettingsTab
           Wallet
         </div>
 
-        <div className="mt-4">
+        <div className="mt-4 space-y-3">
           {isConnected && wallet?.address ? (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-sm text-white/60">
-                  {formatAddress(wallet.address)}
-                </span>
+            <>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-sm text-white/60">
+                    {formatAddress(wallet.address)}
+                  </span>
+                  <button
+                    onClick={copyAddress}
+                    className={cn(
+                      "p-1.5 rounded-lg",
+                      "transition-colors duration-200",
+                      "hover:bg-white/10",
+                      "text-white/40",
+                      "hover:text-accent"
+                    )}
+                  >
+                    {copied ? (
+                      <Check className="w-3.5 h-3.5 text-green-500" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+
                 <button
-                  onClick={copyAddress}
+                  onClick={handleWalletAction}
+                  disabled={isConnecting}
                   className={cn(
-                    "p-1.5 rounded-lg",
-                    "transition-colors duration-200",
-                    "hover:bg-white/10",
+                    "flex items-center gap-1.5",
+                    "text-xs font-medium",
                     "text-white/40",
-                    "hover:text-accent"
+                    "hover:text-accent",
+                    "transition-colors duration-200"
                   )}
                 >
-                  {copied ? (
-                    <Check className="w-3.5 h-3.5 text-green-500" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Disconnect</span>
                 </button>
               </div>
 
-              <button
-                onClick={handleWalletAction}
-                disabled={isConnecting}
-                className={cn(
-                  "flex items-center gap-1.5",
-                  "text-xs font-medium",
-                  "text-white/40",
-                  "hover:text-accent",
-                  "transition-colors duration-200"
-                )}
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Disconnect</span>
-              </button>
-            </div>
+              {/* Export Session Key - Only show when connected and session exists */}
+              {sessionData?.sessionKeyAddress && (
+                <button
+                  onClick={() => setShowExportModal(true)}
+                  className={cn(
+                    "w-full py-2.5 px-4 rounded-[12px]",
+                    "flex items-center justify-center gap-2",
+                    "text-sm font-medium",
+                    "transition-all duration-200",
+                    "bg-red-500/10 hover:bg-red-500/20",
+                    "border border-red-500/20",
+                    "text-red-400"
+                  )}
+                >
+                  <Key className="w-4 h-4" />
+                  Export Session Key
+                </button>
+              )}
+            </>
           ) : (
             <button
               onClick={handleWalletAction}
@@ -219,40 +242,50 @@ export function SettingsTab({ status, wallet, connect, disconnect }: SettingsTab
         </div>
       </motion.div>
 
-      {/* Session Key - Export Private Key */}
-      {sessionData?.sessionKeyAddress && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
+      {/* Keyboard Shortcuts */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className={cn(
+          "p-5 rounded-[24px]",
+          "transition-colors duration-200 border",
+          "bg-white/10",
+          "border-white/10"
+        )}
+      >
+        <div className="text-sm font-medium text-white mb-4">
+          Keyboard Shortcuts
+        </div>
+
+        <button
+          onClick={openShortcutPanel}
           className={cn(
-            "p-5 rounded-[24px]",
-            "transition-colors duration-200 border",
-            "bg-white/10",
-            "border-white/10"
+            "w-full py-2.5 px-4 rounded-[12px]",
+            "flex items-center justify-between",
+            "text-sm font-medium",
+            "transition-all duration-200",
+            "bg-white/5 hover:bg-white/10",
+            "border border-white/10",
+            "text-white/80 hover:text-white"
           )}
         >
-          <div className="text-sm font-medium text-white mb-4">
-            Session Key
+          <div className="flex items-center gap-2">
+            <Keyboard className="w-4 h-4" />
+            <span>View All Shortcuts</span>
           </div>
-
-          <button
-            onClick={() => setShowExportModal(true)}
+          <kbd
             className={cn(
-              "w-full py-2.5 px-4 rounded-[12px]",
-              "flex items-center justify-center gap-2",
-              "text-sm font-medium",
-              "transition-all duration-200",
-              "bg-red-500/10 hover:bg-red-500/20",
-              "border border-red-500/20",
-              "text-red-400"
+              "px-2 py-0.5 rounded-md",
+              "text-xs font-mono",
+              "bg-white/10",
+              "text-white/60"
             )}
           >
-            <Key className="w-4 h-4" />
-            Export Private Key
-          </button>
-        </motion.div>
-      )}
+            Alt+K
+          </kbd>
+        </button>
+      </motion.div>
 
       {/* Export Session Key Modal */}
       <ExportSessionKeyModal

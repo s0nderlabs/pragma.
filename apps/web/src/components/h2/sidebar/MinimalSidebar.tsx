@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { useSidebarStore } from '@/stores/useSidebarStore'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { useThemeStore } from '@/stores/useThemeStore'
+import { useShortcutPanelStore } from '@/stores/useShortcutPanelStore'
 import { useWalletBalance } from '@/hooks/useWalletBalance'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import { WalletCard } from './WalletCard'
@@ -38,6 +39,7 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
   const { theme: pragmaTheme, setTheme: setZustandTheme } = useThemeStore()
   const { monBalance, usdValue, change24h, isLoading, refresh } = useWalletBalance()
   const { showCopy, showCopyNotification } = useNotificationStore()
+  const toggleShortcutPanel = useShortcutPanelStore((state) => state.toggle)
   const [activeTab, setActiveTab] = useState<'activity' | 'balances' | 'settings'>('activity')
   const [openMethod, setOpenMethod] = useState<'hover' | 'keyboard' | null>(null)
   const [isHovering, setIsHovering] = useState(false)
@@ -131,11 +133,31 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
         navigator.clipboard.writeText(address)
         showCopyNotification()
       }
+      // Alt + k - Show keyboard shortcuts
+      else if (e.code === 'KeyK' && e.altKey) {
+        e.preventDefault()
+        toggleShortcutPanel()
+      }
+      // Alt + Arrow Left/Right - Navigate tabs
+      else if (e.code === 'ArrowLeft' && e.altKey) {
+        e.preventDefault()
+        const tabs: Array<'activity' | 'balances' | 'settings'> = ['activity', 'balances', 'settings']
+        const currentIndex = tabs.indexOf(activeTab)
+        const prevIndex = currentIndex > 0 ? currentIndex - 1 : tabs.length - 1
+        setActiveTab(tabs[prevIndex])
+      }
+      else if (e.code === 'ArrowRight' && e.altKey) {
+        e.preventDefault()
+        const tabs: Array<'activity' | 'balances' | 'settings'> = ['activity', 'balances', 'settings']
+        const currentIndex = tabs.indexOf(activeTab)
+        const nextIndex = currentIndex < tabs.length - 1 ? currentIndex + 1 : 0
+        setActiveTab(tabs[nextIndex])
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isCollapsed, handleThemeToggle, toggleQuickMode, sessionData, wallet])
+  }, [isCollapsed, handleThemeToggle, toggleQuickMode, sessionData, wallet, toggleShortcutPanel, activeTab])
 
   // Arc-style edge hover detection
   useEffect(() => {

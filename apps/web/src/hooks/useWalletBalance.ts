@@ -1,11 +1,55 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { formatUnits } from 'viem'
 import { saveBalanceSnapshot, get24hChange } from '@/lib/balanceSnapshots'
 import { authenticatedFetch } from '@/lib/api/authenticatedFetch'
+import { createMonadPublicClient } from '@/lib/clients'
 import type { RawTokenBalance } from '@pragma/core/monorail/balances'
+
+/**
+ * Calculate total USD value from individual token balances
+ * Used as fallback when portfolio API returns stale/invalid data
+ */
+function calculateTotalUsdFromTokens(tokens: RawTokenBalance[]): number {
+  return tokens.reduce((sum, token) => {
+    try {
+      // Parse balance (comes as raw string or bigint)
+      let balanceNum: number;
+      try {
+        const balanceBigInt = BigInt(token.balance);
+        balanceNum = parseFloat(formatUnits(balanceBigInt, token.decimals));
+      } catch {
+        balanceNum = parseFloat(token.balance);
+      }
+
+      // Get price per token
+      const pricePerToken = parseFloat(token.usd_per_token || '0');
+
+      // Only add if both values are valid and positive
+      if (!isNaN(balanceNum) && !isNaN(pricePerToken) &&
+          balanceNum > 0 && pricePerToken > 0) {
+        return sum + (balanceNum * pricePerToken);
+      }
+    } catch {
+      // Skip invalid tokens
+    }
+    return sum;
+  }, 0);
+}
+
+/**
+ * Validate portfolio USD value
+ * Returns true if the value appears valid
+ */
+function isValidPortfolioValue(value: number): boolean {
+  return (
+    !isNaN(value) &&
+    isFinite(value) &&
+    value >= 0 // Portfolio can't be negative
+  );
+}
 
 interface WalletBalanceData {
   monBalance: string
@@ -54,6 +98,9 @@ export function useWalletBalance(): WalletBalanceData {
   const [refreshInterval, setRefreshInterval] = useState(10000) // 10s default
   const mountedRef = useRef(true)
 
+  // Create publicClient for direct RPC calls (fresh MON balance)
+  const publicClient = useMemo(() => createMonadPublicClient(), [])
+
   // Fetch balance function (can be called manually or by polling)
   const fetchBalance = useCallback(async () => {
     // Skip if authentication token not ready (prevents race condition)
@@ -95,29 +142,64 @@ export function useWalletBalance(): WalletBalanceData {
       const portfolioValueRes = await portfolioResponse.json()
       const balancesRes = await balancesResponse.json()
 
-      // Find MON token balance (native token)
-      const monToken = balancesRes.find(
+      // Fetch MON balance directly from RPC (always fresh, never stale)
+      let monBalance = '0';
+      let monBalanceWei: bigint = 0n;
+
+      try {
+        monBalanceWei = await publicClient.getBalance({
+          address: sessionData.delegator as `0x${string}`,
+        });
+        // Format to 4 decimal places for precision
+        monBalance = parseFloat(formatUnits(monBalanceWei, 18)).toFixed(4);
+      } catch (rpcError) {
+        console.warn('[useWalletBalance] RPC balance fetch failed, falling back to Monorail:', rpcError);
+        // Fallback to Monorail API data if RPC fails
+        const monToken = balancesRes.find(
+          (token: { symbol?: string; address: string }) =>
+            token.symbol === 'MON' || token.address.toLowerCase() === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+        );
+        if (monToken) {
+          try {
+            monBalanceWei = BigInt(monToken.balance);
+            monBalance = parseFloat(formatUnits(monBalanceWei, monToken.decimals)).toFixed(4);
+          } catch {
+            monBalance = parseFloat(monToken.balance).toFixed(4);
+          }
+        }
+      }
+
+      // Patch MON token in balancesRes with fresh RPC balance + recalculated USD
+      const monTokenIndex = balancesRes.findIndex(
         (token: { symbol?: string; address: string }) =>
           token.symbol === 'MON' || token.address.toLowerCase() === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
-      )
+      );
 
-      // Format MON balance
-      // Balance comes as raw string from API, need to parse carefully
-      const monBalance = monToken
-        ? (() => {
-            try {
-              // Try to parse as bigint first (raw balance)
-              const balanceBigInt = BigInt(monToken.balance)
-              return parseFloat(formatUnits(balanceBigInt, monToken.decimals)).toFixed(1)
-            } catch {
-              // If already formatted, just parse and format
-              return parseFloat(monToken.balance).toFixed(1)
-            }
-          })()
-        : '0'
+      if (monTokenIndex !== -1) {
+        const monToken = balancesRes[monTokenIndex];
+        const monPricePerToken = parseFloat(monToken.usd_per_token || '0');
+        const monBalanceNum = parseFloat(monBalance);
 
-      // Parse USD value
-      const usdValue = parseFloat(portfolioValueRes.value || '0')
+        // Update MON token with fresh RPC balance and recalculated USD value
+        balancesRes[monTokenIndex] = {
+          ...monToken,
+          balance: monBalanceWei.toString(), // Raw wei value for BalancesTab parsing
+          usd_value: (monBalanceNum * monPricePerToken).toString(),
+        };
+      }
+
+      // Parse USD value from portfolio API
+      let usdValue = parseFloat(portfolioValueRes.value || '0');
+
+      // Validate portfolio value - if stale/invalid, calculate manually from tokens
+      if (!isValidPortfolioValue(usdValue)) {
+        console.warn(
+          '[useWalletBalance] Invalid portfolio value from API:',
+          portfolioValueRes.value,
+          '- calculating from individual tokens'
+        );
+        usdValue = calculateTotalUsdFromTokens(balancesRes);
+      }
 
       // Save balance snapshot for 24h change tracking
       saveBalanceSnapshot(sessionData.delegator, usdValue)
@@ -139,7 +221,7 @@ export function useWalletBalance(): WalletBalanceData {
         setBalanceError(err instanceof Error ? err.message : 'Failed to fetch balance')
       }
     }
-  }, [isTokenReady, sessionData?.delegator, setWalletBalance, setBalanceError, setBalanceFetching, setBalanceLoading])
+  }, [isTokenReady, sessionData?.delegator, publicClient, setWalletBalance, setBalanceError, setBalanceFetching, setBalanceLoading])
 
   // Visibility detection: Adjust polling based on tab visibility
   useEffect(() => {

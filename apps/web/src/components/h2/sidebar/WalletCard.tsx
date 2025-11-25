@@ -39,6 +39,9 @@ export function WalletCard({ balance, change24h, address, monBalance }: WalletCa
   }, [])
 
   const formatMON = useCallback((value: number) => {
+    // Show more decimals for small values, fewer for large
+    if (value < 1) return value.toFixed(4)
+    if (value < 100) return value.toFixed(2)
     return value.toFixed(1)
   }, [])
 
@@ -168,21 +171,23 @@ export function WalletCard({ balance, change24h, address, monBalance }: WalletCa
       </div>
 
       {/* Simplified Stats - Only MON */}
-      <div className="pt-4 mt-4 border-t border-white/10">
-        <div>
-          <div className="text-xs uppercase tracking-wider mb-1 text-white/40">
-            MON Balance
-          </div>
-          <div className="text-lg font-mono font-semibold text-white">
-            <OdometerNumber
-              value={parseFloat(monBalance) || 0}
-              format={formatMON}
-              duration={0.5}
-            />
-            {' '}MON
+      {balanceVisible && (
+        <div className="pt-4 mt-4 border-t border-white/10">
+          <div>
+            <div className="text-xs uppercase tracking-wider mb-1 text-white/40">
+              MON Balance
+            </div>
+            <div className="text-lg font-mono font-semibold text-white">
+              <OdometerNumber
+                value={parseFloat(monBalance) || 0}
+                format={formatMON}
+                duration={0.5}
+              />
+              {' '}MON
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

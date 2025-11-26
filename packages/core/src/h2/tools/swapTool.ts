@@ -13,7 +13,7 @@ import {
   type QuoteRequestParams,
   type MonorailPathfinderConfig,
 } from "../../monorail/pathfinder.js";
-import { resolveTokenFromAllowlist, type AllowedToken } from "../../monorail/tokens.js";
+import { type AllowedToken } from "../../monorail/tokens.js";
 import { createErrorFromCode } from "../../errors/index.js";
 
 // ============================================================================
@@ -22,6 +22,44 @@ import { createErrorFromCode } from "../../errors/index.js";
 
 // TODO: Protocol fee disabled until FeeEnforcer caveat is implemented
 // const PROTOCOL_FEE_BPS = 50; // 0.5% = 50 basis points
+
+/**
+ * Resolve token from allowlist with proxy-based fallback for browser context.
+ * Uses /api/monorail/token proxy to avoid CORS issues with direct Monorail Data API calls.
+ */
+async function resolveTokenWithProxy(
+  input: string,
+  allowedTokens: AllowedToken[]
+): Promise<AllowedToken | undefined> {
+  const trimmed = input.trim();
+  if (!trimmed) return undefined;
+  const lower = trimmed.toLowerCase();
+
+  // 1. Check allowlist by symbol (fast path)
+  let token = allowedTokens.find((t) => t.symbol?.toLowerCase() === lower);
+  if (token) return token;
+
+  // 2. Check allowlist by address
+  if (trimmed.startsWith("0x")) {
+    token = allowedTokens.find((t) => t.address.toLowerCase() === lower);
+    if (token) return token;
+
+    // 3. Fallback: Fetch from Monorail via proxy (avoids CORS)
+    try {
+      const checksumAddress = getAddress(trimmed as Address);
+      const response = await fetch(`/api/monorail/token?address=${checksumAddress}`);
+
+      if (response.ok) {
+        return await response.json() as AllowedToken;
+      }
+      // 404 = token not found, return undefined
+    } catch {
+      // Proxy error, return undefined
+    }
+  }
+
+  return undefined;
+}
 
 /**
  * Get Monorail configuration from environment
@@ -60,16 +98,9 @@ export const swapTool = tool(
         });
       }
 
-      // Monorail config for on-demand token lookup
-      const monorailOptions = {
-        apiKey: process.env.MONORAIL_API_KEY || process.env.NEXT_PUBLIC_MONORAIL_API_KEY,
-        dataApiUrl: process.env.MONORAIL_DATA_API_URL || "https://testnet-api.monorail.xyz/v1",
-        fetch,
-      };
-
-      // Resolve token symbols to addresses (async with API fallback)
-      const resolvedFromToken = await resolveTokenFromAllowlist(fromToken, allowedTokens, monorailOptions);
-      const resolvedToToken = await resolveTokenFromAllowlist(toToken, allowedTokens, monorailOptions);
+      // Resolve token symbols to addresses (uses proxy for unknown tokens to avoid CORS)
+      const resolvedFromToken = await resolveTokenWithProxy(fromToken, allowedTokens);
+      const resolvedToToken = await resolveTokenWithProxy(toToken, allowedTokens);
 
       if (!resolvedFromToken) {
         throw createErrorFromCode("TOKEN_NOT_IN_ALLOWLIST", {

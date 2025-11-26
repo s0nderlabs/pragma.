@@ -16,17 +16,9 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { formatUnits, parseUnits, getAddress, type Address } from "viem";
 
-import { fetchWalletBalances, normalizeBalances } from "../../monorail/balances.js";
+import { normalizeBalances } from "../../monorail/balances.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import { emitProgress } from "../progress/emitter.js";
-
-// ============================================================================
-// Configuration
-// ============================================================================
-
-const MONORAIL_DATA_API_URL =
-  process.env.MONORAIL_DATA_API_URL || "https://testnet-api.monorail.xyz/v1";
-const MONORAIL_API_KEY = process.env.MONORAIL_API_KEY || process.env.MONORAIL_APP_ID;
 
 // ============================================================================
 // Helper Functions
@@ -100,12 +92,16 @@ export const getAllBalancesTool = tool(
       // Progress: Fetching balances
       emitProgress("Fetching your portfolio from Monad...");
 
-      // Fetch all balances from Monorail API (single call)
-      const rawBalances = await fetchWalletBalances(getAddress(userAddress), {
-        dataApiUrl: MONORAIL_DATA_API_URL,
-        apiKey: MONORAIL_API_KEY,
-      });
+      // Fetch all balances via proxy (avoids CORS issues with direct Monorail calls)
+      const checksummedAddress = getAddress(userAddress);
+      const response = await fetch(`/api/monorail/balances?address=${checksummedAddress}`);
 
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => response.statusText);
+        throw new Error(`Failed to fetch balances: ${errorText}`);
+      }
+
+      const rawBalances = await response.json();
       const balances = normalizeBalances(rawBalances);
 
       // Progress: Calculating values

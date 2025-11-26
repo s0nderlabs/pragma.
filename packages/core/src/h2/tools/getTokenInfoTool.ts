@@ -1,7 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { getAddress, type Address, erc20Abi } from "viem";
-import { fetchSingleTokenFromMonorail, type AllowedToken } from "../../monorail/tokens.js";
+import { type AllowedToken } from "../../monorail/tokens.js";
 
 /**
  * getTokenInfoTool - Get detailed information about any token (verified or unverified)
@@ -121,8 +121,6 @@ export const getTokenInfoTool = tool(
     const { token } = input;
     const allowedTokens = (config?.configurable?.allowedTokens as AllowedToken[]) || [];
     const publicClient = config?.configurable?.publicClient;
-    const dataApiUrl = config?.configurable?.dataApiUrl as string | undefined;
-    const apiKey = config?.configurable?.apiKey as string | undefined;
 
     // =========================================================================
     // Tier 1: Check allowedTokens (verified tokens)
@@ -133,26 +131,27 @@ export const getTokenInfoTool = tool(
     }
 
     // =========================================================================
-    // Tier 2: Try Monorail API (may have unverified tokens)
+    // Tier 2: Try Monorail API via proxy (may have unverified tokens)
     // =========================================================================
     if (token.startsWith("0x")) {
       try {
         const checksumAddress = getAddress(token as Address);
 
-        if (dataApiUrl) {
-          const apiToken = await fetchSingleTokenFromMonorail(
-            checksumAddress,
-            { dataApiUrl, apiKey }
-          );
+        // Use proxy to avoid CORS issues with direct Monorail Data API calls
+        const response = await fetch(`/api/monorail/token?address=${checksumAddress}`);
+
+        if (response.ok) {
+          const apiToken = await response.json() as AllowedToken;
 
           if (apiToken) {
             const isVerified = apiToken.categories?.includes("verified") ?? false;
             return formatUnverifiedToken(apiToken, isVerified);
           }
         }
+        // 404 means token not found in Monorail, continue to onchain
       } catch (error) {
-        // Invalid address or Monorail API error, continue to onchain
-        console.error("[getTokenInfoTool] Monorail API error:", error);
+        // Proxy or API error, continue to onchain
+        console.error("[getTokenInfoTool] Token lookup error:", error);
       }
     }
 

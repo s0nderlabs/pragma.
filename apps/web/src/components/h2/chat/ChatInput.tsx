@@ -176,7 +176,7 @@ export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInpu
             placeholder={placeholder}
             disabled={tokensLoading}
             rows={1}
-            className="flex-1 bg-transparent resize-none outline-none text-sm lg:text-base h-6 max-h-[200px] leading-6 py-0 m-0 self-center placeholder:opacity-50 disabled:opacity-50"
+            className="flex-1 bg-transparent resize-none outline-none text-base h-6 max-h-[200px] leading-6 py-0 m-0 self-center placeholder:opacity-50 disabled:opacity-50"
             style={{ overflow: 'hidden' }}
           />
 

@@ -118,6 +118,62 @@ export const getBalanceTool = tool(
       const rawBalances = await response.json();
       const balances = normalizeBalances(rawBalances);
 
+      // RPC fallback: Always fetch native MON balance directly from blockchain
+      // This handles stale/empty Monorail API responses
+      let rpcMonBalance = 0n;
+      let rpcMonFormatted = "0";
+      if (publicClient) {
+        try {
+          rpcMonBalance = await publicClient.getBalance({
+            address: checksummedAddress,
+          });
+          rpcMonFormatted = formatUnits(rpcMonBalance, 18);
+        } catch (rpcError) {
+          // RPC failed, continue with Monorail data only
+          console.warn("[getBalance] RPC MON balance fetch failed:", rpcError);
+        }
+      }
+
+      // Find MON in Monorail response
+      const monTokenIndex = balances.findIndex(
+        (bal) => bal.symbol === "MON" || bal.address.toLowerCase() === MON_ADDRESS.toLowerCase()
+      );
+
+      // If MON not in Monorail response but RPC shows balance, create synthetic entry
+      if (monTokenIndex === -1 && rpcMonBalance > 0n) {
+        // Fetch MON price for USD calculation
+        let monPrice = 0;
+        try {
+          const priceResponse = await fetchFn("/api/monorail/price");
+          if (priceResponse.ok) {
+            const priceData = await priceResponse.json();
+            monPrice = parseFloat(priceData.price || "0");
+          }
+        } catch {
+          // Price fetch failed, continue without USD value
+        }
+
+        const monBalanceNum = parseFloat(rpcMonFormatted);
+        balances.push({
+          address: MON_ADDRESS,
+          symbol: "MON",
+          name: "Monad",
+          decimals: 18,
+          balance: rpcMonBalance.toString(),
+          usdPerToken: monPrice > 0 ? monPrice.toString() : undefined,
+          monValue: undefined,
+          categories: ["verified", "native"],
+        });
+      } else if (monTokenIndex !== -1 && rpcMonBalance > 0n) {
+        // MON exists in Monorail but update with fresh RPC balance
+        const existingMon = balances[monTokenIndex];
+        const monPrice = existingMon.usdPerToken ? parseFloat(existingMon.usdPerToken) : 0;
+        balances[monTokenIndex] = {
+          ...existingMon,
+          balance: rpcMonBalance.toString(),
+        };
+      }
+
       // Check if user wants all balances
       if (tokenNormalized === "ALL") {
         // Helper function to safely convert balance to BigInt

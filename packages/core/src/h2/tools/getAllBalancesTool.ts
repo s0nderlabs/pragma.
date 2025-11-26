@@ -14,11 +14,14 @@
 
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { formatUnits, parseUnits, getAddress, type Address } from "viem";
+import { formatUnits, parseUnits, getAddress, type Address, type PublicClient } from "viem";
 
 import { normalizeBalances } from "../../monorail/balances.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import { emitProgress } from "../progress/emitter.js";
+
+// Native MON token address (0x0... represents native token)
+const MON_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 // ============================================================================
 // Helper Functions
@@ -80,8 +83,9 @@ const safeBalanceToBigInt = (balanceStr: string, decimals: number): bigint => {
 export const getAllBalancesTool = tool(
   async (_input, config) => {
     try {
-      // Get user address from config
+      // Get user address and public client from config
       const userAddress = config?.configurable?.userAddress as Address | undefined;
+      const publicClient = config?.configurable?.publicClient as PublicClient | undefined;
 
       if (!userAddress) {
         throw createErrorFromCode("SESSION_INCOMPLETE", {
@@ -105,6 +109,56 @@ export const getAllBalancesTool = tool(
 
       const rawBalances = await response.json();
       const balances = normalizeBalances(rawBalances);
+
+      // RPC fallback: Always fetch native MON balance directly from blockchain
+      // This handles stale/empty Monorail API responses
+      if (publicClient) {
+        try {
+          const rpcMonBalance = await publicClient.getBalance({
+            address: checksummedAddress,
+          });
+
+          // Find MON in Monorail response
+          const monTokenIndex = balances.findIndex(
+            (bal) => bal.symbol === "MON" || bal.address.toLowerCase() === MON_ADDRESS.toLowerCase()
+          );
+
+          // If MON not in Monorail response but RPC shows balance, create synthetic entry
+          if (monTokenIndex === -1 && rpcMonBalance > 0n) {
+            // Fetch MON price for USD calculation
+            let monPrice = 0;
+            try {
+              const priceResponse = await fetchFn("/api/monorail/price");
+              if (priceResponse.ok) {
+                const priceData = await priceResponse.json();
+                monPrice = parseFloat(priceData.price || "0");
+              }
+            } catch {
+              // Price fetch failed, continue without USD value
+            }
+
+            balances.push({
+              address: MON_ADDRESS,
+              symbol: "MON",
+              name: "Monad",
+              decimals: 18,
+              balance: rpcMonBalance.toString(),
+              usdPerToken: monPrice > 0 ? monPrice.toString() : undefined,
+              monValue: undefined,
+              categories: ["verified", "native"],
+            });
+          } else if (monTokenIndex !== -1 && rpcMonBalance > 0n) {
+            // MON exists in Monorail but update with fresh RPC balance
+            balances[monTokenIndex] = {
+              ...balances[monTokenIndex],
+              balance: rpcMonBalance.toString(),
+            };
+          }
+        } catch (rpcError) {
+          // RPC failed, continue with Monorail data only
+          console.warn("[getAllBalances] RPC MON balance fetch failed:", rpcError);
+        }
+      }
 
       // Progress: Calculating values
       emitProgress("Calculating USD values...");

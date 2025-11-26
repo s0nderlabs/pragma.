@@ -23,7 +23,7 @@ interface DisplayToken {
 }
 
 export function BalancesTab() {
-  const { allTokens, isLoading, error, refresh } = useWalletBalance();
+  const { allTokens, error, refresh } = useWalletBalance();
   const setBalanceRefreshCallback = useH2ChatStore((state) => state.setBalanceRefreshCallback);
   const [showDust, setShowDust] = useState(false);
 
@@ -124,30 +124,6 @@ export function BalancesTab() {
     if (num < 0.01) return '<$0.01';
     return `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
-
-  // Loading skeleton
-  if (isLoading) {
-    return (
-      <div className="flex flex-col gap-3 p-4">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div
-            key={i}
-            className="flex items-center gap-3 p-3 rounded-lg bg-[#1A1D23] animate-pulse"
-          >
-            <div className="w-10 h-10 rounded-full bg-[#252930]" />
-            <div className="flex-1 space-y-2">
-              <div className="h-4 bg-[#252930] rounded w-24" />
-              <div className="h-3 bg-[#252930] rounded w-16" />
-            </div>
-            <div className="text-right space-y-2">
-              <div className="h-4 bg-[#252930] rounded w-20" />
-              <div className="h-3 bg-[#252930] rounded w-16" />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
 
   // Error state
   if (error) {

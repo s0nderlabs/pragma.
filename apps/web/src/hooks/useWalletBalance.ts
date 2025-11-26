@@ -233,6 +233,22 @@ export function useWalletBalance(): WalletBalanceData {
         }
       }
 
+      // If MON balance exists but wasn't in API response, create synthetic entry
+      // This handles stale/empty Monorail API responses while RPC has fresh balance
+      if (monTokenIndex === -1 && monBalanceNum > 0) {
+        const syntheticMonPrice = monBalanceNum > 0 ? usdValue / monBalanceNum : 0;
+        balancesRes.push({
+          address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+          symbol: 'MON',
+          name: 'Monad',
+          decimals: 18,
+          balance: monBalanceWei.toString(),
+          usd_per_token: syntheticMonPrice.toString(),
+          usd_value: usdValue.toString(),
+          categories: ['verified', 'native'],
+        });
+      }
+
       // Save balance snapshot for 24h change tracking
       saveBalanceSnapshot(sessionData.delegator, usdValue)
 

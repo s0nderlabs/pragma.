@@ -11,32 +11,33 @@
  * Individual API routes still need to call authMiddleware() for authentication.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
 /**
  * Allowed origins for API requests
  * Add your production domains here
  */
 const ALLOWED_ORIGINS =
-  process.env.NODE_ENV === 'production'
+  process.env.NODE_ENV === "production"
     ? [
-        'https://pragma.app', // Production
-        'https://www.pragma.app',
+        "https://pr4gma.xyz", // Production
+        "https://dev.pr4gma.xyz", // Development Live
+        "https://www.pr4gma.xyz",
         // Add other production domains as needed
       ]
     : [
-        'http://localhost:3000', // Development
-        'http://localhost:3001',
-        'http://127.0.0.1:3000',
+        "http://localhost:3000", // Development
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
       ];
 
 /**
  * Rate limiting configuration
  */
 const RATE_LIMIT_CONFIG = {
-  enabled: process.env.RATE_LIMIT_ENABLED !== 'false', // Default: enabled
+  enabled: process.env.RATE_LIMIT_ENABLED !== "false", // Default: enabled
   windowMs: 60 * 1000, // 1 minute
-  maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
+  maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || "100", 10),
   maxAuthFailures: 3, // Max failed auth attempts before blocking
 };
 
@@ -44,22 +45,28 @@ const RATE_LIMIT_CONFIG = {
  * In-memory rate limit store
  * Production: Use Redis or similar distributed cache
  */
-const rateLimitStore = new Map<string, { count: number; resetAt: number; authFailures: number }>();
+const rateLimitStore = new Map<
+  string,
+  { count: number; resetAt: number; authFailures: number }
+>();
 
 /**
  * Get client identifier for rate limiting
  * Uses IP address (X-Forwarded-For or fallback)
  */
 function getClientId(request: NextRequest): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',')[0].trim() : 'unknown';
+  const forwarded = request.headers.get("x-forwarded-for");
+  const ip = forwarded ? forwarded.split(",")[0].trim() : "unknown";
   return ip;
 }
 
 /**
  * Check rate limit for a client
  */
-function checkRateLimit(clientId: string): { allowed: boolean; remaining: number } {
+function checkRateLimit(clientId: string): {
+  allowed: boolean;
+  remaining: number;
+} {
   if (!RATE_LIMIT_CONFIG.enabled) {
     return { allowed: true, remaining: RATE_LIMIT_CONFIG.maxRequests };
   }
@@ -115,8 +122,8 @@ function isOriginAllowed(origin: string | null): boolean {
     // Exact match
     if (origin === allowed) return true;
     // Allow subdomains in production
-    if (process.env.NODE_ENV === 'production') {
-      return origin.endsWith('.pragma.app');
+    if (process.env.NODE_ENV === "production") {
+      return origin.endsWith(".pragma.app");
     }
     return false;
   });
@@ -129,7 +136,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Only apply to API routes
-  if (!pathname.startsWith('/api/')) {
+  if (!pathname.startsWith("/api/")) {
     return NextResponse.next();
   }
 
@@ -137,23 +144,25 @@ export async function middleware(request: NextRequest) {
   // 1. CORS / Origin Validation
   // ============================================================================
 
-  const origin = request.headers.get('origin');
-  const referer = request.headers.get('referer');
+  const origin = request.headers.get("origin");
+  const referer = request.headers.get("referer");
 
   // Check origin for non-GET requests
-  if (request.method !== 'GET' && request.method !== 'HEAD') {
+  if (request.method !== "GET" && request.method !== "HEAD") {
     if (!isOriginAllowed(origin)) {
-      console.warn(`[Middleware] Blocked request from unauthorized origin: ${origin}`);
+      console.warn(
+        `[Middleware] Blocked request from unauthorized origin: ${origin}`
+      );
       return NextResponse.json(
         {
-          error: 'Forbidden',
-          message: 'Origin not allowed',
-          code: 'INVALID_ORIGIN',
+          error: "Forbidden",
+          message: "Origin not allowed",
+          code: "INVALID_ORIGIN",
         },
         {
           status: 403,
           headers: {
-            'Access-Control-Allow-Origin': 'null',
+            "Access-Control-Allow-Origin": "null",
           },
         }
       );
@@ -195,22 +204,22 @@ export async function middleware(request: NextRequest) {
   // 3. Handle preflight (OPTIONS) requests
   // ============================================================================
 
-  if (request.method === 'OPTIONS') {
+  if (request.method === "OPTIONS") {
     return new NextResponse(null, {
       status: 204,
       headers: {
-        'Access-Control-Allow-Origin': origin || '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': [
-          'Content-Type',
-          'Authorization',
-          'X-Auth-Token',
-          'X-Wallet-Address',
-          'X-Wallet-Signature',
-          'X-Request-Timestamp',
-          'X-Request-Nonce',
-        ].join(', '),
-        'Access-Control-Max-Age': '86400', // 24 hours
+        "Access-Control-Allow-Origin": origin || "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": [
+          "Content-Type",
+          "Authorization",
+          "X-Auth-Token",
+          "X-Wallet-Address",
+          "X-Wallet-Signature",
+          "X-Request-Timestamp",
+          "X-Request-Nonce",
+        ].join(", "),
+        "Access-Control-Max-Age": "86400", // 24 hours
       },
     });
   }
@@ -223,19 +232,22 @@ export async function middleware(request: NextRequest) {
 
   // CORS headers
   if (isOriginAllowed(origin)) {
-    response.headers.set('Access-Control-Allow-Origin', origin!);
-    response.headers.set('Access-Control-Allow-Credentials', 'true');
+    response.headers.set("Access-Control-Allow-Origin", origin!);
+    response.headers.set("Access-Control-Allow-Credentials", "true");
   }
 
   // Security headers
-  response.headers.set('X-Content-Type-Options', 'nosniff');
-  response.headers.set('X-Frame-Options', 'DENY');
-  response.headers.set('X-XSS-Protection', '1; mode=block');
-  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("X-XSS-Protection", "1; mode=block");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
 
   // Rate limit headers
-  response.headers.set('X-RateLimit-Limit', String(RATE_LIMIT_CONFIG.maxRequests));
-  response.headers.set('X-RateLimit-Remaining', String(rateLimit.remaining));
+  response.headers.set(
+    "X-RateLimit-Limit",
+    String(RATE_LIMIT_CONFIG.maxRequests)
+  );
+  response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining));
 
   return response;
 }
@@ -244,5 +256,5 @@ export async function middleware(request: NextRequest) {
  * Configure which routes the middleware runs on
  */
 export const config = {
-  matcher: '/api/:path*',
+  matcher: "/api/:path*",
 };

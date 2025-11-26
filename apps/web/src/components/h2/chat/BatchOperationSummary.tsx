@@ -12,6 +12,7 @@ import { motion } from 'framer-motion'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import { Check, Loader2, XCircle, Clock } from 'lucide-react'
+import { MONAD_BLOCK_EXPLORER_URL } from '@/lib/config'
 
 export interface BatchOperation {
   id: string
@@ -143,7 +144,7 @@ export function BatchOperationSummary({ operations, title = 'Batch Operations' }
                 {/* Transaction Hash */}
                 {op.txHash && (
                   <a
-                    href={`https://testnet.monadexplorer.com/tx/${op.txHash}`}
+                    href={`${MONAD_BLOCK_EXPLORER_URL}/tx/${op.txHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-cyan-400 hover:underline mt-1 inline-block"

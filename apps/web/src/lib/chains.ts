@@ -6,6 +6,7 @@
  */
 
 import { defineChain } from 'viem';
+import { MONAD_BLOCK_EXPLORER_URL } from './config';
 
 /**
  * Monad Devnet / Testnet Configuration
@@ -38,7 +39,7 @@ export const monadDevnet = defineChain({
   blockExplorers: {
     default: {
       name: "Monad Explorer",
-      url: "https://testnet.monadexplorer.com",
+      url: MONAD_BLOCK_EXPLORER_URL,
     },
   },
   testnet: true,

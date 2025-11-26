@@ -5,6 +5,7 @@ import { createReadOnlyPublicClient } from "@pragma/core/clients/publicClient";
 
 import {
   MONAD_CHAIN_ID,
+  MONAD_BLOCK_EXPLORER_URL,
   MONAD_NATIVE_TOKEN_SYMBOL,
   MONAD_READ_RPC_URL,
   MONAD_EXECUTION_RPC_URL,
@@ -26,7 +27,7 @@ export const monadChain: Chain = {
   blockExplorers: {
     default: {
       name: "Monad Explorer",
-      url: "https://testnet.monadexplorer.com",
+      url: MONAD_BLOCK_EXPLORER_URL,
     },
   },
 };

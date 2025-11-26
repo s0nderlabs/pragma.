@@ -12,6 +12,7 @@ import {
   shortenAddress,
   formatRelativeTime,
 } from '@/lib/h2/delegationHelpers'
+import { MONAD_BLOCK_EXPLORER_URL } from '@/lib/config'
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion'
 import {
   modalContentVariants,
@@ -86,7 +87,7 @@ export function ActivityDetailModal({ activity, open, onClose }: ActivityDetailM
   if (!activity) return null
 
   const explorerUrl = activity.txHash
-    ? `https://testnet.monadexplorer.com/tx/${activity.txHash}`
+    ? `${MONAD_BLOCK_EXPLORER_URL}/tx/${activity.txHash}`
     : null
 
   return (
@@ -275,7 +276,7 @@ export function ActivityDetailModal({ activity, open, onClose }: ActivityDetailM
                         </code>
                         <CopyButton value={activity.recipientAddress} field="recipient" />
                         <a
-                          href={`https://testnet.monadexplorer.com/address/${activity.recipientAddress}`}
+                          href={`${MONAD_BLOCK_EXPLORER_URL}/address/${activity.recipientAddress}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="p-1.5 hover:bg-white/5 rounded transition-colors"
@@ -504,7 +505,7 @@ export function ActivityDetailModal({ activity, open, onClose }: ActivityDetailM
                           </code>
                           <CopyButton value={delegation.target} field={`contract-${idx}`} />
                           <a
-                            href={`https://testnet.monadexplorer.com/address/${delegation.target}`}
+                            href={`${MONAD_BLOCK_EXPLORER_URL}/address/${delegation.target}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-1.5 hover:bg-white/5 rounded transition-colors"

@@ -14,6 +14,7 @@ import { useThemeStore } from '@/stores/useThemeStore'
 import { LiquidGlassPanel } from '@/components/ui/liquid-glass'
 import { Wallet, ArrowDownToLine, ArrowUpFromLine, Key, Copy, Check, ExternalLink } from 'lucide-react'
 import { formatEther, type Address } from 'viem'
+import { MONAD_BLOCK_EXPLORER_URL } from '@/lib/config'
 
 interface SessionKeyStatusProps {
   onFund?: () => void
@@ -94,7 +95,7 @@ export function SessionKeyStatus({ onFund, onWithdraw, onExportKey }: SessionKey
             </button>
           </div>
           <a
-            href={`https://testnet.monadexplorer.com/address/${sessionKeyAddress}`}
+            href={`${MONAD_BLOCK_EXPLORER_URL}/address/${sessionKeyAddress}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs text-cyan-400 hover:underline flex items-center gap-1 mt-1"

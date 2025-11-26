@@ -1,4 +1,5 @@
 import type { AnyMessage } from '@/lib/h2/types'
+import { MONAD_BLOCK_EXPLORER_URL } from '@/lib/config'
 
 export interface ActivityRecord {
   id: string
@@ -474,9 +475,9 @@ export function shortenTxHash(txHash?: string): string {
 }
 
 /**
- * Get Monad testnet block explorer URL
+ * Get Monad block explorer URL for a transaction
  */
 export function getExplorerUrl(txHash?: string): string | null {
   if (!txHash) return null
-  return `https://testnet.monadexplorer.com/tx/${txHash}`
+  return `${MONAD_BLOCK_EXPLORER_URL}/tx/${txHash}`
 }

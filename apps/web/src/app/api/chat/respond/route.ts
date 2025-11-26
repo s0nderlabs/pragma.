@@ -49,7 +49,7 @@ const monadChain = {
   blockExplorers: {
     default: {
       name: "Monad Explorer",
-      url: "https://testnet.monadexplorer.com",
+      url: MONAD_BLOCK_EXPLORER_URL,
     },
   },
 } as const;
@@ -337,6 +337,7 @@ const handleQuickAction = async (
 
 import {
   MONAD_CHAIN_ID,
+  MONAD_BLOCK_EXPLORER_URL,
   MONAD_NATIVE_TOKEN_ADDRESS,
   MONAD_NATIVE_TOKEN_SYMBOL,
   MONAD_RPC_URL,

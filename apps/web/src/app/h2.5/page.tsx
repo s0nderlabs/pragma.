@@ -8,6 +8,7 @@ import { useEffect } from 'react'
 import { H2Layout } from '@/components/h2/layout/H2Layout'
 import { AgentProvider } from '@/contexts/H2AgentContext'
 import { useH2_5Agent } from '@/hooks/useH2.5Agent'
+import { QuickstartModal } from '@/components/h2/onboarding'
 import '@/components/ui/terminal/terminal-theme.css'
 
 /**
@@ -45,6 +46,7 @@ export default function H25Page() {
     <AgentProvider hook={useH2_5Agent}>
       <div className="min-h-screen bg-background">
         <H2Layout />
+        <QuickstartModal />
       </div>
     </AgentProvider>
   )

@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { useH2Session } from '@/hooks/useH2Session'
 import { ExportSessionKeyModal } from '@/components/h2/session/ExportSessionKeyModal'
-import { Moon, Sun, LogOut, Loader2, Copy, Check, Key, Keyboard } from 'lucide-react'
+import { Moon, Sun, LogOut, Loader2, Copy, Check, Key, Keyboard, FileText } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useShortcutPanelStore } from '@/stores/useShortcutPanelStore'
 
@@ -285,6 +285,44 @@ export function SettingsTab({ status, wallet, connect, disconnect }: SettingsTab
             Alt+K
           </kbd>
         </button>
+      </motion.div>
+
+      {/* Terms & Agreement */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className={cn(
+          "p-5 rounded-[24px]",
+          "transition-colors duration-200 border",
+          "bg-white/10",
+          "border-white/10"
+        )}
+      >
+        <div className="text-sm font-medium text-white mb-4">
+          Legal
+        </div>
+
+        <a
+          href="https://pr4gma.xyz/terms"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            "w-full py-2.5 px-4 rounded-[12px]",
+            "flex items-center justify-between",
+            "text-sm font-medium",
+            "transition-all duration-200",
+            "bg-white/5 hover:bg-white/10",
+            "border border-white/10",
+            "text-white/80 hover:text-white"
+          )}
+        >
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            <span>View Terms</span>
+          </div>
+          <span className="text-xs text-white/40">Beta v1.0</span>
+        </a>
       </motion.div>
 
       {/* Export Session Key Modal */}

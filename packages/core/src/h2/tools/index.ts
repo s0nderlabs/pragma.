@@ -37,6 +37,9 @@ import { unstakeRequestTool } from "./unstakeRequestTool.js";
 import { unstakeClaimTool } from "./unstakeClaimTool.js";
 import { checkUnstakeStatusTool } from "./checkUnstakeStatusTool.js";
 
+// Easter Egg Tools
+import { vibetradingTool } from "./vibetradingTool.js";
+
 // ============================================================================
 // Tool Registry
 // ============================================================================
@@ -93,6 +96,9 @@ export const h2ToolRegistry = [
   unstakeRequestTool,
   unstakeClaimTool,
   checkUnstakeStatusTool,
+
+  // Easter egg tools
+  vibetradingTool,
 ] as const;
 
 /**
@@ -133,4 +139,7 @@ export {
   unstakeRequestTool,
   unstakeClaimTool,
   checkUnstakeStatusTool,
+
+  // Easter egg tools
+  vibetradingTool,
 };

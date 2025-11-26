@@ -2,7 +2,7 @@
 
 import { useH2Onboarding } from '@/hooks/useH2Onboarding'
 import { useIdentity } from '@/hooks/useIdentity'
-import { MobileHeader } from './MobileHeader'
+import { MobileSidebarToggle } from './MobileSidebarToggle'
 import { ChatContainer } from './ChatContainer'
 import { H2ErrorBoundary } from '../ErrorBoundary'
 
@@ -24,7 +24,7 @@ import { H2ErrorBoundary } from '../ErrorBoundary'
  *
  * Components:
  * - Background: Iridescence shader (z-0)
- * - MobileHeader: Hamburger menu (z-40, mobile only)
+ * - MobileSidebarToggle: Floating toggle (z-50, mobile only, Arc browser style)
  * - ChatContainer: Fullscreen glass panel with sidebar + chat (z-20)
  */
 export function H2Layout() {
@@ -36,11 +36,11 @@ export function H2Layout() {
 
   return (
     <div className="relative min-h-screen overflow-hidden">
-      {/* Mobile Header (z-40, mobile only) */}
-      <MobileHeader />
+      {/* Mobile Floating Toggle (z-50, mobile only, Arc browser style) */}
+      <MobileSidebarToggle />
 
-      {/* Main Content Area (z-20) */}
-      <div className="relative z-20 h-screen pt-16 lg:pt-0">
+      {/* Main Content Area (z-20) - no top padding on mobile now */}
+      <div className="relative z-20 h-screen">
         <H2ErrorBoundary>
           {/* Always show chat interface - login via sidebar */}
           <ChatContainer

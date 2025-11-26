@@ -8,6 +8,7 @@ import { ExportSessionKeyModal } from '@/components/h2/session/ExportSessionKeyM
 import { Moon, Sun, LogOut, Loader2, Copy, Check, Key, Keyboard, FileText } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useShortcutPanelStore } from '@/stores/useShortcutPanelStore'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 interface SettingsTabProps {
   status: string
@@ -31,6 +32,7 @@ export function SettingsTab({ status, wallet, connect, disconnect }: SettingsTab
   const [copied, setCopied] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [showExportModal, setShowExportModal] = useState(false)
+  const isMobile = useIsMobile()
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -242,50 +244,52 @@ export function SettingsTab({ status, wallet, connect, disconnect }: SettingsTab
         </div>
       </motion.div>
 
-      {/* Keyboard Shortcuts */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className={cn(
-          "p-5 rounded-[24px]",
-          "transition-colors duration-200 border",
-          "bg-white/10",
-          "border-white/10"
-        )}
-      >
-        <div className="text-sm font-medium text-white mb-4">
-          Keyboard Shortcuts
-        </div>
-
-        <button
-          onClick={openShortcutPanel}
+      {/* Keyboard Shortcuts - Desktop only */}
+      {!isMobile && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
           className={cn(
-            "w-full py-2.5 px-4 rounded-[12px]",
-            "flex items-center justify-between",
-            "text-sm font-medium",
-            "transition-all duration-200",
-            "bg-white/5 hover:bg-white/10",
-            "border border-white/10",
-            "text-white/80 hover:text-white"
+            "p-5 rounded-[24px]",
+            "transition-colors duration-200 border",
+            "bg-white/10",
+            "border-white/10"
           )}
         >
-          <div className="flex items-center gap-2">
-            <Keyboard className="w-4 h-4" />
-            <span>View All Shortcuts</span>
+          <div className="text-sm font-medium text-white mb-4">
+            Keyboard Shortcuts
           </div>
-          <kbd
+
+          <button
+            onClick={openShortcutPanel}
             className={cn(
-              "px-2 py-0.5 rounded-md",
-              "text-xs font-mono",
-              "bg-white/10",
-              "text-white/60"
+              "w-full py-2.5 px-4 rounded-[12px]",
+              "flex items-center justify-between",
+              "text-sm font-medium",
+              "transition-all duration-200",
+              "bg-white/5 hover:bg-white/10",
+              "border border-white/10",
+              "text-white/80 hover:text-white"
             )}
           >
-            Alt+K
-          </kbd>
-        </button>
-      </motion.div>
+            <div className="flex items-center gap-2">
+              <Keyboard className="w-4 h-4" />
+              <span>View All Shortcuts</span>
+            </div>
+            <kbd
+              className={cn(
+                "px-2 py-0.5 rounded-md",
+                "text-xs font-mono",
+                "bg-white/10",
+                "text-white/60"
+              )}
+            >
+              Alt+K
+            </kbd>
+          </button>
+        </motion.div>
+      )}
 
       {/* Terms & Agreement */}
       <motion.div

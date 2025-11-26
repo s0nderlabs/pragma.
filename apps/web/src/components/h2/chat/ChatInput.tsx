@@ -131,7 +131,10 @@ export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInpu
   }
 
   return (
-    <div className={cn("px-4 pt-4 pb-8 flex justify-center", className)}>
+    <div
+      className={cn("px-4 pt-4 pb-8 flex justify-center", className)}
+      style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 0px))' }}
+    >
       <div className="w-full max-w-4xl relative">
         {/* Main input container */}
         <div
@@ -171,15 +174,15 @@ export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInpu
             style={{ overflow: 'hidden' }}
           />
 
-          {/* Send Button */}
+          {/* Send Button - Icon only on mobile, text+hover arrow on desktop */}
           <button
             onClick={handleSend}
             disabled={!input.trim() || isStreaming || tokensLoading}
-            className="group relative flex-shrink-0 flex items-center justify-center gap-1 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full active:scale-[0.985] transition-all bg-black dark:bg-white text-white dark:text-black"
+            className="group relative flex-shrink-0 flex items-center justify-center gap-1 p-2.5 lg:px-5 lg:py-2.5 rounded-full active:scale-[0.985] transition-all bg-black dark:bg-white text-white dark:text-black"
             aria-label="Send message"
           >
-            <span className="hidden sm:inline text-sm font-medium">Send</span>
-            <ArrowUpRight className="w-0 h-5 overflow-hidden opacity-0 group-hover:w-5 group-hover:opacity-100 group-active:-rotate-45 transition-all duration-200" />
+            <span className="hidden lg:inline text-sm font-medium">Send</span>
+            <ArrowUpRight className="w-4 h-4 lg:w-0 lg:h-5 lg:overflow-hidden lg:opacity-0 lg:group-hover:w-5 lg:group-hover:opacity-100 group-active:-rotate-45 transition-all duration-200" />
           </button>
         </div>
 

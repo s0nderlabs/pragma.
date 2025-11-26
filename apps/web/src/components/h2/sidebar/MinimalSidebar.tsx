@@ -9,6 +9,7 @@ import { useThemeStore } from '@/stores/useThemeStore'
 import { useShortcutPanelStore } from '@/stores/useShortcutPanelStore'
 import { useWalletBalance } from '@/hooks/useWalletBalance'
 import { useNotificationStore } from '@/stores/useNotificationStore'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { WalletCard } from './WalletCard'
 import { SpaceNavigation } from './SpaceNavigation'
 import { ActivityTab } from './tabs/ActivityTab'
@@ -32,7 +33,8 @@ interface MinimalSidebarProps {
  * Drawer slide collapse with floating balance trigger
  */
 export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalSidebarProps) {
-  const { isOpen, toggle, toggleBalance } = useSidebarStore()
+  const { isOpen, toggle, toggleBalance, isMobileOpen, setMobileOpen } = useSidebarStore()
+  const isMobile = useIsMobile()
   const sessionData = useH2ChatStore((state) => state.sessionData)
   const setBalanceRefreshCallback = useH2ChatStore((state) => state.setBalanceRefreshCallback)
   const toggleQuickMode = useH2ChatStore((state) => state.toggleQuickMode)
@@ -309,6 +311,112 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
           </motion.aside>
         )}
       </AnimatePresence>
+
+      {/* Mobile Overlay - 80vw drawer (Apple-level experience) */}
+      {isMobile && (
+        <>
+          {/* Backdrop */}
+          <AnimatePresence>
+            {isMobileOpen && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
+                onClick={() => setMobileOpen(false)}
+              />
+            )}
+          </AnimatePresence>
+
+          {/* Mobile Sidebar Drawer - 80vw */}
+          <AnimatePresence>
+            {isMobileOpen && (
+              <motion.aside
+                initial={{ x: '-100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '-100%' }}
+                transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+                className="fixed left-0 top-0 bottom-0 z-50 w-[80vw] max-w-[380px]
+                  bg-[#2a2a2a] dark:bg-[#0a0a0a] border-r border-white/5 lg:hidden
+                  flex flex-col overflow-hidden"
+                style={{
+                  paddingTop: 'env(safe-area-inset-top, 0px)',
+                  paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+                }}
+              >
+                {/* Mobile Sidebar Content - tap backdrop to close */}
+                <div className="flex flex-col h-full">
+                  {/* Fixed Wallet Section */}
+                  <div className="flex-shrink-0">
+                    <WalletCard
+                      balance={walletData.balance}
+                      change24h={walletData.change24h}
+                      address={walletData.address}
+                      monBalance={walletData.monBalance}
+                    />
+                  </div>
+
+                  {/* Divider */}
+                  <div className="mx-6 h-px bg-black/5 dark:bg-white/10" />
+
+                  {/* Space Navigation */}
+                  <div className="flex-shrink-0 px-6 py-3">
+                    <SpaceNavigation
+                      activeTab={activeTab}
+                      onTabChange={setActiveTab}
+                    />
+                  </div>
+
+                  {/* Tab Content Area - Scrollable */}
+                  <div className="flex-1 overflow-y-auto px-6 pb-6">
+                    <AnimatePresence mode="wait">
+                      {activeTab === 'activity' && (
+                        <motion.div
+                          key="activity-mobile"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <ActivityTab />
+                        </motion.div>
+                      )}
+                      {activeTab === 'balances' && (
+                        <motion.div
+                          key="balances-mobile"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <BalancesTab />
+                        </motion.div>
+                      )}
+                      {activeTab === 'settings' && (
+                        <motion.div
+                          key="settings-mobile"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <SettingsTab
+                            status={status}
+                            wallet={wallet}
+                            connect={connect}
+                            disconnect={disconnect}
+                          />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+              </motion.aside>
+            )}
+          </AnimatePresence>
+        </>
+      )}
 
       {/* Copy notification toast */}
       <CopyNotification show={showCopy} />

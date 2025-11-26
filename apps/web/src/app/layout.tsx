@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist_Mono, IBM_Plex_Mono } from "next/font/google";
 
 import { ThemeProvider } from "../components/theme-provider";
@@ -22,11 +22,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Pragma Console",
   description: "HybridDelegator onboarding and delegated execution for Monad",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 5,
-  },
+};
+
+// Viewport configuration with safe area support for iOS notch/dynamic island
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover", // Enable safe area insets for iOS
 };
 
 export default function RootLayout({

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Keyboard, Compass, Zap, MessageSquare, HelpCircle, MousePointer, Lightbulb } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useShortcutPanelStore } from '@/stores/useShortcutPanelStore'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 interface ShortcutItem {
   winKey: string
@@ -89,6 +90,7 @@ const itemVariants = {
 export function ShortcutPanel() {
   const { isOpen, close } = useShortcutPanelStore()
   const [platform, setPlatform] = useState<'mac' | 'win'>('mac')
+  const isMobile = useIsMobile()
 
   // Detect platform on mount
   useEffect(() => {
@@ -108,6 +110,9 @@ export function ShortcutPanel() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, close])
+
+  // Don't render on mobile - keyboard shortcuts are desktop-only
+  if (isMobile) return null
 
   return (
     <AnimatePresence>

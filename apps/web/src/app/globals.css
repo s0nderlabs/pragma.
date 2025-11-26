@@ -3,6 +3,13 @@
 
 :root {
   color-scheme: light;
+
+  /* Safe Area Insets (iOS notch/dynamic island support) */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+
   /* Neo-Terminal Palette - Sophisticated Grayscale */
   --background: 0 0% 98%; /* #FAFAFA */
   --foreground: 0 0% 10%; /* #1A1A1A - Softer than pure black */

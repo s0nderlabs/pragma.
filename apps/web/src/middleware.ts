@@ -23,7 +23,7 @@ const ALLOWED_ORIGINS =
         "https://pr4gma.xyz", // Production
         "https://dev.pr4gma.xyz", // Development Live
         "https://www.pr4gma.xyz",
-        // Add other production domains as needed
+        "https://legacy.pr4gma.xyz", // Legacy H1 subdomain
       ]
     : [
         "http://localhost:3000", // Development
@@ -134,8 +134,19 @@ function isOriginAllowed(origin: string | null): boolean {
  */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const hostname = request.headers.get("host") || "";
 
-  // Only apply to API routes
+  // === SUBDOMAIN ROUTING FOR LEGACY ===
+  // legacy.pr4gma.xyz → /legacy/*
+  const isLegacySubdomain = hostname.startsWith("legacy.");
+
+  if (isLegacySubdomain && !pathname.startsWith("/legacy") && !pathname.startsWith("/api/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/legacy${pathname === "/" ? "" : pathname}`;
+    return NextResponse.rewrite(url);
+  }
+
+  // Only apply API middleware to API routes
   if (!pathname.startsWith("/api/")) {
     return NextResponse.next();
   }
@@ -256,5 +267,8 @@ export async function middleware(request: NextRequest) {
  * Configure which routes the middleware runs on
  */
 export const config = {
-  matcher: "/api/:path*",
+  matcher: [
+    // Match all routes except static files (for subdomain routing + API middleware)
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };

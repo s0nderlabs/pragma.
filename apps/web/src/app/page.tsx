@@ -1,34 +1,33 @@
-"use client";
+'use client'
 
-import Image from "next/image";
+// Import browser polyfills for LangChain compatibility
+// MUST be imported before any LangChain agent code
+import '@/lib/polyfills'
 
-import { AppShell } from "../components/app-shell";
-import { ChatConsole } from "../components/chat/chat-console";
+import { useEffect } from 'react'
+import { H2Layout } from '@/components/h2/layout/H2Layout'
+import { AgentProvider } from '@/contexts/H2AgentContext'
+import { useH2_5Agent } from '@/hooks/useH2.5Agent'
+import { QuickstartModal } from '@/components/h2/onboarding'
+import '@/components/ui/terminal/terminal-theme.css'
 
-export default function Page() {
+export default function HomePage() {
+  useEffect(() => {
+    // Override body background for this page to prevent globals.css interference
+    const originalBg = document.body.style.background
+    document.body.style.background = 'transparent'
+
+    return () => {
+      document.body.style.background = originalBg
+    }
+  }, [])
+
   return (
-    <AppShell>
-      <section className="flex w-full flex-col items-center justify-center px-3 md:px-0">
-        <div className="relative h-32 w-72 sm:w-80">
-          <Image
-            src="/pragma.svg"
-            alt="Pragma"
-            width={320}
-            height={125}
-            className="absolute inset-0 h-auto w-full drop-shadow-[0_12px_36px_rgba(var(--accent-rgb),0.25)] dark:hidden"
-            priority
-          />
-          <Image
-            src="/pragma-dark.svg"
-            alt="Pragma"
-            width={320}
-            height={125}
-            className="absolute inset-0 hidden h-auto w-full drop-shadow-[0_12px_36px_rgba(132,111,250,0.35)] dark:block"
-            priority
-          />
-        </div>
-        <ChatConsole />
-      </section>
-    </AppShell>
-  );
+    <AgentProvider hook={useH2_5Agent}>
+      <div className="min-h-screen bg-background">
+        <H2Layout />
+        <QuickstartModal />
+      </div>
+    </AgentProvider>
+  )
 }

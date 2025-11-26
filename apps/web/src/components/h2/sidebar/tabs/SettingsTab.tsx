@@ -86,8 +86,8 @@ export function SettingsTab({ status, wallet, connect, disconnect }: SettingsTab
         <div className="mt-4 space-y-3">
           {isConnected && wallet?.address ? (
             <>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
                   <span className="font-mono text-sm text-white/60">
                     {formatAddress(wallet.address)}
                   </span>

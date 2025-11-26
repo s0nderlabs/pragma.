@@ -82,11 +82,17 @@ export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInpu
     return randomPrompt || "What's the play?"
   }, [tokensLoading, isWalletConnected, messages.length, randomPrompt])
 
-  // Auto-resize textarea
+  // Auto-resize textarea - only apply scrollHeight when there's content
+  // When empty, let CSS control height for proper centering
   useEffect(() => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
+      if (input.trim()) {
+        textareaRef.current.style.height = 'auto'
+        textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
+      } else {
+        // Clear inline style when empty, let CSS h-6 class control height
+        textareaRef.current.style.height = ''
+      }
     }
   }, [input])
 
@@ -170,7 +176,7 @@ export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInpu
             placeholder={placeholder}
             disabled={tokensLoading}
             rows={1}
-            className="flex-1 bg-transparent resize-none outline-none text-sm lg:text-base min-h-[24px] max-h-[200px] placeholder:opacity-50 disabled:opacity-50"
+            className="flex-1 bg-transparent resize-none outline-none text-sm lg:text-base h-6 max-h-[200px] leading-6 py-0 m-0 self-center placeholder:opacity-50 disabled:opacity-50"
             style={{ overflow: 'hidden' }}
           />
 

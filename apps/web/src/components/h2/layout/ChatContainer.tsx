@@ -9,6 +9,7 @@ import { SettingsMenu } from '../chat/SettingsMenu'
 import { ShortcutPanel } from '../ui/ShortcutPanel'
 import { useSidebarStore } from '@/stores/useSidebarStore'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 
 interface ChatContainerProps {
@@ -34,8 +35,12 @@ export function ChatContainer({ status, wallet, connect, disconnect }: ChatConta
   const { isOpen } = useSidebarStore()
   const messages = useH2ChatStore((state) => state.messages)
   const isStreaming = useH2ChatStore((state) => state.isStreaming)
+  const isMobile = useIsMobile()
 
   const isEmpty = messages.length === 0 && !isStreaming
+
+  // On mobile, never apply sidebar margin (mobile uses overlay drawer instead)
+  const sidebarMargin = isMobile ? 0 : (isOpen ? 380 : 0)
 
   // Track mounted state to skip initial animation on page load
   useEffect(() => {
@@ -52,13 +57,13 @@ export function ChatContainer({ status, wallet, connect, disconnect }: ChatConta
         disconnect={disconnect}
       />
 
-      {/* Main Chat Area - adjusts position based on sidebar state */}
+      {/* Main Chat Area - adjusts position based on sidebar state (desktop only) */}
       <motion.div
         className="h-full relative overflow-hidden"
         // Skip initial animation on page load to prevent slide glitch
-        initial={mounted ? undefined : { marginLeft: isOpen ? 380 : 0 }}
+        initial={mounted ? undefined : { marginLeft: sidebarMargin }}
         animate={{
-          marginLeft: isOpen ? 380 : 0,
+          marginLeft: sidebarMargin,
         }}
         transition={{
           type: "spring",

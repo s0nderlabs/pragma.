@@ -200,9 +200,9 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
 
   return (
     <>
-      {/* Main Sidebar Container */}
+      {/* Main Sidebar Container - Desktop only */}
       <AnimatePresence mode="wait">
-        {mounted && !isCollapsed && (
+        {mounted && !isCollapsed && !isMobile && (
           <motion.aside
             // Skip initial animation on page load to prevent glitch
             initial={mounted ? { x: -380 } : { x: 0 }}

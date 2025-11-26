@@ -21,8 +21,25 @@ export async function POST(request: Request) {
     // Get RPC URL from server-only environment variable (may contain API key)
     const rpcUrl = process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz';
 
-    // Parse JSON-RPC request
-    const body = await request.json();
+    // Parse JSON-RPC request with defensive handling for empty/malformed bodies
+    let body;
+    try {
+      const text = await request.text();
+      if (!text || text.trim() === '') {
+        console.warn('[RPC Proxy] Empty request body received');
+        return Response.json(
+          { jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error: empty request body' } },
+          { status: 200 }
+        );
+      }
+      body = JSON.parse(text);
+    } catch (parseError) {
+      console.warn('[RPC Proxy] JSON parse error:', parseError);
+      return Response.json(
+        { jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error: invalid JSON' } },
+        { status: 200 }
+      );
+    }
 
     // Forward request to RPC endpoint
     const response = await fetch(rpcUrl, {

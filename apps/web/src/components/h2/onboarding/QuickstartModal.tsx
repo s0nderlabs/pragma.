@@ -85,7 +85,7 @@ export function QuickstartModal() {
       }}
     >
       <DialogContent
-        className="w-[800px] h-[700px] bg-black/95 border border-white/10 rounded-[32px] p-0 overflow-hidden backdrop-blur-xl"
+        className="w-screen h-screen sm:w-[600px] sm:h-[600px] lg:w-[800px] lg:h-[700px] bg-black/95 border-0 sm:border sm:border-white/10 rounded-none sm:rounded-[32px] p-0 overflow-hidden backdrop-blur-xl"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
@@ -109,7 +109,7 @@ export function QuickstartModal() {
             </div>
 
             {/* Back Button Row */}
-            <div className="h-14 flex items-center px-6">
+            <div className="h-14 flex items-center px-4 sm:px-6">
               <AnimatePresence>
                 {!isFirstStep && (
                   <motion.button
@@ -128,7 +128,7 @@ export function QuickstartModal() {
           </div>
 
           {/* Step Content - Takes remaining space */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-y-auto sm:overflow-hidden">
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentStep}
@@ -144,7 +144,7 @@ export function QuickstartModal() {
           </div>
 
           {/* Footer with Step Indicator and Continue Button */}
-          <div className="flex-shrink-0 px-6 pb-6 pt-4 flex items-center justify-between">
+          <div className="flex-shrink-0 px-4 sm:px-6 pb-4 sm:pb-6 pt-4 flex items-center justify-between">
             {/* Step indicator - dots on left */}
             <div className="flex items-center gap-1.5">
               {STEPS.map((_, index) => (

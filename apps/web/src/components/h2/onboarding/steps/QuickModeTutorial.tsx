@@ -12,7 +12,7 @@ import { Zap, Shield, Clock, AlertTriangle, ArrowUpRight } from 'lucide-react'
 
 export function QuickModeTutorial() {
   return (
-    <div className="flex-1 flex flex-col px-10 pb-4">
+    <div className="flex-1 flex flex-col px-4 sm:px-10 pb-4">
       {/* Header with serif typography */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -31,7 +31,7 @@ export function QuickModeTutorial() {
       {/* Visual Demo */}
       <div className="flex-1 flex flex-col justify-center">
         {/* Mode Comparison */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Normal Mode */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}

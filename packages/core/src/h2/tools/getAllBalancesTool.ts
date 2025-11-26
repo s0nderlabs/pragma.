@@ -93,8 +93,10 @@ export const getAllBalancesTool = tool(
       emitProgress("Fetching your portfolio from Monad...");
 
       // Fetch all balances via proxy (avoids CORS issues with direct Monorail calls)
+      // Use authenticated fetch from configurable if available (browser context)
+      const fetchFn = (config?.configurable?.fetch as typeof fetch) || fetch;
       const checksummedAddress = getAddress(userAddress);
-      const response = await fetch(`/api/monorail/balances?address=${checksummedAddress}`);
+      const response = await fetchFn(`/api/monorail/balances?address=${checksummedAddress}`);
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => response.statusText);

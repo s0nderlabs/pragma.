@@ -26,10 +26,12 @@ import { createErrorFromCode } from "../../errors/index.js";
 /**
  * Resolve token from allowlist with proxy-based fallback for browser context.
  * Uses /api/monorail/token proxy to avoid CORS issues with direct Monorail Data API calls.
+ * @param fetchFn - Optional authenticated fetch function (for browser context with auth)
  */
 async function resolveTokenWithProxy(
   input: string,
-  allowedTokens: AllowedToken[]
+  allowedTokens: AllowedToken[],
+  fetchFn: typeof fetch = fetch
 ): Promise<AllowedToken | undefined> {
   const trimmed = input.trim();
   if (!trimmed) return undefined;
@@ -47,7 +49,7 @@ async function resolveTokenWithProxy(
     // 3. Fallback: Fetch from Monorail via proxy (avoids CORS)
     try {
       const checksumAddress = getAddress(trimmed as Address);
-      const response = await fetch(`/api/monorail/token?address=${checksumAddress}`);
+      const response = await fetchFn(`/api/monorail/token?address=${checksumAddress}`);
 
       if (response.ok) {
         return await response.json() as AllowedToken;
@@ -98,9 +100,12 @@ export const swapTool = tool(
         });
       }
 
+      // Get authenticated fetch from configurable (for browser context with auth)
+      const fetchFn = (config?.configurable?.fetch as typeof fetch) || fetch;
+
       // Resolve token symbols to addresses (uses proxy for unknown tokens to avoid CORS)
-      const resolvedFromToken = await resolveTokenWithProxy(fromToken, allowedTokens);
-      const resolvedToToken = await resolveTokenWithProxy(toToken, allowedTokens);
+      const resolvedFromToken = await resolveTokenWithProxy(fromToken, allowedTokens, fetchFn);
+      const resolvedToToken = await resolveTokenWithProxy(toToken, allowedTokens, fetchFn);
 
       if (!resolvedFromToken) {
         throw createErrorFromCode("TOKEN_NOT_IN_ALLOWLIST", {

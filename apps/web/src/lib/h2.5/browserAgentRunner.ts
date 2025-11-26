@@ -23,6 +23,7 @@ import type { BaseMessage } from "@langchain/core/messages";
 import { PRAGMA_H2_SYSTEM_PROMPT } from "@pragma/core";
 import type { AllowedToken } from "@pragma/core";
 import { onProgress, offProgress, type ProgressEvent } from "@pragma/core/h2/progress/emitter";
+import { authenticatedFetch } from "../api/authenticatedFetch";
 
 /**
  * Message tuple format used by LangChain
@@ -204,6 +205,7 @@ export async function runBrowserAgent(
           sessionWallet: context.sessionWallet,
           quickMode: context.quickMode,
           allowedTokens: context.allowedTokens,
+          fetch: authenticatedFetch, // Authenticated fetch for proxy API calls
         },
 
         // Streaming callbacks
@@ -567,6 +569,7 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
           sessionWallet: context.sessionWallet,
           quickMode: context.quickMode,
           allowedTokens: context.allowedTokens,
+          fetch: authenticatedFetch, // Authenticated fetch for proxy API calls
           // Note: sponsorUserOperationFn removed - session key funding is now self-paid
         },
       }

@@ -138,7 +138,9 @@ export const getTokenInfoTool = tool(
         const checksumAddress = getAddress(token as Address);
 
         // Use proxy to avoid CORS issues with direct Monorail Data API calls
-        const response = await fetch(`/api/monorail/token?address=${checksumAddress}`);
+        // Use authenticated fetch from configurable if available (browser context)
+        const fetchFn = (config?.configurable?.fetch as typeof fetch) || fetch;
+        const response = await fetchFn(`/api/monorail/token?address=${checksumAddress}`);
 
         if (response.ok) {
           const apiToken = await response.json() as AllowedToken;

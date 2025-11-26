@@ -416,7 +416,6 @@ export async function GET(request: Request) {
   if (forceFallback && process.env.NODE_ENV !== "production") {
     const normalized = normalizeAllowedTokensList(FALLBACK_TOKENS);
     const sorted = sortAllowedTokens(normalized);
-    console.log(`[Fallback] Forced fallback via query param, returning ${sorted.length} normalized fallback tokens`);
     return NextResponse.json({ tokens: sorted, error: "forced_fallback_for_testing" });
   }
 
@@ -449,14 +448,12 @@ export async function GET(request: Request) {
       throw new Error("Missing required native or wrapped native tokens");
     }
 
-    console.log(`[API] Successfully validated ${tokens.length} tokens from Monorail`);
     return NextResponse.json({ tokens });
   } catch (error) {
     console.error("Failed to load Monorail tokens", error);
     // Apply same normalization pipeline as success path
     const normalized = normalizeAllowedTokensList(FALLBACK_TOKENS);
     const sorted = sortAllowedTokens(normalized);
-    console.log(`[Fallback] Returning ${sorted.length} normalized fallback tokens`);
     return NextResponse.json({
       tokens: sorted,
       error: "monorail_fetch_failed",

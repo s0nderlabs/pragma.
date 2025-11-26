@@ -873,13 +873,6 @@ export const ConnectedAccount = () => {
     try {
       const mode = revokeSelection === "auto" ? undefined : revokeSelection;
 
-      console.log("[Revoke] Attempting to revoke delegations", {
-        mode,
-        owner: walletAddress,
-        activeDelegations: activeDelegations.length,
-        allDelegations: delegations.length,
-      });
-
       const result = await revokeDelegations({
         walletClient,
         ownerAddress: walletAddress,
@@ -1059,9 +1052,6 @@ export const ConnectedAccount = () => {
                                     .toLowerCase()
                                     .includes("user closed")
                                 ) {
-                                  console.log(
-                                    "[Web3Auth] User cancelled connection"
-                                  );
                                   return;
                                 }
                                 console.error(
@@ -1256,9 +1246,6 @@ export const ConnectedAccount = () => {
                           isRevoking
                         }
                         onClick={() => {
-                          console.log(
-                            "[Revoke] Button clicked - opening confirmation panel"
-                          );
                           setRevokePending(true);
                           setRevokeError(null);
                           setRevokeSuccess(null);

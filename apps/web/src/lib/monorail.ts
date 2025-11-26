@@ -408,7 +408,6 @@ const clearTokenCache = (): void => {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.removeItem(STORAGE_KEY);
-    console.log("[Allowlist] Cache cleared");
   } catch {
     // Ignore quota/access errors
   }
@@ -436,7 +435,6 @@ const readCachedTokens = (): AllowedToken[] => {
 
     // Check cache version
     if (parsed.version !== CACHE_VERSION) {
-      console.log("[Allowlist] Cache version mismatch, clearing");
       clearTokenCache();
       return [];
     }
@@ -444,7 +442,6 @@ const readCachedTokens = (): AllowedToken[] => {
     // Check cache TTL (1 hour)
     const age = Date.now() - parsed.timestamp;
     if (age > CACHE_TTL_MS) {
-      console.log("[Allowlist] Cache expired, clearing");
       clearTokenCache();
       return [];
     }
@@ -458,7 +455,6 @@ const readCachedTokens = (): AllowedToken[] => {
       return [];
     }
 
-    console.log(`[Allowlist] Using cached tokens (${normalized.length} tokens)`);
     return normalized;
   } catch (error) {
     console.warn("[Allowlist] Cache read error, clearing", error);
@@ -488,7 +484,6 @@ const writeCachedTokens = (tokens: AllowedToken[]): void => {
     };
 
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cacheData));
-    console.log(`[Allowlist] Cached ${tokens.length} tokens`);
   } catch (error) {
     console.warn("[Allowlist] Cache write failed", error);
     // Ignore quota errors
@@ -543,8 +538,6 @@ export const loadAllowedTokens = async (options?: { forceFallback?: boolean }): 
   // Fetch from API with retry logic
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      console.log(`[Allowlist] Fetching from API (attempt ${attempt}/${MAX_RETRIES})`);
-
       const url = options?.forceFallback ? "/api/tokens?forceFallback=true" : "/api/tokens";
       const response = await fetchWithTimeout(url, FETCH_TIMEOUT);
 
@@ -559,8 +552,6 @@ export const loadAllowedTokens = async (options?: { forceFallback?: boolean }): 
       }
 
       const normalized = normalizeTokens(payload.tokens);
-
-      console.log(`[Allowlist] Normalized ${payload.tokens?.length} tokens from API to ${normalized.length} tokens`);
 
       if (normalized.length === 0) {
         console.error("[Allowlist] Normalized token list is empty! Raw tokens:", payload.tokens?.slice(0, 3));
@@ -583,7 +574,6 @@ export const loadAllowedTokens = async (options?: { forceFallback?: boolean }): 
       }
 
       // Success! Cache and return
-      console.log(`[Allowlist] Successfully loaded ${normalized.length} tokens`);
       writeCachedTokens(normalized);
       return normalized;
     } catch (error) {
@@ -593,7 +583,6 @@ export const loadAllowedTokens = async (options?: { forceFallback?: boolean }): 
       if (!isLastAttempt) {
         // Retry with exponential backoff
         const delay = RETRY_DELAYS[attempt - 1] || RETRY_DELAYS[RETRY_DELAYS.length - 1];
-        console.log(`[Allowlist] Retrying in ${delay}ms...`);
         await sleep(delay);
       } else {
         // All retries failed, use fallback

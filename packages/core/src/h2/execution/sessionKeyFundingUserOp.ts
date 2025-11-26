@@ -163,7 +163,6 @@ export async function fundSessionKeyViaUserOp(
   // Note: This is a self-paid UserOp. No paymaster sponsorship is used.
   // Paymaster was removed due to AA34 signature validation issues.
   // Smart account pays gas directly from its balance (~0.001 MON for this transfer).
-  console.log("[SessionKeyFunding] Submitting self-paid UserOp (no paymaster)");
 
   // Step 6: Sign UserOp with smart account (EOA signature)
   const signature = await smartAccount.signUserOperation(userOp);

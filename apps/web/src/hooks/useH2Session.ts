@@ -91,7 +91,6 @@ export function useH2Session() {
 
     // User not connected - clear stale session
     if (status !== "connected" || !wallet) {
-      console.log("[H2Session] User not connected, clearing stored session");
       clearSessionFromStorage();
       setSessionData(null);
       return;
@@ -103,9 +102,6 @@ export function useH2Session() {
       const sessionAddress = stored.ownerAddress.toLowerCase();
 
       if (currentAddress !== sessionAddress) {
-        console.log(
-          `[H2Session] Session mismatch: current=${currentAddress}, session=${sessionAddress}. Clearing.`
-        );
         clearSessionFromStorage();
         setSessionData(null);
         return;
@@ -113,7 +109,6 @@ export function useH2Session() {
     }
 
     // Validation passed - load session into state
-    console.log("[H2Session] Valid session found, loading");
     setSessionData(stored);
   }, [status, wallet, setSessionData]);
 
@@ -132,7 +127,6 @@ export function useH2Session() {
   useEffect(() => {
     // Only react to disconnect after initial mount
     if (status !== "connected" && sessionData) {
-      console.log("[H2Session] User disconnected during session, clearing");
       setSessionData(null);
       clearSessionFromStorage();
     }

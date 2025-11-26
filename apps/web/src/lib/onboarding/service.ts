@@ -47,16 +47,12 @@ export interface HybridDelegationPlan {
 export const fetchAllowlist = async (options?: { forceFallback?: boolean }): Promise<AllowedToken[]> => {
   try {
     const tokens = await loadAllowedTokens(options);
-    console.log(`[fetchAllowlist] Loaded ${tokens.length} tokens from loadAllowedTokens`);
     const normalized = normalizeTokens(tokens);
-    console.log(`[fetchAllowlist] Normalized to ${normalized.length} tokens`);
     return normalized;
   } catch (error) {
     console.warn("Falling back to static token list", error);
     const fallback = getFallbackAllowedTokens();
-    console.log(`[fetchAllowlist] Using fallback with ${fallback.length} tokens`);
     const normalized = normalizeTokens(fallback);
-    console.log(`[fetchAllowlist] Normalized fallback to ${normalized.length} tokens`);
     return normalized;
   }
 };

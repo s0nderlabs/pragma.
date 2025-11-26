@@ -110,8 +110,6 @@ if (typeof window !== 'undefined') {
   // Also provide as global for direct access
   // @ts-expect-error - Creating global for direct access
   window.AsyncLocalStorage = AsyncLocalStorage;
-
-  console.log('[Polyfill] AsyncLocalStorage initialized for browser');
 }
 
 // Export for manual imports

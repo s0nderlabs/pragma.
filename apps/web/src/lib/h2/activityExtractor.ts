@@ -284,34 +284,15 @@ function extractFromToolMessage(msg: Extract<AnyMessage, { role: 'tool' }>): Act
         outputString = outputObj.kwargs?.content || outputObj.content
       }
 
-      // Debug: Log tool message being processed
-      console.log('[ActivityExtractor] Processing tool:', {
-        id: msg.id,
-        toolName: msg.toolName,
-        hasOutput: !!msg.output,
-        outputType: typeof msg.output,
-        extractedString: !!outputString,
-        stringPreview: outputString?.substring(0, 300),
-        hasHTMLComment: outputString?.includes('<!--PRAGMA_METADATA:') || false
-      })
-
       if (outputString && typeof outputString === 'string') {
         // Strategy 1: Try to extract embedded metadata from HTML comment
         const metadataMatch = outputString.match(/<!--PRAGMA_METADATA:(.+?)-->/s)
-
-        // Debug: Log metadata extraction result
         if (metadataMatch) {
-          console.log('[ActivityExtractor] ✓ Metadata found:', {
-            toolName: msg.toolName,
-            metadataPreview: metadataMatch[1].substring(0, 200) + '...'
-          })
           try {
             data = JSON.parse(metadataMatch[1])
           } catch (e) {
             console.warn('[ActivityExtractor] Failed to parse embedded metadata:', e)
           }
-        } else {
-          console.warn('[ActivityExtractor] ✗ No metadata match in output for:', msg.toolName)
         }
 
         if (!metadataMatch) {

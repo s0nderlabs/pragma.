@@ -239,7 +239,6 @@ export function useH2_5Agent() {
       });
 
       setIsInitialized(true);
-      console.log('[H2.5Agent] Initialized successfully');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown initialization error';
       console.error('[H2.5Agent] Initialization failed:', errorMessage);
@@ -276,7 +275,6 @@ export function useH2_5Agent() {
     const storedBundlerClient = store.bundlerClient;
 
     if (storedSmartAccount && storedBundlerClient) {
-      console.log('[H2.5Agent] Using smartAccount from onboarding (prevents AA34)');
       setSmartAccount(storedSmartAccount);
       setBundlerClient(storedBundlerClient);
       return;
@@ -300,8 +298,6 @@ export function useH2_5Agent() {
         // Save to store for consistency (in case this path is taken)
         store.setSmartAccount(handle.smartAccount);
         store.setBundlerClient(handle.bundlerClient);
-
-        console.log('[H2.5Agent] SmartAccount and bundlerClient recreated and stored');
       } catch (error) {
         console.error('[H2.5Agent] Failed to create smartAccount/bundlerClient:', error);
         // Don't fail the whole app - session key funding will fall back to delegation pattern
@@ -362,12 +358,6 @@ export function useH2_5Agent() {
           .map((msg) => [msg.role, (msg as { content: string }).content] as MessageTuple),
         ['user', content],
       ];
-
-      console.log('[H2.5Agent] Sending message:', {
-        userMessage: content,
-        allowedTokensCount: allowedTokens.length,
-        quickMode,
-      });
 
       // Set streaming state
       setIsStreaming(true);

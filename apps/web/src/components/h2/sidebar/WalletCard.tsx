@@ -47,9 +47,9 @@ export function WalletCard({ balance, change24h, address, monBalance }: WalletCa
   }, [])
 
   const formatAddress = (addr: string) => {
-    // Handle zero address or invalid address
-    if (!addr || addr === '0x0000000000000000000000000000000000000000') {
-      return 'Not connected'
+    // Handle empty, zero, or invalid address
+    if (!addr || addr === '' || addr === '0x0000000000000000000000000000000000000000') {
+      return 'Deploying...'
     }
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`
   }
@@ -64,8 +64,8 @@ export function WalletCard({ balance, change24h, address, monBalance }: WalletCa
   }
 
   const handleCopyAddress = () => {
-    // Only copy if we have a valid address
-    if (address && address !== '0x0000000000000000000000000000000000000000') {
+    // Only copy if we have a valid address (not empty, not zero)
+    if (address && address !== '' && address !== '0x0000000000000000000000000000000000000000') {
       navigator.clipboard.writeText(address)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)

@@ -104,7 +104,6 @@ async function hasAlreadyClaimedViaHypersync(
       for (const tx of dataItem.transactions) {
         // Compare hex values (Hypersync returns value as hex string)
         if (tx.value.toLowerCase() === VIBETRADING_AMOUNT_HEX.toLowerCase()) {
-          console.log(`[Vibetrading] Found existing claim: ${tx.hash}`);
           return { claimed: true, txHash: tx.hash };
         }
       }
@@ -188,14 +187,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Send 1.5 MON to user's smart account
-    console.log(`[Vibetrading] Sending 1.5 MON to ${smartAccount}`);
     const txHash = await walletClient.sendTransaction({
       to: smartAccount,
       value: VIBETRADING_AMOUNT,
     });
 
     // Wait for confirmation
-    console.log(`[Vibetrading] Waiting for tx confirmation: ${txHash}`);
     const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
 
     if (receipt.status !== "success") {
@@ -205,8 +202,6 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-
-    console.log(`[Vibetrading] Claimed successfully: ${smartAccount} -> ${txHash}`);
 
     return NextResponse.json({
       success: true,

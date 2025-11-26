@@ -53,7 +53,6 @@ class ProgressEmitter extends EventEmitter {
    * Emit a progress update
    */
   emitProgress(message: string, toolName?: string, signature?: string, description?: string): void {
-    console.log(`[Emitter:${this.__instanceId}] Emit:`, signature || toolName || message.slice(0, 30));
     const event: ProgressEvent = {
       message,
       timestamp: Date.now(),
@@ -68,7 +67,6 @@ class ProgressEmitter extends EventEmitter {
    * Subscribe to progress updates
    */
   onProgress(callback: (event: ProgressEvent) => void): void {
-    console.log(`[Emitter:${this.__instanceId}] Subscribe`);
     this.on("progress", callback);
   }
 

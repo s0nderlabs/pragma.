@@ -15,7 +15,6 @@ export const getCachedTokens = (): AllowedToken[] | null => {
 
   // Check if cache expired
   if (Date.now() - cacheTimestamp > CACHE_TTL) {
-    console.log("[TokenCache] Cache expired, clearing");
     cachedTokens = null;
     cacheTimestamp = null;
     return null;
@@ -35,23 +34,19 @@ export const fetchAllowlistCached = async (options?: { forceFallback?: boolean }
   if (!options?.forceFallback) {
     const cached = getCachedTokens();
     if (cached) {
-      console.log(`[TokenCache] Returning ${cached.length} cached tokens`);
       return cached;
     }
 
     if (fetchPromise) {
-      console.log("[TokenCache] Returning in-flight fetch promise");
       return fetchPromise;
     }
   }
 
-  console.log(`[TokenCache] Starting new token fetch${options?.forceFallback ? " (forced fallback)" : ""}`);
   fetchPromise = fetchAllowlist(options)
     .then((tokens) => {
       cachedTokens = tokens;
       cacheTimestamp = Date.now();
       fetchPromise = null;
-      console.log(`[TokenCache] Cached ${tokens.length} tokens`);
       return tokens;
     })
     .catch((error) => {
@@ -67,7 +62,6 @@ export const fetchAllowlistCached = async (options?: { forceFallback?: boolean }
  * Clear the token cache (useful for testing or forced refresh)
  */
 export const clearTokenCache = () => {
-  console.log("[TokenCache] Clearing cache");
   cachedTokens = null;
   cacheTimestamp = null;
   fetchPromise = null;

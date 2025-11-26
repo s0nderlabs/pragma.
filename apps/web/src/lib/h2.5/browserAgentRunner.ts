@@ -172,12 +172,6 @@ export async function runBrowserAgent(
   callbacks: BrowserAgentCallbacks = {}
 ): Promise<string> {
   try {
-    console.log("[BrowserAgent] Starting execution...", {
-      messageCount: messages.length,
-      userAddress: context.userAddress,
-      quickMode: context.quickMode,
-    });
-
     // Format messages for LangChain (convert tuples to message objects)
     const formattedMessages = messages.map(([role, content]) => ({
       role,
@@ -220,14 +214,12 @@ export async function runBrowserAgent(
             // Handle tool execution start
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             handleToolStart(tool: any, input: string) {
-              console.log("[BrowserAgent] Tool start:", tool.name);
               callbacks.onToolStart?.(tool.name, input);
             },
 
             // Handle tool execution end
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             handleToolEnd(output: any) {
-              console.log("[BrowserAgent] Tool end");
               callbacks.onToolEnd?.(output.tool, output.output);
             },
 
@@ -248,7 +240,6 @@ export async function runBrowserAgent(
       }
     );
 
-    console.log("[BrowserAgent] Execution complete");
     callbacks.onComplete?.();
 
     // Extract final response from result
@@ -297,8 +288,6 @@ export async function streamBrowserAgent(
   let progressHandler: ((event: ProgressEvent) => void) | undefined;
 
   try {
-    console.log("[BrowserAgent] Starting streaming execution...");
-
     let currentResponse = "";
 
     // Track signatures by run_id for matching tool_end/error to tool_start
@@ -612,14 +601,6 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
         // Tool execution started
         const input = event.data?.input;
 
-        // DEBUG: Log input structure to identify parsing issues
-        console.log("[BrowserAgent] on_tool_start:", {
-          name: event.name,
-          inputType: typeof input,
-          input: input,
-          hasFromToken: input && typeof input === 'object' && 'fromToken' in input,
-        });
-
         // Generate signature (always returns a value - toolName fallback)
         const signature = generateSignatureFromInput(event.name, input) || event.name;
 
@@ -661,7 +642,6 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
     // Cleanup progress subscription
     offProgress(progressHandler);
 
-    console.log("[BrowserAgent] Streaming complete");
     callbacks.onComplete?.();
 
     return currentResponse;

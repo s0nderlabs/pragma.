@@ -125,19 +125,10 @@ export class DirectWeb3AuthBridge implements Web3AuthBridge {
       );
     }
 
-    console.log('[DirectBridge] Signing delegation with owner wallet...');
-
     try {
       // Parse EIP-712 typed data from JSON string (same as CLI)
       const typedData = JSON.parse(typedDataJson);
       const { domain, types, primaryType, message } = typedData;
-
-      console.log('[DirectBridge] Parsed typed data:', {
-        primaryType,
-        domain: JSON.stringify(domain, null, 2),
-        types: JSON.stringify(types, null, 2),
-        message: JSON.stringify(message, null, 2),
-      });
 
       // Direct wallet signing - no network transport!
       // This is the key difference from H2's clientSideWeb3AuthBridge
@@ -148,8 +139,6 @@ export class DirectWeb3AuthBridge implements Web3AuthBridge {
         primaryType,
         message,
       });
-
-      console.log('[DirectBridge] Signature created successfully');
 
       // Return in expected format (match CLI's Web3AuthBridge)
       return {

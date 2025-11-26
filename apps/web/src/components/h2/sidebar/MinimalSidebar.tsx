@@ -16,6 +16,7 @@ import { ActivityTab } from './tabs/ActivityTab'
 import { BalancesTab } from './tabs/BalancesTab'
 import { SettingsTab } from './tabs/SettingsTab'
 import { CopyNotification } from '../notifications/CopyNotification'
+import { DeployNotification } from '../notifications/DeployNotification'
 
 interface MinimalSidebarProps {
   status: string
@@ -33,7 +34,7 @@ interface MinimalSidebarProps {
  * Drawer slide collapse with floating balance trigger
  */
 export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalSidebarProps) {
-  const { isOpen, toggle, toggleBalance, isMobileOpen, setMobileOpen } = useSidebarStore()
+  const { isOpen, toggle, toggleBalance, isMobileOpen, setMobileOpen, isDeploying, showDeployNotification } = useSidebarStore()
   const isMobile = useIsMobile()
   const sessionData = useH2ChatStore((state) => state.sessionData)
   const setBalanceRefreshCallback = useH2ChatStore((state) => state.setBalanceRefreshCallback)
@@ -128,12 +129,14 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
         const chatInput = document.getElementById('chat-input') as HTMLTextAreaElement
         chatInput?.focus()
       }
-      // Alt + c - Copy wallet address
+      // Alt + c - Copy wallet address (only if smart account is deployed)
       else if (e.code === 'KeyC' && e.altKey) {
         e.preventDefault()
-        const address = sessionData?.delegator || wallet?.address || '0x0000000000000000000000000000000000000000'
-        navigator.clipboard.writeText(address)
-        showCopyNotification()
+        const address = sessionData?.delegator
+        if (address) {
+          navigator.clipboard.writeText(address)
+          showCopyNotification()
+        }
       }
       // Alt + k - Show keyboard shortcuts
       else if (e.code === 'KeyK' && e.altKey) {
@@ -191,10 +194,11 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
   }
 
   // Use real wallet data from Monorail API
+  // Don't show EOA as fallback - only show delegator (smart account) address
   const walletData = {
     balance: isLoading ? 0 : usdValue,
     change24h: isLoading ? 0 : change24h,
-    address: sessionData?.delegator || wallet?.address || '0x0000000000000000000000000000000000000000',
+    address: sessionData?.delegator || '',
     monBalance: isLoading ? '0' : monBalance,
   }
 
@@ -420,6 +424,9 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
 
       {/* Copy notification toast */}
       <CopyNotification show={showCopy} />
+
+      {/* Deploy notification toast */}
+      <DeployNotification isDeploying={isDeploying} showSuccess={showDeployNotification} />
     </>
   )
 }

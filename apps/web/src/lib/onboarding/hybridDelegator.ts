@@ -470,7 +470,6 @@ export const fetchHybridDelegatorOwner = async (
       errorMessage.includes("rate limit");
     
     if (isTransientError && retryCount < 2) {
-      console.log(`[Revoke] Transient RPC error, retrying... (attempt ${retryCount + 1}/2)`);
       await new Promise(resolve => setTimeout(resolve, 500 * (retryCount + 1)));
       return fetchHybridDelegatorOwner(handle, retryCount + 1);
     }

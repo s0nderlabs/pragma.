@@ -127,8 +127,6 @@ export function createBrowserAgent(config: BrowserAgentConfig): ReturnType<typeo
         'AsyncLocalStorage polyfill not loaded! Import @/lib/polyfills before creating agent.'
       );
     }
-
-    console.log('[BrowserAgent] Polyfills verified ✓');
   }
 
   // Initialize ChatOpenAI model (routes through proxy for security)
@@ -149,18 +147,11 @@ export function createBrowserAgent(config: BrowserAgentConfig): ReturnType<typeo
     },
   });
 
-  console.log('[BrowserAgent] Created ChatOpenAI model:', {
-    model: config.model || 'gpt-5-mini',
-    streaming: config.streaming ?? true,
-  });
-
   // Create agent using LangChain 1.0 pattern (identical to server-side)
   const agent = createAgent({
     model,
     tools: [...h2ToolRegistry],
   });
-
-  console.log('[BrowserAgent] Agent created with', h2ToolRegistry.length, 'tools');
 
   return agent;
 }
@@ -203,6 +194,4 @@ export function validateBrowserEnvironment(): void {
   if (typeof crypto === 'undefined' || !crypto.subtle) {
     throw new Error('Web Crypto API not available. Use HTTPS or modern browser.');
   }
-
-  console.log('[BrowserAgent] Environment validation passed ✓');
 }

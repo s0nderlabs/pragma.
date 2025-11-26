@@ -19,59 +19,34 @@ import { authenticatedFetch } from "../api/authenticatedFetch";
  */
 export async function loadAllowedTokens(): Promise<AllowedToken[]> {
   try {
-    console.log("[tokens.ts] 🔍 loadAllowedTokens() called");
-
     // Try sessionStorage cache first (5 min TTL)
-    console.log("[tokens.ts] 📦 Checking sessionStorage cache...");
     const cached = loadCachedTokens();
     if (cached) {
-      console.log("[tokens.ts] ✅ Using cached tokens:", {
-        count: cached.length,
-        sample: cached.slice(0, 5).map(t => t.symbol),
-      });
       return cached;
     }
-    console.log("[tokens.ts] ❌ No cache found, fetching from API");
 
     // Fetch from API endpoint (server handles @pragma/core buildAllowedTokens)
-    console.log("[tokens.ts] 📡 Fetching from /api/tokens...");
     const response = await authenticatedFetch("/api/tokens");
-    console.log("[tokens.ts] 📥 API response:", {
-      status: response.status,
-      ok: response.ok,
-    });
 
     if (!response.ok) {
       throw new Error(`Token API returned ${response.status}: ${response.statusText}`);
     }
 
     const data = await response.json();
-    console.log("[tokens.ts] 📦 API data received:", {
-      hasTokens: !!data.tokens,
-      tokenCount: data.tokens?.length || 0,
-    });
-
     const tokens = data.tokens as AllowedToken[];
 
     // Validate API response
     if (!Array.isArray(tokens) || tokens.length === 0) {
-      console.error("[tokens.ts] ❌ Invalid API response:", { tokens });
+      console.error("[tokens.ts] Invalid API response:", { tokens });
       throw new Error("API returned empty or invalid token list");
     }
 
-    console.log("[tokens.ts] ✅ Valid tokens received:", {
-      count: tokens.length,
-      sample: tokens.slice(0, 10).map(t => t.symbol),
-    });
-
     // Cache successful response in sessionStorage
-    console.log("[tokens.ts] 💾 Caching tokens in sessionStorage...");
     saveCachedTokens(tokens);
 
-    console.log(`[tokens.ts] ✅ Returning ${tokens.length} tokens`);
     return tokens;
   } catch (error) {
-    console.error("[tokens.ts] ❌ Failed to load tokens:", error);
+    console.error("[tokens.ts] Failed to load tokens:", error);
 
     // Return minimal fallback: MON, WMON, aprMON
     // This ensures chat can still function with basic tokens

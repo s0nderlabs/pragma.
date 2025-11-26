@@ -19,10 +19,5 @@ import 'zone.js';
 // Import AsyncLocalStorage polyfill (registers global async_hooks)
 import './async-local-storage';
 
-// Log initialization
-if (typeof window !== 'undefined') {
-  console.log('[Polyfills] Browser polyfills loaded for LangChain compatibility');
-}
-
 // Re-export for convenience
 export { AsyncLocalStorage } from './async-local-storage';

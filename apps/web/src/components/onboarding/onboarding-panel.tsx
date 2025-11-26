@@ -220,7 +220,6 @@ export const OnboardingPanel = ({
     // Optimistically show cached tokens immediately if available
     const cached = getCachedTokens();
     if (cached && cached.length > 0) {
-      console.log(`[OnboardingPanel] Using ${cached.length} cached tokens immediately`);
       setAvailableTokens(cached);
       const defaults = cached.slice(0, 2);
       if (defaults[0]) setSafeTokenA(defaults[0].address);
@@ -237,8 +236,6 @@ export const OnboardingPanel = ({
       fetchingTokens.current = true;
       try {
         const tokens = await fetchAllowlistCached();
-        console.log(`[OnboardingPanel] fetchAllowlistCached returned ${tokens.length} tokens`);
-        console.log(`[OnboardingPanel] Setting availableTokens to ${tokens.length} tokens`);
         setAvailableTokens(tokens);
         const defaults = tokens.slice(0, 2);
         if (defaults[0]) setSafeTokenA(defaults[0].address);

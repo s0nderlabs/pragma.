@@ -25,6 +25,7 @@ import {
   ensureHybridDelegatorDeployed,
   isSmartAccountDeployed,
 } from "@/lib/onboarding/hybridDelegator";
+import { useSidebarStore } from "@/stores/useSidebarStore";
 import { getOrCreateSessionKey } from "@/lib/storage/session-keys";
 import { loadAllowedTokens } from "@/lib/h2/tokens";
 import { MONAD_CHAIN_ID } from "@/lib/config";
@@ -44,7 +45,6 @@ export function useH2Onboarding() {
       return;
     }
 
-    console.log("[H2Onboarding] Starting auto-onboarding for", wallet.address);
     setIsOnboarding(true);
     setError(null);
 
@@ -52,23 +52,25 @@ export function useH2Onboarding() {
       try {
         // Step 1: Create hybrid delegator handle (derives delegator address)
         const handle = await createHybridDelegatorHandle(wallet.walletClient, wallet.address);
-        console.log("[H2Onboarding] Delegator address:", handle.delegator);
 
         // Step 2: Ensure smart account is deployed before creating session
         const isDeployed = await isSmartAccountDeployed(handle);
         if (!isDeployed) {
-          console.log("[H2Onboarding] Deploying smart account...");
+          // Show deploying notification
+          useSidebarStore.getState().setIsDeploying(true);
+
           const deployResult = await ensureHybridDelegatorDeployed(handle, {
             allowDirectFallback: true,
           });
+
+          // Hide deploying notification
+          useSidebarStore.getState().setIsDeploying(false);
+
           if (deployResult) {
-            console.log("[H2Onboarding] Smart account deployed:", {
-              userOpHash: deployResult.userOpHash,
-              transactionHash: deployResult.transactionHash,
-            });
+            // Show deployment success notification
+            useSidebarStore.getState().setShowDeployNotification(true);
+            setTimeout(() => useSidebarStore.getState().setShowDeployNotification(false), 3000);
           }
-        } else {
-          console.log("[H2Onboarding] Smart account already deployed");
         }
 
         // Step 2.5: CRITICAL - Store smartAccount and bundlerClient from onboarding
@@ -77,15 +79,9 @@ export function useH2Onboarding() {
         const store = useH2ChatStore.getState();
         store.setSmartAccount(handle.smartAccount);
         store.setBundlerClient(handle.bundlerClient);
-        console.log("[H2Onboarding] Stored smartAccount and bundlerClient for session key funding");
 
         // Step 3: Get or create session key for this delegator
         const sessionKey = getOrCreateSessionKey(handle.delegator);
-        console.log(
-          "[H2Onboarding] Session key:",
-          sessionKey.address,
-          sessionKey.isNew ? "(new)" : "(existing)"
-        );
 
         // Step 4: Create complete H2 session state
         // Note: Session key funding is handled lazily on first transaction,
@@ -101,9 +97,9 @@ export function useH2Onboarding() {
 
         // Step 5: Store in Zustand (syncs to localStorage via useH2Session)
         setSessionData(newSession);
-
-        console.log("[H2Onboarding] Session created successfully");
       } catch (err) {
+        // Ensure deploying notification is hidden on error
+        useSidebarStore.getState().setIsDeploying(false);
         const message = err instanceof Error ? err.message : String(err);
         console.error("[H2Onboarding] Failed to create session:", message);
         setError(message);
@@ -126,58 +122,27 @@ export function useH2Onboarding() {
     const MINIMUM_EXPECTED_TOKENS = 50;
     const isComplete = allowedTokens.length >= MINIMUM_EXPECTED_TOKENS;
 
-    console.log("[H2Onboarding] Token loading check:", {
-      status,
-      hasWallet: !!wallet,
-      currentTokenCount: allowedTokens.length,
-      minimumRequired: MINIMUM_EXPECTED_TOKENS,
-      isComplete,
-      tokensLoading,
-      shouldLoad: status === "connected" && wallet && !isComplete && !tokensLoading,
-    });
-
     // Load if: connected + has wallet + incomplete tokens + not already loading
     // Incomplete means: token count < 50
     if (status === "connected" && wallet && !isComplete && !tokensLoading) {
-      const reason = allowedTokens.length === 0
-        ? "empty"
-        : `incomplete (${allowedTokens.length} < ${MINIMUM_EXPECTED_TOKENS})`;
-
-      console.log(`[H2Onboarding] 🔄 Starting token load (reason: ${reason})...`);
       store.setTokensLoading(true);
 
       (async () => {
         try {
-          console.log("[H2Onboarding] 📡 Calling loadAllowedTokens()...");
           const tokens = await loadAllowedTokens();
-          console.log("[H2Onboarding] 📦 Received tokens from loadAllowedTokens:", {
-            count: tokens?.length || 0,
-            firstToken: tokens?.[0],
-            sample: tokens?.slice(0, 5).map(t => t.symbol),
-          });
 
           // Validate tokens before storing (prevent empty array race)
           if (!tokens || tokens.length === 0) {
-            console.error("[H2Onboarding] ❌ Empty token list received!");
+            console.error("[H2Onboarding] Empty token list received");
             return;
           }
 
-          console.log("[H2Onboarding] 💾 Calling setAllowedTokens with", tokens.length, "tokens");
           store.setAllowedTokens(tokens);
-
-          // Verify tokens were stored
-          const updatedStore = useH2ChatStore.getState();
-          console.log("[H2Onboarding] ✅ Tokens stored! Verification:", {
-            storedCount: updatedStore.allowedTokens.length,
-            meetsMinimum: updatedStore.allowedTokens.length >= MINIMUM_EXPECTED_TOKENS,
-            sample: updatedStore.allowedTokens.slice(0, 5).map(t => t.symbol),
-          });
         } catch (error) {
-          console.error("[H2Onboarding] ❌ Failed to load tokens:", error);
+          console.error("[H2Onboarding] Failed to load tokens:", error);
           // Don't set allowedTokens on error - keep existing (may be from localStorage)
         } finally {
           store.setTokensLoading(false);
-          console.log("[H2Onboarding] 🏁 Token loading complete");
         }
       })();
     }

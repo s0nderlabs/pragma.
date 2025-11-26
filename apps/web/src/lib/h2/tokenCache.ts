@@ -43,7 +43,6 @@ export function loadCachedTokens(): AllowedToken[] | undefined {
     // Check if cache is expired
     const now = Date.now();
     if (now - cache.cachedAt > CACHE_TTL_MS) {
-      console.log("[TokenCache] Cache expired, will fetch fresh data");
       window.sessionStorage.removeItem(CACHE_KEY);
       return undefined;
     }
@@ -55,7 +54,6 @@ export function loadCachedTokens(): AllowedToken[] | undefined {
       return undefined;
     }
 
-    console.log(`[TokenCache] Loaded ${cache.tokens.length} tokens from cache`);
     return cache.tokens;
   } catch (error) {
     // Handle JSON parse errors, quota exceeded, etc.
@@ -87,7 +85,6 @@ export function saveCachedTokens(tokens: AllowedToken[]): void {
     };
 
     window.sessionStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-    console.log(`[TokenCache] Cached ${tokens.length} tokens`);
   } catch (error) {
     // Handle quota exceeded, access denied, etc.
     // Non-fatal - cache is best-effort

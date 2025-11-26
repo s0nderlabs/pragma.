@@ -775,15 +775,7 @@ export const useH2ChatStore = create<H2ChatState>()(
         },
 
         setAllowedTokens: (tokens) => {
-          console.log("[H2ChatStore] 💾 setAllowedTokens called:", {
-            incomingCount: tokens?.length || 0,
-            sample: tokens?.slice(0, 5).map(t => t.symbol),
-          });
           set({ allowedTokens: tokens });
-          console.log("[H2ChatStore] ✅ State updated, verifying:", {
-            storedCount: get().allowedTokens.length,
-            sample: get().allowedTokens.slice(0, 5).map(t => t.symbol),
-          });
         },
 
         setTokensLoading: (loading) => {
@@ -838,12 +830,10 @@ export const useH2ChatStore = create<H2ChatState>()(
 
         // Smart Account actions (runtime, NOT persisted)
         setSmartAccount: (account) => {
-          console.log('[H2ChatStore] Setting smartAccount:', account ? 'present' : 'null');
           set({ smartAccount: account });
         },
 
         setBundlerClient: (client) => {
-          console.log('[H2ChatStore] Setting bundlerClient:', client ? 'present' : 'null');
           set({ bundlerClient: client });
         },
       }),
@@ -857,17 +847,9 @@ export const useH2ChatStore = create<H2ChatState>()(
           // Don't persist: messages, tokensLoading (ephemeral state)
         }),
         onRehydrateStorage: () => {
-          console.log("[H2ChatStore] 🔄 Starting localStorage hydration...");
           return (state, error) => {
             if (error) {
-              console.error("[H2ChatStore] ❌ Hydration error:", error);
-            } else {
-              console.log("[H2ChatStore] ✅ Hydrated from localStorage:", {
-                quickMode: state?.quickMode,
-                hasSessionData: !!state?.sessionData,
-                allowedTokensCount: state?.allowedTokens?.length || 0,
-                tokensSample: state?.allowedTokens?.slice(0, 5).map((t: { symbol?: string }) => t.symbol) || [],
-              });
+              console.error("[H2ChatStore] Hydration error:", error);
             }
           };
         },

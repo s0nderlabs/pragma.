@@ -51,6 +51,21 @@ function isValidPortfolioValue(value: number): boolean {
   );
 }
 
+/**
+ * Fetch MON/USD price from Monorail price API
+ * Used as fallback when portfolio API returns $0.00
+ */
+async function fetchMonPrice(): Promise<number> {
+  try {
+    const response = await fetch('/api/monorail/price');
+    if (!response.ok) return 0;
+    const data = await response.json();
+    return parseFloat(data.price || '0');
+  } catch {
+    return 0;
+  }
+}
+
 interface WalletBalanceData {
   monBalance: string
   usdValue: number
@@ -105,7 +120,6 @@ export function useWalletBalance(): WalletBalanceData {
   const fetchBalance = useCallback(async () => {
     // Skip if authentication token not ready (prevents race condition)
     if (!isTokenReady) {
-      console.log('[useWalletBalance] Skipping fetch - token not ready yet')
       return
     }
 
@@ -199,6 +213,24 @@ export function useWalletBalance(): WalletBalanceData {
           '- calculating from individual tokens'
         );
         usdValue = calculateTotalUsdFromTokens(balancesRes);
+      }
+
+      // Fallback: If USD value is still 0 but MON balance exists, fetch MON price
+      const monBalanceNum = parseFloat(monBalance);
+      if (usdValue === 0 && monBalanceNum > 0) {
+        const monPrice = await fetchMonPrice();
+        if (monPrice > 0) {
+          usdValue = monBalanceNum * monPrice;
+
+          // Update MON token's usd_per_token so BalancesTab shows the price
+          if (monTokenIndex !== -1) {
+            balancesRes[monTokenIndex] = {
+              ...balancesRes[monTokenIndex],
+              usd_per_token: monPrice.toString(),
+              usd_value: usdValue.toString(),
+            };
+          }
+        }
       }
 
       // Save balance snapshot for 24h change tracking

@@ -19,7 +19,7 @@ export function WelcomeStep() {
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-        className="relative mb-12"
+        className="relative mb-4"
       >
         {/* Subtle ambient glow behind logo */}
         <div className="absolute inset-0 blur-3xl bg-gradient-to-b from-[#E07A5F]/10 to-transparent scale-150 -z-10" />

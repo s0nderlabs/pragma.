@@ -170,10 +170,6 @@ export async function authMiddleware(
     response.headers.set('x-auth-context', JSON.stringify(authContext));
   }
 
-  console.log(
-    `[Auth] ✅ Authenticated: ${walletAddress} (${tokenResult.payload!.verifier})`
-  );
-
   return null; // No error, proceed to route handler
 }
 

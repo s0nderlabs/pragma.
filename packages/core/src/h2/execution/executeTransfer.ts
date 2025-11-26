@@ -110,11 +110,6 @@ export async function executeTransfer(params: ExecuteTransferParams): Promise<Ex
   );
 
   if (needsFunding) {
-    // Notify user about auto-funding
-    console.log(`\n⚡ Session key needs gas`);
-    console.log(`   Current balance: ${formatEther(balance)} MON (minimum: 0.1 MON)`);
-    console.log(`   Transferring ${formatEther(SESSION_KEY_FUNDING_AMOUNT)} MON from smart account...\n`);
-
     const fundingResult = await fundSessionKey(
       {
         smartAccountAddress: userAddress,
@@ -130,9 +125,6 @@ export async function executeTransfer(params: ExecuteTransferParams): Promise<Ex
       web3authBridge,
       transport // Authenticated transport from params
     );
-
-    console.log(`✓ Session key funded: ${formatEther(fundingResult.newBalance)} MON`);
-    console.log(`   Tx: ${fundingResult.txHash}\n`);
   }
 
   // Step 3: Fetch current nonce from NonceEnforcer

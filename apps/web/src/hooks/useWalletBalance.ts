@@ -238,7 +238,7 @@ export function useWalletBalance(): WalletBalanceData {
       if (monTokenIndex === -1 && monBalanceNum > 0) {
         const syntheticMonPrice = monBalanceNum > 0 ? usdValue / monBalanceNum : 0;
         balancesRes.push({
-          address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+          address: '0x0000000000000000000000000000000000000000',
           symbol: 'MON',
           name: 'Monad',
           decimals: 18,

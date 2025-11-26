@@ -229,7 +229,6 @@ const fetchBalancesQuick = async (
     nativeTokenAddress: getAddress(MONAD_NATIVE_TOKEN_ADDRESS),
     nativeTokenSymbol: MONAD_NATIVE_TOKEN_SYMBOL,
     dataApiUrl: MONORAIL_DATA_API_URL,
-    apiKey: MONORAIL_API_KEY,
     allowedTokens,
     publicClient,
     fetch: fetchImpl,
@@ -243,7 +242,6 @@ const fetchTrendingQuick = async (): Promise<AgentInsightResult> => {
   const dataset = isFixtureMode() ? await loadFixtureJson<FixtureInsightDataset>("insights") : undefined;
   return buildTrendingTokensInsight({
     dataApiUrl: MONORAIL_DATA_API_URL,
-    apiKey: MONORAIL_API_KEY,
     tokenMetadata: {
       nativeTokenAddress: getAddress(MONAD_NATIVE_TOKEN_ADDRESS),
       wrappedNativeTokenAddress: getAddress(MONAD_WMON_ADDRESS),
@@ -349,9 +347,6 @@ import {
   PRAGMA_AGENT_STREAM_INSIGHTS,
 } from "../../../../lib/config";
 
-// Server-only secrets (never exposed to browser)
-const MONORAIL_API_KEY = process.env.MONORAIL_API_KEY;
-
 interface AgentRequestBody {
   message?: unknown;
   delegation?: {
@@ -401,16 +396,13 @@ const createConfiguredAgent = () => {
   // Server-side only - no NEXT_PUBLIC fallback for security
   const hasApiKey = Boolean(process.env.OPENAI_API_KEY?.trim());
 
-  const trendingConfig = MONORAIL_API_KEY
-    ? {
-        dataApiUrl: MONORAIL_DATA_API_URL,
-        apiKey: MONORAIL_API_KEY,
-        tokenMetadata: {
-          nativeTokenAddress: getAddress(MONAD_NATIVE_TOKEN_ADDRESS),
-          wrappedNativeTokenAddress: getAddress(MONAD_WMON_ADDRESS),
-        },
-      }
-    : undefined;
+  const trendingConfig = {
+    dataApiUrl: MONORAIL_DATA_API_URL,
+    tokenMetadata: {
+      nativeTokenAddress: getAddress(MONAD_NATIVE_TOKEN_ADDRESS),
+      wrappedNativeTokenAddress: getAddress(MONAD_WMON_ADDRESS),
+    },
+  };
 
   const insightOptions = trendingConfig ? { trendingConfig } : {};
   const enableStreaming = hasApiKey && PRAGMA_AGENT_STREAM_INSIGHTS;

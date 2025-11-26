@@ -10,12 +10,10 @@ import {
   MONORAIL_PATHFINDER_URL,
 } from "../../../../lib/config";
 
-// Server-only secrets (never exposed to browser)
 const config = {
   appId: MONORAIL_APP_ID ?? "",
   pathfinderUrl: MONORAIL_PATHFINDER_URL,
   aggregatorAddress: getAddress(MONORAIL_AGGREGATOR_ADDRESS),
-  apiKey: process.env.MONORAIL_API_KEY,
 };
 
 const sanitizePayload = (payload: QuoteRequestParams): QuoteRequestParams => ({

@@ -6,7 +6,6 @@ export interface MonorailPathfinderConfig {
   appId: string;
   pathfinderUrl: string;
   aggregatorAddress: Address;
-  apiKey?: string;
   fetch?: typeof fetch;
 }
 
@@ -116,13 +115,7 @@ export class PathfinderError extends Error {
   }
 }
 
-const buildHeaders = (apiKey?: string): Record<string, string> => {
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (apiKey) {
-    headers["x-api-key"] = apiKey;
-  }
-  return headers;
-};
+const HEADERS: Record<string, string> = { "content-type": "application/json" };
 
 const normalizeAmount = (value?: string): bigint => {
   if (!value) return 0n;
@@ -198,7 +191,7 @@ export const fetchMonorailQuote = async (
   const deadline = params.deadline ?? 300; // Default: 5 minutes
   url.searchParams.set("deadline", `${deadline}`);
 
-  const response = await getFetchFn(config)(url.toString(), { headers: buildHeaders(config.apiKey) });
+  const response = await getFetchFn(config)(url.toString(), { headers: HEADERS });
   if (!response.ok) {
     let details = "";
     try {

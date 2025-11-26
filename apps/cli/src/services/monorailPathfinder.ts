@@ -14,7 +14,6 @@ import {
 import {
   MONORAIL_AGGREGATOR_ADDRESS,
   MONORAIL_APP_ID,
-  MONORAIL_API_KEY,
   MONORAIL_PATHFINDER_URL,
 } from "./config.js";
 
@@ -22,7 +21,6 @@ const CONFIG: MonorailPathfinderConfig = {
   appId: MONORAIL_APP_ID ?? "",
   pathfinderUrl: MONORAIL_PATHFINDER_URL,
   aggregatorAddress: MONORAIL_AGGREGATOR_ADDRESS as Address,
-  apiKey: MONORAIL_API_KEY,
 };
 
 export type { MonorailQuote, QuoteFees, RouteSplitSummary, RouteSummary, PathfinderError };

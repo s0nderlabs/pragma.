@@ -7,10 +7,8 @@ import {
   MONORAIL_DATA_API_URL,
 } from "../../../../lib/config";
 
-// Server-only secrets (never exposed to browser)
 const config = {
   dataApiUrl: MONORAIL_DATA_API_URL,
-  apiKey: process.env.MONORAIL_API_KEY,
 };
 
 export async function GET(request: Request) {

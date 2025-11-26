@@ -10,7 +10,6 @@ import {
 import {
   MONAD_NATIVE_TOKEN_ADDRESS,
   MONAD_WMON_ADDRESS,
-  MONORAIL_API_KEY,
   MONORAIL_DATA_API_URL,
 } from "./config.js";
 
@@ -21,7 +20,6 @@ export const createConfiguredAgent = (): PragmaAgent => {
   const trendingConfig = !fixtureMode
     ? {
         dataApiUrl: MONORAIL_DATA_API_URL,
-        apiKey: MONORAIL_API_KEY,
         tokenMetadata: {
           nativeTokenAddress: getAddress(MONAD_NATIVE_TOKEN_ADDRESS),
           wrappedNativeTokenAddress: getAddress(MONAD_WMON_ADDRESS),

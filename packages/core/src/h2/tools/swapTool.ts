@@ -72,13 +72,11 @@ function getMonorailConfig(): MonorailPathfinderConfig {
   const aggregatorAddress =
     (process.env.MONORAIL_AGGREGATOR_ADDRESS as Address) ||
     ("0x525B929fCd6a64AfF834f4eeCc6E860486cED700" as Address);
-  const apiKey = process.env.MONORAIL_API_KEY;
 
   return {
     appId,
     pathfinderUrl,
     aggregatorAddress,
-    apiKey,
   };
 }
 

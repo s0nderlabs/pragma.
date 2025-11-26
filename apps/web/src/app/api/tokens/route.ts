@@ -424,24 +424,10 @@ export async function GET(request: Request) {
     process.env.MONORAIL_DATA_API_URL ??
     process.env.NEXT_PUBLIC_MONORAIL_DATA_API_URL ??
     "https://testnet-api.monorail.xyz/v1";
-  // Server-side only - no NEXT_PUBLIC fallback for secrets (security audit)
-  const apiKey =
-    process.env.MONORAIL_API_KEY ??
-    process.env.ENVIO_TOKEN_API ??
-    process.env.MONORAIL_APP_ID ??
-    process.env.NEXT_PUBLIC_MONORAIL_APP_ID;
-
-  if (!apiKey) {
-    const normalized = normalizeAllowedTokensList(FALLBACK_TOKENS);
-    const sorted = sortAllowedTokens(normalized);
-    console.log(`[Fallback] No API key, returning ${sorted.length} normalized fallback tokens`);
-    return NextResponse.json({ tokens: sorted });
-  }
 
   try {
     const tokens = await buildAllowedTokens({
       dataApiUrl,
-      apiKey,
       cache: memoryCache,
       tokenMetadata: TOKEN_METADATA,
     });

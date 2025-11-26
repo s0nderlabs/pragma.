@@ -14,7 +14,6 @@ import {
   MONAD_NATIVE_TOKEN_ADDRESS,
   MONAD_NATIVE_TOKEN_SYMBOL,
   MONAD_WMON_ADDRESS,
-  MONORAIL_API_KEY,
   MONORAIL_DATA_API_URL,
 } from "./config.js";
 import { createMonadPublicClient } from "./web3authClients.js";
@@ -98,7 +97,6 @@ export const fetchBalancesInsight = async (
       nativeTokenAddress: getAddress(MONAD_NATIVE_TOKEN_ADDRESS),
       nativeTokenSymbol: MONAD_NATIVE_TOKEN_SYMBOL,
       dataApiUrl: MONORAIL_DATA_API_URL,
-      apiKey: MONORAIL_API_KEY,
       fetch: buildFixtureFetch(dataset),
       allowedTokens: request.allowedTokens,
     });
@@ -112,7 +110,6 @@ export const fetchBalancesInsight = async (
     nativeTokenAddress: getAddress(MONAD_NATIVE_TOKEN_ADDRESS),
     nativeTokenSymbol: MONAD_NATIVE_TOKEN_SYMBOL,
     dataApiUrl: MONORAIL_DATA_API_URL,
-    apiKey: MONORAIL_API_KEY,
     allowedTokens: request.allowedTokens,
     publicClient,
   });
@@ -124,7 +121,6 @@ export const fetchDelegationInsight = (context: AgentContext): AgentInsightResul
 export const fetchTrendingTokensInsight = async (): Promise<AgentInsightResult> => {
   const base = {
     dataApiUrl: MONORAIL_DATA_API_URL,
-    apiKey: MONORAIL_API_KEY,
     tokenMetadata: {
       nativeTokenAddress: getAddress(MONAD_NATIVE_TOKEN_ADDRESS),
       wrappedNativeTokenAddress: getAddress(MONAD_WMON_ADDRESS),

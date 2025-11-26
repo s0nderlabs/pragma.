@@ -18,7 +18,9 @@ import {
   fundSessionKey,
   SESSION_KEY_FUNDING_AMOUNT,
   MIN_GAS_FOR_DELEGATION,
+  estimateGasForOperations,
   type SessionKeyFundingConfig,
+  type OperationType,
 } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import { DELEGATION_MANAGER_ADDRESS } from "../config.js";
@@ -37,6 +39,7 @@ export const fundSessionKeyTool = tool(
       const smartAccount = config?.configurable?.smartAccount;
       const bundlerClient = config?.configurable?.bundlerClient;
       const transport = config?.configurable?.transport as Transport;
+      const operationType = input.operationType as OperationType | undefined;
 
       if (!sessionData || !publicClient || !web3authBridge || !transport) {
         throw createErrorFromCode("CONFIG_MISSING", {
@@ -61,13 +64,16 @@ export const fundSessionKeyTool = tool(
       });
       const fundingMethod = balanceBefore < MIN_GAS_FOR_DELEGATION ? 'userOp' : 'delegation';
 
-      // Fund session key with optional dynamic calculation
+      // Fund session key with operation-specific calculation
       const result = await fundSessionKey(
         fundingConfig,
         publicClient,
         web3authBridge,
         transport, // Authenticated transport from config (e.g., /api/rpc proxy)
-        input.estimatedOperations // Pass through for dynamic funding calculation
+        {
+          estimatedOperations: input.estimatedOperations,
+          operationType, // Use operation-specific gas costs (e.g., swap = 0.14 MON)
+        }
       );
 
       // Format response
@@ -152,14 +158,18 @@ Returns:
 - Funding method used (userOp or delegation)
 
 Examples:
-- Single swap: fundSessionKey({estimatedOperations: 1}) → funds ~0.5 MON
-- Batch of 17 swaps: fundSessionKey({estimatedOperations: 17}) → funds ~1.3 MON
+- Single swap: fundSessionKey({operationType: "swap", estimatedOperations: 1}) → funds for 0.16 MON requirement
+- Batch of 3 swaps: fundSessionKey({operationType: "swap", estimatedOperations: 3}) → funds for 0.44 MON requirement
+- Transfer: fundSessionKey({operationType: "transfer", estimatedOperations: 1}) → funds for 0.06 MON requirement
 - Unknown operations: fundSessionKey() → funds fixed 1.0 MON`,
     schema: z.object({
+      operationType: z.enum(["swap", "transfer", "wrap", "unwrap", "stake", "unstake", "unstakeClaim"]).optional().describe(
+        "Type of operation to fund for. IMPORTANT: Always specify this for accurate gas calculation! " +
+        "Each operation has different gas costs: swap=0.14 MON, transfer/wrap/unwrap=0.04 MON, stake=0.07 MON, unstake=0.075 MON"
+      ),
       estimatedOperations: z.number().optional().describe(
-        "Number of operations planned (swaps, transfers, etc.). " +
-        "If provided, calculates dynamic funding amount: (N × 0.11 MON) + 0.20 MON buffer. " +
-        "Examples: 1 operation = ~0.5 MON, 10 operations = ~1.3 MON, 17 operations = ~2.07 MON"
+        "Number of operations planned. Combined with operationType for accurate calculation. " +
+        "Examples: 1 swap = 0.14 + 0.02 buffer = 0.16 MON needed, 3 swaps = 0.44 MON needed"
       ),
     }),
   }

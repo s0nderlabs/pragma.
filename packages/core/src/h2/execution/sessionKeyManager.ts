@@ -331,14 +331,35 @@ export async function checkSessionKeyBalance(
  * );
  * ```
  */
+/**
+ * Options for session key funding
+ */
+export interface FundSessionKeyOptions {
+  /** Number of operations to fund for (uses average gas estimate) */
+  estimatedOperations?: number;
+  /** Specific operation type for accurate gas calculation */
+  operationType?: OperationType;
+}
+
 export async function fundSessionKey(
   config: SessionKeyFundingConfig,
   publicClient: PublicClient,
   web3authBridge: any, // Web3AuthBridge or direct PK bridge (used for refills only)
   transport: Transport, // Authenticated transport for wallet client (e.g., /api/rpc proxy)
-  estimatedOperations?: number,
+  options?: number | FundSessionKeyOptions, // number for backward compatibility
 ): Promise<SessionKeyFundingResult> {
   try {
+    // Parse options (support both old number format and new options object)
+    let estimatedOperations: number | undefined;
+    let operationType: OperationType | undefined;
+
+    if (typeof options === 'number') {
+      estimatedOperations = options;
+    } else if (options) {
+      estimatedOperations = options.estimatedOperations;
+      operationType = options.operationType;
+    }
+
     // Validate inputs before attempting RPC calls
     if (!config.sessionKeyAddress) {
       throw new SessionKeyFundingError("sessionKeyAddress is undefined or empty");
@@ -361,8 +382,13 @@ export async function fundSessionKey(
     let requiredBalance: bigint;
     let fundingAmount: bigint;
 
-    if (estimatedOperations !== undefined && estimatedOperations > 0) {
-      // Dynamic funding: Calculate based on operation count
+    if (operationType && estimatedOperations !== undefined && estimatedOperations > 0) {
+      // BEST: Use operation-specific gas costs (e.g., swap = 0.14 MON, not 0.08 avg)
+      const operations: OperationType[] = Array(estimatedOperations).fill(operationType);
+      requiredBalance = estimateGasForOperations(operations);
+      fundingAmount = calculateFundingAmount(balanceBefore, requiredBalance);
+    } else if (estimatedOperations !== undefined && estimatedOperations > 0) {
+      // Fallback: Calculate based on average operation count
       requiredBalance = estimateGasForBatch(estimatedOperations);
       fundingAmount = calculateFundingAmount(balanceBefore, requiredBalance);
     } else {

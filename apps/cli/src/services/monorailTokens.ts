@@ -21,7 +21,6 @@ import {
 
 import {
   MONORAIL_APP_ID,
-  MONORAIL_API_KEY,
   MONORAIL_DATA_API_URL,
   MONAD_NATIVE_TOKEN_ADDRESS,
   MONAD_WMON_ADDRESS,
@@ -64,7 +63,6 @@ const cache = new FileTokenCache();
 export const loadAllowedTokens = async (): Promise<AllowedToken[]> => {
   const allowlist = await buildAllowedTokens({
     dataApiUrl: MONORAIL_DATA_API_URL,
-    apiKey: MONORAIL_API_KEY,
     cache,
     memoryTtlMs: CACHE_MEMORY_TTL_MS,
     persistentTtlMs: CACHE_PERSISTENT_TTL_MS,
@@ -88,7 +86,6 @@ export const loadAllowedTokens = async (): Promise<AllowedToken[]> => {
 export const findTokenBySymbol = async (symbol: string) =>
   findTokenBySymbolCore(symbol, {
     dataApiUrl: MONORAIL_DATA_API_URL,
-    apiKey: MONORAIL_API_KEY,
     cache,
     memoryTtlMs: CACHE_MEMORY_TTL_MS,
     persistentTtlMs: CACHE_PERSISTENT_TTL_MS,

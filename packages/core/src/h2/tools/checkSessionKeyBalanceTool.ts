@@ -18,7 +18,9 @@ import {
   shouldFundForBatch,
   MIN_SESSION_KEY_BALANCE,
   estimateGasForBatch,
+  estimateGasForOperations,
   calculateFundingAmount,
+  type OperationType,
 } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 
@@ -32,6 +34,7 @@ export const checkSessionKeyBalanceTool = tool(
       const sessionKeyAddress = config?.configurable?.sessionData?.sessionKeyAddress as Address;
       const publicClient = config?.configurable?.publicClient as PublicClient;
       const estimatedOperations = input.estimatedOperations || 0;
+      const operationType = input.operationType as OperationType | undefined;
 
       if (!sessionKeyAddress || !publicClient) {
         throw createErrorFromCode("CONFIG_MISSING", {
@@ -49,8 +52,13 @@ export const checkSessionKeyBalanceTool = tool(
       let requiredBalance: bigint;
       let actualFundingAmount: bigint;
 
-      if (estimatedOperations > 0) {
-        // Dynamic: Calculate based on operation count
+      if (operationType && estimatedOperations > 0) {
+        // BEST: Use operation-specific costs (e.g., swap costs 0.14 MON, not 0.08 avg)
+        const operations: OperationType[] = Array(estimatedOperations).fill(operationType);
+        requiredBalance = estimateGasForOperations(operations);
+        actualFundingAmount = calculateFundingAmount(balance, requiredBalance);
+      } else if (estimatedOperations > 0) {
+        // Fallback: Use average-based calculation (less accurate for swaps)
         requiredBalance = estimateGasForBatch(estimatedOperations);
         actualFundingAmount = calculateFundingAmount(balance, requiredBalance);
       } else {
@@ -129,14 +137,18 @@ Returns:
 If needsFunding = true, call fundSessionKey before proceeding with operations.
 
 Examples:
-- User says "swap 1 MON to USDC" → getSwapQuote → show quote → user confirms "yes" → checkSessionKeyBalance({estimatedOperations: 1}) → executeSwap
-- User says "transfer 10 USDC to 0x123..." → checkSessionKeyBalance({estimatedOperations: 1}) → transfer
-- User says "swap to USDC, USDT, USDM" → getSwapQuote (3 quotes) → show quotes → user confirms → checkSessionKeyBalance({estimatedOperations: 3}) → executeSwap (batch)`,
+- User says "swap 1 MON to USDC" → getSwapQuote → show quote → user confirms "yes" → checkSessionKeyBalance({operationType: "swap", estimatedOperations: 1}) → executeSwap
+- User says "transfer 10 USDC to 0x123..." → checkSessionKeyBalance({operationType: "transfer", estimatedOperations: 1}) → transfer
+- User says "swap to USDC, USDT, USDM" → getSwapQuote (3 quotes) → show quotes → user confirms → checkSessionKeyBalance({operationType: "swap", estimatedOperations: 3}) → executeSwap (batch)
+- User says "stake 1 MON" → checkSessionKeyBalance({operationType: "stake", estimatedOperations: 1}) → stake`,
     schema: z.object({
+      operationType: z.enum(["swap", "transfer", "wrap", "unwrap", "stake", "unstake", "unstakeClaim"]).optional().describe(
+        "Type of operation to check balance for. IMPORTANT: Always specify this for accurate gas calculation! " +
+        "Each operation has different gas costs: swap=0.14 MON, transfer/wrap/unwrap=0.04 MON, stake=0.07 MON, unstake=0.075 MON"
+      ),
       estimatedOperations: z.number().optional().describe(
-        "Number of operations planned (swaps, transfers, etc.). " +
-        "If provided, tool calculates required balance: (N × 0.095 MON) + 0.20 MON buffer. " +
-        "Examples: 2 swaps = 0.39 MON needed, 3 swaps = 0.485 MON needed, 4 swaps = 0.58 MON needed"
+        "Number of operations planned. Combined with operationType for accurate calculation. " +
+        "Examples: 1 swap = 0.14 + 0.02 buffer = 0.16 MON needed, 3 swaps = 0.44 MON needed"
       ),
     }),
   }

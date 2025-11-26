@@ -4,7 +4,6 @@ import { createErrorFromCode } from "../errors/index.js";
 
 export interface MonorailBalancesConfig {
   dataApiUrl: string;
-  apiKey?: string;
   fetch?: typeof fetch;
 }
 
@@ -38,13 +37,7 @@ export interface PortfolioValueResponse {
   value: string;
 }
 
-const buildHeaders = (apiKey?: string): Record<string, string> => {
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (apiKey) {
-    headers["x-api-key"] = apiKey;
-  }
-  return headers;
-};
+const HEADERS: Record<string, string> = { "content-type": "application/json" };
 
 const getFetchFn = (config: MonorailBalancesConfig): typeof fetch => config.fetch ?? fetch;
 
@@ -53,7 +46,7 @@ export const fetchWalletBalances = async (
   config: MonorailBalancesConfig,
 ): Promise<RawTokenBalance[]> => {
   const url = new URL(`${config.dataApiUrl}/wallet/${getAddress(address)}/balances`);
-  const response = await getFetchFn(config)(url.toString(), { headers: buildHeaders(config.apiKey) });
+  const response = await getFetchFn(config)(url.toString(), { headers: HEADERS });
   if (!response.ok) {
     const text = await response.text();
     throw createErrorFromCode("RPC_UNAVAILABLE", {
@@ -69,7 +62,7 @@ export const fetchPortfolioValue = async (
   config: MonorailBalancesConfig,
 ): Promise<PortfolioValueResponse> => {
   const url = new URL(`${config.dataApiUrl}/portfolio/${getAddress(address)}/value`);
-  const response = await getFetchFn(config)(url.toString(), { headers: buildHeaders(config.apiKey) });
+  const response = await getFetchFn(config)(url.toString(), { headers: HEADERS });
   if (!response.ok) {
     const text = await response.text();
     throw createErrorFromCode("RPC_UNAVAILABLE", {

@@ -65,7 +65,6 @@ export const MONORAIL_PATHFINDER_URL =
 export const MONORAIL_DATA_API_URL =
   process.env.MONORAIL_DATA_API_URL ?? "https://testnet-api.monorail.xyz/v1";
 export const MONORAIL_APP_ID = getEnvOptional("MONORAIL_APP_ID");
-export const MONORAIL_API_KEY = getEnvOptional("MONORAIL_API_KEY");
 export const MONORAIL_AGGREGATOR_ADDRESS =
   getEnvOptional("MONORAIL_AGGREGATOR_ADDRESS") ?? "0x525B929fCd6a64AfF834f4eeCc6E860486cED700";
 

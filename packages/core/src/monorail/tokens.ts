@@ -24,7 +24,6 @@ export interface RawMonorailToken {
 
 export interface MonorailTokenClientConfig {
   dataApiUrl: string;
-  apiKey?: string;
   fetch?: typeof fetch;
 }
 
@@ -66,13 +65,7 @@ const DEFAULT_PERSISTENT_TTL_MS = 60 * 60 * 1000;
 
 let memoryCache: TokenCacheEntry | undefined;
 
-const buildHeaders = (apiKey?: string): Record<string, string> => {
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (apiKey) {
-    headers["x-api-key"] = apiKey;
-  }
-  return headers;
-};
+const HEADERS: Record<string, string> = { "content-type": "application/json" };
 
 const getFetchFn = (config: MonorailTokenClientConfig): typeof fetch => config.fetch ?? fetch;
 
@@ -106,7 +99,7 @@ export const fetchMonorailTokensFromPath = async (
   config: MonorailTokenClientConfig,
 ): Promise<MonorailToken[]> => {
   const url = `${config.dataApiUrl}${path}`;
-  const response = await getFetchFn(config)(url, { headers: buildHeaders(config.apiKey) });
+  const response = await getFetchFn(config)(url, { headers: HEADERS });
   if (!response.ok) {
     throw createErrorFromCode("RPC_UNAVAILABLE", {
       message: `Monorail data API request failed (${response.status} ${response.statusText})`,
@@ -267,13 +260,13 @@ export const hasWrappedNativeToken = (tokens: AllowedToken[], metadata?: TokenAd
 
 export const fetchSingleTokenFromMonorail = async (
   address: Address,
-  options: Pick<LoadMonorailTokensOptions, 'apiKey' | 'dataApiUrl' | 'fetch'>
+  options: Pick<LoadMonorailTokensOptions, 'dataApiUrl' | 'fetch'>
 ): Promise<AllowedToken | undefined> => {
   const url = `${options.dataApiUrl}/token/${address}`;
 
   try {
     const response = await getFetchFn(options)(url, {
-      headers: buildHeaders(options.apiKey),
+      headers: HEADERS,
     });
 
     if (!response.ok) {
@@ -307,7 +300,7 @@ export const fetchSingleTokenFromMonorail = async (
 export const resolveTokenFromAllowlist = async (
   input: string,
   allowlist: AllowedToken[],
-  monorailOptions?: Pick<LoadMonorailTokensOptions, 'apiKey' | 'dataApiUrl' | 'fetch'>
+  monorailOptions?: Pick<LoadMonorailTokensOptions, 'dataApiUrl' | 'fetch'>
 ): Promise<AllowedToken | undefined> => {
   const trimmed = input.trim();
   if (!trimmed) return undefined;

@@ -13,7 +13,6 @@ import {
 } from "@pragma/core";
 
 import {
-  MONORAIL_API_KEY,
   MONORAIL_DATA_API_URL,
   MONAD_READ_RPC_URL,
   MONAD_EXECUTION_RPC_URL,
@@ -25,7 +24,6 @@ import type { AllowedToken } from "./monorailTokens.js";
 
 const CONFIG: MonorailBalancesConfig = {
   dataApiUrl: MONORAIL_DATA_API_URL,
-  apiKey: MONORAIL_API_KEY,
 };
 
 export type { TokenBalance, PortfolioValueResponse };

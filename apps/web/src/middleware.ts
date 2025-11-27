@@ -123,7 +123,7 @@ function isOriginAllowed(origin: string | null): boolean {
     if (origin === allowed) return true;
     // Allow subdomains in production
     if (process.env.NODE_ENV === "production") {
-      return origin.endsWith(".pragma.app");
+      return origin.endsWith(".pr4gma.xyz");
     }
     return false;
   });

@@ -44,9 +44,12 @@ export const vibetradingTool = tool(
         });
       }
 
+      // Get authenticated fetch from configurable (for browser context with auth)
+      const fetchFn = (config?.configurable?.fetch as typeof fetch) || fetch;
+
       // Call the vibetrading API
       const baseUrl = apiBaseUrl || "";
-      const response = await fetch(`${baseUrl}/api/vibetrading`, {
+      const response = await fetchFn(`${baseUrl}/api/vibetrading`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

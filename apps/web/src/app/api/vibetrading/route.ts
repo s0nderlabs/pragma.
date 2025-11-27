@@ -10,6 +10,7 @@ import {
   type Address,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { authMiddleware } from "@/lib/auth/authMiddleware";
 
 // Configuration
 const MONAD_RPC_URL =
@@ -125,6 +126,10 @@ async function hasAlreadyClaimedViaHypersync(
  * Uses Hypersync to verify no duplicate claims.
  */
 export async function POST(request: NextRequest) {
+  // ✅ SECURITY: Require authentication to prevent unauthorized claims
+  const authError = await authMiddleware(request);
+  if (authError) return authError;
+
   try {
     // Parse request body
     const body = (await request.json()) as {
@@ -223,6 +228,10 @@ export async function POST(request: NextRequest) {
  * Check claim status for an address via Hypersync.
  */
 export async function GET(request: NextRequest) {
+  // ✅ SECURITY: Require authentication for status checks
+  const authError = await authMiddleware(request);
+  if (authError) return authError;
+
   const { searchParams } = new URL(request.url);
   const address = searchParams.get("address") as Address | null;
 

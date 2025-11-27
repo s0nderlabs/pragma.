@@ -17,6 +17,7 @@ import { BalancesTab } from './tabs/BalancesTab'
 import { SettingsTab } from './tabs/SettingsTab'
 import { CopyNotification } from '../notifications/CopyNotification'
 import { DeployNotification } from '../notifications/DeployNotification'
+import { ErrorNotification } from '../notifications/ErrorNotification'
 
 interface MinimalSidebarProps {
   status: string
@@ -41,7 +42,7 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
   const toggleQuickMode = useH2ChatStore((state) => state.toggleQuickMode)
   const { theme: pragmaTheme, setTheme: setZustandTheme } = useThemeStore()
   const { monBalance, usdValue, change24h, isLoading, refresh } = useWalletBalance()
-  const { showCopy, showCopyNotification } = useNotificationStore()
+  const { showCopy, showCopyNotification, errorMessage } = useNotificationStore()
   const toggleShortcutPanel = useShortcutPanelStore((state) => state.toggle)
   const [activeTab, setActiveTab] = useState<'activity' | 'balances' | 'settings'>('activity')
   const [openMethod, setOpenMethod] = useState<'hover' | 'keyboard' | null>(null)
@@ -254,6 +255,7 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
                   change24h={walletData.change24h}
                   address={walletData.address}
                   monBalance={walletData.monBalance}
+                  isDeploying={isDeploying}
                 />
               </div>
 
@@ -300,6 +302,7 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.2 }}
+                      className="h-full"
                     >
                       <SettingsTab
                         status={status}
@@ -358,6 +361,7 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
                       change24h={walletData.change24h}
                       address={walletData.address}
                       monBalance={walletData.monBalance}
+                      isDeploying={isDeploying}
                     />
                   </div>
 
@@ -404,6 +408,7 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -10 }}
                           transition={{ duration: 0.2 }}
+                          className="h-full"
                         >
                           <SettingsTab
                             status={status}
@@ -427,6 +432,9 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
 
       {/* Deploy notification toast */}
       <DeployNotification isDeploying={isDeploying} showSuccess={showDeployNotification} />
+
+      {/* Error notification toast */}
+      <ErrorNotification message={errorMessage} />
     </>
   )
 }

@@ -97,7 +97,7 @@ function TreeNode({
         />
         <span
           className={cn(
-            "font-mono text-sm",
+            "font-mono text-sm max-lg:break-all",
             getStatusColor()
           )}
           style={style}

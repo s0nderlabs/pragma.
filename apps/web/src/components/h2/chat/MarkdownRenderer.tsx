@@ -221,7 +221,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   }
 
   return (
-    <div className="prose prose-invert max-w-none">
+    <div className="prose prose-invert max-w-none max-lg:break-words max-lg:overflow-hidden">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={components}

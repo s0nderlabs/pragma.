@@ -29,7 +29,7 @@ export function AIMessage({ message }: AIMessageProps) {
       transition={{ duration: 0.3 }}
       className="mb-6"
     >
-      <div className="text-sm lg:text-base">
+      <div className="text-sm lg:text-base max-lg:min-w-0 max-lg:overflow-hidden">
         <MarkdownRenderer content={displayedContent} />
         {(message.isStreaming || isBuffering) && (
           <motion.span

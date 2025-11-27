@@ -25,11 +25,12 @@ export function SettingsPanel() {
   }, [])
 
   const handleDisconnect = async () => {
-    // Clear both Web3Auth and H2 session
-    await disconnect()
-    clearSession()
-    // Clear chat messages from UI
+    // Clear chat messages FIRST (before disconnect might navigate away)
     useH2ChatStore.getState().clearMessages()
+    // Clear H2 session state
+    clearSession()
+    // Then disconnect Web3Auth (may cause navigation/unmount)
+    await disconnect()
   }
 
   return (

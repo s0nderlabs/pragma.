@@ -31,6 +31,7 @@ import { createDirectWeb3AuthBridge } from '@/lib/h2.5/directWeb3AuthBridge';
 import { streamBrowserAgent } from '@/lib/h2.5/browserAgentRunner';
 import type { MessageTuple, BrowserAgentCallbacks } from '@/lib/h2.5/browserAgentRunner';
 import { createHybridDelegatorHandle } from '@/lib/onboarding/hybridDelegator';
+import { useNotificationStore } from '@/stores/useNotificationStore';
 // Note: sponsorUserOperation import removed - session key funding is now self-paid
 import type { HybridDelegatorHandle } from '@/lib/onboarding/hybridDelegator';
 
@@ -318,29 +319,26 @@ export function useH2_5Agent() {
     async (content: string) => {
       // Check initialization
       if (!isInitialized || !agentRef.current) {
-        addMessage({
-          role: 'system',
-          content: initError || 'Agent not initialized. Please refresh the page.',
-        });
+        useNotificationStore.getState().showErrorNotification(
+          initError || 'Agent not initialized. Please refresh the page.'
+        );
         return;
       }
 
       // Check wallet connection
       if (!wallet) {
-        addMessage({
-          role: 'system',
-          content: 'Please connect your wallet to use H2.5.',
-        });
+        useNotificationStore.getState().showErrorNotification(
+          'Wallet not connected'
+        );
         return;
       }
 
       // Check session data
       const userAddress = sessionData?.delegator;
       if (!userAddress || !sessionData) {
-        addMessage({
-          role: 'system',
-          content: 'No session data. Please complete onboarding first.',
-        });
+        useNotificationStore.getState().showErrorNotification(
+          'No session data. Please complete onboarding first.'
+        );
         return;
       }
 

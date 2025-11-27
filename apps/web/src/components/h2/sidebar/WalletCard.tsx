@@ -12,6 +12,7 @@ interface WalletCardProps {
   change24h: number
   address: string
   monBalance: string
+  isDeploying?: boolean
 }
 
 /**
@@ -21,7 +22,7 @@ interface WalletCardProps {
  * Always visible, never scrolls away
  * Clean, minimal design with perfect typography hierarchy
  */
-export function WalletCard({ balance, change24h, address, monBalance }: WalletCardProps) {
+export function WalletCard({ balance, change24h, address, monBalance, isDeploying }: WalletCardProps) {
   const { balanceVisible, toggleBalance } = useSidebarStore()
   const [copied, setCopied] = useState(false)
 
@@ -47,9 +48,13 @@ export function WalletCard({ balance, change24h, address, monBalance }: WalletCa
   }, [])
 
   const formatAddress = (addr: string) => {
-    // Handle empty, zero, or invalid address
-    if (!addr || addr === '' || addr === '0x0000000000000000000000000000000000000000') {
+    // Show "Deploying..." only when actively deploying
+    if (isDeploying) {
       return 'Deploying...'
+    }
+    // Show "Connect Wallet" when no wallet is connected
+    if (!addr || addr === '' || addr === '0x0000000000000000000000000000000000000000') {
+      return 'Connect Wallet'
     }
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`
   }

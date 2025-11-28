@@ -65,7 +65,7 @@ Envio provides two services for Pragma:
 | `PRAGMA_AGENT_STREAM_INSIGHTS` | Enable streaming SSE responses (default: enabled). | CLI & Web. |
 | `PRAGMA_AGENT_STREAM_TIMEOUT_MS` | First chunk timeout in milliseconds (default: 1200). | CLI & Web. |
 
-**Models used:** gpt-5-mini (primary), gpt-5-nano (fallback).
+**Models used:** gpt-5-mini (primary).
 
 Without this key, the agent will only parse swap intents deterministically but won't provide insights or answer educational questions. The conversational AI capabilities (clarifications with context, system explanations, trending tokens, safety warnings) require a valid OpenAI API key.
 

@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, IBM_Plex_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import { ThemeProvider } from "../components/theme-provider";
 import { ThemeSynchronizer } from "../components/ThemeSynchronizer";
@@ -50,6 +52,8 @@ export default function RootLayout({
           <ThemeSynchronizer />
           {children}
         </ThemeProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

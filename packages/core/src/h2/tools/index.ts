@@ -40,6 +40,13 @@ import { checkUnstakeStatusTool } from "./checkUnstakeStatusTool.js";
 // Easter Egg Tools
 import { vibetradingTool } from "./vibetradingTool.js";
 
+// Knowledge Retrieval Tools (RAG)
+import { searchProtocolDocsTool } from "./searchProtocolDocsTool.js";
+import { searchToolDocsTool } from "./searchToolDocsTool.js";
+
+// Web Search Tools
+import { webSearchTool } from "./webSearchTool.js";
+
 // ============================================================================
 // Tool Registry
 // ============================================================================
@@ -99,6 +106,13 @@ export const h2ToolRegistry = [
 
   // Easter egg tools
   vibetradingTool,
+
+  // Knowledge retrieval tools (RAG)
+  searchProtocolDocsTool,
+  searchToolDocsTool,
+
+  // Web search tools
+  webSearchTool,
 ] as const;
 
 /**
@@ -142,4 +156,11 @@ export {
 
   // Easter egg tools
   vibetradingTool,
+
+  // Knowledge retrieval tools (RAG)
+  searchProtocolDocsTool,
+  searchToolDocsTool,
+
+  // Web search tools
+  webSearchTool,
 };

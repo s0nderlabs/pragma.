@@ -22,7 +22,7 @@ import { authMiddleware } from "@/lib/auth/authMiddleware";
 const INDEX_NAME = "pragma-docs";
 const NAMESPACE = "docs";
 const TOP_K = 5;
-const MIN_SCORE = 0.5;
+const MIN_SCORE = 0.3; // Lowered from 0.5 - semantic search scores are typically 0.3-0.5 for good matches
 
 // Internal API key for server-to-server calls
 // This prevents external access while allowing tools to call this endpoint

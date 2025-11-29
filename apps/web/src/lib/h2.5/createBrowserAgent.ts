@@ -68,6 +68,21 @@ export interface BrowserAgentConfig {
    * Request timeout in milliseconds (default: 60000 = 60s)
    */
   timeout?: number;
+
+  /**
+   * Custom tools to use (optional, overrides default h2ToolRegistry)
+   * Used by two-phase architecture to load only needed tools
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tools?: any[];
+
+  /**
+   * Reasoning effort for gpt-5-mini (default: undefined = model default)
+   * - "low": Fast, for simple operations
+   * - "medium": Balanced, for moderate complexity
+   * - "high": Thorough, for complex reasoning
+   */
+  reasoningEffort?: "low" | "medium" | "high";
 }
 
 /**
@@ -130,7 +145,8 @@ export function createBrowserAgent(config: BrowserAgentConfig): ReturnType<typeo
   }
 
   // Initialize ChatOpenAI model (routes through proxy for security)
-  const model = new ChatOpenAI({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const modelConfig: Record<string, any> = {
     model: config.model || 'gpt-5-mini',
     apiKey: config.apiKey || 'proxy-not-used', // Proxy doesn't validate
     streaming: config.streaming ?? true, // Enable streaming by default
@@ -139,18 +155,29 @@ export function createBrowserAgent(config: BrowserAgentConfig): ReturnType<typeo
     maxRetries: 2, // Retry failed requests
     configuration: {
       // Absolute URL required by OpenAI SDK's URL constructor
+      // Must include /v1 so LangChain calls /api/h2/v1/responses (not /api/h2/responses)
       baseURL: typeof window !== 'undefined'
-        ? `${window.location.origin}/api/h2`
-        : 'http://localhost:3000/api/h2',
+        ? `${window.location.origin}/api/h2/v1`
+        : 'http://localhost:3000/api/h2/v1',
       // Use authenticated fetch for JWT + signature authentication
       fetch: authenticatedFetch as typeof fetch,
     },
-  });
+  };
+
+  // Add reasoning effort if specified (gpt-5-mini supports this)
+  if (config.reasoningEffort) {
+    modelConfig.reasoningEffort = config.reasoningEffort;
+  }
+
+  const model = new ChatOpenAI(modelConfig);
+
+  // Use custom tools if provided, otherwise use full registry
+  const tools = config.tools || [...h2ToolRegistry];
 
   // Create agent using LangChain 1.0 pattern (identical to server-side)
   const agent = createAgent({
     model,
-    tools: [...h2ToolRegistry],
+    tools,
   });
 
   return agent;

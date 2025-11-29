@@ -229,22 +229,7 @@ Your MON has been wrapped into WMON!`;
   },
   {
     name: "wrap",
-    description: `Wrap native MON into WMON (Wrapped MON) ERC20 token. FREE operation (only gas).
-
-This tool executes immediately - no quote phase needed.
-
-Use when user wants to:
-- Convert MON to WMON
-- Wrap MON for DeFi protocols
-- Get ERC20 version of MON
-
-Process:
-1. Validates you have enough MON
-2. Creates ephemeral delegation (1-time use)
-3. Executes wrap via WMON.deposit()
-4. Returns transaction receipt
-
-Example: "wrap 0.5 MON"`,
+    description: "Wrap MON → WMON. FREE (gas only). Executes immediately. Call search_tool_docs('wrap') for detailed usage.",
     schema: z.object({
       amount: z.string().describe("Amount of MON to wrap (decimal string like '0.5')"),
     }),

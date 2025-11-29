@@ -285,40 +285,7 @@ Your MON has been returned from staking. ${isBatch ? `${requestIdArray.length} r
   },
   {
     name: "unstakeClaim",
-    description: `Claim MON from completed withdrawal requests (Step 2 of 2). FREE operation (only gas).
-
-⚡ **TESTNET NOTE:** Withdrawals are instant (withdrawalDelay = 0), so you likely already
-   received your MON when you unstaked. This tool is only needed on mainnet with delays.
-
-This tool completes the unstaking process and returns your MON.
-
-Use when user wants to:
-- Claim MON from withdrawal requests
-- Complete the unstaking process
-- Get MON back after waiting period
-
-Prerequisites (MAINNET):
-- Must have completed unstake request (via unstakeRequest tool)
-- Must wait 12-18 hours after request for epoch to pass
-- Request must be claimable (check with checkUnstakeStatus tool)
-
-Prerequisites (TESTNET):
-- Usually not needed - withdrawals complete instantly
-- Only use if you have old pending requests from before instant mode
-
-Process:
-1. Validates all requestIds are claimable
-2. Creates ephemeral delegation (1-time use)
-3. Executes claim via aPriori.redeem()
-4. Returns MON to your account (minus 0.1% aPriori fee)
-
-Batch Support:
-- Single: "claim unstake 123"
-- Batch: "claim unstake 123,456,789" (comma-separated, more gas efficient)
-
-Fee: 0.1% aPriori protocol fee on claimed MON amount (NOT Pragma fee)
-
-Example: "claim unstake 42" or "claim unstake 1,2,3"`,
+    description: "Claim MON from unstake requests. FREE (gas only). Pass request IDs from unstakeRequest. Call search_tool_docs('unstakeClaim') for detailed usage.",
     schema: z.object({
       requestIds: z.string().describe("Comma-separated request IDs to claim (e.g., '123' or '1,2,3')"),
     }),

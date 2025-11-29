@@ -223,28 +223,7 @@ Token "${token}" was not found in the verified token list.
   },
   {
     name: "getTokenInfo",
-    description: `Get detailed information about a specific token including contract address, decimals, type, categories, and verification status.
-
-**When to use:**
-- User asks "what is the address of [TOKEN]?"
-- User asks "show me [TOKEN] contract address"
-- User wants token details (decimals, categories, verification status)
-- User asks "is [TOKEN] verified?"
-- User pastes a token address and asks "what token is this?"
-
-**Supports:**
-- Lookup by symbol (e.g., "YAKI", "MON", "USDC")
-- Lookup by address (e.g., "0xfe140...")
-- Verified tokens (fast lookup from allowlist)
-- Unverified tokens (Monorail API lookup with warnings)
-- Unknown tokens (onchain ERC20 lookup with strong warnings)
-
-**Returns:**
-- Full contract address (never truncated)
-- Symbol, name, decimals, type, categories
-- Verification status (✅ verified / ⚠️ not verified)
-- Security warnings for unverified tokens
-- Logo URL (if available)`,
+    description: "Get token details (address, decimals, verification status). Lookup by symbol or address. Call search_tool_docs('getTokenInfo') for detailed usage.",
     schema: getTokenInfoSchema,
   }
 );

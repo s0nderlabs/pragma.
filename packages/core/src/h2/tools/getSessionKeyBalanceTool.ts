@@ -53,10 +53,7 @@ export const getSessionKeyBalanceTool = tool(
   },
   {
     name: "getSessionKeyBalance",
-    description:
-      "Get the MON balance of the session key (ephemeral key used for gas). " +
-      "Use this when user asks: 'what is my session key balance?', 'session key status', " +
-      "'how much gas do I have?', 'check session key', or similar questions about the session key.",
+    description: "Get session key MON balance (gas funds). Use for 'session key balance' questions. Call search_tool_docs('getSessionKeyBalance') for detailed usage.",
     schema: getSessionKeyBalanceSchema,
   }
 );

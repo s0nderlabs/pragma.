@@ -264,16 +264,26 @@ const toolDocs: Record<string, string> = {
 **Examples:** "check my unstake status" or "are my MON ready to claim?"`,
 
   // Easter Egg
-  vibetrading: `**vibetradingTool** - Special easter egg for enthusiastic users
+  claimVibetrading: `**claimVibetrading** - Claim 1.5 MON beta tester airdrop
 
-**Use when:** User mentions "vibe trading" or expresses enthusiasm about trading
+**TRIGGER:** ONLY call when user types EXACTLY "/vibetrading" as their message
 
-**Returns:** Special response with confetti and encouragement
+**DO NOT call for:**
+- "what is vibetrading?" → Explain it instead
+- "tell me about vibetrading" → Explain it instead
+- Any casual mentions
 
-**Note:** This is a fun easter egg, not a serious trading tool.`,
+**What is vibetrading?** Pragma's term for AI-powered trading through natural conversation—like vibe coding but for trading.
+
+**Returns JSON with status:**
+- status="success": Show celebratory message with amount + txHash
+- status="already_claimed": Tell user they already claimed + show txHash
+- status="error": Show error message
+
+**Response style:** Fun, celebratory, use emojis. Be creative!`,
 
   // Web Search
-  webSearch: `**webSearchTool** - Search the web for current information
+  web_search: `**web_search** - Search the web for current information
 
 **Use when:** User asks about:
 - Current token prices ("what is MON price?")
@@ -295,6 +305,43 @@ const toolDocs: Record<string, string> = {
 - Use for CURRENT/REAL-TIME information only
 - For protocol documentation, use search_protocol_docs instead
 - Results include source URLs for verification`,
+
+  // RAG Tools (self-documentation)
+  search_tool_docs: `**search_tool_docs** - Get detailed documentation for any Pragma tool
+
+**Use when:** You need usage instructions, parameters, or examples for a specific tool
+
+**Parameters:**
+- toolName: Name of the tool (e.g., 'getSwapQuote', 'stake', 'transfer')
+
+**Returns:** Detailed documentation including:
+- When to use the tool
+- Required and optional parameters
+- Example workflows
+- Important notes and warnings
+
+**Examples:**
+- Need swap help? → search_tool_docs('getSwapQuote')
+- Need staking help? → search_tool_docs('stake')
+- Need transfer help? → search_tool_docs('transfer')`,
+
+  search_protocol_docs: `**search_protocol_docs** - Get Pragma architecture and protocol documentation
+
+**Use when:** User asks about:
+- How Pragma works ("how does Pragma work?")
+- Technical architecture ("explain the delegation system")
+- Security model ("how are my funds protected?")
+- Protocol integrations ("what is aPriori?", "what is Monorail?")
+
+**Parameters:**
+- topic: Topic to search for (e.g., 'delegation', 'security', 'architecture')
+
+**Examples:**
+- "How does Pragma work?" → search_protocol_docs('architecture')
+- "What is aPriori?" → search_protocol_docs('aPriori')
+- "How are delegations signed?" → search_protocol_docs('signing')
+
+**IMPORTANT:** Use this for Pragma-specific documentation, not real-time data (use web_search for that)`,
 };
 
 // ============================================================================

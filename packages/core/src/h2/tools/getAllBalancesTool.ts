@@ -230,34 +230,7 @@ Source: Monorail API (cached)`;
   },
   {
     name: "getAllBalances",
-    description: `Fetch ALL token balances for user's portfolio. Single API call via Monorail.
-
-⚡ **USE THIS TOOL WHEN:**
-- User asks "show my balances", "what do I have", "my portfolio"
-- Before batch operations (get all balances at once - more efficient)
-- Planning multiple swaps ("swap all to MON")
-
-**DO NOT USE FOR:**
-- Single token queries → use getBalance instead
-- Precision-critical operations → use getBalance for on-chain verification
-
-**Returns:**
-- Complete portfolio with all non-zero token balances
-- USD values for each token (if available)
-- Total portfolio value in USD
-- Token count
-
-**Performance:**
-- Single Monorail API call (fast)
-- Results cached for 30-60 seconds
-- More efficient than calling getBalance multiple times
-
-**Example usage:**
-- "show my balances" → getAllBalances
-- "what's my portfolio worth" → getAllBalances
-- Before: "swap all to MON" → getAllBalances (get all tokens at once)
-
-For single token: "what's my USDC balance" → use getBalance(USDC) instead`,
+    description: "Get complete portfolio with all token balances and USD values. Use for 'show my balances'. For single token use getBalance. Call search_tool_docs('getAllBalances') for detailed usage.",
     schema: z.object({}),
   }
 );

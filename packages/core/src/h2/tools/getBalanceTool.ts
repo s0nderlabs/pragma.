@@ -365,8 +365,7 @@ export const getBalanceTool = tool(
   },
   {
     name: "getBalance",
-    description:
-      "Get user's balance for a specific token OR display complete portfolio with USD values. Pass token='all' when user asks 'show my balances', 'what's my portfolio', 'show all my tokens', 'what do I have', etc. Returns all non-zero token balances with USD values and total portfolio value. Pass specific token symbol when user asks about one token ('show my MON balance', 'how much USDC do I have') or uses amount keywords ('swap all my MON'). Always call this BEFORE executing swaps/transfers when user uses amount keywords like 'all', 'max', 'half', 'quarter'. Balances include USD values when available for better clarity.",
+    description: "Get balance for specific token. Use 'all' for portfolio. Call BEFORE swaps when user says 'all/half/max'. Call search_tool_docs('getBalance') for detailed usage.",
     schema: getBalanceSchema,
   }
 );

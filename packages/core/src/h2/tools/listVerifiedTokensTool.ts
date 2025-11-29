@@ -132,20 +132,7 @@ export const listVerifiedTokensTool = tool(
   },
   {
     name: "listVerifiedTokens",
-    description: `List all verified tokens available for trading on Monad blockchain.
-
-**When to use this tool:**
-- User asks "what tokens can I trade/swap?"
-- User asks "show me available tokens" or "list tokens"
-- User asks "which tokens are supported?"
-- User asks "what coins/cryptocurrencies can I use?"
-- User asks about token availability before making a swap
-- User wants to know about stablecoins, LSTs, or specific token categories
-- User asks "what is MON/USDC/aprMON?" and you need context about available tokens
-
-**Returns:** Categorized list of 50+ verified Monad tokens grouped by type (native/wrapped, stablecoins, liquid staking tokens, ecosystem tokens, bridged assets, meme tokens, synthetic assets). Each token includes symbol and name.
-
-**Important:** This is the authoritative source for Monad token information. Always use this tool instead of assuming Ethereum mainnet tokens.`,
+    description: "List 50+ verified Monad tokens by category. Use for 'what tokens can I swap'. Call search_tool_docs('listVerifiedTokens') for detailed usage.",
     schema: z.object({}),
   }
 );

@@ -234,16 +234,7 @@ Your WMON has been unwrapped back to MON!`;
   },
   {
     name: "unwrap",
-    description: `Unwrap WMON back to native MON. FREE operation (only gas).
-
-Executes immediately - no quote phase needed.
-
-Use when user wants to:
-- Convert WMON back to MON
-- Unwrap WMON tokens
-- Get native MON from wrapped version
-
-Example: "unwrap 1.0 WMON"`,
+    description: "Unwrap WMON → MON. FREE (gas only). Executes immediately. Call search_tool_docs('unwrap') for detailed usage.",
     schema: z.object({
       amount: z.string().describe("Amount of WMON to unwrap (decimal string like '1.0')"),
     }),

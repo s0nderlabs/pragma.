@@ -216,37 +216,7 @@ ${recipient ? `MON sent to ${recipientAddress}` : "MON returned to your smart ac
   },
   {
     name: "withdrawSessionKeyBalance",
-    description: `Withdraw MON from session key to smart account or any address. Gives you full control over session key funds.
-
-**WHEN TO USE:**
-- User wants to recover session key funds
-- User wants to consolidate funds in smart account
-- User wants to send session key MON to external address
-- User is logging out and wants to withdraw remaining balance
-
-**How It Works:**
-This is a direct EOA transfer (session key is a regular Ethereum account that owns its MON).
-No delegation or smart account interaction needed - session key can send its own MON freely.
-
-**Amount Options:**
-- "all": Withdraws maximum possible (reserves gas for the withdrawal tx itself)
-- Specific amount: "0.5" (withdraws exactly 0.5 MON, must leave enough for gas)
-
-**Recipient:**
-- Default: Your smart account (userAddress)
-- Custom: Any valid Ethereum address
-
-**Security:**
-- Session key only holds ~1 MON for gas (low risk)
-- Direct transfer - no approval or delegation needed
-- Cannot access smart account tokens (only session key's own MON)
-
-**Examples:**
-- "withdraw all session key balance" → Sends max MON to smart account
-- "withdraw 0.5 MON from session key" → Sends 0.5 MON to smart account
-- "send session key balance to 0xABC..." → Sends max MON to custom address
-
-Returns transaction receipt with new session key balance.`,
+    description: "Withdraw MON from session key. Direct EOA transfer. Use 'all' for max amount. Call search_tool_docs('withdrawSessionKeyBalance') for detailed usage.",
     schema: z.object({
       amount: z
         .string()

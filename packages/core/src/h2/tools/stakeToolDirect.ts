@@ -336,27 +336,7 @@ Your MON is now earning staking rewards through aPriori. aprMON appreciates in v
   },
   {
     name: "stake",
-    description: `Stake MON into aPriori liquid staking to earn rewards. Receives aprMON tokens.
-
-This tool executes immediately - no quote phase needed.
-
-Use when user wants to:
-- Stake MON to earn rewards
-- Get aprMON liquid staking tokens
-- Participate in aPriori staking
-- Earn passive income on MON
-
-Process:
-1. Validates you have enough MON
-2. Deducts 0.5% Pragma protocol fee
-3. Creates ephemeral delegation (1-time use)
-4. Executes stake via aPriori.deposit() with net amount
-5. Returns transaction receipt with aprMON balance
-
-Fee: 0.5% on input amount (deducted before staking)
-Example: Stake 1.0 MON → 0.005 MON fee, 0.995 MON staked
-
-Example: "stake 1 MON" or "stake all my MON"`,
+    description: "Stake MON → aprMON via aPriori. 0.5% fee. Executes immediately. Call search_tool_docs('stake') for detailed usage.",
     schema: z.object({
       amount: z.string().describe("Amount of MON to stake (decimal string like '1.0')"),
     }),

@@ -350,23 +350,7 @@ The transfer has been confirmed on-chain!`;
   },
   {
     name: "transfer",
-    description: `Transfer ERC20 tokens or native MON to another address. FREE operation (only gas).
-
-Executes immediately - no quote phase needed.
-
-Supports:
-- ERC20 token transfers (e.g., USDC, DAK, WMON)
-- Native MON transfers (use symbol "MON")
-
-Use when user wants to:
-- Send tokens to someone
-- Transfer MON to address
-- Move tokens between accounts
-
-Examples:
-- "send 100 USDC to 0x..."
-- "transfer 0.5 MON to 0x..."
-- "send 50 DAK to 0x..."`,
+    description: "Transfer tokens or MON to address. FREE (gas only). Executes immediately. Call search_tool_docs('transfer') for detailed usage.",
     schema: z.object({
       tokenSymbol: z.string().describe("Token symbol to transfer (e.g., 'USDC', 'MON', 'DAK')"),
       amount: z.string().describe("Amount to transfer (decimal string like '100')"),

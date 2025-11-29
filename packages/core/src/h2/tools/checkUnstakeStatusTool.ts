@@ -163,27 +163,7 @@ You haven't created any withdrawal requests yet. To unstake aprMON, use the unst
   },
   {
     name: "checkUnstakeStatus",
-    description: `Check status of all aprMON withdrawal requests. FREE operation (read-only).
-
-⚡ **TESTNET NOTE:** Most withdrawals complete instantly (withdrawalDelay = 0), so you
-   likely already received your MON. This tool mainly useful on mainnet with delays.
-
-Use when user wants to:
-- Check if withdrawal requests are ready to claim
-- See pending unstake requests
-- Get requestIds for claiming
-- Check how long until claimable
-
-Returns:
-- Summary of all requests (claimable, pending, claimed)
-- Request details (ID, amounts, status, timestamps)
-- Action suggestions ("claim unstake X" for ready requests)
-- Batch claim suggestions for gas optimization
-- Network-specific tips (testnet instant vs mainnet delayed)
-
-No transaction required - this is a read-only query.
-
-Example: "check unstake status" or "are my unstake requests ready?"`,
+    description: "Check status of unstake requests. FREE (read-only). Returns claimable/pending status. Call search_tool_docs('checkUnstakeStatus') for detailed usage.",
     schema: z.object({}),
   }
 );

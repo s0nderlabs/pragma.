@@ -178,52 +178,7 @@ Your ${quote.toTokenSymbol} balance has been updated.`;
   },
   {
     name: "executeSwap",
-    description: `Execute a confirmed swap transaction.
-
-**CRITICAL RULES FOR QUOTE REUSE:**
-1. ONLY call after getSwapQuote has been called AND user confirmed
-2. REUSE the exact quote ID you JUST showed in your previous message
-3. NEVER call getSwapQuote again before calling this tool
-4. Look at YOUR PREVIOUS MESSAGES to find the quote ID you showed to user
-5. Quotes are valid for 10 minutes - reusing prevents expiry errors
-
-**Example Flow (CORRECT):**
-User: "swap 1 MON to USDC"
-AI: [calls getSwapQuote] → Shows "Quote abc123: 1 MON → 3.5 USDC. Execute?"
-User: "yes"
-AI: [calls executeSwap({ quoteId: "abc123", fromToken: "MON", toToken: "USDC", amountIn: "1", amountOut: "3.5" })]
-
-**IMPORTANT:** Always pass fromToken, toToken, amountIn, and amountOut from the quote output for better progress tracking.
-
-**Workflow:**
-1. User confirms swap with "yes"/"execute"/"proceed"
-2. Check session key balance (per system instructions)
-3. If funding needed, fund session key
-4. Call executeSwap with the quote ID
-
-**What NOT to Do:**
-❌ DO NOT call getSwapQuote again after user confirms (wastes time, causes expiry)
-❌ DO NOT check balance BEFORE calling getSwapQuote (read-only operation, no gas needed)
-✅ Balance checks happen AFTER user confirms, BEFORE executeSwap
-
-This tool will:
-- Validate the quote (not expired, still valid)
-- Check session key balance internally (fund if needed, automatic)
-- Create ephemeral delegation (5 min expiry, single-use)
-- Sign delegation with Web3Auth (owner's signature)
-- Sign transaction with session key
-- Submit to blockchain
-- Wait for confirmation (6-8 seconds)
-- Return detailed receipt
-
-Security:
-- Ephemeral delegation created just-in-time
-- Single-use (1-2 calls max)
-- Short-lived (5 minute expiry)
-- Exact calldata matching quote
-- User confirmation required (except quick mode)
-
-Returns: Conversational receipt with transaction details`,
+    description: "Execute swap with quote ID from getSwapQuote. Reuse exact quote ID from previous message. Call search_tool_docs('executeSwap') for detailed usage.",
     schema: z.object({
       quoteId: z.string().describe("Quote ID from getSwapQuote tool"),
       fromToken: z.string().optional().describe("Source token symbol (e.g., 'MON') - pass this from the quote output for progress tracking"),

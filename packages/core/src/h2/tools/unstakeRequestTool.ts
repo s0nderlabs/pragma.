@@ -328,32 +328,7 @@ Your withdrawal request is queued and will be claimable after the current stakin
   },
   {
     name: "unstakeRequest",
-    description: `Request to unstake aprMON back to MON. FREE operation (only gas).
-
-⚡ Testnet: Withdrawals complete INSTANTLY (withdrawalDelay = 0)
-⏳ Mainnet: Two-step process with 12-18 hour epoch-based delays
-
-Use when user wants to:
-- Unstake aprMON to get MON back
-- Start the withdrawal process
-- Convert aprMON back to native MON
-
-Process:
-1. Validates you have enough aprMON
-2. Calls aPriori.requestRedeem() to create withdrawal request
-3. Returns requestId for tracking
-4. TESTNET: MON returned immediately in same transaction
-5. MAINNET: User must wait 12-18 hours then call unstakeClaim tool
-
-Testnet Flow (Instant):
-- Call this tool → Get MON immediately ✅
-
-Mainnet Flow (Delayed):
-- Step 1 (THIS TOOL): Request unstaking → Get requestId
-- Step 2 (Wait): 12-18 hours for epoch to pass
-- Step 3 (CLAIM TOOL): Claim MON with requestId
-
-Example: "unstake 0.5 aprMON" or "request to unstake all my aprMON"`,
+    description: "Request unstake aprMON → MON. FREE (gas only). Testnet: instant. Mainnet: 12-18h wait. Call search_tool_docs('unstakeRequest') for detailed usage.",
     schema: z.object({
       amount: z.string().describe("Amount of aprMON to unstake (decimal string like '0.5')"),
     }),

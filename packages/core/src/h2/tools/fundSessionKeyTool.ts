@@ -129,39 +129,7 @@ You can proceed with swaps, transfers, and other operations.
   },
   {
     name: "fundSessionKey",
-    description: `Fund session key with MON from smart account to cover gas costs.
-
-⚡ **WHEN TO USE:**
-Call this tool when checkSessionKeyBalance reports "needsFunding = true" or when
-execution tools fail with "Session key balance too low" error.
-
-**Funding Strategy:**
-- **Dynamic funding (recommended):** Pass estimatedOperations to calculate exact amount needed
-  - Example: 17 swaps → calculates (17 × 0.11 + 0.20) = 2.07 MON requirement
-  - Funds: (2.07 - currentBalance) + 0.1 MON buffer
-  - Prevents under-funding for large batches
-- **Fixed funding (fallback):** If estimatedOperations not provided, funds fixed 1.0 MON
-
-**Funding Method:**
-- Initial funding (< 0.05 MON): Uses UserOp via bundler (no gas needed from session key)
-- Refill funding (≥ 0.05 MON): Uses ephemeral delegation (session key pays gas from remaining balance)
-
-**Workflow:**
-1. checkSessionKeyBalance({estimatedOperations: N}) → reports needsFunding and recommendedAmount
-2. fundSessionKey({estimatedOperations: N}) → funds calculated amount
-3. Execute operations → swaps, transfers, etc.
-
-Returns:
-- Funded amount (MON) - may vary based on estimatedOperations
-- New session key balance
-- Transaction hash
-- Funding method used (userOp or delegation)
-
-Examples:
-- Single swap: fundSessionKey({operationType: "swap", estimatedOperations: 1}) → funds for 0.16 MON requirement
-- Batch of 3 swaps: fundSessionKey({operationType: "swap", estimatedOperations: 3}) → funds for 0.44 MON requirement
-- Transfer: fundSessionKey({operationType: "transfer", estimatedOperations: 1}) → funds for 0.06 MON requirement
-- Unknown operations: fundSessionKey() → funds fixed 1.0 MON`,
+    description: "Fund session key with MON for gas. Call when checkSessionKeyBalance reports needsFunding=true. Call search_tool_docs('fundSessionKey') for detailed usage.",
     schema: z.object({
       operationType: z.enum(["swap", "transfer", "wrap", "unwrap", "stake", "unstake", "unstakeClaim"]).optional().describe(
         "Type of operation to fund for. IMPORTANT: Always specify this for accurate gas calculation! " +

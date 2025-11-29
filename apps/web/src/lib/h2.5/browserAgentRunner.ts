@@ -36,8 +36,10 @@ import { createBrowserAgent } from "./createBrowserAgent";
  *
  * Complex queries include:
  * - Multi-step workflows ("swap X then stake", "after that transfer")
+ * - Batch operations ("swap X, stake Y, wrap Z", "swap and stake")
  * - Comparative analysis ("best", "cheapest", "optimal")
  * - Conditional logic ("if...then", "depending on")
+ * - Architecture/knowledge questions ("how does X work", "what is delegation")
  * - Complex calculations or planning
  * - Debugging or troubleshooting requests
  *
@@ -45,8 +47,6 @@ import { createBrowserAgent } from "./createBrowserAgent";
  * @returns true if high reasoning should be used
  */
 function shouldUseHighReasoning(message: string): boolean {
-  const lowerMessage = message.toLowerCase();
-
   // Multi-step workflow patterns
   const multiStepPatterns = [
     /\bthen\b.*\b(swap|stake|transfer|send|wrap|unwrap)\b/i,
@@ -88,16 +88,40 @@ function shouldUseHighReasoning(message: string): boolean {
     /\bplan\s+(out|for)\b/i,
   ];
 
+  // Batch/parallel operation patterns (multiple operations in one message)
+  const batchPatterns = [
+    // Comma-separated operations (swap X, stake Y, wrap Z)
+    /\b(swap|stake|transfer|send|wrap|unwrap)\b.*,.*\b(swap|stake|transfer|send|wrap|unwrap)\b/i,
+    // "X and Y" pattern with action verbs (but not "and then" which is sequential)
+    /\b(swap|stake|transfer|wrap|unwrap)\b.+\band\s+(?!then\b)(swap|stake|transfer|wrap|unwrap)\b/i,
+    // Multiple token targets (swap to X, Y, and Z)
+    /\bswap\b.*\b(to|into)\b.*,/i,
+  ];
+
+  // Architecture/knowledge questions (require deeper understanding)
+  const knowledgePatterns = [
+    // "how does X work" pattern
+    /\bhow\s+does\b.*\b(work|function|operate)\b/i,
+    // "explain X" without "how/why/what" immediately after
+    /\bexplain\s+(?!how\b|why\b|what\b)(the\s+)?\w+/i,
+    // "what is X" for technical/protocol concepts
+    /\bwhat\s+(is|are)\b.*\b(monad|pragma|apriori|monorail|delegation|consensus|bft|parallel|execution|staking|liquid|epoch|validator)\b/i,
+    // Direct technical term questions
+    /\b(monadbft|parallel\s+execution|delegation\s+(system|toolkit)|liquid\s+staking)\b/i,
+  ];
+
   // Check all pattern groups
   const allPatterns = [
     ...multiStepPatterns,
     ...comparativePatterns,
     ...conditionalPatterns,
     ...analysisPatterns,
+    ...batchPatterns,
+    ...knowledgePatterns,
   ];
 
   for (const pattern of allPatterns) {
-    if (pattern.test(lowerMessage)) {
+    if (pattern.test(message)) {
       return true;
     }
   }

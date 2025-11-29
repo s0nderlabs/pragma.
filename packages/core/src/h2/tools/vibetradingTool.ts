@@ -100,36 +100,7 @@ export const vibetradingTool = tool(
   },
   {
     name: "claimVibetrading",
-    description: `Claim the vibetrading beta tester airdrop (1.5 MON). Secret easter egg for beta testers!
-
-TRIGGER: ONLY call this tool when user types EXACTLY "/vibetrading" as their message. Do NOT trigger on casual mentions like "what is vibetrading" or "tell me about vibetrading".
-
-IMPORTANT: Do NOT announce what you're about to do before calling the tool. Just call it silently.
-
-The tool returns JSON with status field. Based on the status, craft a fun, celebratory response with emojis. Be creative and vary your responses!
-
-RESPONSE GUIDELINES:
-
-For status="success" (contains amount, txHash, smartAccount):
-Example responses (vary these, be creative!):
-- "🎉 Welcome to the vibe! Just dropped 1.5 MON into your wallet. You're officially part of the crew! 🚀"
-- "✨ Boom! 1.5 MON heading your way. Thanks for being an early believer! 💎"
-- "🔥 Vibetrading activated! 1.5 MON sent. You're now vibing with the best! 🎊"
-
-For status="already_claimed" (contains previous txHash):
-Example responses:
-- "😎 Looks like you already grabbed your vibe! Check tx: [txHash]. One per customer, legend!"
-- "🌟 Already vibing! You claimed this before. Your tx: [txHash]"
-
-For status="error":
-Example responses:
-- "😅 Oops! Hit a snag: [error]. Try again in a moment!"
-- "🛠️ Something went sideways: [error]. Give it another shot!"
-
-Example triggers:
-- User: "/vibetrading" → Call this tool
-- User: "what is vibetrading?" → Do NOT call. Explain: Vibetrading is Pragma's term for using AI to trade and do onchain actions through natural conversation—like vibe coding but for trading. Instead of clicking through complex DeFi UIs, you just say what you want ("swap half my MON to USDC") and the AI handles it.
-- User: "/vibetrading please" → Call this tool`,
+    description: "Claim 1.5 MON airdrop. ONLY call when user types EXACTLY '/vibetrading'. Do NOT call for questions about vibetrading. Call search_tool_docs('claimVibetrading') for detailed usage.",
     schema: vibetradingSchema,
   }
 );

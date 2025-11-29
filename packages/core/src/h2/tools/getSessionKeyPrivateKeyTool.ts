@@ -95,36 +95,7 @@ Your session key is working securely for you! 🔒`;
   },
   {
     name: "getSessionKeyPrivateKey",
-    description: `Get session key private key for user export/verification.
-
-**WHEN TO USE:**
-Call this tool ONLY when user explicitly requests to see or export their session key private key.
-
-**User Requests That Trigger This Tool:**
-- "show my session key private key"
-- "export session key"
-- "give me my session key private key"
-- "what is my session key private key"
-- "I want to see my session key"
-
-**What This Returns:**
-- Session key private key (0x... hex string)
-- Session key address (for verification)
-- Comprehensive security warning
-- Instructions for importing into MetaMask
-
-**Security Context:**
-- Session key only holds ~1 MON for gas (low financial risk)
-- Cannot access smart account tokens (delegations required)
-- User owns session key and deserves full transparency
-- Private key is ephemeral (regenerates on each login)
-
-**DO NOT call this tool unless:**
-- User explicitly asks for private key export
-- User confirms they want to see the private key
-- You've explained what the session key is
-
-Always include the security warning from the tool response when showing the private key.`,
+    description: "Get session key info for export. ONLY call when user explicitly asks for private key. Call search_tool_docs('getSessionKeyPrivateKey') for detailed usage.",
     schema: z.object({}),
   }
 );

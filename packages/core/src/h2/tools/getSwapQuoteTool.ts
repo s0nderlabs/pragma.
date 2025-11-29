@@ -284,31 +284,7 @@ This quote is ready to execute. Would you like me to proceed with the swap?`;
   },
   {
     name: "getSwapQuote",
-    description: `Get a swap quote from Monorail DEX aggregator. Use this tool FIRST before executing swaps.
-
-**IMPORTANT:** This tool does NOT execute swaps - it only fetches and stores a quote for user review.
-After the user confirms, call executeSwap with the quote ID.
-
-Use this tool when the user:
-- Asks about prices: "what is the price of 1 MON in USDC?"
-- Wants a quote: "quote me 0.5 ETH to USDC"
-- Checks value: "how much USDC would I get for 1 MON?"
-- Wants to see swap details before executing
-
-Features:
-- Best price aggregation across multiple DEXs on Monad
-- Automatic routing optimization
-- No protocol fee (FREE swaps during testing)
-- Gas estimates
-- Supports token symbols (ETH, USDC) and addresses (0x...)
-
-Returns: Conversational quote with Quote ID for execution
-
-Example inputs:
-- fromToken: "MON" or "0x..." (symbol preferred)
-- toToken: "USDC" or "0x..." (symbol preferred)
-- amount: "1.5" (decimal string)
-- slippageBps: 500 (optional, default 5% = 500 basis points)`,
+    description: "Get swap quote from Monorail DEX. Returns quote ID for executeSwap. Call search_tool_docs('getSwapQuote') for detailed usage.",
     schema: z.object({
       fromToken: z.string().describe("Token to swap from (symbol like 'MON' or address like '0x...')"),
       toToken: z.string().describe("Token to swap to (symbol like 'USDC' or address like '0x...')"),

@@ -48,6 +48,20 @@ const FALLBACK_VERIFICATION_GAS_LIMIT = 2_500_000n;
 const FALLBACK_PRE_VERIFICATION_GAS = 120_000n;
 const FALLBACK_CALL_GAS_LIMIT = 100_000n;
 
+// Minimum floor for verification gas limit
+// Smart account signature verification requires substantial gas (~100-200k)
+// Bundler estimates can be too low, especially for self-paid UserOps
+const MIN_VERIFICATION_GAS_LIMIT = 200_000n;
+
+// Minimum floor for preVerificationGas
+// Bundler estimates can underestimate, especially for Monad mainnet
+// Required ~153k observed in production, so 160k provides safety margin
+const MIN_PRE_VERIFICATION_GAS = 160_000n;
+
+// Buffer multiplier for gas estimates (150% = 1.5x)
+// Provides safety margin for on-chain variability
+const GAS_ESTIMATE_BUFFER_PERCENT = 150n;
+
 // ============================================================================
 // Gas Price Utilities
 // ============================================================================
@@ -182,29 +196,54 @@ export async function estimateUserOpGas(
 }
 
 /**
+ * Apply buffer to gas estimate
+ */
+function applyGasBuffer(estimate: bigint): bigint {
+  return (estimate * GAS_ESTIMATE_BUFFER_PERCENT) / 100n;
+}
+
+/**
  * Apply gas estimates to UserOp with fallbacks
+ *
+ * Key changes for self-paid UserOps (no paymaster):
+ * - Applies 1.5x buffer to all gas estimates
+ * - Enforces minimum floor for verificationGasLimit (200k)
+ *
+ * Rationale: Bundler gas estimates are optimistic and can underestimate
+ * especially for smart account signature verification. AA26 error occurs
+ * when verificationGasLimit is too low during EntryPoint validation.
  */
 export function applyGasEstimates(
   userOp: BaseUserOp,
   estimates: Partial<UserOpGasEstimate> | null,
 ): void {
-  // Apply callGasLimit
+  // Apply callGasLimit with buffer
   if (estimates?.callGasLimit && estimates.callGasLimit > 0n) {
-    userOp.callGasLimit = estimates.callGasLimit;
+    userOp.callGasLimit = applyGasBuffer(estimates.callGasLimit);
   } else if (!userOp.callGasLimit || userOp.callGasLimit === 0n) {
     userOp.callGasLimit = FALLBACK_CALL_GAS_LIMIT;
   }
 
-  // Apply verificationGasLimit
+  // Apply verificationGasLimit with buffer AND minimum floor
+  // This is critical for self-paid UserOps where smart account validates signature
   if (estimates?.verificationGasLimit && estimates.verificationGasLimit > 0n) {
-    userOp.verificationGasLimit = estimates.verificationGasLimit;
+    const buffered = applyGasBuffer(estimates.verificationGasLimit);
+    // Use the larger of: buffered estimate OR minimum floor
+    userOp.verificationGasLimit = buffered > MIN_VERIFICATION_GAS_LIMIT
+      ? buffered
+      : MIN_VERIFICATION_GAS_LIMIT;
   } else if (!userOp.verificationGasLimit || userOp.verificationGasLimit === 0n) {
     userOp.verificationGasLimit = FALLBACK_VERIFICATION_GAS_LIMIT;
   }
 
-  // Apply preVerificationGas
+  // Apply preVerificationGas with buffer AND minimum floor
+  // Bundler estimates can underestimate for Monad mainnet
   if (estimates?.preVerificationGas && estimates.preVerificationGas > 0n) {
-    userOp.preVerificationGas = estimates.preVerificationGas;
+    const buffered = applyGasBuffer(estimates.preVerificationGas);
+    // Use the larger of: buffered estimate OR minimum floor
+    userOp.preVerificationGas = buffered > MIN_PRE_VERIFICATION_GAS
+      ? buffered
+      : MIN_PRE_VERIFICATION_GAS;
   } else if (!userOp.preVerificationGas || userOp.preVerificationGas === 0n) {
     userOp.preVerificationGas = FALLBACK_PRE_VERIFICATION_GAS;
   }

@@ -47,7 +47,7 @@ export const MONAD_BLOCK_EXPLORER_URL =
   getEnv("NEXT_PUBLIC_MONAD_BLOCK_EXPLORER_URL") ?? "https://monadexplorer.com";
 
 export const MONAD_RPC_URL =
-  getEnv("NEXT_PUBLIC_MONAD_RPC_URL") ?? "/api/rpc";
+  getEnv("NEXT_PUBLIC_MONAD_RPC_URL") ?? "https://rpc.monad.xyz";
 export const MONAD_EXECUTION_RPC_URL =
   getEnv("NEXT_PUBLIC_MONAD_EXECUTION_RPC_URL") ??
   MONAD_RPC_URL;

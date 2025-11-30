@@ -39,15 +39,15 @@ const getEnv = <Name extends keyof typeof env>(name: Name): string | undefined =
 
 
 export const MONAD_CHAIN_ID = Number.parseInt(
-  getEnv("NEXT_PUBLIC_MONAD_CHAIN_ID") ?? "10143",
+  getEnv("NEXT_PUBLIC_MONAD_CHAIN_ID") ?? "143",
   10,
 );
 
 export const MONAD_BLOCK_EXPLORER_URL =
-  getEnv("NEXT_PUBLIC_MONAD_BLOCK_EXPLORER_URL") ?? "https://testnet.monadexplorer.com";
+  getEnv("NEXT_PUBLIC_MONAD_BLOCK_EXPLORER_URL") ?? "https://monadexplorer.com";
 
 export const MONAD_RPC_URL =
-  getEnv("NEXT_PUBLIC_MONAD_RPC_URL") ?? "https://testnet-rpc.monad.xyz";
+  getEnv("NEXT_PUBLIC_MONAD_RPC_URL") ?? "/api/rpc";
 export const MONAD_EXECUTION_RPC_URL =
   getEnv("NEXT_PUBLIC_MONAD_EXECUTION_RPC_URL") ??
   MONAD_RPC_URL;
@@ -64,16 +64,16 @@ export const PIMLICO_SPONSORSHIP_POLICY_ID = getEnv("NEXT_PUBLIC_PIMLICO_SPONSOR
 
 export const WEB3AUTH_CLIENT_ID = getEnv("NEXT_PUBLIC_WEB3_AUTH_ID");
 export const WEB3AUTH_NETWORK =
-  getEnv("NEXT_PUBLIC_WEB3_AUTH_NETWORK") ?? "sapphire_devnet";
+  getEnv("NEXT_PUBLIC_WEB3_AUTH_NETWORK") ?? "sapphire_mainnet";
 
 export const MONORAIL_PATHFINDER_URL =
-  getEnv("NEXT_PUBLIC_MONORAIL_PATHFINDER_URL") ?? "https://testnet-pathfinder.monorail.xyz/v4";
+  getEnv("NEXT_PUBLIC_MONORAIL_PATHFINDER_URL") ?? "https://pathfinder.monorail.xyz/v4";
 export const MONORAIL_DATA_API_URL =
-  getEnv("NEXT_PUBLIC_MONORAIL_DATA_API_URL") ?? "https://testnet-api.monorail.xyz/v1";
+  getEnv("NEXT_PUBLIC_MONORAIL_DATA_API_URL") ?? "https://api.monorail.xyz/v2";
 // Note: Monorail uses App ID only - no API key required
 export const MONORAIL_APP_ID = getEnv("NEXT_PUBLIC_MONORAIL_APP_ID") ?? "";
 export const MONORAIL_AGGREGATOR_ADDRESS =
-  getEnv("NEXT_PUBLIC_MONORAIL_AGGREGATOR_ADDRESS") ?? "0x525B929fCd6a64AfF834f4eeCc6E860486cED700";
+  getEnv("NEXT_PUBLIC_MONORAIL_AGGREGATOR_ADDRESS") ?? "0xA68A7F0601effDc65C64d9C47cA1b18D96B4352c";
 
 export const MONAD_NATIVE_TOKEN_ADDRESS =
   getEnv("NEXT_PUBLIC_MONAD_NATIVE_TOKEN_ADDRESS") ?? "0x0000000000000000000000000000000000000000";
@@ -82,10 +82,10 @@ export const MONAD_NATIVE_TOKEN_SYMBOL =
 export const MONAD_WRAPPED_TOKEN_SYMBOL =
   getEnv("NEXT_PUBLIC_MONAD_WRAPPED_TOKEN_SYMBOL") ?? "WMON";
 export const MONAD_WMON_ADDRESS =
-  getEnv("NEXT_PUBLIC_MONAD_WMON_ADDRESS") ?? "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701";
+  getEnv("NEXT_PUBLIC_MONAD_WMON_ADDRESS") ?? "0x3bd359c1119da7da1d913d1c4d2b7c461115433a";
 
 export const APRIORI_ADDRESS =
-  getEnv("NEXT_PUBLIC_APRIORI_ADDRESS") ?? "0xb2f82D0f38dc453D596Ad40A37799446Cc89274A";
+  getEnv("NEXT_PUBLIC_APRIORI_ADDRESS") ?? "0x0c65a0bc65a5d819235b71f554d210d3f80e0852";
 
 export const PRAGMA_IDENTITY_PROVIDER =
   (getEnv("NEXT_PUBLIC_PRAGMA_IDENTITY_PROVIDER") ?? "web3auth").toLowerCase();

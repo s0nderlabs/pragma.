@@ -11,12 +11,13 @@
  */
 
 import { Address, Hex, getAddress, toHex, parseEther } from "viem";
-import { createDelegation, getDeleGatorEnvironment, type Delegation, type Caveats } from "@metamask/delegation-toolkit";
+import { createDelegation, type Delegation, type Caveats } from "@metamask/delegation-toolkit";
 
 import type { MonorailQuote } from "../../monorail/pathfinder.js";
 import { buildDelegationTypedData } from "../../delegations/typedData.js";
 import { ZERO_SALT } from "../../delegations/hybrid.js";
 import { buildSwapEnforcement } from "./calldataEnforcement.js";
+import { getDTKEnvironment } from "../config.js";
 
 // ============================================================================
 // Types
@@ -257,8 +258,8 @@ export const createEphemeralDelegation = (
   // Build caveats
   const caveats = buildEphemeralCaveats(nonce, expiresAt, callLimit);
 
-  // Get DTK environment
-  const environment = getDeleGatorEnvironment(chainId);
+  // Get DTK environment (uses workaround chain ID - see config.ts)
+  const environment = getDTKEnvironment();
 
   // Create unsigned delegation
   const delegation = createDelegation({

@@ -67,18 +67,11 @@ You haven't created any withdrawal requests yet. To unstake aprMON, use the unst
       const claimed: RequestData[] = [];
 
       for (const request of requestData) {
-        // Enhanced claimed detection with fallback heuristics for testnet instant withdrawals
-        // On testnet with withdrawalDelay = 0, withdrawals complete instantly but the contract
-        // may not set claimed = true. Detect these cases by checking if request exists but
-        // is neither claimable nor claimed (indicating instant completion).
-        const isActuallyClaimed =
-          request.claimed ||  // Standard flag - contract says it's claimed
-          // Fallback heuristic for testnet instant withdrawals:
-          // If request exists but is neither claimable nor claimed, it was likely
-          // instant-claimed (testnet withdrawalDelay = 0 means immediate MON transfer)
-          (!request.claimable && !request.claimed && request.timestamp > 0n);
-
-        if (isActuallyClaimed) {
+        // Mainnet logic: Use contract flags directly
+        // - claimed = true → Request was successfully claimed, MON received
+        // - claimable = true → Ready to claim, epoch passed
+        // - claimable = false && claimed = false → Still pending, waiting for epoch
+        if (request.claimed) {
           claimed.push(request);
         } else if (request.claimable) {
           claimable.push(request);
@@ -135,11 +128,7 @@ You haven't created any withdrawal requests yet. To unstake aprMON, use the unst
           output += `\n• Request ID: ${request.id}\n`;
           output += `  aprMON: ${formatUnits(request.shares, 18)}\n`;
           output += `  MON received: ${formatUnits(request.assets, 18)}\n`;
-          // Distinguish between explicitly claimed and instant claims
-          const status = request.claimed
-            ? "✅ CLAIMED (manual)"
-            : "✅ COMPLETED (instant on testnet)";
-          output += `  Status: ${status}\n`;
+          output += `  Status: ✅ CLAIMED\n`;
         }
         output += "\n";
       }
@@ -147,10 +136,10 @@ You haven't created any withdrawal requests yet. To unstake aprMON, use the unst
       // Add helpful tips
       if (pending.length > 0) {
         output += `**ℹ️ Tips:**\n`;
-        output += `• TESTNET: Most withdrawals complete instantly (withdrawalDelay = 0)\n`;
-        output += `• MAINNET: Pending requests typically become claimable after 12-18 hours\n`;
+        output += `• Pending requests typically become claimable after 12-18 hours\n`;
         output += `• Check status again with: "check unstake status"\n`;
         output += `• Epoch-based delays ensure fair processing for all users\n`;
+        output += `• Once claimable, use: "claim unstake <requestId>"\n`;
       }
 
       return output;

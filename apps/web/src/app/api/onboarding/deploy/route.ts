@@ -6,14 +6,14 @@ import { privateKeyToAccount } from "viem/accounts";
 import { authMiddleware } from "@/lib/auth/authMiddleware";
 
 const MONAD_RPC_URL =
-  process.env.MONAD_RPC_URL ?? process.env.NEXT_PUBLIC_MONAD_RPC_URL ?? "https://testnet-rpc.monad.xyz";
-const MONAD_CHAIN_ID = Number.parseInt(process.env.MONAD_CHAIN_ID ?? process.env.NEXT_PUBLIC_MONAD_CHAIN_ID ?? "10143", 10);
+  process.env.MONAD_RPC_URL ?? process.env.NEXT_PUBLIC_MONAD_RPC_URL ?? "https://rpc.ankr.com/monad_mainnet";
+const MONAD_CHAIN_ID = Number.parseInt(process.env.MONAD_CHAIN_ID ?? process.env.NEXT_PUBLIC_MONAD_CHAIN_ID ?? "143", 10);
 const MONAD_NATIVE_TOKEN_SYMBOL = process.env.MONAD_NATIVE_TOKEN_SYMBOL ?? "MON";
 const FACTORY_ADDRESS = "0x69Aa2f9fe1572F1B640E1bbc512f5c3a734fc77c";
 
 const monadChain = {
   id: MONAD_CHAIN_ID,
-  name: "Monad Testnet",
+  name: "Monad",
   nativeCurrency: { name: "Monad", symbol: MONAD_NATIVE_TOKEN_SYMBOL, decimals: 18 },
   rpcUrls: { default: { http: [MONAD_RPC_URL] }, public: { http: [MONAD_RPC_URL] } },
 } as const;

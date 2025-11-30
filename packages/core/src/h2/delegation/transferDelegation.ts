@@ -18,7 +18,6 @@
 import { Address, Hex, getAddress, toHex } from "viem";
 import {
   createDelegation,
-  getDeleGatorEnvironment,
   type Delegation,
   type Caveats,
 } from "@metamask/delegation-toolkit";
@@ -28,6 +27,7 @@ import { ZERO_SALT } from "../../delegations/hybrid.js";
 import {
   buildERC20TransferEnforcement,
 } from "./calldataEnforcement.js";
+import { getDTKEnvironment } from "../config.js";
 
 // ============================================================================
 // Constants
@@ -189,8 +189,8 @@ export const createERC20TransferDelegation = (
   // Build caveats (timestamp, nonce, limitedCalls)
   const caveats = buildTransferCaveats(nonce, expiresAt, 1);
 
-  // Get DTK environment
-  const environment = getDeleGatorEnvironment(chainId);
+  // Get DTK environment (uses workaround chain ID - see config.ts)
+  const environment = getDTKEnvironment();
 
   // Create unsigned delegation
   const delegation = createDelegation({
@@ -280,8 +280,8 @@ export const createNativeTransferDelegation = (
   // Build caveats (timestamp, nonce, limitedCalls)
   const caveats = buildTransferCaveats(nonce, expiresAt, 1);
 
-  // Get DTK environment
-  const environment = getDeleGatorEnvironment(chainId);
+  // Get DTK environment (uses workaround chain ID - see config.ts)
+  const environment = getDTKEnvironment();
 
   // Create unsigned delegation
   const delegation = createDelegation({

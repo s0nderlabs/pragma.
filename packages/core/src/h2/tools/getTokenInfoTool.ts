@@ -86,7 +86,7 @@ Basic data was fetched directly from the blockchain.
 
 **This could be a scam token.** Always:
 - Verify the contract address from official project sources
-- Check token on block explorer (https://testnet.monadvision.com)
+- Check token on block explorer (https://monadexplorer.com)
 - Never trade significant amounts without independent verification
 - Be aware that this token may be malicious or fake`;
 }
@@ -192,7 +192,7 @@ export const getTokenInfoTool = tool(
       } catch (error) {
         return `❌ **Token Not Found**
 
-The address \`${token}\` is not a valid ERC20 token on Monad testnet.
+The address \`${token}\` is not a valid ERC20 token on Monad.
 
 **Possible reasons:**
 - Invalid or malformed address
@@ -202,7 +202,7 @@ The address \`${token}\` is not a valid ERC20 token on Monad testnet.
 
 **Suggestion:**
 - Verify the address is correct
-- Check if token exists on block explorer: https://testnet.monadvision.com/address/${token}
+- Check if token exists on block explorer: https://monadexplorer.com/address/${token}
 - Use \`listVerifiedTokens\` to see all available verified tokens`;
       }
     }

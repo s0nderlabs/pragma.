@@ -40,7 +40,6 @@
 import { Address, Hex, getAddress, toHex } from "viem";
 import {
   createDelegation,
-  getDeleGatorEnvironment,
   type Delegation,
   type Caveats,
 } from "@metamask/delegation-toolkit";
@@ -48,6 +47,7 @@ import {
 import { buildDelegationTypedData } from "../../delegations/typedData.js";
 import { ZERO_SALT } from "../../delegations/hybrid.js";
 import { buildApproveEnforcement } from "./calldataEnforcement.js";
+import { getDTKEnvironment } from "../config.js";
 
 // ============================================================================
 // Constants
@@ -191,8 +191,8 @@ export const createApproveDelegation = (
   // Build caveats (timestamp, nonce, limitedCalls: 1)
   const caveats = buildApproveCaveats(nonce, expiresAt);
 
-  // Get DTK environment
-  const environment = getDeleGatorEnvironment(chainId);
+  // Get DTK environment (uses workaround chain ID - see config.ts)
+  const environment = getDTKEnvironment();
 
   // Create unsigned delegation
   const delegation = createDelegation({

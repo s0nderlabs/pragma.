@@ -20,6 +20,7 @@ export interface RawMonorailToken {
   logoURI?: string;
   logoUrl?: string;
   logo_uri?: string;
+  image_uri?: string;  // Monorail v2 API field name
 }
 
 export interface MonorailTokenClientConfig {
@@ -79,7 +80,7 @@ export const parseMonorailToken = (raw: RawMonorailToken): MonorailToken | undef
     const symbol = raw.symbol?.trim() || undefined;
     const name = raw.name?.trim() || undefined;
     const categories = Array.isArray(raw.categories) ? raw.categories : [];
-    const logoURI = raw.logoURI ?? raw.logoUrl ?? raw.logo_uri ?? undefined;
+    const logoURI = raw.logoURI ?? raw.logoUrl ?? raw.logo_uri ?? raw.image_uri ?? undefined;
 
     return {
       address,
@@ -161,12 +162,10 @@ export const loadMonorailTokens = async (
     }
   }
 
-  const [allTokens, verifiedTokens] = await Promise.all([
-    fetchMonorailTokensFromPath("/tokens", options),
-    fetchMonorailTokensFromPath("/tokens/category/verified", options),
-  ]);
+  // v2 Migration: /tokens now requires ?find= param, only use /tokens/category/verified
+  const verifiedTokens = await fetchMonorailTokensFromPath("/tokens/category/verified", options);
 
-  const merged = mergeTokenLists([allTokens, verifiedTokens]);
+  const merged = mergeTokenLists([verifiedTokens]);
 
   const entry: TokenCacheEntry = {
     fetchedAt: now,

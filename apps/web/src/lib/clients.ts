@@ -14,7 +14,7 @@ import {
 
 export const monadChain: Chain = {
   id: MONAD_CHAIN_ID,
-  name: "Monad Testnet",
+  name: "Monad",
   nativeCurrency: {
     name: "Monad",
     symbol: MONAD_NATIVE_TOKEN_SYMBOL,

@@ -1,14 +1,160 @@
 /**
- * Token Logo Map
+ * Token Logo Service
  *
- * Hardcoded mapping of token addresses to logo URLs.
- * Extracted from BlockVision API for all 54 verified tokens.
+ * Provides token logos from multiple sources:
+ * 1. Dynamic: Fetched from Monorail API (verified tokens list)
+ * 2. Static: Hardcoded fallback map for tokens without API logos
  *
- * Last updated: 2025-11-24 (fresh BlockVision data)
+ * Usage:
+ * - Call `getTokenLogo(address)` to get a logo URL
+ * - Call `initTokenLogos()` on app load to prime the cache
+ *
+ * Last updated: 2025-11-30
  */
 
-export const TOKEN_LOGO_MAP: Record<string, string> = {
+import type { AllowedToken } from "@pragma/core/monorail/tokens";
+
+// ============================================================================
+// Dynamic Logo Cache
+// ============================================================================
+
+let dynamicLogoMap: Map<string, string> | null = null;
+let logoFetchPromise: Promise<void> | null = null;
+
+/**
+ * Build logo map from token list
+ */
+const buildLogoMap = (tokens: AllowedToken[]): Map<string, string> => {
+  const map = new Map<string, string>();
+  for (const token of tokens) {
+    if (token.logoURI) {
+      map.set(token.address.toLowerCase(), token.logoURI);
+    }
+  }
+  return map;
+};
+
+/**
+ * Initialize dynamic logo cache from Monorail API
+ * Call this on app load to ensure logos are available
+ */
+export const initTokenLogos = async (): Promise<void> => {
+  // Already initialized
+  if (dynamicLogoMap) return;
+
+  // Already fetching
+  if (logoFetchPromise) return logoFetchPromise;
+
+  logoFetchPromise = (async () => {
+    try {
+      // Import dynamically to avoid circular dependencies
+      const { fetchAllowlistCached } = await import("./onboarding/token-cache");
+      const tokens = await fetchAllowlistCached();
+      dynamicLogoMap = buildLogoMap(tokens);
+      console.log(`[TokenLogos] Initialized ${dynamicLogoMap.size} logos from API`);
+    } catch (error) {
+      console.warn("[TokenLogos] Failed to fetch dynamic logos, using static fallback:", error);
+      dynamicLogoMap = new Map(); // Empty map, will fallback to static
+    } finally {
+      logoFetchPromise = null;
+    }
+  })();
+
+  return logoFetchPromise;
+};
+
+/**
+ * Update logo cache with new tokens
+ * Called when new token data is fetched
+ */
+export const updateTokenLogos = (tokens: AllowedToken[]): void => {
+  if (!dynamicLogoMap) {
+    dynamicLogoMap = new Map();
+  }
+  for (const token of tokens) {
+    if (token.logoURI) {
+      dynamicLogoMap.set(token.address.toLowerCase(), token.logoURI);
+    }
+  }
+};
+
+/**
+ * Get token logo URL
+ * Checks dynamic cache first, falls back to static map
+ */
+export const getTokenLogo = (address: string): string | undefined => {
+  const normalized = address.toLowerCase();
+
+  // Try dynamic cache first (from API)
+  if (dynamicLogoMap?.has(normalized)) {
+    return dynamicLogoMap.get(normalized);
+  }
+
+  // Fallback to static map
+  return STATIC_TOKEN_LOGO_MAP[normalized];
+};
+
+/**
+ * Get all logos as a map (for components that need bulk access)
+ * Merges dynamic and static maps
+ */
+export const getAllTokenLogos = (): Record<string, string> => {
+  const merged = { ...STATIC_TOKEN_LOGO_MAP };
+
+  if (dynamicLogoMap) {
+    for (const [address, logo] of dynamicLogoMap) {
+      merged[address] = logo;
+    }
+  }
+
+  return merged;
+};
+
+// ============================================================================
+// Static Fallback Map
+// ============================================================================
+
+/**
+ * Static fallback for tokens without API logos
+ * Only used when dynamic fetch fails or for non-verified tokens
+ */
+export const STATIC_TOKEN_LOGO_MAP: Record<string, string> = {
+  // Native MON
   "0x0000000000000000000000000000000000000000": "https://imagedelivery.net/cBNDGgkrsEA-b_ixIp9SkQ/MON.png/public",
+  // WMON (Wrapped MON - mainnet)
+  "0x3bd359c1119da7da1d913d1c4d2b7c461115433a": "https://monorail-static.fra1.digitaloceanspaces.com/tokens/wmon.svg",
+  // aprMON (aPriori LST - mainnet)
+  "0x0c65a0bc65a5d819235b71f554d210d3f80e0852": "https://monorail-static.fra1.digitaloceanspaces.com/tokens/aprmon.svg",
+  // AUSD (Agora stablecoin)
+  "0x00000000efe302beaa2b3e6e1b18d08d69a9012a": "https://monorail-static.fra1.digitaloceanspaces.com/tokens/ausd.svg",
+  // USDC (mainnet)
+  "0x754704bc059f8c67012fed69bc8a327a5aafb603": "https://monorail-static.fra1.digitaloceanspaces.com/tokens/usdc.svg",
+  // USDT0 (mainnet)
+  "0xe7cd86e13ac4309349f30b3435a9d337750fc82d": "https://monorail-static.fra1.digitaloceanspaces.com/tokens/usdt.svg",
+  // shMON (Shmonad LST - mainnet)
+  "0x1b68626dca36c7fe922fd2d55e4f631d962de19c": "https://monorail-static.fra1.digitaloceanspaces.com/tokens/shmon.svg",
+  // gMON (Magma LST - mainnet)
+  "0x8498312a6b3cbd158bf0c93abdcf29e6e4f55081": "https://monorail-static.fra1.digitaloceanspaces.com/tokens/gmon.svg",
+  // sMON (Kintsu LST - mainnet)
+  "0xa3227c5969757783154c60bf0bc1944180ed81b9": "https://monorail-static.fra1.digitaloceanspaces.com/tokens/smon.svg",
+  // WBTC (mainnet)
+  "0x0555e30da8f98308edb960aa94c0db47230d2b9c": "https://monorail-static.fra1.digitaloceanspaces.com/tokens/wbtc.svg",
+  // WETH (mainnet)
+  "0xee8c0e9f1bffb4eb878d8f15f368a02a35481242": "https://monorail-static.fra1.digitaloceanspaces.com/tokens/weth.svg",
+  // wstETH (mainnet)
+  "0x10aeaf63194db8d453d4d85a06e5efe1dd0b5417": "https://monorail-static.fra1.digitaloceanspaces.com/tokens/wsteth.svg",
+  // SOL (mainnet)
+  "0xea17e5a9efebf1477db45082d67010e2245217f1": "https://monorail-static.fra1.digitaloceanspaces.com/tokens/sol.svg",
+  // suBTC (Sumer synthetic - mainnet)
+  "0xe85411c030fb32a9d8b14bbbc6cb19417391f711": "https://monorail-static.fra1.digitaloceanspaces.com/tokens/subtc.svg",
+  // suETH (Sumer synthetic - mainnet)
+  "0x1c22531aa9747d76fff8f0a43b37954ca67d28e0": "https://monorail-static.fra1.digitaloceanspaces.com/tokens/sueth.svg",
+  // 143 (meme - mainnet)
+  "0x3842751a46d23b41a47e702473dff316e6237777": "https://storage.nadapp.net/coin/143.png",
+  // MCA (meme - mainnet)
+  "0xb5f73846a656232d5d251ab1048bca88d1507777": "https://storage.nadapp.net/coin/mca.png",
+  // UNIT (mainnet)
+  "0x788571e0e5067adea87e6ba22a2b738ffdf48888": "https://monorail-static.fra1.digitaloceanspaces.com/tokens/unit.svg",
   "0x9569ad4b353d4811064ad9970b198fcb914428d5": "https://storage.nadapp.net/coin/7bac3557-8528-4cbb-9c58-e91d098d28ad",
   "0x0c0c92fcf37ae2cbcc512e59714cd3a1a1cbc411": "https://app.purps.xyz/_next/image?url=%2Flogo.png&w=3840&q=75",
   "0xd875ba8e2cad3c0f7e2973277c360c8d2f92b510": "https://raw.githubusercontent.com/Stable-Finance/branding/refs/heads/main/token_icons/resized_icons/256x256_stable_coin_icon_gold.png",
@@ -27,7 +173,8 @@ export const TOKEN_LOGO_MAP: Record<string, string> = {
   "0x4aa50e8208095d9594d18e8e3008abb811125dce": "https://raw.githubusercontent.com/ZkSwapFinance/brand-kit/refs/heads/main/Moon.png",
   "0xc85548e0191cd34be8092b0d42eb4e45eba0d581": "https://s2.coinmarketcap.com/static/img/coins/200x200/22743.png",
   "0x268e4e24e0051ec27b3d27a95977e71ce6875a05": "https://w3-images.s3.ap-southeast-1.amazonaws.com/bean_logo.jpg",
-  "0xe0590015a873bf326bd645c3e1266d4db41c4e6b": "https://imagedelivery.net/tWwhAahBw7afBzFUrX5mYQ/5d1206c2-042c-4edc-9f8b-dcef2e9e8f00/public",
+  // CHOG (correct mainnet address)
+  "0x350035555e10d9afaf1566aaebfced5ba6c27777": "https://storage.nadapp.net/coin/e0489adc-c3a1-425c-9219-f1e344aa866a",
   "0xceb564775415b524640d9f688278490a7f3ef9cd": "https://glacierfi.com/images/currencies/icemon.png",
   "0xfe140e1dce99be9f4f15d657cd9b7bf622270c50": "https://imagedelivery.net/tWwhAahBw7afBzFUrX5mYQ/6679b698-a845-412b-504b-23463a3e1900/public",
   "0xa2426cd97583939e79cfc12ac6e9121e37d0904d": "https://pingu.exchange/external/token-512.png",
@@ -55,11 +202,7 @@ export const TOKEN_LOGO_MAP: Record<string, string> = {
   "0xe1d2439b75fb9746e7bc6cb777ae10aa7f7ef9c5": "https://kintsu-logos.s3.us-east-1.amazonaws.com/sMON.svg",
   "0xaeef2f6b429cb59c9b2d7bb2141ada993e8571c3": "https://www.magmastaking.xyz/gMON.png",
   "0x8a86d48c867b76ff74a36d3af4d2f1e707b143ed": "https://pbs.twimg.com/profile_images/1802788848956506112/KJnlcaQj_400x400.jpg",
-  "0x1ea9099e3026e0b3f8dd6fbacaa45f30fce67431": "",
-  "0x3bb9afb94c82752e47706a10779ea525cf95dc27": "",
-  "0xbf9307ca0543654e1988e02ab7c968fce7fea318": "",
-  "0xe678fb0d8ff63d20fd75e16d36fce959ba0a2295": "",
-  "0xbfe324caa44eeb78f419db91f91d7458877a6ef1": "",
-  "0xaffde5204e08a81bc5e826dd5596e12fe4853c19": "",
-  "0x8fd664d8b284d6d508bf15e184622cbb6c366cf0": ""
 };
+
+// Legacy export for backwards compatibility
+export const TOKEN_LOGO_MAP = STATIC_TOKEN_LOGO_MAP;

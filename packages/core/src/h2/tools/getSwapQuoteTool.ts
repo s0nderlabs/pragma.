@@ -77,11 +77,13 @@ async function resolveTokenWithProxy(
  * Get Monorail configuration from environment
  */
 function getMonorailConfig(): MonorailPathfinderConfig {
-  const appId = process.env.MONORAIL_APP_ID || "pragma-h2";
-  const pathfinderUrl = process.env.MONORAIL_PATHFINDER_URL || "https://testnet-pathfinder.monorail.xyz/v4";
+  // Check both prefixed (Next.js) and non-prefixed env vars for compatibility
+  const appId = process.env.MONORAIL_APP_ID || process.env.NEXT_PUBLIC_MONORAIL_APP_ID || "4101175973046541";
+  const pathfinderUrl = process.env.MONORAIL_PATHFINDER_URL || process.env.NEXT_PUBLIC_MONORAIL_PATHFINDER_URL || "https://pathfinder.monorail.xyz/v4";
   const aggregatorAddress =
     (process.env.MONORAIL_AGGREGATOR_ADDRESS as Address) ||
-    ("0x525B929fCd6a64AfF834f4eeCc6E860486cED700" as Address);
+    (process.env.NEXT_PUBLIC_MONORAIL_AGGREGATOR_ADDRESS as Address) ||
+    ("0xA68A7F0601effDc65C64d9C47cA1b18D96B4352c" as Address);
 
   return {
     appId,
@@ -121,8 +123,15 @@ export const getSwapQuoteTool = tool(
       const fetchFn = (config?.configurable?.fetch as typeof fetch) || fetch;
 
       // Resolve token symbols to addresses (uses proxy for unknown tokens to avoid CORS)
+      console.log("[getSwapQuote] Resolving tokens:", { fromToken, toToken, allowedTokensCount: allowedTokens.length });
+
       const resolvedFromToken = await resolveTokenWithProxy(fromToken, allowedTokens, fetchFn);
       const resolvedToToken = await resolveTokenWithProxy(toToken, allowedTokens, fetchFn);
+
+      console.log("[getSwapQuote] Token resolution result:", {
+        fromToken: resolvedFromToken ? { symbol: resolvedFromToken.symbol, address: resolvedFromToken.address } : null,
+        toToken: resolvedToToken ? { symbol: resolvedToToken.symbol, address: resolvedToToken.address } : null,
+      });
 
       if (!resolvedFromToken) {
         throw createErrorFromCode("TOKEN_NOT_IN_ALLOWLIST", {
@@ -276,8 +285,19 @@ Valid for: 5 minutes${unverifiedWarning}
 
 This quote is ready to execute. Would you like me to proceed with the swap?`;
     } catch (error) {
+      // Log detailed error info for debugging
+      const err = error as Error;
+      console.error("[getSwapQuote] Quote fetch failed:", {
+        error: err.message,
+        name: err.name,
+        stack: err.stack?.split("\n").slice(0, 5).join("\n"),
+        fromToken,
+        toToken,
+        amount,
+      });
+
       throw createErrorFromCode("QUOTE_RPC_ERROR", {
-        message: `Failed to get swap quote: ${(error as Error).message}`,
+        message: `Failed to get swap quote: ${err.message}`,
         cause: error,
       });
     }

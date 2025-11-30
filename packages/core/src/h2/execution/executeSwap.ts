@@ -207,6 +207,20 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
   // Step 1: Retrieve and validate quote
   const quote = getSwapQuote(quoteId);
 
+  console.log("[executeSwap] ===== SWAP EXECUTION START =====");
+  console.log("[executeSwap] Quote details:", {
+    quoteId,
+    fromToken: quote.fromToken,
+    toToken: quote.toToken,
+    fromSymbol: quote.fromTokenSymbol,
+    toSymbol: quote.toTokenSymbol,
+    amountWei: quote.amountWei.toString(),
+    expectedOutputWei: quote.expectedOutputWei.toString(),
+    aggregator: quote.monorailQuote.aggregator,
+    transactionValue: quote.monorailQuote.transactionValue.toString(),
+    slippageBps: quote.slippageBps,
+  });
+
   debugLog("===== SWAP EXECUTION START =====");
   debugLog("Quote Retrieved", {
     quoteId,
@@ -653,6 +667,13 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
 
     let txHash: Hex | undefined;
     try {
+      console.log(`[executeSwap] Executing ${bundle.label}:`, {
+        target: bundle.execution.target,
+        value: bundle.execution.value.toString(),
+        calldataLength: bundle.execution.callData.length,
+        calldataPrefix: bundle.execution.callData.slice(0, 10),
+      });
+
       txHash = await redeemDelegations(
         sessionWallet,
         publicClient,
@@ -664,6 +685,7 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
         }],
       );
 
+      console.log(`[executeSwap] ${bundle.label} tx sent:`, txHash);
       debugLog(`${bundle.label} transaction sent`, { hash: txHash });
 
       // Progress: Waiting for confirmation
@@ -685,6 +707,23 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
         finalTxHash = txHash;
       }
     } catch (error: any) {
+      // Detailed error logging for debugging
+      console.error(`[executeSwap] ${bundle.label} FAILED:`, {
+        message: error.message,
+        name: error.name,
+        cause: error.cause?.message,
+        details: error.details,
+        shortMessage: error.shortMessage,
+        metaMessages: error.metaMessages,
+        // Viem-specific error fields
+        data: error.data,
+        reason: error.reason,
+        // Contract call info
+        contractAddress: error.contractAddress,
+        functionName: error.functionName,
+        args: error.args,
+      });
+
       debugLog(`${bundle.label} FAILED`, {
         error: error.message,
         stack: error.stack,

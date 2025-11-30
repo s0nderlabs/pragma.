@@ -79,7 +79,7 @@ export const getAccountInfoTool = tool(
 
         // Chain Info
         if (sessionData.chainId) {
-          const chainName = sessionData.chainId === 10143 ? "Monad Testnet" : `Chain ${sessionData.chainId}`;
+          const chainName = sessionData.chainId === 143 ? "Monad" : sessionData.chainId === 10143 ? "Monad Testnet" : `Chain ${sessionData.chainId}`;
           lines.push(`**Network**`);
           lines.push(`  ${chainName} (Chain ID: ${sessionData.chainId})`);
           lines.push("");

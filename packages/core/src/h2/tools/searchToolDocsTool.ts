@@ -29,7 +29,7 @@ const toolDocs: Record<string, string> = {
 - Smart account address (HybridDelegator)
 - Owner address (Web3Auth account)
 - Session key address and balance
-- Chain info (Monad testnet, chain ID 10143)
+- Chain info (Monad, chain ID 143)
 
 **Example:** User asks "what account am I using?" → Call getAccountInfo({}) → Returns detailed account info
 

@@ -9,18 +9,18 @@ import { defineChain } from 'viem';
 import { MONAD_BLOCK_EXPLORER_URL } from './config';
 
 /**
- * Monad Devnet / Testnet Configuration
+ * Monad Chain Configuration
  *
  * Environment variables (with defaults):
- * - NEXT_PUBLIC_MONAD_CHAIN_ID: Chain ID (default: 10143)
- * - NEXT_PUBLIC_MONAD_RPC_URL: RPC endpoint (default: https://testnet-rpc.monad.xyz)
+ * - NEXT_PUBLIC_MONAD_CHAIN_ID: Chain ID (default: 143)
+ * - NEXT_PUBLIC_MONAD_RPC_URL: RPC endpoint (default: /api/rpc proxy)
  */
 export const monadDevnet = defineChain({
   id: Number.parseInt(
-    process.env.NEXT_PUBLIC_MONAD_CHAIN_ID ?? "10143",
+    process.env.NEXT_PUBLIC_MONAD_CHAIN_ID ?? "143",
     10
   ),
-  name: "Monad Testnet",
+  name: "Monad",
   nativeCurrency: {
     name: "Monad",
     symbol: "MON",
@@ -42,7 +42,7 @@ export const monadDevnet = defineChain({
       url: MONAD_BLOCK_EXPLORER_URL,
     },
   },
-  testnet: true,
+  testnet: false,
 });
 
 /**
@@ -54,4 +54,4 @@ export const monadDevnet = defineChain({
 export const MONAD_EXECUTION_RPC_URL =
   process.env.NEXT_PUBLIC_MONAD_EXECUTION_RPC_URL ??
   process.env.NEXT_PUBLIC_MONAD_RPC_URL ??
-  "https://testnet-rpc.monad.xyz";
+  "/api/rpc";

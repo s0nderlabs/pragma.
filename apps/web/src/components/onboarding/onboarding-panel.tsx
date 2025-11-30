@@ -24,7 +24,7 @@ import {
   MONAD_NATIVE_TOKEN_ADDRESS,
   MONAD_WMON_ADDRESS,
 } from "../../lib/config";
-import { ensureTokenInSet } from "../../lib/monorail";
+import { ensureTokenSet } from "@pragma/core/monorail/tokens";
 import type { WalletWithAddress } from "../../lib/clients";
 import { loadChatSession } from "../../lib/chat/session";
 import { getActiveDelegator, IDENTITY_EVENT } from "../../lib/storage/active-delegator";
@@ -370,12 +370,12 @@ export const OnboardingPanel = ({
         (token) =>
           token.kind === "native" || token.address.toLowerCase() === MONAD_NATIVE_TOKEN_ADDRESS.toLowerCase(),
       );
-      if (native) ensureTokenInSet(result, native);
+      if (native) ensureTokenSet(result, native);
       const wrapped = availableTokens.find(
         (token) =>
           token.kind === "wrappedNative" || token.address.toLowerCase() === MONAD_WMON_ADDRESS.toLowerCase(),
       );
-      if (wrapped) ensureTokenInSet(result, wrapped);
+      if (wrapped) ensureTokenSet(result, wrapped);
       return result;
     },
     [availableTokens],

@@ -46,7 +46,6 @@
 import { Address, Hex, getAddress, toHex, keccak256, concat, numberToHex } from "viem";
 import {
   createDelegation,
-  getDeleGatorEnvironment,
   type Delegation,
   type Caveats,
 } from "@metamask/delegation-toolkit";
@@ -54,6 +53,7 @@ import {
 import { buildDelegationTypedData } from "../../delegations/typedData.js";
 import { ZERO_SALT } from "../../delegations/hybrid.js";
 import { buildSwapEnforcement } from "./calldataEnforcement.js";
+import { getDTKEnvironment } from "../config.js";
 
 // ============================================================================
 // Constants
@@ -217,8 +217,8 @@ export const createSwapDelegation = (
   // Build caveats (timestamp, nonce, limitedCalls: 1)
   const caveats = buildSwapCaveats(nonce, expiresAt);
 
-  // Get DTK environment
-  const environment = getDeleGatorEnvironment(chainId);
+  // Get DTK environment (uses workaround chain ID - see config.ts)
+  const environment = getDTKEnvironment();
 
   // Generate unique salt for this delegation
   // CRITICAL: Each delegation must have unique salt to prevent hash collisions

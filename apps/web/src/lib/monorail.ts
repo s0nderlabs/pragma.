@@ -12,363 +12,159 @@ const MAX_RETRIES = 1; // Reduced from 3 for faster fallback
 const RETRY_DELAYS = [2000]; // Single 2s retry
 const FETCH_TIMEOUT = 5000; // Reduced from 10s for faster timeout
 
+/**
+ * MAINNET FALLBACK TOKEN LIST
+ * Synced with Monorail mainnet API /tokens/category/verified on 2025-11-30
+ *
+ * IMPORTANT: These addresses are for MAINNET (chain 143), NOT testnet.
+ * Update this list when Monorail adds/removes verified tokens.
+ */
 const FALLBACK_TOKENS: AllowedToken[] = [
-  {
-    address: getAddress("0xbF9307Ca0543654e1988e02aB7C968fCE7FeA318"),
-    decimals: 18,
-    symbol: "1Million",
-    kind: "erc20",
-    categories: ["nad.fun", "meme", "verified", "wrapped"],
-  },
-  {
-    address: getAddress("0xb2f82D0f38dc453D596Ad40A37799446Cc89274A"),
-    decimals: 18,
-    symbol: "aprMON",
-    kind: "erc20",
-    categories: ["ecosystem", "lst", "verified"],
-  },
-  {
-    address: getAddress("0x1eA9099E3026e0b3F8Dd6FbacAa45f30fCe67431"),
-    decimals: 18,
-    symbol: "ATL",
-    kind: "erc20",
-    categories: ["ecosystem", "verified"],
-  },
-  {
-    address: getAddress("0x268E4E24E0051EC27b3D27A95977E71cE6875a05"),
-    decimals: 18,
-    symbol: "BEAN",
-    kind: "erc20",
-    categories: ["verified", "ecosystem"],
-  },
-  {
-    address: getAddress("0x3552f8254263EA8880c7f7E25CB8dbBD79C0c4b1"),
-    decimals: 18,
-    symbol: "BMONAD",
-    kind: "erc20",
-    categories: ["verified"],
-  },
-  {
-    address: getAddress("0x4A5c952C446D5c4bBA9f4517b473EC1718C5f27a"),
-    decimals: 6,
-    symbol: "BUN",
-    kind: "erc20",
-    categories: ["verified"],
-  },
-  {
-    address: getAddress("0xE0590015A873bF326bd645c3E1266d4db41C4E6B"),
-    decimals: 18,
-    symbol: "CHOG",
-    kind: "erc20",
-    categories: ["launch", "verified"],
-  },
-  {
-    address: getAddress("0x0F0BDEbF0F83cD1EE3974779Bcb7315f9808c714"),
-    decimals: 18,
-    symbol: "DAK",
-    kind: "erc20",
-    categories: ["launch", "verified"],
-  },
-  {
-    address: getAddress("0xaEef2f6B429Cb59C9B2D7bB2141ADa993E8571c3"),
-    decimals: 18,
-    symbol: "gMON",
-    kind: "erc20",
-    categories: ["ecosystem", "verified", "lst"],
-  },
-  {
-    address: getAddress("0x6ce1890EeAdAe7Db01026F4b294Cb8ec5ECc6563"),
-    decimals: 18,
-    symbol: "HALLI",
-    kind: "erc20",
-    categories: ["verified"],
-  },
-  {
-    address: getAddress("0x04a9d9D4AEa93F512A4c7b71993915004325ed38"),
-    decimals: 18,
-    symbol: "HEDGE",
-    kind: "erc20",
-    categories: ["ecosystem", "verified"],
-  },
-  {
-    address: getAddress("0xceB564775415B524640D9f688278490A7f3EF9cd"),
-    decimals: 18,
-    symbol: "iceMON",
-    kind: "erc20",
-    categories: ["verified"],
-  },
-  {
-    address: getAddress("0xCc5B42F9d6144DFDFb6fb3987a2A916af902F5f8"),
-    decimals: 6,
-    symbol: "JAI",
-    kind: "erc20",
-    categories: ["verified"],
-  },
-  {
-    address: getAddress("0x8A056dF4d7f23121a90aca1Ca1364063D43Ff3B8"),
-    decimals: 18,
-    symbol: "KEYS",
-    kind: "erc20",
-    categories: ["verified"],
-  },
-  {
-    address: getAddress("0xC8527e96c3CB9522f6E35e95C0A28feAb8144f15"),
-    decimals: 18,
-    symbol: "MAD",
-    kind: "erc20",
-    categories: ["verified", "ecosystem"],
-  },
-  {
-    address: getAddress("0x786f4aA162457EcdF8fa4657759fa3E86c9394fF"),
-    decimals: 18,
-    symbol: "MAD-LP",
-    kind: "erc20",
-    categories: ["verified"],
-  },
-  {
-    address: getAddress("0x3B428Df09c3508D884C30266Ac1577f099313CF6"),
-    decimals: 8,
-    symbol: "mamaBTC",
-    kind: "erc20",
-    categories: ["verified"],
-  },
-  {
-    address: getAddress("0xb38bb873cca844b20A9eE448a87Af3626a6e1EF5"),
-    decimals: 18,
-    symbol: "MIST",
-    kind: "erc20",
-    categories: ["verified"],
-  },
+  // === NATIVE & WRAPPED ===
   {
     address: getAddress("0x0000000000000000000000000000000000000000"),
     decimals: 18,
     symbol: "MON",
     kind: "native",
-    categories: ["official", "verified", "native"],
+    categories: ["native", "official", "verified"],
   },
   {
-    address: getAddress("0x0C0c92FcF37Ae2CBCc512e59714Cd3a1A1cbc411"),
+    address: getAddress("0x3bd359c1119da7da1d913d1c4d2b7c461115433a"),
     decimals: 18,
-    symbol: "MONDA",
-    kind: "erc20",
-    categories: ["verified"],
+    symbol: "WMON",
+    kind: "wrappedNative",
+    categories: ["wrapper", "official", "verified"],
   },
+
+  // === STABLECOINS ===
   {
-    address: getAddress("0x4aa50E8208095d9594d18E8e3008ABB811125dCE"),
-    decimals: 18,
-    symbol: "MOON",
-    kind: "erc20",
-    categories: ["verified"],
-  },
-  {
-    address: getAddress("0x0EfeD4D9fB7863ccC7bb392847C08dCd00FE9bE2"),
-    decimals: 18,
-    symbol: "muBOND",
-    kind: "erc20",
-    categories: ["verified"],
-  },
-  {
-    address: getAddress("0x93E9CaE50424C7a4E3c5eCEb7855B6dab74Bc803"),
-    decimals: 18,
-    symbol: "NAP",
-    kind: "erc20",
-    categories: ["verified", "gaming"],
-  },
-  {
-    address: getAddress("0xB5e5Fa5837304FeA6b9ce7e09623e63669Ad95Fb"),
+    address: getAddress("0x00000000efe302beaa2b3e6e1b18d08d69a9012a"),
     decimals: 6,
-    symbol: "NFT",
+    symbol: "AUSD",
     kind: "erc20",
-    categories: ["stage", "verified"],
+    categories: ["verified", "stable"],
   },
   {
-    address: getAddress("0x43e52CBC0073Caa7c0cf6e64b576CE2D6FB14eB8"),
-    decimals: 18,
-    symbol: "NOM",
+    address: getAddress("0x754704bc059f8c67012fed69bc8a327a5aafb603"),
+    decimals: 6,
+    symbol: "USDC",
     kind: "erc20",
-    categories: ["verified"],
+    categories: ["stable", "verified"],
   },
   {
-    address: getAddress("0xc85548e0191cD34Be8092B0D42Eb4e45Eba0d581"),
-    decimals: 18,
-    symbol: "NSTR",
+    address: getAddress("0xe7cd86e13ac4309349f30b3435a9d337750fc82d"),
+    decimals: 6,
+    symbol: "USDT0",
     kind: "erc20",
-    categories: ["verified"],
+    categories: ["verified", "stable"],
   },
+
+  // === LIQUID STAKING TOKENS (LST) ===
   {
-    address: getAddress("0xCa9A4F46Faf5628466583486FD5ACE8AC33ce126"),
+    address: getAddress("0x0c65a0bc65a5d819235b71f554d210d3f80e0852"),
     decimals: 18,
-    symbol: "OCTO",
-    kind: "erc20",
-    categories: ["exchange", "verified"],
-  },
-  {
-    address: getAddress("0x44369AAFDd04CD9609A57Ec0237884F45dd80818"),
-    decimals: 18,
-    symbol: "P1",
-    kind: "erc20",
-    categories: ["verified"],
-  },
-  {
-    address: getAddress("0x9569ad4B353D4811064ad9970B198fcb914428D5"),
-    decimals: 18,
-    symbol: "pillNADS",
-    kind: "erc20",
-    categories: ["verified", "nad.fun", "meme"],
-  },
-  {
-    address: getAddress("0xA2426cD97583939E79Cfc12aC6E9121e37D0904d"),
-    decimals: 18,
-    symbol: "PINGU",
-    kind: "erc20",
-    categories: ["verified"],
-  },
-  {
-    address: getAddress("0x8a86d48c867b76FF74A36d3AF4d2F1E707B143eD"),
-    decimals: 18,
-    symbol: "RBSD",
-    kind: "erc20",
-    categories: ["verified"],
-  },
-  {
-    address: getAddress("0x92EAc40c98B383ea0f0eFDa747BdAc7Ac891D300"),
-    decimals: 18,
-    symbol: "RED",
-    kind: "erc20",
-    categories: ["verified"],
-  },
-  {
-    address: getAddress("0x6200DB750d4a6A2Ed84181DbDdc5E0029c238CBA"),
-    decimals: 18,
-    symbol: "RTMD",
-    kind: "erc20",
-    categories: ["nad.fun", "meme", "verified"],
-  },
-  {
-    address: getAddress("0x3a98250F98Dd388C211206983453837C8365BDc1"),
-    decimals: 18,
-    symbol: "shMON",
-    kind: "erc20",
-    categories: ["ecosystem", "verified", "lst"],
-  },
-  {
-    address: getAddress("0xe1d2439b75fb9746E7Bc6cB777Ae10AA7f7ef9c5"),
-    decimals: 18,
-    symbol: "sMON",
-    kind: "erc20",
-    categories: ["ecosystem", "lst", "verified"],
-  },
-  {
-    address: getAddress("0x199c0Da6F291a897302300AAAe4F20d139162916"),
-    decimals: 18,
-    symbol: "stMON",
-    kind: "erc20",
-    categories: ["verified"],
-  },
-  {
-    address: getAddress("0x4961c832469Fcbb468c0a794de32FAaa30ccD2F6"),
-    decimals: 18,
-    symbol: "suBTC",
-    kind: "erc20",
-    categories: ["verified", "synthetic"],
-  },
-  {
-    address: getAddress("0x3247B7d8100556ce6fC1A4141c117104ef806850"),
-    decimals: 18,
-    symbol: "suETH",
-    kind: "erc20",
-    categories: ["synthetic", "verified"],
-  },
-  {
-    address: getAddress("0x8F3A8ae1f1859636E82CA4e30DB9FB129B02d825"),
-    decimals: 18,
-    symbol: "suUSD",
-    kind: "erc20",
-    categories: ["verified", "synthetic"],
-  },
-  {
-    address: getAddress("0x2Eb6709Ec63421b056522Aae424E94d060D13fA2"),
-    decimals: 18,
-    symbol: "swMON",
+    symbol: "aprMON",
     kind: "erc20",
     categories: ["verified", "lst"],
   },
   {
-    address: getAddress("0x24D2FD6c5b29EebD5169Cc7D6e8014cd65DecD73"),
+    address: getAddress("0x1b68626dca36c7fe922fd2d55e4f631d962de19c"),
     decimals: 18,
-    symbol: "TFAT",
+    symbol: "shMON",
     kind: "erc20",
-    categories: ["verified"],
+    categories: ["verified", "lst"],
   },
   {
-    address: getAddress("0xf817257fed379853cDe0fa4F97AB987181B1E5Ea"),
-    decimals: 6,
-    symbol: "USDC",
+    address: getAddress("0x8498312a6b3cbd158bf0c93abdcf29e6e4f55081"),
+    decimals: 18,
+    symbol: "gMON",
     kind: "erc20",
-    categories: ["verified", "stable"],
+    categories: ["verified", "lst"],
   },
   {
-    address: getAddress("0xBdd352f339e27E07089039Ba80029f9135F6146F"),
-    decimals: 6,
-    symbol: "USDm",
+    address: getAddress("0xa3227c5969757783154c60bf0bc1944180ed81b9"),
+    decimals: 18,
+    symbol: "sMON",
     kind: "erc20",
-    categories: ["verified"],
+    categories: ["verified", "lst"],
   },
+
+  // === BRIDGED TOKENS ===
   {
-    address: getAddress("0x88b8E2161DEDC77EF4ab7585569D2415a1C1055D"),
-    decimals: 6,
-    symbol: "USDT",
-    kind: "erc20",
-    categories: ["verified", "stable"],
-  },
-  {
-    address: getAddress("0xD875Ba8e2caD3c0f7e2973277C360C8d2f92B510"),
-    decimals: 6,
-    symbol: "USDX",
-    kind: "erc20",
-    categories: ["verified"],
-  },
-  {
-    address: getAddress("0xcf5a6076cfa32686c0Df13aBaDa2b40dec133F1d"),
+    address: getAddress("0x0555e30da8f98308edb960aa94c0db47230d2b9c"),
     decimals: 8,
     symbol: "WBTC",
     kind: "erc20",
-    categories: ["bridged", "verified"],
+    categories: ["verified", "bridged"],
   },
   {
-    address: getAddress("0xB5a30b0FDc5EA94A52fDc42e3E9760Cb8449Fb37"),
+    address: getAddress("0xee8c0e9f1bffb4eb878d8f15f368a02a35481242"),
     decimals: 18,
     symbol: "WETH",
     kind: "erc20",
-    categories: ["bridged", "verified"],
+    categories: ["verified", "bridged"],
   },
   {
-    address: getAddress("0x760afe86e5de5fa0ee542fc7b7b713e1c5425701"),
+    address: getAddress("0x10aeaf63194db8d453d4d85a06e5efe1dd0b5417"),
     decimals: 18,
-    symbol: "WMON",
-    kind: "wrappedNative",
-    categories: ["official", "verified", "wrapped"],
-  },
-  {
-    address: getAddress("0x3bb9AFB94c82752E47706A10779EA525Cf95dc27"),
-    decimals: 18,
-    symbol: "WNative",
+    symbol: "wstETH",
     kind: "erc20",
-    categories: ["nad.fun", "meme", "verified", "wrapped"],
+    categories: ["verified", "bridged"],
   },
   {
-    address: getAddress("0x5387C85A4965769f6B0Df430638a1388493486F1"),
+    address: getAddress("0xea17e5a9efebf1477db45082d67010e2245217f1"),
     decimals: 9,
-    symbol: "WSOL",
+    symbol: "SOL",
     kind: "erc20",
-    categories: ["bridged", "verified"],
+    categories: ["verified", "bridged"],
+  },
+
+  // === SYNTHETIC TOKENS ===
+  {
+    address: getAddress("0xe85411c030fb32a9d8b14bbbc6cb19417391f711"),
+    decimals: 18,
+    symbol: "suBTC",
+    kind: "erc20",
+    categories: ["verified"],
   },
   {
-    address: getAddress("0xfe140e1dCe99Be9F4F15d657CD9b7BF622270C50"),
+    address: getAddress("0x1c22531aa9747d76fff8f0a43b37954ca67d28e0"),
     decimals: 18,
-    symbol: "YAKI",
+    symbol: "suETH",
     kind: "erc20",
-    categories: ["launch", "verified"],
+    categories: ["verified"],
+  },
+
+  // === MEME TOKENS ===
+  {
+    address: getAddress("0x350035555e10d9afaf1566aaebfced5ba6c27777"),
+    decimals: 18,
+    symbol: "CHOG",
+    kind: "erc20",
+    categories: ["nad.fun", "meme", "verified"],
+  },
+  {
+    address: getAddress("0x3842751a46d23b41a47e702473dff316e6237777"),
+    decimals: 18,
+    symbol: "143",
+    kind: "erc20",
+    categories: ["nad.fun", "meme", "verified"],
+  },
+  {
+    address: getAddress("0xb5f73846a656232d5d251ab1048bca88d1507777"),
+    decimals: 18,
+    symbol: "MCA",
+    kind: "erc20",
+    categories: ["nad.fun", "meme", "verified"],
+  },
+
+  // === OTHER VERIFIED ===
+  {
+    address: getAddress("0x788571e0e5067adea87e6ba22a2b738ffdf48888"),
+    decimals: 18,
+    symbol: "UNIT",
+    kind: "erc20",
+    categories: ["verified"],
   },
 ];
 
@@ -402,131 +198,116 @@ const isCompleteTokenList = (tokens: AllowedToken[], expectedCount: number): boo
 };
 
 /**
- * Clear the token cache from localStorage
- */
-const clearTokenCache = (): void => {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Ignore quota/access errors
-  }
-};
-
-/**
- * Read cached tokens with validation
- * Returns empty array if cache is invalid/stale/incomplete
+ * Read cached token list from localStorage (browser)
+ * Returns empty array if cache is missing, expired, or incomplete
  */
 const readCachedTokens = (): AllowedToken[] => {
-  if (typeof window === "undefined") return [];
-
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
+    if (typeof window === "undefined") return [];
+    const cached = localStorage.getItem(STORAGE_KEY);
+    if (!cached) return [];
 
-    const parsed = JSON.parse(raw) as Partial<CachedTokenData>;
+    const data: CachedTokenData = JSON.parse(cached);
 
-    // Validate cache structure
-    if (!parsed.version || !parsed.timestamp || !parsed.expectedCount || !parsed.tokens) {
-      console.warn("[Allowlist] Invalid cache structure");
-      clearTokenCache();
+    // Version mismatch = clear cache
+    if (data.version !== CACHE_VERSION) {
+      localStorage.removeItem(STORAGE_KEY);
       return [];
     }
 
-    // Check cache version
-    if (parsed.version !== CACHE_VERSION) {
-      clearTokenCache();
+    // Expired = clear cache
+    if (Date.now() - data.timestamp > CACHE_TTL_MS) {
+      localStorage.removeItem(STORAGE_KEY);
       return [];
     }
 
-    // Check cache TTL (1 hour)
-    const age = Date.now() - parsed.timestamp;
-    if (age > CACHE_TTL_MS) {
-      clearTokenCache();
+    // Incomplete data = clear cache
+    if (!isCompleteTokenList(data.tokens, data.expectedCount)) {
+      localStorage.removeItem(STORAGE_KEY);
       return [];
     }
 
-    const normalized = normalizeAllowedTokensList(parsed.tokens);
-
-    // Validate completeness
-    if (!isCompleteTokenList(normalized, parsed.expectedCount)) {
-      console.warn("[Allowlist] Cached data incomplete, clearing");
-      clearTokenCache();
-      return [];
-    }
-
-    return normalized;
-  } catch (error) {
-    console.warn("[Allowlist] Cache read error, clearing", error);
-    clearTokenCache();
+    return data.tokens;
+  } catch {
     return [];
   }
 };
 
 /**
- * Write tokens to cache with metadata
+ * Write token list to localStorage cache
  */
 const writeCachedTokens = (tokens: AllowedToken[]): void => {
-  if (typeof window === "undefined") return;
-
   try {
-    const cacheData: CachedTokenData = {
+    if (typeof window === "undefined") return;
+
+    const data: CachedTokenData = {
       version: CACHE_VERSION,
       timestamp: Date.now(),
       expectedCount: tokens.length,
-      tokens: tokens.map((token) => ({
-        address: token.address,
-        symbol: token.symbol,
-        name: token.name,
-        decimals: token.decimals,
-        categories: token.categories,
-      })),
+      tokens,
     };
 
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cacheData));
-  } catch (error) {
-    console.warn("[Allowlist] Cache write failed", error);
-    // Ignore quota errors
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch {
+    // Ignore storage errors (quota, etc.)
   }
 };
 
 /**
- * Fetch tokens from API with timeout (authenticated)
+ * Normalize tokens from API response
+ */
+export const normalizeTokens = (tokens: AllowedToken[]): AllowedToken[] => {
+  return normalizeAllowedTokensList(tokens);
+};
+
+/**
+ * Get fallback token list (used when API fetch fails)
+ * Returns mainnet verified tokens
+ */
+export const getFallbackAllowedTokens = (): AllowedToken[] => {
+  return normalizeTokens(FALLBACK_TOKENS);
+};
+
+/**
+ * Fetch with timeout using AbortController
  */
 const fetchWithTimeout = async (url: string, timeout: number): Promise<Response> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
+    // Use authenticated fetch for token API
     const response = await authenticatedFetch(url, {
-      cache: "no-store",
       signal: controller.signal,
     });
-    clearTimeout(timeoutId);
     return response;
-  } catch (error) {
+  } finally {
     clearTimeout(timeoutId);
-    throw error;
   }
 };
 
 /**
- * Sleep for specified milliseconds
+ * Sleep helper
  */
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-export const getFallbackAllowedTokens = (): AllowedToken[] => FALLBACK_TOKENS.map((token) => ({ ...token }));
-
-export const normalizeTokens = (tokens: AllowedToken[]) => normalizeAllowedTokensList(tokens);
-
-export const ensureTokenInSet = (tokens: AllowedToken[], candidate: AllowedToken) =>
-  ensureTokenSet(tokens, candidate);
-
 /**
- * Load allowed tokens with validation, retry logic, and caching
- * Guarantees complete token list or fallback, never partial data
+ * Load allowed tokens from API with caching
+ *
+ * Strategy:
+ * 1. Check localStorage cache (1h TTL)
+ * 2. If miss, fetch from /api/tokens with retries
+ * 3. On success, cache to localStorage
+ * 4. On failure, use fallback token list
+ *
+ * @param options.forceFallback - Skip API and use fallback directly (for testing)
  */
 export const loadAllowedTokens = async (options?: { forceFallback?: boolean }): Promise<AllowedToken[]> => {
+  // Force fallback for testing
+  if (options?.forceFallback) {
+    return getFallbackAllowedTokens();
+  }
+
   // Try to use valid cached data first (skip if forcing fallback for test)
   if (!options?.forceFallback) {
     const cached = readCachedTokens();
@@ -566,8 +347,8 @@ export const loadAllowedTokens = async (options?: { forceFallback?: boolean }): 
         throw new Error("Missing required tokens (native or wrapped)");
       }
 
-      // Validate minimum token count - fallback has 51 tokens, API should return at least that
-      const MINIMUM_EXPECTED_TOKENS = 51;
+      // Validate minimum token count - must have at least the essential tokens
+      const MINIMUM_EXPECTED_TOKENS = 15;
       if (normalized.length < MINIMUM_EXPECTED_TOKENS) {
         console.warn(`[Allowlist] Incomplete data: ${normalized.length} < ${MINIMUM_EXPECTED_TOKENS}, retrying...`);
         throw new Error(`Incomplete token list: ${normalized.length} tokens`);
@@ -594,4 +375,23 @@ export const loadAllowedTokens = async (options?: { forceFallback?: boolean }): 
 
   // Should never reach here, but return fallback as safety
   return getFallbackAllowedTokens();
+};
+
+/**
+ * Get tokens with MON as first entry (for UI display)
+ */
+export const loadAllowedTokensWithMonFirst = async (): Promise<AllowedToken[]> => {
+  const tokens = await loadAllowedTokens();
+
+  // Find MON token
+  const monIndex = tokens.findIndex((t) => t.symbol === "MON" || t.kind === "native");
+
+  if (monIndex > 0) {
+    // Move MON to front
+    const mon = tokens[monIndex];
+    tokens.splice(monIndex, 1);
+    tokens.unshift(mon);
+  }
+
+  return tokens;
 };

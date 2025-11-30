@@ -3,16 +3,22 @@
  *
  * Proxy endpoint for MON/USD price from Monorail Data API.
  * Used as fallback when portfolio API returns $0.00 for MON balance.
+ *
+ * v2 Migration: /symbol/MONUSD removed, now uses /token/{native} endpoint
  */
 
 import { NextResponse } from "next/server";
 
 const MONORAIL_DATA_API_URL =
-  process.env.NEXT_PUBLIC_MONORAIL_DATA_API_URL ?? "https://testnet-api.monorail.xyz/v1";
+  process.env.NEXT_PUBLIC_MONORAIL_DATA_API_URL ?? "https://api.monorail.xyz/v2";
+
+// Native MON token address (zero address)
+const NATIVE_MON_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export async function GET() {
   try {
-    const response = await fetch(`${MONORAIL_DATA_API_URL}/symbol/MONUSD`, {
+    // v2: Use /token/{address} endpoint instead of /symbol/MONUSD
+    const response = await fetch(`${MONORAIL_DATA_API_URL}/token/${NATIVE_MON_ADDRESS}`, {
       headers: {
         "Content-Type": "application/json",
       },
@@ -28,7 +34,12 @@ export async function GET() {
     }
 
     const data = await response.json();
-    return NextResponse.json(data);
+    // v2: Return usd_per_token as price for compatibility
+    return NextResponse.json({
+      price: data.usd_per_token ?? "0",
+      usd_per_token: data.usd_per_token,
+      mon_per_token: data.mon_per_token,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(

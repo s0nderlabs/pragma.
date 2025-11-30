@@ -2,6 +2,9 @@ export * from "./monorail/tokens.js";
 export * from "./monorail/pathfinder.js";
 export * from "./monorail/calldataPatcher.js";
 export * from "./monorail/balances.js";
+
+// Multi-Aggregator Exports
+export * from "./aggregators/index.js";
 export * from "./delegations/types.js";
 export * from "./delegations/hybrid.js";
 export * from "./delegations/nonce.js";

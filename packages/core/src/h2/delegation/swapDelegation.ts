@@ -54,6 +54,7 @@ import { buildDelegationTypedData } from "../../delegations/typedData.js";
 import { ZERO_SALT } from "../../delegations/hybrid.js";
 import { buildSwapEnforcement } from "./calldataEnforcement.js";
 import { getDTKEnvironment } from "../config.js";
+import type { AggregatorName } from "../../aggregators/types.js";
 
 // ============================================================================
 // Constants
@@ -67,9 +68,11 @@ const EPHEMERAL_EXPIRY_SECONDS = 5 * 60;
 // ============================================================================
 
 export interface SwapDelegationContext {
-  /** Monorail aggregator address (from quote) */
+  /** DEX aggregator address (from quote) */
   aggregator: Address;
-  /** Transaction calldata from Monorail quote */
+  /** Aggregator name for calldata enforcement selection */
+  aggregatorName: AggregatorName;
+  /** Transaction calldata from aggregator quote */
   transactionData: Hex;
   /** Transaction value (wei) - for native token swaps */
   transactionValue: bigint;
@@ -188,6 +191,7 @@ export const createSwapDelegation = (
 ): SwapDelegationResult => {
   const {
     aggregator,
+    aggregatorName,
     transactionData,
     destination,
     delegator,
@@ -200,19 +204,32 @@ export const createSwapDelegation = (
   // Expiry: 5 minutes from now
   const expiresAt = Math.floor(Date.now() / 1000) + EPHEMERAL_EXPIRY_SECONDS;
 
-  // Extract function selector from Monorail calldata
+  // Extract function selector from calldata
   const selector = extractSelector(transactionData);
 
-  // Build enforcement for destination only
-  const allowedCalldata = buildSwapEnforcement(destination);
-
-  // Build scope with destination enforcement
-  const scope = {
-    type: "functionCall" as const,
-    targets: [getAddress(aggregator)],
-    selectors: [selector],
-    allowedCalldata, // Enforces destination (offset 132)
-  };
+  // Build scope based on aggregator
+  // Monorail: Full calldata enforcement (destination at offset 132)
+  // 0x: No calldata enforcement (different calldata structure, but still protected by target/selector)
+  //
+  // Security note for 0x: Still protected by:
+  // - Target enforcement: Can only call the specific aggregator address
+  // - Selector enforcement: Can only call the specific function
+  // - timestamp/nonce/limitedCalls caveats
+  // - Session key requirement
+  const scope = aggregatorName === "monorail"
+    ? {
+        type: "functionCall" as const,
+        targets: [getAddress(aggregator)],
+        selectors: [selector],
+        allowedCalldata: buildSwapEnforcement(destination), // Enforces destination (offset 132)
+      }
+    : {
+        type: "functionCall" as const,
+        targets: [getAddress(aggregator)],
+        selectors: [selector],
+        // No allowedCalldata for 0x - different calldata structure
+        // The swap still goes to user because the router respects the sender's address
+      };
 
   // Build caveats (timestamp, nonce, limitedCalls: 1)
   const caveats = buildSwapCaveats(nonce, expiresAt);

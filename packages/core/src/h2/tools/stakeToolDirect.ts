@@ -134,8 +134,11 @@ export const stakeTool = tool(
         });
       }
 
+      // Generate tool signature for progress routing
+      const toolSignature = `stake:${Date.now()}`;
+
       // Progress: Staking into aPriori
-      emitProgress(`Staking ${amountFormatted} MON into aPriori...`);
+      emitProgress(`Staking ${amountFormatted} MON into aPriori...`, "stake", toolSignature, `Stake ${amountFormatted} MON`);
 
       // Calculate protocol fee (0.5% on input)
       const feeAmount = calculateProtocolFee(amountWei, PROTOCOL_FEES.stake);
@@ -172,6 +175,8 @@ export const stakeTool = tool(
         functionName: "deposit",
         args: [netStakeAmount, getAddress(userAddress)],
       });
+
+      emitProgress(`Building Stake Delegation...`, "stake", toolSignature);
 
       // Create ephemeral delegation for stake
       const { delegation, typedData } = createStakeDelegation({
@@ -262,6 +267,8 @@ export const stakeTool = tool(
         });
       }
 
+      emitProgress(`Executing Stake Transaction...`, "stake", toolSignature);
+
       // Execute
       const txHash = await redeemDelegations(
         sessionWallet,
@@ -273,6 +280,8 @@ export const stakeTool = tool(
           mode: ExecutionMode.SingleDefault,
         }],
       );
+
+      emitProgress(`Waiting for Blockchain Confirmation...`, "stake", toolSignature);
 
       // Wait for confirmation
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });

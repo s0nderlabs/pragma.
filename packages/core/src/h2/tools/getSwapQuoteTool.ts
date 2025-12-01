@@ -361,12 +361,12 @@ export const getSwapQuoteTool = tool(
       const resolvedDescription = `Swap ${amount} ${fromDisplaySymbol} → ${toDisplaySymbol}`;
 
       // Progress: Requesting quotes from all aggregators
-      emitProgress(`Fetching quotes from DEX aggregators...`, "getSwapQuote", signature, resolvedDescription);
+      emitProgress(`Fetching Quotes from DEX Aggregators...`, "getSwapQuote", signature, resolvedDescription);
 
       // Fetch quotes from aggregators in parallel (Monorail + 0x)
       const monorailConfig = getMonorailConfig();
 
-      emitProgress(`Comparing routes across Monorail, 0x...`, "getSwapQuote", signature);
+      emitProgress(`Comparing Routes Across Monorail, 0x...`, "getSwapQuote", signature);
       const { quotes: rankedQuotes, failedAggregators } = await fetchAllAggregatorQuotes(
         fromTokenAddress,
         toTokenAddress,

@@ -40,6 +40,7 @@ import {
   NONCE_ENFORCER_ABI,
   MONAD_CHAIN,
 } from "../config.js";
+import { emitProgress } from "../progress/emitter.js";
 
 const WRAPPED_NATIVE_ABI = [
   {
@@ -99,6 +100,12 @@ export const wrapTool = tool(
       const amountWei = parseUnits(amount, 18);
       const amountFormatted = formatUnits(amountWei, 18);
 
+      // Generate tool signature for progress routing
+      const toolSignature = `wrap:${Date.now()}`;
+
+      // Initial progress
+      emitProgress(`Wrapping ${amountFormatted} MON → WMON...`, "wrap", toolSignature, `Wrap ${amountFormatted} MON`);
+
       // Check user's MON balance
       const userBalance = await publicClient.getBalance({ address: getAddress(userAddress) });
 
@@ -135,6 +142,8 @@ export const wrapTool = tool(
         args: [],
       });
 
+      emitProgress(`Building Wrap Delegation...`, "wrap", toolSignature);
+
       // Create ephemeral delegation for wrap
       // deposit() has no parameters → no enforcement needed
       const { delegation, typedData } = createWrapDelegation({
@@ -170,6 +179,8 @@ export const wrapTool = tool(
         });
       }
 
+      emitProgress(`Executing Wrap Transaction...`, "wrap", toolSignature);
+
       // Execute transaction
       const txHash = await redeemDelegations(
         sessionWallet,
@@ -181,6 +192,8 @@ export const wrapTool = tool(
           mode: ExecutionMode.SingleDefault,
         }],
       );
+
+      emitProgress(`Waiting for Confirmation...`, "wrap", toolSignature);
 
       // Wait for confirmation
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });

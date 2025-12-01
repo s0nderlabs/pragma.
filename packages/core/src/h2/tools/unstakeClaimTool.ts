@@ -50,6 +50,7 @@ import {
   MONAD_CHAIN,
 } from "../config.js";
 import { APRIORI_ABI } from "../../contracts/aprMonABI.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Unstake Claim Tool Implementation
@@ -96,6 +97,13 @@ export const unstakeClaimTool = tool(
 
       // Parse requestIds (comma-separated string to bigint array)
       const requestIdArray = requestIds.split(",").map((id) => BigInt(id.trim()));
+
+      // Generate tool signature for progress routing
+      const toolSignature = `unstakeClaim:${Date.now()}`;
+
+      // First progress with description for parent tool display
+      const claimLabel = requestIdArray.length > 1 ? `${requestIdArray.length} requests` : `request ${requestIdArray[0]}`;
+      emitProgress(`Claiming ${claimLabel}...`, "unstakeClaim", toolSignature, `Claim ${claimLabel}`);
 
       // ALWAYS use batch redeem (even for single claims) due to aPriori contract bug
       // Issue: Single redeem(uint256,address) requires operator approval via setOperator()
@@ -175,6 +183,8 @@ export const unstakeClaimTool = tool(
         });
       }
 
+      emitProgress(`Building Claim Delegation...`, "unstakeClaim", toolSignature);
+
       // Create ephemeral delegation for unstake claim
       const { delegation, typedData } = createUnstakeClaimDelegation({
         aprioriAddress: getAddress(APRIORI_ADDRESS),
@@ -212,6 +222,8 @@ export const unstakeClaimTool = tool(
       // Get MON balance before claiming
       const balanceBefore = await publicClient.getBalance({ address: getAddress(userAddress) });
 
+      emitProgress(`Executing Claim Transaction...`, "unstakeClaim", toolSignature);
+
       // Execute
       const txHash = await redeemDelegations(
         sessionWallet,
@@ -223,6 +235,8 @@ export const unstakeClaimTool = tool(
           mode: ExecutionMode.SingleDefault,
         }],
       );
+
+      emitProgress(`Waiting for Blockchain Confirmation...`, "unstakeClaim", toolSignature);
 
       // Wait for confirmation
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });

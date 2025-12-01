@@ -48,6 +48,7 @@ import {
   MONAD_CHAIN,
 } from "../config.js";
 import { APRIORI_ABI } from "../../contracts/aprMonABI.js";
+import { emitProgress } from "../progress/emitter.js";
 
 const ERC20_ABI = [
   {
@@ -105,6 +106,12 @@ export const unstakeRequestTool = tool(
       const sharesWei = parseUnits(amount, 18);
       const sharesFormatted = formatUnits(sharesWei, 18);
 
+      // Generate tool signature for progress routing
+      const toolSignature = `unstakeRequest:${Date.now()}`;
+
+      // First progress with description for parent tool display
+      emitProgress(`Requesting Unstake for ${sharesFormatted} aprMON...`, "unstakeRequest", toolSignature, `Unstake ${sharesFormatted} aprMON`);
+
       // Check aprMON balance
       const aprMonBalance = await publicClient.readContract({
         address: getAddress(APRIORI_ADDRESS),
@@ -150,6 +157,8 @@ export const unstakeRequestTool = tool(
         args: [sharesWei, getAddress(userAddress), getAddress(userAddress)],
       });
 
+      emitProgress(`Building Unstake Delegation...`, "unstakeRequest", toolSignature);
+
       // Create ephemeral delegation for unstake request
       const { delegation, typedData } = createUnstakeRequestDelegation({
         aprioriAddress: getAddress(APRIORI_ADDRESS),
@@ -184,6 +193,8 @@ export const unstakeRequestTool = tool(
         });
       }
 
+      emitProgress(`Executing Unstake Request...`, "unstakeRequest", toolSignature);
+
       // Execute
       const txHash = await redeemDelegations(
         sessionWallet,
@@ -195,6 +206,8 @@ export const unstakeRequestTool = tool(
           mode: ExecutionMode.SingleDefault,
         }],
       );
+
+      emitProgress(`Waiting for Blockchain Confirmation...`, "unstakeRequest", toolSignature);
 
       // Wait for confirmation
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });

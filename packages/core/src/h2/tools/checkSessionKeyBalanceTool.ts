@@ -42,6 +42,8 @@ export const checkSessionKeyBalanceTool = tool(
         });
       }
 
+      // Simple read-only tool - no progress needed (parent name is sufficient)
+
       // Check balance (batch-aware if estimatedOperations provided)
       const { balance, recommendedFundingAmount } = await checkSessionKeyBalance(
         sessionKeyAddress,

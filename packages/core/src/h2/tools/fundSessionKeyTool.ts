@@ -64,6 +64,8 @@ export const fundSessionKeyTool = tool(
       });
       const fundingMethod = balanceBefore < MIN_GAS_FOR_DELEGATION ? 'userOp' : 'delegation';
 
+      // Simple tool with single operation - no progress needed (parent name is sufficient)
+
       // Fund session key with operation-specific calculation
       const result = await fundSessionKey(
         fundingConfig,

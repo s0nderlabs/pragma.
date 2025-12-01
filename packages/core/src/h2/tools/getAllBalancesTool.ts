@@ -93,8 +93,11 @@ export const getAllBalancesTool = tool(
         });
       }
 
-      // Progress: Fetching balances
-      emitProgress("Fetching your portfolio from Monad...");
+      // Generate tool signature for progress routing
+      const toolSignature = `getAllBalances:${Date.now()}`;
+
+      // Progress: Fetching balances (with description for parent display)
+      emitProgress("Fetching Your Portfolio from Monad...", "getAllBalances", toolSignature, "Fetch All Balances");
 
       // Fetch all balances via proxy (avoids CORS issues with direct Monorail calls)
       // Use authenticated fetch from configurable if available (browser context)
@@ -161,7 +164,7 @@ export const getAllBalancesTool = tool(
       }
 
       // Progress: Calculating values
-      emitProgress("Calculating USD values...");
+      emitProgress("Calculating USD Values...", "getAllBalances", toolSignature);
 
       // Format all non-zero balances with USD values
       let totalPortfolioUsd = 0;

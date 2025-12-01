@@ -44,6 +44,7 @@ import {
   NONCE_ENFORCER_ABI,
   MONAD_CHAIN,
 } from "../config.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Execute Transfer Implementation
@@ -103,6 +104,13 @@ export async function executeTransfer(params: ExecuteTransferParams): Promise<Ex
   // Step 1: Retrieve and validate quote
   const quote = getTransferQuote(quoteId);
 
+  // Generate tool signature for progress routing
+  const toolSignature = `transfer:${quoteId}`;
+  const recipientShort = `${quote.recipient.slice(0, 6)}...${quote.recipient.slice(-4)}`;
+
+  // First progress with description for parent tool display
+  emitProgress(`Transferring ${quote.amount} ${quote.tokenSymbol} to ${recipientShort}...`, "transfer", toolSignature, `Transfer ${quote.amount} ${quote.tokenSymbol}`);
+
   // Step 2: Check session key balance and auto-fund if needed
   const { needsFunding, balance, recommendedFundingAmount } = await checkSessionKeyBalance(
     sessionKeyAddress,
@@ -110,6 +118,7 @@ export async function executeTransfer(params: ExecuteTransferParams): Promise<Ex
   );
 
   if (needsFunding) {
+    emitProgress(`Funding session key for gas...`, "transfer", toolSignature);
     const fundingResult = await fundSessionKey(
       {
         smartAccountAddress: userAddress,
@@ -126,6 +135,8 @@ export async function executeTransfer(params: ExecuteTransferParams): Promise<Ex
       transport // Authenticated transport from params
     );
   }
+
+  emitProgress(`Building transfer delegation...`, "transfer", toolSignature);
 
   // Step 3: Fetch current nonce from NonceEnforcer
   const nonce = await publicClient.readContract({
@@ -189,6 +200,8 @@ export async function executeTransfer(params: ExecuteTransferParams): Promise<Ex
     transport,
   });
 
+  emitProgress(`Executing transfer transaction...`, "transfer", toolSignature);
+
   // Step 9: Submit transaction via delegation redemption
   const txHash = await redeemDelegations(
     sessionWallet,
@@ -200,6 +213,8 @@ export async function executeTransfer(params: ExecuteTransferParams): Promise<Ex
       mode: ExecutionMode.SingleDefault,
     }],
   );
+
+  emitProgress(`Waiting for blockchain confirmation...`, "transfer", toolSignature);
 
   // Step 10: Wait for confirmation
   const receipt = await publicClient.waitForTransactionReceipt({

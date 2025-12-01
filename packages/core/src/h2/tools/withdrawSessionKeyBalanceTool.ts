@@ -31,6 +31,7 @@ import { privateKeyToAccount } from "viem/accounts";
 
 import { createErrorFromCode } from "../../errors/index.js";
 import { MONAD_CHAIN } from "../config.js";
+import { emitProgress } from "../progress/emitter.js";
 
 /** Minimum gas reserve to leave in session key (0.005 MON for withdrawal tx gas) */
 const MIN_GAS_RESERVE = parseEther("0.005");
@@ -166,11 +167,20 @@ Not enough MON left to pay for gas. Try withdrawing less or use "all" to withdra
         transport,
       });
 
+      // Generate tool signature for progress routing
+      const toolSignature = `withdrawSessionKey:${Date.now()}`;
+
+      // Progress message
+      const shortRecipient = `${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)}`;
+      emitProgress(`Withdrawing ${formatEther(withdrawalAmount)} MON to ${shortRecipient}...`, "withdrawSessionKeyBalance", toolSignature, `Withdraw ${formatEther(withdrawalAmount)} MON`);
+
       // Execute withdrawal (direct EOA transfer, no delegation needed)
       const txHash = await sessionWallet.sendTransaction({
         to: recipientAddress,
         value: withdrawalAmount,
       });
+
+      emitProgress(`Waiting for Confirmation...`, "withdrawSessionKeyBalance", toolSignature);
 
       // Wait for confirmation
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });

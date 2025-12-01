@@ -43,6 +43,7 @@ import {
   NONCE_ENFORCER_ABI,
   MONAD_CHAIN,
 } from "../config.js";
+import { emitProgress } from "../progress/emitter.js";
 
 const WRAPPED_NATIVE_ABI = [
   {
@@ -104,6 +105,12 @@ export async function executeUnwrap(params: ExecuteUnwrapParams): Promise<Execut
   // Step 1: Retrieve and validate quote
   const quote = getUnwrapQuote(quoteId);
 
+  // Generate tool signature for progress routing
+  const toolSignature = `unwrap:${quoteId}`;
+
+  // First progress with description for parent tool display
+  emitProgress(`Unwrapping ${quote.amount} WMON → MON...`, "unwrap", toolSignature, `Unwrap ${quote.amount} WMON → MON`);
+
   // Step 2: Check session key balance and auto-fund if needed
   const { needsFunding, balance, recommendedFundingAmount } = await checkSessionKeyBalance(
     sessionKeyAddress,
@@ -111,6 +118,7 @@ export async function executeUnwrap(params: ExecuteUnwrapParams): Promise<Execut
   );
 
   if (needsFunding) {
+    emitProgress(`Funding session key for gas...`, "unwrap", toolSignature);
     const fundingResult = await fundSessionKey(
       {
         smartAccountAddress: userAddress,
@@ -127,6 +135,8 @@ export async function executeUnwrap(params: ExecuteUnwrapParams): Promise<Execut
       transport // Authenticated transport from params
     );
   }
+
+  emitProgress(`Building unwrap delegation...`, "unwrap", toolSignature);
 
   // Step 3: Fetch current nonce from NonceEnforcer
   const nonce = await publicClient.readContract({
@@ -190,6 +200,8 @@ export async function executeUnwrap(params: ExecuteUnwrapParams): Promise<Execut
     transport,
   });
 
+  emitProgress(`Executing unwrap transaction...`, "unwrap", toolSignature);
+
   // Step 9: Submit transaction via delegation redemption
   const txHash = await redeemDelegations(
     sessionWallet,
@@ -201,6 +213,8 @@ export async function executeUnwrap(params: ExecuteUnwrapParams): Promise<Execut
       mode: ExecutionMode.SingleDefault,
     }],
   );
+
+  emitProgress(`Waiting for blockchain confirmation...`, "unwrap", toolSignature);
 
   // Step 10: Wait for confirmation
   const receipt = await publicClient.waitForTransactionReceipt({

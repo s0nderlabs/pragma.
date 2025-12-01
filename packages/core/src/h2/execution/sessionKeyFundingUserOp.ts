@@ -27,6 +27,7 @@ import {
   type BaseUserOp,
 } from "./userOpUtils.js";
 import { SESSION_KEY_FUNDING_AMOUNT } from "./sessionKeyManager.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Constants
@@ -169,6 +170,7 @@ export async function fundSessionKeyViaUserOp(
   userOp.signature = signature;
 
   // Step 7: Submit UserOp to bundler (smart account pays gas)
+  emitProgress("Executing Funding Transaction...");
   const { userOpHash, transactionHash } = await submitUserOp(
     bundlerClient,
     userOp,
@@ -176,6 +178,7 @@ export async function fundSessionKeyViaUserOp(
   );
 
   // Step 8: Wait for transaction confirmation if we have tx hash
+  emitProgress("Waiting for Confirmation...");
   if (transactionHash) {
     const receipt = await publicClient.waitForTransactionReceipt({ hash: transactionHash });
 

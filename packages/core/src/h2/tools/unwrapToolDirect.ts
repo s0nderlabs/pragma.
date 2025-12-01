@@ -36,6 +36,7 @@ import {
   NONCE_ENFORCER_ABI,
   MONAD_CHAIN,
 } from "../config.js";
+import { emitProgress } from "../progress/emitter.js";
 
 const WRAPPED_NATIVE_ABI = [
   {
@@ -99,6 +100,12 @@ export const unwrapTool = tool(
       const amountWei = parseUnits(amount, 18);
       const amountFormatted = formatUnits(amountWei, 18);
 
+      // Generate tool signature for progress routing
+      const toolSignature = `unwrap:${Date.now()}`;
+
+      // Initial progress
+      emitProgress(`Unwrapping ${amountFormatted} WMON → MON...`, "unwrap", toolSignature, `Unwrap ${amountFormatted} WMON`);
+
       // Check WMON balance
       const wmonBalance = await publicClient.readContract({
         address: getAddress(WMON_ADDRESS),
@@ -140,6 +147,8 @@ export const unwrapTool = tool(
         args: [amountWei],
       });
 
+      emitProgress(`Building Unwrap Delegation...`, "unwrap", toolSignature);
+
       // Create ephemeral delegation for unwrap
       // withdraw(uint256) has amount at offset 4 (not enforceable with our offset 132 system)
       const { delegation, typedData } = createUnwrapDelegation({
@@ -175,6 +184,8 @@ export const unwrapTool = tool(
         });
       }
 
+      emitProgress(`Executing Unwrap Transaction...`, "unwrap", toolSignature);
+
       // Execute
       const txHash = await redeemDelegations(
         sessionWallet,
@@ -186,6 +197,8 @@ export const unwrapTool = tool(
           mode: ExecutionMode.SingleDefault,
         }],
       );
+
+      emitProgress(`Waiting for Confirmation...`, "unwrap", toolSignature);
 
       // Wait for confirmation
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });

@@ -43,6 +43,7 @@ import {
   NONCE_ENFORCER_ABI,
   MONAD_CHAIN,
 } from "../config.js";
+import { emitProgress } from "../progress/emitter.js";
 
 const ERC20_ABI = [
   {
@@ -130,6 +131,13 @@ export const transferTool = tool(
 
       const recipient = getAddress(recipientAddress);
       const isNativeTransfer = isNativeMON(tokenSymbol);
+
+      // Generate tool signature for progress routing
+      const toolSignature = `transfer:${Date.now()}`;
+
+      // Initial progress - truncate recipient for display
+      const shortRecipient = `${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)}`;
+      emitProgress(`Transferring ${tokenSymbol} to ${shortRecipient}...`, "transfer", toolSignature, `Transfer ${tokenSymbol}`);
 
       let amountWei: bigint;
       let amountFormatted: string;
@@ -231,6 +239,8 @@ export const transferTool = tool(
         target = tokenAddress;
       }
 
+      emitProgress(`Building Transfer Delegation...`, "transfer", toolSignature);
+
       // Create delegation (conditional based on transfer type)
       let delegation: Delegation;
       let typedData: any; // EIP-712 typed data for delegation signing
@@ -290,6 +300,8 @@ export const transferTool = tool(
         });
       }
 
+      emitProgress(`Executing Transfer Transaction...`, "transfer", toolSignature);
+
       // Execute
       const txHash = await redeemDelegations(
         sessionWallet,
@@ -301,6 +313,8 @@ export const transferTool = tool(
           mode: ExecutionMode.SingleDefault,
         }],
       );
+
+      emitProgress(`Waiting for Confirmation...`, "transfer", toolSignature);
 
       // Wait for confirmation
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });

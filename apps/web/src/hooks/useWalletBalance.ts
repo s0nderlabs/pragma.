@@ -256,6 +256,56 @@ export function useWalletBalance(): WalletBalanceData {
         }
       }
 
+      // WMON RPC Fallback: Check if WMON is missing from API response
+      const WMON_ADDRESS = '0x3bd359c1119da7da1d913d1c4d2b7c461115433a'; // mainnet
+      const wmonTokenIndex = balancesRes.findIndex(
+        (token: { symbol?: string; address: string }) =>
+          token.symbol === 'WMON' || token.address.toLowerCase() === WMON_ADDRESS.toLowerCase()
+      );
+
+      if (wmonTokenIndex === -1) {
+        // WMON not in API response - fetch directly from contract
+        try {
+          const wmonBalance = await publicClient.readContract({
+            address: WMON_ADDRESS as `0x${string}`,
+            abi: [{
+              type: 'function',
+              name: 'balanceOf',
+              stateMutability: 'view',
+              inputs: [{ name: 'account', type: 'address' }],
+              outputs: [{ name: '', type: 'uint256' }]
+            }] as const,
+            functionName: 'balanceOf',
+            args: [sessionData.delegator as `0x${string}`],
+          });
+
+          if (wmonBalance > 0n) {
+            // Fetch WMON price (same as MON price since it's wrapped)
+            const wmonPrice = await fetchMonPrice();
+            const wmonBalanceNum = parseFloat(formatUnits(wmonBalance, 18));
+            const wmonUsdValue = wmonPrice > 0 ? wmonBalanceNum * wmonPrice : 0;
+
+            balancesRes.push({
+              address: WMON_ADDRESS,
+              symbol: 'WMON',
+              name: 'Wrapped Monad',
+              decimals: 18,
+              balance: wmonBalance.toString(),
+              usd_per_token: wmonPrice.toString(),
+              usd_value: wmonUsdValue.toString(),
+              categories: ['verified', 'wrapped'],
+            });
+
+            // Add WMON value to total portfolio
+            if (wmonUsdValue > 0) {
+              usdValue += wmonUsdValue;
+            }
+          }
+        } catch (wmonError) {
+          console.warn('[useWalletBalance] WMON RPC balance fetch failed:', wmonError);
+        }
+      }
+
       // Save balance snapshot for 24h change tracking
       saveBalanceSnapshot(sessionData.delegator, usdValue)
 

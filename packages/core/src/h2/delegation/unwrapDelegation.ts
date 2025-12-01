@@ -145,12 +145,12 @@ const buildUnwrapCaveats = (
  * @example
  * ```typescript
  * const unwrapDelegation = createUnwrapDelegation({
- *   wmonAddress: "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701",
+ *   wmonAddress: "0x3bd359c1119da7da1d913d1c4d2b7c461115433a", // mainnet
  *   amount: parseEther("0.5"), // Unwrap 0.5 WMON
  *   delegator: userAddress,
  *   sessionKey: sessionKeyAddress,
  *   nonce: 10,
- *   chainId: 10143,
+ *   chainId: 143, // mainnet
  *   delegationManager: DM_ADDRESS,
  * });
  * ```

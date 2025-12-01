@@ -14,7 +14,7 @@ import { createErrorFromCode } from "../../errors/index.js";
 // WMON Contract Configuration
 // ============================================================================
 
-const WMON_ADDRESS = (process.env.MONAD_WMON_ADDRESS || "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701") as Address;
+const WMON_ADDRESS = (process.env.MONAD_WMON_ADDRESS || "0x3bd359c1119da7da1d913d1c4d2b7c461115433a") as Address; // mainnet
 
 const WRAPPED_NATIVE_ABI = [
   {

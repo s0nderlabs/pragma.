@@ -270,7 +270,7 @@ export const getBalanceTool = tool(
       if (!targetBalance) {
         // Special handling for WMON - fetch directly from contract if not in Monorail data
         if (tokenNormalized === "WMON") {
-          const WMON_ADDRESS = "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701";
+          const WMON_ADDRESS = "0x3bd359c1119da7da1d913d1c4d2b7c461115433a"; // mainnet
           const ERC20_ABI = [{
             type: "function",
             name: "balanceOf",

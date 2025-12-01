@@ -196,7 +196,6 @@ export const STATIC_TOKEN_LOGO_MAP: Record<string, string> = {
   "0x88b8e2161dedc77ef4ab7585569d2415a1c1055d": "https://imagedelivery.net/cBNDGgkrsEA-b_ixIp9SkQ/images.png/public",
   "0xb5a30b0fdc5ea94a52fdc42e3e9760cb8449fb37": "https://imagedelivery.net/cBNDGgkrsEA-b_ixIp9SkQ/weth.jpg/public",
   "0x8f3a8ae1f1859636e82ca4e30db9fb129b02d825": "https://imagedelivery.net/cBNDGgkrsEA-b_ixIp9SkQ/suUSD.png/public",
-  "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701": "https://imagedelivery.net/cBNDGgkrsEA-b_ixIp9SkQ/I_t8rg_V_400x400.jpg/public",
   "0xb2f82d0f38dc453d596ad40a37799446cc89274a": "https://pbs.twimg.com/profile_images/1821177411796410369/GtzmUXok_400x400.jpg",
   "0x3a98250f98dd388c211206983453837c8365bdc1": "https://alpha.clober.io/_next/image?url=%2Fasset-icon%2FshMON.png&w=64&q=75",
   "0xe1d2439b75fb9746e7bc6cb777ae10aa7f7ef9c5": "https://kintsu-logos.s3.us-east-1.amazonaws.com/sMON.svg",

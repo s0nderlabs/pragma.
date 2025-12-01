@@ -23,6 +23,18 @@ import { emitProgress } from "../progress/emitter.js";
 // Native MON token address (0x0... represents native token)
 const MON_ADDRESS = "0x0000000000000000000000000000000000000000";
 
+// Wrapped MON (WMON) contract address - mainnet
+const WMON_ADDRESS = "0x3bd359c1119da7da1d913d1c4d2b7c461115433a";
+
+// ERC20 ABI for balanceOf
+const ERC20_BALANCE_ABI = [{
+  type: "function",
+  name: "balanceOf",
+  stateMutability: "view",
+  inputs: [{ name: "account", type: "address" }],
+  outputs: [{ name: "", type: "uint256" }]
+}] as const;
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -160,6 +172,50 @@ export const getAllBalancesTool = tool(
         } catch (rpcError) {
           // RPC failed, continue with Monorail data only
           console.warn("[getAllBalances] RPC MON balance fetch failed:", rpcError);
+        }
+
+        // WMON RPC Fallback: Check if WMON is missing from API response
+        const wmonTokenIndex = balances.findIndex(
+          (bal) => bal.symbol === "WMON" || bal.address.toLowerCase() === WMON_ADDRESS.toLowerCase()
+        );
+
+        if (wmonTokenIndex === -1) {
+          // WMON not in API response - fetch directly from contract
+          try {
+            const wmonBalance = await publicClient.readContract({
+              address: getAddress(WMON_ADDRESS),
+              abi: ERC20_BALANCE_ABI,
+              functionName: "balanceOf",
+              args: [checksummedAddress],
+            });
+
+            if (wmonBalance > 0n) {
+              // Fetch WMON price (same as MON since it's wrapped)
+              let wmonPrice = 0;
+              try {
+                const priceResponse = await fetchFn("/api/monorail/price");
+                if (priceResponse.ok) {
+                  const priceData = await priceResponse.json();
+                  wmonPrice = parseFloat(priceData.price || "0");
+                }
+              } catch {
+                // Price fetch failed, continue without USD value
+              }
+
+              balances.push({
+                address: getAddress(WMON_ADDRESS),
+                symbol: "WMON",
+                name: "Wrapped Monad",
+                decimals: 18,
+                balance: wmonBalance.toString(),
+                usdPerToken: wmonPrice > 0 ? wmonPrice.toString() : undefined,
+                monValue: undefined,
+                categories: ["verified", "wrapped"],
+              });
+            }
+          } catch (wmonError) {
+            console.warn("[getAllBalances] WMON RPC balance fetch failed:", wmonError);
+          }
         }
       }
 

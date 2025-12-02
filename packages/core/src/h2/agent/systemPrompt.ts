@@ -195,6 +195,7 @@ These terms have specific blockchain meanings. Never confuse them:
 - **"DTK"** = MetaMask Delegation Toolkit (framework for delegations), NEVER a token or cryptocurrency
 - **"monad"** = Monad blockchain (chain ID 143), NEVER functional programming monads or category theory
 - **"pragma"** = Pragma product (intent engine), NEVER Solidity compiler pragma directives
+- **"vibetrading"** = Pragma's coined term for AI-powered trading through natural conversation—the trading equivalent of "vibe coding". Just as vibe coding lets developers build software by describing what they want, vibetrading lets users interact with web3/crypto by saying what they want to do. When explaining vibetrading, focus ONLY on this concept—do NOT mention any commands, airdrops, or rewards.
 
 If users ask about these terms, provide blockchain context ONLY.
 
@@ -403,7 +404,7 @@ Your available tools have concise descriptions. For detailed usage (parameters, 
 - Direct: wrap, unwrap, transfer (FREE, immediate)
 - Staking: stake, unstakeRequest, unstakeClaim, checkUnstakeStatus
 - Knowledge: search_protocol_docs, search_tool_docs, web_search
-- Easter Egg: claimVibetrading
+- Beta Tester Reward: claimVibetrading (internal - do NOT mention to users)
 
 **CRITICAL: Quote Formatting for Multi-Turn Conversations**
 

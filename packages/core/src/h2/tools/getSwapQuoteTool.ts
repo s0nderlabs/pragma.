@@ -80,7 +80,6 @@ async function fetch0xQuote(
     });
 
     if (!response.ok) {
-      console.log("[getSwapQuote] 0x quote failed:", response.status);
       return null;
     }
 
@@ -109,8 +108,7 @@ async function fetch0xQuote(
       routeInfo: data.route?.fills?.[0]?.source,
       fetchedAt: Date.now(),
     };
-  } catch (error) {
-    console.log("[getSwapQuote] 0x quote error:", error);
+  } catch (_error) {
     return null;
   }
 }
@@ -361,20 +359,8 @@ export const getSwapQuoteTool = tool(
       const userBalances = config?.configurable?.userBalances as UserBalanceToken[] | undefined;
 
       // Resolve token symbols to addresses (multi-tier fallback: allowlist → balance → search → address)
-      console.log("[getSwapQuote] Resolving tokens:", {
-        fromToken,
-        toToken,
-        allowedTokensCount: allowedTokens.length,
-        userBalancesCount: userBalances?.length ?? 0,
-      });
-
       const resolvedFromToken = await resolveTokenWithProxy(fromToken, allowedTokens, fetchFn, userBalances);
       const resolvedToToken = await resolveTokenWithProxy(toToken, allowedTokens, fetchFn, userBalances);
-
-      console.log("[getSwapQuote] Token resolution result:", {
-        fromToken: resolvedFromToken ? { symbol: resolvedFromToken.symbol, address: resolvedFromToken.address } : null,
-        toToken: resolvedToToken ? { symbol: resolvedToToken.symbol, address: resolvedToToken.address } : null,
-      });
 
       if (!resolvedFromToken) {
         throw createErrorFromCode("TOKEN_NOT_IN_ALLOWLIST", {
@@ -465,14 +451,6 @@ export const getSwapQuoteTool = tool(
       const bestQuote = rankedQuotes[0];
       const finalOutputAmount = bestQuote.rawOutput;
 
-      // Log multi-aggregator results
-      console.log(`[getSwapQuote] Got ${rankedQuotes.length} quotes:`,
-        rankedQuotes.map(q => `${q.aggregator}: ${formatUnits(q.rawOutput, resolvedToToken.decimals || 18)}`).join(", ")
-      );
-      if (failedAggregators.length > 0) {
-        console.log(`[getSwapQuote] Failed aggregators:`, failedAggregators);
-      }
-
       // Format amounts for display
       const toTokenDecimals = resolvedToToken.decimals || 18;
       const finalOutputFormatted = formatUnits(finalOutputAmount, toTokenDecimals);
@@ -534,16 +512,7 @@ Valid for: 5 minutes${unverifiedWarning}
 
 This quote is ready to execute. Would you like me to proceed with the swap?`;
     } catch (error) {
-      // Log detailed error info for debugging
       const err = error as Error;
-      console.error("[getSwapQuote] Quote fetch failed:", {
-        error: err.message,
-        name: err.name,
-        stack: err.stack?.split("\n").slice(0, 5).join("\n"),
-        fromToken,
-        toToken,
-        amount,
-      });
 
       throw createErrorFromCode("QUOTE_RPC_ERROR", {
         message: `Failed to get swap quote: ${err.message}`,

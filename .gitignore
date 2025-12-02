@@ -45,3 +45,5 @@ playwright-report/
 .playwright-mcp/
 
 YC/
+.vercel
+.env*.local

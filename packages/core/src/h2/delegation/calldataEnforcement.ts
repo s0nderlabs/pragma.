@@ -201,11 +201,7 @@ export function buildERC20TransferEnforcement(
  * @returns AllowedCalldata config that will FAIL at runtime
  */
 export function buildNativeTransferEnforcement(recipient: Address): AllowedCalldataBuilderConfig[] {
-  console.warn(
-    "[DEPRECATED] buildNativeTransferEnforcement() is deprecated. " +
-    "Use ExactExecutionEnforcer for native transfers instead. " +
-    "This function will cause 'invalid-calldata-length' errors."
-  );
+  // DEPRECATED: Use ExactExecutionEnforcer for native transfers instead
   return [
     {
       startIndex: NATIVE_TRANSFER_OFFSETS.TARGET,

@@ -126,9 +126,8 @@ export const getBalanceTool = tool(
             address: checksummedAddress,
           });
           rpcMonFormatted = formatUnits(rpcMonBalance, 18);
-        } catch (rpcError) {
+        } catch (_rpcError) {
           // RPC failed, continue with Monorail data only
-          console.warn("[getBalance] RPC MON balance fetch failed:", rpcError);
         }
       }
 
@@ -299,7 +298,6 @@ export const getBalanceTool = tool(
             const balanceFormatted = formatUnits(wmonBalance, 18);
             return `You have ${balanceFormatted} WMON`;
           } catch (error) {
-            console.error("[getBalance] Failed to fetch WMON balance directly:", error);
             return `Unable to fetch WMON balance from blockchain. Error: ${(error as Error).message}`;
           }
         }
@@ -346,14 +344,7 @@ export const getBalanceTool = tool(
       // Include address in brackets for agent reference (user won't see this in UI)
       return `You have ${formattedBalance} [${targetBalance.address}]`;
     } catch (error) {
-      // More specific error logging
       const errorMessage = (error as Error).message;
-      const errorName = (error as Error).name;
-
-      console.error(`[getBalance] Error fetching balance for ${token}:`, {
-        error: errorName,
-        message: errorMessage,
-      });
 
       throw createErrorFromCode("RPC_UNAVAILABLE", {
         message: `Failed to fetch balance for ${token}: ${errorMessage}`,

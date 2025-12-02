@@ -119,7 +119,6 @@ export const webSearchTool = tool(
         });
 
         if (!response.ok) {
-          console.warn("[WebSearch] API returned error:", response.status);
           return "Unable to search the web at this time. Please try again later.";
         }
 
@@ -130,15 +129,13 @@ export const webSearchTool = tool(
         cacheResult(query, result);
 
         return result;
-      } catch (fetchError) {
+      } catch (_fetchError) {
         // API not available (e.g., during build or in non-web context)
-        console.warn("[WebSearch] API not available:", fetchError);
         return "Web search is not available in this environment.";
       }
 
-    } catch (error) {
+    } catch (_error) {
       // Graceful fallback - don't crash the request
-      console.warn("[WebSearch] Search failed:", error);
       return "Unable to complete web search. Please try again.";
     }
   },

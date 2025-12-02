@@ -80,7 +80,7 @@ const toolDocs: Record<string, string> = {
 
 **Security:** Session key only holds ~1 MON for gas, cannot access smart account tokens.`,
 
-  listVerifiedTokens: `**listVerifiedTokens** - List all 54+ verified tokens on Pragma
+  listVerifiedTokens: `**listVerifiedTokens** - List all verified tokens on Pragma
 
 **Use when:** User asks "what tokens are supported?", "show all tokens", "which tokens can I swap?"
 

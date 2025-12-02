@@ -58,6 +58,7 @@ export function useH2_5Agent() {
   const quickMode = useH2ChatStore((state) => state.quickMode);
   const sessionData = useH2ChatStore((state) => state.sessionData);
   const allowedTokens = useH2ChatStore((state) => state.allowedTokens);
+  const allTokens = useH2ChatStore((state) => state.allTokens); // User's balance data for unverified token resolution
   const isStreaming = useH2ChatStore((state) => state.isStreaming);
 
   // Store actions (same as H2)
@@ -583,6 +584,7 @@ export function useH2_5Agent() {
             transport: authenticatedTransport, // Pass authenticated transport to tools
             quickMode,
             allowedTokens,
+            userBalances: allTokens, // User's balance data for unverified token symbol resolution
             // CRITICAL FIX: Read directly from Zustand store, not local state
             // This avoids React state timing race where local state hasn't updated yet
             // after onboarding stores the smartAccount. Using getState() is synchronous.
@@ -613,6 +615,7 @@ export function useH2_5Agent() {
       messages,
       quickMode,
       allowedTokens,
+      allTokens, // User's balance data for unverified token resolution
       // Note: smartAccount and bundlerClient removed - now read directly from store
       addMessage,
       updateMessageContent,

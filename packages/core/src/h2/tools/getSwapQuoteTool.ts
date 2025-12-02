@@ -203,20 +203,41 @@ async function fetchAllAggregatorQuotes(
 }
 
 /**
- * Resolve token from allowlist with proxy-based fallback for browser context.
- * Uses /api/monorail/token proxy to avoid CORS issues with direct Monorail Data API calls.
- * @param fetchFn - Optional authenticated fetch function (for browser context with auth)
+ * User balance data interface (minimal, from Monorail balances API)
+ */
+interface UserBalanceToken {
+  address: string;
+  symbol?: string;
+  name?: string;
+  decimals: number;
+  categories?: string[];
+}
+
+/**
+ * Resolve token from allowlist with multi-tier fallback for browser context.
+ *
+ * Resolution order (4-tier fallback):
+ * 1. Verified allowlist (fast, ~19 tokens on mainnet)
+ * 2. User balance data (fast, tokens user owns - enables unverified token swaps)
+ * 3. Monorail symbol search (API call, ALL tokens on Monad by symbol)
+ * 4. Monorail address lookup (API call, direct address resolution)
+ *
+ * @param input - Token symbol or address
+ * @param allowedTokens - Verified token allowlist
+ * @param fetchFn - Authenticated fetch function (for browser context with auth)
+ * @param userBalances - User's balance data (for unverified token symbol resolution)
  */
 async function resolveTokenWithProxy(
   input: string,
   allowedTokens: AllowedToken[],
-  fetchFn: typeof fetch = fetch
+  fetchFn: typeof fetch = fetch,
+  userBalances?: UserBalanceToken[]
 ): Promise<AllowedToken | undefined> {
   const trimmed = input.trim();
   if (!trimmed) return undefined;
   const lower = trimmed.toLowerCase();
 
-  // 1. Check allowlist by symbol (fast path)
+  // 1. Check allowlist by symbol (fast path - verified tokens)
   let token = allowedTokens.find((t) => t.symbol?.toLowerCase() === lower);
   if (token) return token;
 
@@ -224,8 +245,53 @@ async function resolveTokenWithProxy(
   if (trimmed.startsWith("0x")) {
     token = allowedTokens.find((t) => t.address.toLowerCase() === lower);
     if (token) return token;
+  }
 
-    // 3. Fallback: Fetch from Monorail via proxy (avoids CORS)
+  // 3. Check user's balance data by symbol (unverified tokens user owns)
+  if (userBalances && !trimmed.startsWith("0x")) {
+    const balanceMatch = userBalances.find(
+      (b) => b.symbol?.toLowerCase() === lower
+    );
+    if (balanceMatch) {
+      return {
+        address: getAddress(balanceMatch.address as Address),
+        symbol: balanceMatch.symbol,
+        name: balanceMatch.name,
+        decimals: balanceMatch.decimals,
+        categories: balanceMatch.categories,
+      };
+    }
+  }
+
+  // 4. Search Monorail API by symbol (any token on Monad)
+  if (!trimmed.startsWith("0x")) {
+    try {
+      const searchResponse = await fetchFn(
+        `/api/monorail/search?q=${encodeURIComponent(trimmed)}`
+      );
+      if (searchResponse.ok) {
+        const results = await searchResponse.json() as UserBalanceToken[];
+        // Find exact symbol match (case-insensitive)
+        const match = results.find(
+          (r) => r.symbol?.toLowerCase() === lower
+        );
+        if (match) {
+          return {
+            address: getAddress(match.address as Address),
+            symbol: match.symbol,
+            name: match.name,
+            decimals: match.decimals,
+            categories: match.categories,
+          };
+        }
+      }
+    } catch {
+      // Search failed, continue to address lookup
+    }
+  }
+
+  // 5. Fallback: Fetch from Monorail by address via proxy (avoids CORS)
+  if (trimmed.startsWith("0x")) {
     try {
       const checksumAddress = getAddress(trimmed as Address);
       const response = await fetchFn(`/api/monorail/token?address=${checksumAddress}`);
@@ -291,11 +357,19 @@ export const getSwapQuoteTool = tool(
       // Get authenticated fetch from configurable (for browser context with auth)
       const fetchFn = (config?.configurable?.fetch as typeof fetch) || fetch;
 
-      // Resolve token symbols to addresses (uses proxy for unknown tokens to avoid CORS)
-      console.log("[getSwapQuote] Resolving tokens:", { fromToken, toToken, allowedTokensCount: allowedTokens.length });
+      // Get user balances for unverified token symbol resolution
+      const userBalances = config?.configurable?.userBalances as UserBalanceToken[] | undefined;
 
-      const resolvedFromToken = await resolveTokenWithProxy(fromToken, allowedTokens, fetchFn);
-      const resolvedToToken = await resolveTokenWithProxy(toToken, allowedTokens, fetchFn);
+      // Resolve token symbols to addresses (multi-tier fallback: allowlist → balance → search → address)
+      console.log("[getSwapQuote] Resolving tokens:", {
+        fromToken,
+        toToken,
+        allowedTokensCount: allowedTokens.length,
+        userBalancesCount: userBalances?.length ?? 0,
+      });
+
+      const resolvedFromToken = await resolveTokenWithProxy(fromToken, allowedTokens, fetchFn, userBalances);
+      const resolvedToToken = await resolveTokenWithProxy(toToken, allowedTokens, fetchFn, userBalances);
 
       console.log("[getSwapQuote] Token resolution result:", {
         fromToken: resolvedFromToken ? { symbol: resolvedFromToken.symbol, address: resolvedFromToken.address } : null,

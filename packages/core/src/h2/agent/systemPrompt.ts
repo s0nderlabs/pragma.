@@ -337,7 +337,7 @@ These tools execute immediately when called. Your role is to decide WHETHER to c
 
 **UNVERIFIED TOKEN HANDLING:**
 
-Pragma can swap to ANY token on Monorail (not just the 54 verified tokens). When getSwapQuote or swap tool detects an unverified destination token, it includes a ⚠️ WARNING in the output.
+Pragma can swap to ANY token on Monorail (not just verified tokens). When getSwapQuote or swap tool detects an unverified destination token, it includes a ⚠️ WARNING in the output.
 
 **In NORMAL MODE (default):**
 When you see the unverified token warning in tool output:

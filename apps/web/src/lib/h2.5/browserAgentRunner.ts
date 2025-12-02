@@ -237,6 +237,9 @@ export interface BrowserAgentContext {
 
   /** Allowed tokens for swaps */
   allowedTokens?: AllowedToken[];
+
+  /** User's balance data for unverified token symbol resolution */
+  userBalances?: unknown[];
   // Note: sponsorUserOperationFn removed - session key funding is now self-paid (no paymaster)
 }
 
@@ -309,6 +312,7 @@ export async function runBrowserAgent(
           sessionWallet: context.sessionWallet,
           quickMode: context.quickMode,
           allowedTokens: context.allowedTokens,
+          userBalances: context.userBalances, // For unverified token symbol resolution
           fetch: authenticatedFetch, // Authenticated fetch for proxy API calls
         },
 
@@ -686,6 +690,7 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
           sessionWallet: context.sessionWallet,
           quickMode: context.quickMode,
           allowedTokens: context.allowedTokens,
+          userBalances: context.userBalances, // For unverified token symbol resolution
           fetch: authenticatedFetch, // Authenticated fetch for proxy API calls
           // Note: sponsorUserOperationFn removed - session key funding is now self-paid
         },

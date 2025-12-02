@@ -18,6 +18,7 @@ export interface RawTokenBalance {
   usd_value?: string;
   categories?: string[];
   pconf?: string;
+  image_uri?: string; // Monorail v2 API field for token logo
 }
 
 export interface TokenBalance {
@@ -31,6 +32,7 @@ export interface TokenBalance {
   usdValue?: string;
   categories?: string[];
   priceConfidence?: string;
+  logoURI?: string; // Token logo URL (mapped from image_uri)
 }
 
 export interface PortfolioValueResponse {
@@ -114,6 +116,7 @@ export const normalizeTokenBalance = (token: RawTokenBalance): TokenBalance => {
     usdValue: calculatedUsdValue ?? token.usd_value,
     categories: token.categories ?? [],
     priceConfidence: token.pconf, // May be undefined in v2
+    logoURI: token.image_uri, // Map image_uri to logoURI
   };
 };
 

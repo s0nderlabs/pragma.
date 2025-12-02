@@ -72,7 +72,8 @@ export function BalancesTab() {
           decimals: token.decimals,
           balance: formattedBalance,
           usdValue,
-          logo: getTokenLogo(token.address),
+          // Use image_uri from API response first, then fall back to cached logos
+          logo: token.image_uri || getTokenLogo(token.address),
           verified: token.categories?.includes('verified') || false,
         };
       })

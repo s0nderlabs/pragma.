@@ -21,6 +21,7 @@ import type {
 import { SessionKeyFundingError } from "./types.js";
 import { fundSessionKeyViaUserOp } from "./sessionKeyFundingUserOp.js";
 import { fundSessionKeyViaDelegation } from "./sessionKeyFundingDelegation.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Constants
@@ -374,6 +375,7 @@ export async function fundSessionKey(
     }
 
     // Get current balance before funding
+    emitProgress("Checking Session Key Balance...");
     const balanceBefore = await publicClient.getBalance({
       address: getAddress(config.sessionKeyAddress),
     });
@@ -432,6 +434,7 @@ export async function fundSessionKey(
         );
       }
 
+      emitProgress("Building Funding Transaction...");
       const result = await fundSessionKeyViaUserOp({
         smartAccountAddress: config.smartAccountAddress,
         sessionKeyAddress: config.sessionKeyAddress,
@@ -458,6 +461,7 @@ export async function fundSessionKey(
       );
     }
 
+    emitProgress("Building Funding Delegation...");
     const result = await fundSessionKeyViaDelegation({
       smartAccountAddress: config.smartAccountAddress,
       sessionKeyAddress: config.sessionKeyAddress,

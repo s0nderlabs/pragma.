@@ -23,6 +23,18 @@ import { emitProgress } from "../progress/emitter.js";
 // Native MON token address (0x0... represents native token)
 const MON_ADDRESS = "0x0000000000000000000000000000000000000000";
 
+// Wrapped MON (WMON) contract address - mainnet
+const WMON_ADDRESS = "0x3bd359c1119da7da1d913d1c4d2b7c461115433a";
+
+// ERC20 ABI for balanceOf
+const ERC20_BALANCE_ABI = [{
+  type: "function",
+  name: "balanceOf",
+  stateMutability: "view",
+  inputs: [{ name: "account", type: "address" }],
+  outputs: [{ name: "", type: "uint256" }]
+}] as const;
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -93,8 +105,11 @@ export const getAllBalancesTool = tool(
         });
       }
 
-      // Progress: Fetching balances
-      emitProgress("Fetching your portfolio from Monad...");
+      // Generate tool signature for progress routing
+      const toolSignature = `getAllBalances:${Date.now()}`;
+
+      // Progress: Fetching balances (with description for parent display)
+      emitProgress("Fetching Your Portfolio from Monad...", "getAllBalances", toolSignature, "Fetch All Balances");
 
       // Fetch all balances via proxy (avoids CORS issues with direct Monorail calls)
       // Use authenticated fetch from configurable if available (browser context)
@@ -158,10 +173,54 @@ export const getAllBalancesTool = tool(
           // RPC failed, continue with Monorail data only
           console.warn("[getAllBalances] RPC MON balance fetch failed:", rpcError);
         }
+
+        // WMON RPC Fallback: Check if WMON is missing from API response
+        const wmonTokenIndex = balances.findIndex(
+          (bal) => bal.symbol === "WMON" || bal.address.toLowerCase() === WMON_ADDRESS.toLowerCase()
+        );
+
+        if (wmonTokenIndex === -1) {
+          // WMON not in API response - fetch directly from contract
+          try {
+            const wmonBalance = await publicClient.readContract({
+              address: getAddress(WMON_ADDRESS),
+              abi: ERC20_BALANCE_ABI,
+              functionName: "balanceOf",
+              args: [checksummedAddress],
+            });
+
+            if (wmonBalance > 0n) {
+              // Fetch WMON price (same as MON since it's wrapped)
+              let wmonPrice = 0;
+              try {
+                const priceResponse = await fetchFn("/api/monorail/price");
+                if (priceResponse.ok) {
+                  const priceData = await priceResponse.json();
+                  wmonPrice = parseFloat(priceData.price || "0");
+                }
+              } catch {
+                // Price fetch failed, continue without USD value
+              }
+
+              balances.push({
+                address: getAddress(WMON_ADDRESS),
+                symbol: "WMON",
+                name: "Wrapped Monad",
+                decimals: 18,
+                balance: wmonBalance.toString(),
+                usdPerToken: wmonPrice > 0 ? wmonPrice.toString() : undefined,
+                monValue: undefined,
+                categories: ["verified", "wrapped"],
+              });
+            }
+          } catch (wmonError) {
+            console.warn("[getAllBalances] WMON RPC balance fetch failed:", wmonError);
+          }
+        }
       }
 
       // Progress: Calculating values
-      emitProgress("Calculating USD values...");
+      emitProgress("Calculating USD Values...", "getAllBalances", toolSignature);
 
       // Format all non-zero balances with USD values
       let totalPortfolioUsd = 0;
@@ -230,34 +289,7 @@ Source: Monorail API (cached)`;
   },
   {
     name: "getAllBalances",
-    description: `Fetch ALL token balances for user's portfolio. Single API call via Monorail.
-
-⚡ **USE THIS TOOL WHEN:**
-- User asks "show my balances", "what do I have", "my portfolio"
-- Before batch operations (get all balances at once - more efficient)
-- Planning multiple swaps ("swap all to MON")
-
-**DO NOT USE FOR:**
-- Single token queries → use getBalance instead
-- Precision-critical operations → use getBalance for on-chain verification
-
-**Returns:**
-- Complete portfolio with all non-zero token balances
-- USD values for each token (if available)
-- Total portfolio value in USD
-- Token count
-
-**Performance:**
-- Single Monorail API call (fast)
-- Results cached for 30-60 seconds
-- More efficient than calling getBalance multiple times
-
-**Example usage:**
-- "show my balances" → getAllBalances
-- "what's my portfolio worth" → getAllBalances
-- Before: "swap all to MON" → getAllBalances (get all tokens at once)
-
-For single token: "what's my USDC balance" → use getBalance(USDC) instead`,
+    description: "Get complete portfolio with all token balances and USD values. Use for 'show my balances'. For single token use getBalance. Call search_tool_docs('getAllBalances') for detailed usage.",
     schema: z.object({}),
   }
 );

@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { Coins } from 'lucide-react';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
 import { useH2ChatStore } from '@/stores/useH2ChatStore';
-import { TOKEN_LOGO_MAP } from '@/lib/token-logos';
+import { getTokenLogo, initTokenLogos } from '@/lib/token-logos';
 import { formatUnits } from 'viem';
 
 /** Filter out tokens worth less than this USD amount */
@@ -32,6 +32,11 @@ export function BalancesTab() {
     setBalanceRefreshCallback(refresh);
     return () => setBalanceRefreshCallback(null);
   }, [refresh, setBalanceRefreshCallback]);
+
+  // Initialize token logos from Monorail API
+  useEffect(() => {
+    initTokenLogos();
+  }, []);
 
   // Transform Monorail tokens to display format
   const displayTokens = useMemo(() => {
@@ -67,7 +72,8 @@ export function BalancesTab() {
           decimals: token.decimals,
           balance: formattedBalance,
           usdValue,
-          logo: TOKEN_LOGO_MAP[token.address.toLowerCase()],
+          // Use image_uri from API response first, then fall back to cached logos
+          logo: token.image_uri || getTokenLogo(token.address),
           verified: token.categories?.includes('verified') || false,
         };
       })

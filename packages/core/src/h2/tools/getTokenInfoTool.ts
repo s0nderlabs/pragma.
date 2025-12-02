@@ -7,11 +7,22 @@ import { type AllowedToken } from "../../monorail/tokens.js";
  * getTokenInfoTool - Get detailed information about any token (verified or unverified)
  *
  * Features:
- * - 3-tier fallback strategy: allowlist → Monorail API → onchain
+ * - 5-tier fallback strategy: allowlist → userBalances → Monorail search → Monorail address → onchain
  * - Security warnings for unverified tokens
  * - Full contract address display (no truncation)
  * - Supports lookup by symbol or address
  */
+
+/**
+ * User balance data interface (minimal, from Monorail balances API)
+ */
+interface UserBalanceToken {
+  address: string;
+  symbol?: string;
+  name?: string;
+  decimals: number;
+  categories?: string[];
+}
 
 const getTokenInfoSchema = z.object({
   token: z.string().describe(
@@ -86,7 +97,7 @@ Basic data was fetched directly from the blockchain.
 
 **This could be a scam token.** Always:
 - Verify the contract address from official project sources
-- Check token on block explorer (https://testnet.monadvision.com)
+- Check token on block explorer (https://monadexplorer.com)
 - Never trade significant amounts without independent verification
 - Be aware that this token may be malicious or fake`;
 }
@@ -121,25 +132,78 @@ export const getTokenInfoTool = tool(
     const { token } = input;
     const allowedTokens = (config?.configurable?.allowedTokens as AllowedToken[]) || [];
     const publicClient = config?.configurable?.publicClient;
+    const fetchFn = (config?.configurable?.fetch as typeof fetch) || fetch;
+    const userBalances = config?.configurable?.userBalances as UserBalanceToken[] | undefined;
+
+    const trimmed = token.trim();
+    const lower = trimmed.toLowerCase();
 
     // =========================================================================
     // Tier 1: Check allowedTokens (verified tokens)
     // =========================================================================
-    const verified = findInAllowlist(token, allowedTokens);
+    const verified = findInAllowlist(trimmed, allowedTokens);
     if (verified) {
       return formatVerifiedToken(verified);
     }
 
     // =========================================================================
-    // Tier 2: Try Monorail API via proxy (may have unverified tokens)
+    // Tier 2: Check user's balance data by symbol (unverified tokens user owns)
     // =========================================================================
-    if (token.startsWith("0x")) {
-      try {
-        const checksumAddress = getAddress(token as Address);
+    if (userBalances && !trimmed.startsWith("0x")) {
+      const balanceMatch = userBalances.find(
+        (b) => b.symbol?.toLowerCase() === lower
+      );
+      if (balanceMatch) {
+        const tokenData: AllowedToken = {
+          address: getAddress(balanceMatch.address as Address),
+          symbol: balanceMatch.symbol,
+          name: balanceMatch.name,
+          decimals: balanceMatch.decimals,
+          categories: balanceMatch.categories,
+        };
+        const isVerified = tokenData.categories?.includes("verified") ?? false;
+        return formatUnverifiedToken(tokenData, isVerified);
+      }
+    }
 
-        // Use proxy to avoid CORS issues with direct Monorail Data API calls
-        // Use authenticated fetch from configurable if available (browser context)
-        const fetchFn = (config?.configurable?.fetch as typeof fetch) || fetch;
+    // =========================================================================
+    // Tier 3: Search Monorail API by symbol (any token on Monad)
+    // =========================================================================
+    if (!trimmed.startsWith("0x")) {
+      try {
+        const searchResponse = await fetchFn(
+          `/api/monorail/search?q=${encodeURIComponent(trimmed)}`
+        );
+        if (searchResponse.ok) {
+          const results = await searchResponse.json() as UserBalanceToken[];
+          // Find exact symbol match (case-insensitive)
+          const match = results.find(
+            (r) => r.symbol?.toLowerCase() === lower
+          );
+          if (match) {
+            const tokenData: AllowedToken = {
+              address: getAddress(match.address as Address),
+              symbol: match.symbol,
+              name: match.name,
+              decimals: match.decimals,
+              categories: match.categories,
+            };
+            const isVerified = tokenData.categories?.includes("verified") ?? false;
+            return formatUnverifiedToken(tokenData, isVerified);
+          }
+        }
+      } catch (error) {
+        // Search failed, continue to address lookup
+        console.error("[getTokenInfoTool] Symbol search error:", error);
+      }
+    }
+
+    // =========================================================================
+    // Tier 4: Try Monorail API via proxy by address (may have unverified tokens)
+    // =========================================================================
+    if (trimmed.startsWith("0x")) {
+      try {
+        const checksumAddress = getAddress(trimmed as Address);
         const response = await fetchFn(`/api/monorail/token?address=${checksumAddress}`);
 
         if (response.ok) {
@@ -158,11 +222,11 @@ export const getTokenInfoTool = tool(
     }
 
     // =========================================================================
-    // Tier 3: Try onchain (ERC20 basic data)
+    // Tier 5: Try onchain (ERC20 basic data)
     // =========================================================================
-    if (token.startsWith("0x") && publicClient) {
+    if (trimmed.startsWith("0x") && publicClient) {
       try {
-        const checksumAddress = getAddress(token as Address);
+        const checksumAddress = getAddress(trimmed as Address);
 
         // Read ERC20 standard functions
         const [name, symbol, decimals] = await Promise.all([
@@ -189,10 +253,10 @@ export const getTokenInfoTool = tool(
           symbol: symbol as string,
           decimals: decimals as number,
         });
-      } catch (error) {
+      } catch {
         return `❌ **Token Not Found**
 
-The address \`${token}\` is not a valid ERC20 token on Monad testnet.
+The address \`${trimmed}\` is not a valid ERC20 token on Monad.
 
 **Possible reasons:**
 - Invalid or malformed address
@@ -202,8 +266,8 @@ The address \`${token}\` is not a valid ERC20 token on Monad testnet.
 
 **Suggestion:**
 - Verify the address is correct
-- Check if token exists on block explorer: https://testnet.monadvision.com/address/${token}
-- Use \`listVerifiedTokens\` to see all available verified tokens`;
+- Check if token exists on block explorer: https://monadexplorer.com/address/${trimmed}
+- Use \`listVerifiedTokens\` to see all verified tokens`;
       }
     }
 
@@ -212,39 +276,18 @@ The address \`${token}\` is not a valid ERC20 token on Monad testnet.
     // =========================================================================
     return `❌ **Token Not Found**
 
-Token "${token}" was not found in the verified token list.
+Token "${trimmed}" was not found in the verified token list.
 
 **If you have a contract address:**
 - Paste the full address starting with \`0x\` and I'll look it up onchain
 - Example: \`0xf817257fed379853cDe0fa4F97AB987181B1E5Ea\`
 
 **To see all verified tokens:**
-- Use \`listVerifiedTokens\` tool to see 50+ available tokens on Monad`;
+- Use \`listVerifiedTokens\` tool to see all verified tokens on Monad`;
   },
   {
     name: "getTokenInfo",
-    description: `Get detailed information about a specific token including contract address, decimals, type, categories, and verification status.
-
-**When to use:**
-- User asks "what is the address of [TOKEN]?"
-- User asks "show me [TOKEN] contract address"
-- User wants token details (decimals, categories, verification status)
-- User asks "is [TOKEN] verified?"
-- User pastes a token address and asks "what token is this?"
-
-**Supports:**
-- Lookup by symbol (e.g., "YAKI", "MON", "USDC")
-- Lookup by address (e.g., "0xfe140...")
-- Verified tokens (fast lookup from allowlist)
-- Unverified tokens (Monorail API lookup with warnings)
-- Unknown tokens (onchain ERC20 lookup with strong warnings)
-
-**Returns:**
-- Full contract address (never truncated)
-- Symbol, name, decimals, type, categories
-- Verification status (✅ verified / ⚠️ not verified)
-- Security warnings for unverified tokens
-- Logo URL (if available)`,
+    description: "Get token details (address, decimals, verification status). Lookup by symbol or address. Call search_tool_docs('getTokenInfo') for detailed usage.",
     schema: getTokenInfoSchema,
   }
 );

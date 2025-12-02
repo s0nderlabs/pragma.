@@ -9,6 +9,7 @@
 
 import type { Address, Hex, PublicClient, WalletClient } from "viem";
 import type { Delegation } from "@metamask/delegation-toolkit";
+import type { StandardQuote, AggregatorName } from "../../aggregators/types.js";
 
 // ============================================================================
 // Session Key Types
@@ -90,22 +91,17 @@ export interface SwapQuoteData {
   amountWei: bigint;
   /** User's slippage tolerance in basis points (e.g., 100 = 1%, max 1500 = 15%) */
   slippageBps: number;
-  /** Raw Monorail quote response (subset of fields needed for execution) */
-  monorailQuote: {
-    aggregator: Address;
-    transactionData: Hex;
-    transactionValue: bigint;
-    rawOutput: bigint;
-    rawInput: bigint;
-    rawMinOutput: bigint;
-    quoteId: string;
-    gasEstimate?: bigint;
-  };
+  /** Ranked quotes from all aggregators (best first) */
+  rankedQuotes: StandardQuote[];
+  /** Aggregators that failed to provide quotes */
+  failedAggregators: Array<{ name: AggregatorName; error: string }>;
+  /** Current aggregator index being used (starts at 0 = best) */
+  currentAggregatorIndex: number;
   /** Protocol fee amount in wei (charged on input amount) */
   protocolFeeAmount: bigint;
   /** Net swap amount in wei (input amount minus protocol fee) */
   netSwapAmount: bigint;
-  /** Expected output amount in wei (full Monorail output, no fee subtracted) */
+  /** Expected output amount in wei (from best quote) */
   expectedOutputWei: bigint;
   /** Expected output amount (formatted) */
   expectedOutput: string;

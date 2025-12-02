@@ -11,10 +11,37 @@
  */
 
 import type { Address } from "viem";
-import { ROOT_AUTHORITY } from "@metamask/delegation-toolkit";
+import { ROOT_AUTHORITY, getDeleGatorEnvironment } from "@metamask/delegation-toolkit";
 
 // Re-export ROOT_AUTHORITY for fee enforcer integration
 export { ROOT_AUTHORITY };
+
+// ============================================================================
+// DTK Environment Workaround
+// ============================================================================
+
+/**
+ * Chain ID used for DTK environment lookup
+ *
+ * CRITICAL: DTK doesn't have Monad mainnet (143) in its registry yet.
+ * We use testnet chain ID (10143) to get the environment because:
+ * 1. All DTK contracts are deployed at the SAME CREATE2 addresses on both networks
+ * 2. The environment object only contains contract addresses, not chain-specific logic
+ * 3. This is a temporary workaround until DTK adds mainnet 143 support
+ *
+ * @see https://docs.metamask.io/delegation-toolkit
+ */
+export const DTK_CHAIN_ID_FOR_ADDRESSES = 10143;
+
+/**
+ * Get DTK environment using the workaround chain ID
+ *
+ * Use this instead of calling getDeleGatorEnvironment(chainId) directly
+ * to avoid "No contracts found for version X chain 143" errors.
+ *
+ * @returns DTK environment with correct contract addresses
+ */
+export const getDTKEnvironment = () => getDeleGatorEnvironment(DTK_CHAIN_ID_FOR_ADDRESSES);
 
 // ============================================================================
 // Network Configuration
@@ -22,9 +49,9 @@ export { ROOT_AUTHORITY };
 
 /**
  * Monad Chain ID
- * @default 10143 (Monad testnet)
+ * @default 143 (Monad mainnet)
  */
-export const MONAD_CHAIN_ID = 10143;
+export const MONAD_CHAIN_ID = 143;
 
 /**
  * Monad Chain definition for viem
@@ -33,7 +60,7 @@ export const MONAD_CHAIN_ID = 10143;
  */
 export const MONAD_CHAIN = {
   id: MONAD_CHAIN_ID,
-  name: "Monad Testnet",
+  name: "Monad",
   nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
   rpcUrls: {
     default: { http: [] as string[] },
@@ -76,11 +103,11 @@ export const MON_ADDRESS =
  *
  * Used in wrap/unwrap tools for converting between MON <-> WMON
  *
- * @address 0x760afe86e5de5fa0ee542fc7b7b713e1c5425701
+ * @address 0x3bd359c1119da7da1d913d1c4d2b7c461115433a (mainnet)
  */
 export const WMON_ADDRESS =
   (process.env.MONAD_WMON_ADDRESS as Address) ||
-  ("0x760afe86e5de5fa0ee542fc7b7b713e1c5425701" as Address);
+  ("0x3bd359c1119da7da1d913d1c4d2b7c461115433a" as Address);
 
 /**
  * aPriori Liquid Staking (aprMON) contract address
@@ -95,23 +122,23 @@ export const WMON_ADDRESS =
  * - Batch redeem support for gas optimization
  *
  * Fee Structure:
- * - Pragma: 0.5% on staking operations
+ * - Pragma: 1% on staking operations
  * - aPriori: 0.1% (10 basis points) on unstaking/claiming
  * - aPriori: 10% on rewards (protocol-level, indirect to users)
  *
- * @address 0xb2f82D0f38dc453D596Ad40A37799446Cc89274A
+ * @address 0x0c65a0bc65a5d819235b71f554d210d3f80e0852 (mainnet)
  */
 export const APRIORI_ADDRESS =
   (process.env.APRIORI_ADDRESS as Address) ||
-  ("0xb2f82D0f38dc453D596Ad40A37799446Cc89274A" as Address);
+  ("0x0c65a0bc65a5d819235b71f554d210d3f80e0852" as Address);
 
 /**
  * Pragma fee rate for aPriori staking operations
  * Charged on input amount (MON → aprMON conversions)
  *
- * @value 0.005 (0.5%)
+ * @value 0.01 (1%)
  */
-export const APRIORI_FEE_RATE = 0.005;
+export const APRIORI_FEE_RATE = 0.01;
 
 /**
  * Protocol fee rates by operation type
@@ -119,13 +146,13 @@ export const APRIORI_FEE_RATE = 0.005;
  *
  * Fee Pattern: Uniswap-style input deduction
  * - When user swaps 1.0 TOKEN, fee is deducted FROM that 1.0 TOKEN
- * - Actual swap amount: 1.0 - (1.0 × 0.005) = 0.995 TOKEN
- * - User only needs exactly 1.0 TOKEN, NOT 1.005 TOKEN
+ * - Actual swap amount: 1.0 - (1.0 × 0.01) = 0.99 TOKEN
+ * - User only needs exactly 1.0 TOKEN, NOT 1.01 TOKEN
  */
 export const PROTOCOL_FEES = {
-  swap: 0.005,      // 0.5% on DEX swaps (deducted from input)
-  stake: 0.005,     // 0.5% on MON being staked (deducted from input)
-  nftBuy: 0.005,    // 0.5% on NFT purchases
+  swap: 0.01,       // 1% on DEX swaps (deducted from input)
+  stake: 0.01,      // 1% on MON being staked (deducted from input)
+  nftBuy: 0.01,     // 1% on NFT purchases
   nftSell: 0,       // FREE - no fee on NFT listings
   transfer: 0,      // FREE - no fee on transfers
   wrap: 0,          // FREE - no fee on MON wrapping
@@ -247,7 +274,7 @@ export const ARGS_EQUALITY_CHECK_ENFORCER_ADDRESS =
 /**
  * PragmaFeeEnforcer - Enforces protocol fee collection
  *
- * Collects 0.5% fee on all Pragma operations (swaps, stakes, NFT purchases).
+ * Collects 1% fee on all Pragma operations (swaps, stakes, NFT purchases).
  * Supports both native token (MON) and ERC20 fees.
  *
  * Features:

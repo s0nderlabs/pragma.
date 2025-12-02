@@ -26,10 +26,10 @@ const PIMLICO_API_KEY = process.env.PIMLICO_API_KEY;
 
 /**
  * Pimlico Chain Identifier
- * @default monad-testnet
+ * @default 143 (Monad mainnet)
  */
 const PIMLICO_CHAIN =
-  process.env.PIMLICO_CHAIN || process.env.NEXT_PUBLIC_PIMLICO_CHAIN || "monad-testnet";
+  process.env.PIMLICO_CHAIN || process.env.NEXT_PUBLIC_PIMLICO_CHAIN || "143";
 
 /**
  * Build Pimlico URL helper

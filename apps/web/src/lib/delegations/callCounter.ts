@@ -8,10 +8,13 @@
 import { getAddress, type Address, type Hex, type PublicClient } from "viem";
 import { getDeleGatorEnvironment } from "@metamask/delegation-toolkit";
 import type { DelegationArtifact } from "@pragma/core/delegations/types";
-import { MONAD_CHAIN_ID } from "../config";
 import { DELEGATION_MANAGER_ABI, LIMITED_CALLS_ABI } from "../contracts/abis";
 
-const environment = getDeleGatorEnvironment(MONAD_CHAIN_ID);
+// Use testnet chain ID (10143) for DTK environment lookup since:
+// 1. DTK doesn't have mainnet (143) in its registry yet
+// 2. All DTK contracts are deployed at same CREATE2 addresses on both networks
+const DTK_CHAIN_ID_FOR_ADDRESSES = 10143;
+const environment = getDeleGatorEnvironment(DTK_CHAIN_ID_FOR_ADDRESSES);
 
 export interface CallCountResult {
   used: bigint;

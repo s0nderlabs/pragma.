@@ -4,14 +4,14 @@
  * Stakes MON → aprMON via aPriori liquid staking protocol in one step.
  *
  * Fee Structure:
- * - Pragma: 0.5% on input (MON being staked)
+ * - Pragma: 1% on input (MON being staked)
  * - Fee sent to Pragma treasury
  * - Remaining MON staked into aPriori
  *
  * Example: User stakes 1.0 MON
- * - Pragma fee: 0.005 MON (0.5%)
- * - Staked: 0.995 MON
- * - Received: ~0.995 aprMON (varies by protocol exchange rate)
+ * - Pragma fee: 0.01 MON (1%)
+ * - Staked: 0.99 MON
+ * - Received: ~0.99 aprMON (varies by protocol exchange rate)
  */
 
 import { tool } from "langchain";
@@ -134,8 +134,11 @@ export const stakeTool = tool(
         });
       }
 
+      // Generate tool signature for progress routing
+      const toolSignature = `stake:${Date.now()}`;
+
       // Progress: Staking into aPriori
-      emitProgress(`Staking ${amountFormatted} MON into aPriori...`);
+      emitProgress(`Staking ${amountFormatted} MON into aPriori...`, "stake", toolSignature, `Stake ${amountFormatted} MON`);
 
       // Calculate protocol fee (0.5% on input)
       const feeAmount = calculateProtocolFee(amountWei, PROTOCOL_FEES.stake);
@@ -172,6 +175,8 @@ export const stakeTool = tool(
         functionName: "deposit",
         args: [netStakeAmount, getAddress(userAddress)],
       });
+
+      emitProgress(`Building Stake Delegation...`, "stake", toolSignature);
 
       // Create ephemeral delegation for stake
       const { delegation, typedData } = createStakeDelegation({
@@ -262,6 +267,8 @@ export const stakeTool = tool(
         });
       }
 
+      emitProgress(`Executing Stake Transaction...`, "stake", toolSignature);
+
       // Execute
       const txHash = await redeemDelegations(
         sessionWallet,
@@ -273,6 +280,8 @@ export const stakeTool = tool(
           mode: ExecutionMode.SingleDefault,
         }],
       );
+
+      emitProgress(`Waiting for Blockchain Confirmation...`, "stake", toolSignature);
 
       // Wait for confirmation
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
@@ -293,7 +302,7 @@ export const stakeTool = tool(
 
 📊 Receipt:
 • Input: ${amountFormatted} MON
-• Pragma Fee: ${feeAmountFormatted} MON (0.5%)
+• Pragma Fee: ${feeAmountFormatted} MON (1%)
 • Staked: ${netStakeAmountFormatted} MON → aprMON
 • aprMON Balance: ${aprMonBalanceFormatted}
 • Tx Hash: ${txHash}
@@ -336,27 +345,7 @@ Your MON is now earning staking rewards through aPriori. aprMON appreciates in v
   },
   {
     name: "stake",
-    description: `Stake MON into aPriori liquid staking to earn rewards. Receives aprMON tokens.
-
-This tool executes immediately - no quote phase needed.
-
-Use when user wants to:
-- Stake MON to earn rewards
-- Get aprMON liquid staking tokens
-- Participate in aPriori staking
-- Earn passive income on MON
-
-Process:
-1. Validates you have enough MON
-2. Deducts 0.5% Pragma protocol fee
-3. Creates ephemeral delegation (1-time use)
-4. Executes stake via aPriori.deposit() with net amount
-5. Returns transaction receipt with aprMON balance
-
-Fee: 0.5% on input amount (deducted before staking)
-Example: Stake 1.0 MON → 0.005 MON fee, 0.995 MON staked
-
-Example: "stake 1 MON" or "stake all my MON"`,
+    description: "Stake MON → aprMON via aPriori. 1% fee. Executes immediately. Call search_tool_docs('stake') for detailed usage.",
     schema: z.object({
       amount: z.string().describe("Amount of MON to stake (decimal string like '1.0')"),
     }),

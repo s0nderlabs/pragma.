@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     // Get RPC URL from server-only environment variable (may contain API key)
-    const rpcUrl = process.env.MONAD_RPC_URL || 'https://testnet-rpc.monad.xyz';
+    const rpcUrl = process.env.MONAD_RPC_URL || 'https://rpc.ankr.com/monad_mainnet';
 
     // Parse JSON-RPC request with defensive handling for empty/malformed bodies
     let body;

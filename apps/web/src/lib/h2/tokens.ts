@@ -61,7 +61,7 @@ export async function loadAllowedTokens(): Promise<AllowedToken[]> {
         categories: ["native", "verified"],
       },
       {
-        address: "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701" as `0x${string}`,
+        address: "0x3bd359c1119da7da1d913d1c4d2b7c461115433a" as `0x${string}`, // mainnet
         symbol: "WMON",
         name: "Wrapped Monad",
         decimals: 18,
@@ -69,7 +69,7 @@ export async function loadAllowedTokens(): Promise<AllowedToken[]> {
         categories: ["wrapped", "verified"],
       },
       {
-        address: "0xb2f82D0f38dc453D596Ad40A37799446Cc89274A" as `0x${string}`,
+        address: "0x0c65a0bc65a5d819235b71f554d210d3f80e0852" as `0x${string}`, // mainnet
         symbol: "aprMON",
         name: "aPriori Monad",
         decimals: 18,

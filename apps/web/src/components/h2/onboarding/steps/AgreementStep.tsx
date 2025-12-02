@@ -200,10 +200,10 @@ export function AgreementStep() {
           <h3 className="text-white/85 font-medium text-sm mb-1">5. Fees</h3>
           <div className="pl-2.5 border-l border-white/10 text-xs text-white/45 space-y-0.5">
             <p>
-              • <span className="text-white/60">Swaps:</span> 0.5% (from input)
+              • <span className="text-white/60">Swaps:</span> 1% (from input)
             </p>
             <p>
-              • <span className="text-white/60">Staking:</span> 0.5% (from
+              • <span className="text-white/60">Staking:</span> 1% (from
               input)
             </p>
             <p>

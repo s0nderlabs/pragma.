@@ -25,22 +25,77 @@ import type { RawTokenBalance } from "@pragma/core/monorail/balances";
 // ============================================================================
 
 /**
+ * Map tool names to human-readable display names (Title Case)
+ * Used for individual tool messages when no description is provided
+ */
+function getToolDisplayName(toolName: string): string {
+  const displayNames: Record<string, string> = {
+    // Session Key Management
+    checkSessionKeyBalance: 'Checking Session Key Balance',
+    fundSessionKey: 'Funding Session Key',
+    getSessionKeyBalance: 'Getting Session Key Balance',
+    getSessionKeyPrivateKey: 'Getting Session Key',
+    withdrawSessionKeyBalance: 'Withdrawing Session Key Balance',
+
+    // Balance & Account
+    getAccountInfo: 'Getting Account Info',
+    getAllBalances: 'Getting All Balances',
+    getBalance: 'Getting Balance',
+    getTokenInfo: 'Getting Token Info',
+    listVerifiedTokens: 'Listing Verified Tokens',
+
+    // Swap
+    getSwapQuote: 'Getting Swap Quote',
+    executeSwap: 'Executing Swap',
+    swap: 'Swapping Tokens',
+
+    // Transfer
+    transfer: 'Transferring Tokens',
+    executeTransfer: 'Executing Transfer',
+
+    // Wrap/Unwrap
+    wrap: 'Wrapping MON',
+    unwrap: 'Unwrapping WMON',
+    executeWrap: 'Executing Wrap',
+    executeUnwrap: 'Executing Unwrap',
+
+    // Staking
+    stake: 'Staking MON',
+    unstakeRequest: 'Requesting Unstake',
+    unstakeClaim: 'Claiming Unstake',
+    checkUnstakeStatus: 'Checking Unstake Status',
+
+    // Search & Docs
+    web_search: 'Searching the Web',
+    searchProtocolDocs: 'Searching Protocol Docs',
+    search_protocol_docs: 'Searching Protocol Docs',
+    searchToolDocs: 'Searching Tool Docs',
+    search_tool_docs: 'Searching Tool Docs',
+
+    // Special
+    vibetrading: 'Vibe Trading',
+  };
+
+  return displayNames[toolName] || toolName;
+}
+
+/**
  * Generate readable parent description for batch operations
- * e.g., "getSwapQuote" → "Getting swap quotes"
+ * e.g., "getSwapQuote" → "Getting Swap Quotes"
  */
 function getReadableParentDescription(toolName: string, count: number): string {
-  const baseDescriptions: Record<string, string> = {
-    getSwapQuote: 'Getting swap quotes',
-    executeSwap: 'Executing swaps',
-    getBalance: 'Checking balances',
-    transfer: 'Transferring tokens',
+  const batchDescriptions: Record<string, string> = {
+    getSwapQuote: 'Getting Swap Quotes',
+    executeSwap: 'Executing Swaps',
+    getBalance: 'Checking Balances',
+    transfer: 'Transferring Tokens',
     stake: 'Staking MON',
-    unstakeRequest: 'Requesting unstakes',
+    unstakeRequest: 'Requesting Unstakes',
     wrap: 'Wrapping MON',
     unwrap: 'Unwrapping WMON',
   };
 
-  const base = baseDescriptions[toolName] || toolName;
+  const base = batchDescriptions[toolName] || getToolDisplayName(toolName);
   return `${base} (${count})`;
 }
 
@@ -318,8 +373,9 @@ export const useH2ChatStore = create<H2ChatState>()(
               : [];
 
             // Apply pending description if available (from first buffered progress event)
+            // Falls back to human-readable display name if no description provided
             const pendingDescription = pending?.find((p) => p.description)?.description;
-            const finalDescription = pendingDescription || description;
+            const finalDescription = pendingDescription || description || getToolDisplayName(toolName);
 
             // Clear pending steps for this signature
             if (resolvedSignature && pending) {
@@ -448,35 +504,46 @@ export const useH2ChatStore = create<H2ChatState>()(
           set((state) => {
             let foundTool = false;
 
-            const messages = state.messages.map((msg) => {
+            // Helper to add step to a tool message
+            const addStepToTool = (toolMsg: ToolMessage): ToolMessage => {
+              // Skip duplicate step messages
+              if (toolMsg.steps.some(s => s.name === stepMessage)) {
+                foundTool = true;
+                return toolMsg;
+              }
+
+              foundTool = true;
+              const stepId = `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+              // Mark previous steps as completed
+              const updatedSteps = toolMsg.steps.map(s => ({
+                ...s,
+                status: "completed" as const,
+              }));
+
+              // Add new step as running
+              const newStep: ToolStep = {
+                id: stepId,
+                name: stepMessage,
+                status: "running",
+              };
+
+              return {
+                ...toolMsg,
+                steps: [...updatedSteps, newStep],
+              };
+            };
+
+            // PASS 1: Try exact signature match (works for executeSwap with quoteId)
+            let messages = state.messages.map((msg) => {
               if (msg.role === "tool") {
                 const toolMsg = msg as ToolMessage;
 
                 // Check if this is a parent with children
                 if (toolMsg.isParent && toolMsg.children) {
-                  // Find matching child by signature and add step to it
                   const updatedChildren = toolMsg.children.map((child) => {
-                    if (child.signature === signature) {
-                      foundTool = true;
-                      const stepId = `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-                      // Mark previous steps as completed
-                      const updatedSteps = child.steps.map(s => ({
-                        ...s,
-                        status: "completed" as const,
-                      }));
-
-                      // Add new step as running
-                      const newStep: ToolStep = {
-                        id: stepId,
-                        name: stepMessage,
-                        status: "running",
-                      };
-
-                      return {
-                        ...child,
-                        steps: [...updatedSteps, newStep],
-                      };
+                    if (child.signature === signature && child.status === "running") {
+                      return addStepToTool(child);
                     }
                     return child;
                   });
@@ -487,34 +554,51 @@ export const useH2ChatStore = create<H2ChatState>()(
                   };
                 }
 
-                // Check if this is a standalone tool matching by signature
-                if (toolMsg.signature === signature) {
-                  foundTool = true;
-                  const stepId = `step-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-                  // Mark previous steps as completed
-                  const updatedSteps = toolMsg.steps.map(s => ({
-                    ...s,
-                    status: "completed" as const,
-                  }));
-
-                  // Add new step as running
-                  const newStep: ToolStep = {
-                    id: stepId,
-                    name: stepMessage,
-                    status: "running",
-                  };
-
-                  return {
-                    ...toolMsg,
-                    steps: [...updatedSteps, newStep],
-                  };
+                // Standalone tool matching by exact signature
+                if (toolMsg.signature === signature && toolMsg.status === "running") {
+                  return addStepToTool(toolMsg);
                 }
               }
               return msg;
             });
 
-            // If no tool found, buffer the step for later
+            // PASS 2: If no exact match, fall back to toolName match
+            // This handles cases where tool signature (Date.now()) differs from UI signature (input-based)
+            if (!foundTool) {
+              messages = messages.map((msg) => {
+                if (foundTool) return msg; // Only update first matching tool
+                if (msg.role === "tool") {
+                  const toolMsg = msg as ToolMessage;
+
+                  // Check parent children by toolName
+                  if (toolMsg.isParent && toolMsg.children) {
+                    let childUpdated = false;
+                    const updatedChildren = toolMsg.children.map((child) => {
+                      if (!childUpdated && child.toolName === toolName && child.status === "running") {
+                        childUpdated = true;
+                        return addStepToTool(child);
+                      }
+                      return child;
+                    });
+
+                    if (childUpdated) {
+                      return {
+                        ...toolMsg,
+                        children: updatedChildren,
+                      };
+                    }
+                  }
+
+                  // Standalone tool matching by toolName (first running tool wins)
+                  if (toolMsg.toolName === toolName && toolMsg.status === "running") {
+                    return addStepToTool(toolMsg);
+                  }
+                }
+                return msg;
+              });
+            }
+
+            // If still no tool found, buffer the step for later
             // This handles race condition where progress arrives before tool_start
             if (!foundTool) {
               const pendingSteps = new Map(state.pendingSteps);

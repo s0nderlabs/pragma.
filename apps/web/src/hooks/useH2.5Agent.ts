@@ -58,6 +58,7 @@ export function useH2_5Agent() {
   const quickMode = useH2ChatStore((state) => state.quickMode);
   const sessionData = useH2ChatStore((state) => state.sessionData);
   const allowedTokens = useH2ChatStore((state) => state.allowedTokens);
+  const allTokens = useH2ChatStore((state) => state.allTokens); // User's balance data for unverified token resolution
   const isStreaming = useH2ChatStore((state) => state.isStreaming);
 
   // Store actions (same as H2)
@@ -104,14 +105,17 @@ export function useH2_5Agent() {
   });
 
   /**
-   * Format tool name to human-readable text
+   * Format tool name to human-readable text (Title Case)
    */
   const formatToolName = (name: string): string => {
-    // Convert camelCase to spaced words and capitalize first letter
+    // Convert camelCase and snake_case to spaced words with Title Case
     return name
-      .replace(/([A-Z])/g, ' $1')
-      .replace(/^./, str => str.toUpperCase())
-      .trim();
+      .replace(/_/g, ' ')                           // snake_case → spaced
+      .replace(/([A-Z])/g, ' $1')                   // camelCase → spaced
+      .trim()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
   };
 
   /**
@@ -169,53 +173,65 @@ export function useH2_5Agent() {
       }
     }
 
-    // Fallback to generic descriptions
+    // Fallback to generic descriptions (Title Case)
     switch (toolName) {
       // Swap operations
       case 'getSwapQuote':
-        return 'Getting swap quote';
+        return 'Getting Swap Quote';
       case 'executeSwap':
-        return 'Executing swap';
+        return 'Executing Swap';
 
       // Staking operations
       case 'stake':
         return 'Staking MON';
       case 'unstakeRequest':
-        return 'Requesting unstake';
+        return 'Requesting Unstake';
       case 'unstakeClaim':
-        return 'Claiming unstaked MON';
+        return 'Claiming Unstaked MON';
       case 'checkUnstakeStatus':
-        return 'Checking unstake status';
+        return 'Checking Unstake Status';
 
       // Token operations
       case 'transfer':
-        return 'Transferring tokens';
+        return 'Transferring Tokens';
       case 'wrap':
         return 'Wrapping MON';
       case 'unwrap':
         return 'Unwrapping WMON';
+      case 'getTokenInfo':
+        return 'Getting Token Info';
 
       // Balance operations
       case 'getBalance':
-        return 'Checking balance';
+        return 'Checking Balance';
       case 'getAllBalances':
-        return 'Fetching all balances';
+        return 'Fetching All Balances';
       case 'getAccountInfo':
-        return 'Getting account info';
+        return 'Getting Account Info';
       case 'listVerifiedTokens':
-        return 'Listing verified tokens';
+        return 'Listing Verified Tokens';
 
       // Session key operations
       case 'checkSessionKeyBalance':
-        return 'Checking session key balance';
+        return 'Checking Session Key Balance';
       case 'fundSessionKey':
-        return 'Funding session key';
+        return 'Funding Session Key';
       case 'getSessionKeyBalance':
-        return 'Getting session key balance';
+        return 'Getting Session Key Balance';
       case 'getSessionKeyPrivateKey':
-        return 'Getting session key';
+        return 'Getting Session Key';
       case 'withdrawSessionKeyBalance':
-        return 'Withdrawing session key balance';
+        return 'Withdrawing Session Key Balance';
+
+      // Search operations
+      case 'web_search':
+        return 'Searching the Web';
+      case 'searchProtocolDocs':
+      case 'search_protocol_docs':
+        return 'Searching Protocol Docs';
+      case 'searchToolDocs':
+      case 'search_tool_docs':
+        return 'Searching Tool Docs';
 
       default:
         return formatToolName(toolName);
@@ -568,6 +584,7 @@ export function useH2_5Agent() {
             transport: authenticatedTransport, // Pass authenticated transport to tools
             quickMode,
             allowedTokens,
+            userBalances: allTokens, // User's balance data for unverified token symbol resolution
             // CRITICAL FIX: Read directly from Zustand store, not local state
             // This avoids React state timing race where local state hasn't updated yet
             // after onboarding stores the smartAccount. Using getState() is synchronous.
@@ -598,6 +615,7 @@ export function useH2_5Agent() {
       messages,
       quickMode,
       allowedTokens,
+      allTokens, // User's balance data for unverified token resolution
       // Note: smartAccount and bundlerClient removed - now read directly from store
       addMessage,
       updateMessageContent,

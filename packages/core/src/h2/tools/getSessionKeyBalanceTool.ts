@@ -9,7 +9,6 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { formatUnits, parseUnits } from "viem";
 import type { Address, PublicClient } from "viem";
-import { emitProgress } from "../progress/emitter.js";
 
 const getSessionKeyBalanceSchema = z.object({
   // No parameters needed - uses sessionData from config
@@ -27,8 +26,6 @@ export const getSessionKeyBalanceTool = tool(
     const sessionKeyAddress = sessionData.sessionKeyAddress as Address;
 
     try {
-      emitProgress("Checking session key balance...");
-
       const balance = await publicClient.getBalance({ address: sessionKeyAddress });
       const balanceFormatted = formatUnits(balance, 18);
 
@@ -53,10 +50,7 @@ export const getSessionKeyBalanceTool = tool(
   },
   {
     name: "getSessionKeyBalance",
-    description:
-      "Get the MON balance of the session key (ephemeral key used for gas). " +
-      "Use this when user asks: 'what is my session key balance?', 'session key status', " +
-      "'how much gas do I have?', 'check session key', or similar questions about the session key.",
+    description: "Get session key MON balance (gas funds). Use for 'session key balance' questions. Call search_tool_docs('getSessionKeyBalance') for detailed usage.",
     schema: getSessionKeyBalanceSchema,
   }
 );

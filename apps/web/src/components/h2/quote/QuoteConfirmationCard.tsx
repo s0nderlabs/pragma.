@@ -128,7 +128,7 @@ export function QuoteConfirmationCard({
 
         {/* Protocol Fee */}
         <div className="flex justify-between">
-          <span className="opacity-60">Protocol Fee (0.5%)</span>
+          <span className="opacity-60">Protocol Fee (1%)</span>
           <span className="font-medium">{protocolFee} {toToken}</span>
         </div>
 

@@ -171,7 +171,7 @@ export function useWalletBalance(): WalletBalanceData {
         // Fallback to Monorail API data if RPC fails
         const monToken = balancesRes.find(
           (token: { symbol?: string; address: string }) =>
-            token.symbol === 'MON' || token.address.toLowerCase() === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+            token.symbol === 'MON' || token.address.toLowerCase() === '0x0000000000000000000000000000000000000000'
         );
         if (monToken) {
           try {
@@ -186,7 +186,7 @@ export function useWalletBalance(): WalletBalanceData {
       // Patch MON token in balancesRes with fresh RPC balance + recalculated USD
       const monTokenIndex = balancesRes.findIndex(
         (token: { symbol?: string; address: string }) =>
-          token.symbol === 'MON' || token.address.toLowerCase() === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+          token.symbol === 'MON' || token.address.toLowerCase() === '0x0000000000000000000000000000000000000000'
       );
 
       if (monTokenIndex !== -1) {
@@ -215,38 +215,95 @@ export function useWalletBalance(): WalletBalanceData {
         usdValue = calculateTotalUsdFromTokens(balancesRes);
       }
 
-      // Fallback: If USD value is still 0 but MON balance exists, fetch MON price
+      // Handle MON token: either update existing or create synthetic entry
       const monBalanceNum = parseFloat(monBalance);
-      if (usdValue === 0 && monBalanceNum > 0) {
-        const monPrice = await fetchMonPrice();
-        if (monPrice > 0) {
-          usdValue = monBalanceNum * monPrice;
 
-          // Update MON token's usd_per_token so BalancesTab shows the price
-          if (monTokenIndex !== -1) {
+      if (monTokenIndex !== -1) {
+        // MON exists in API response - check if it has a valid price
+        const existingPrice = parseFloat(balancesRes[monTokenIndex].usd_per_token || '0');
+        if (existingPrice === 0 && monBalanceNum > 0) {
+          // No price from API, fetch it
+          const monPrice = await fetchMonPrice();
+          if (monPrice > 0) {
+            const monUsdValue = monBalanceNum * monPrice;
             balancesRes[monTokenIndex] = {
               ...balancesRes[monTokenIndex],
               usd_per_token: monPrice.toString(),
-              usd_value: usdValue.toString(),
+              usd_value: monUsdValue.toString(),
             };
+            usdValue += monUsdValue;
           }
         }
-      }
+      } else if (monBalanceNum > 0) {
+        // MON not in API response - create synthetic entry with fetched price
+        const monPrice = await fetchMonPrice();
+        const monUsdValue = monPrice > 0 ? monBalanceNum * monPrice : 0;
 
-      // If MON balance exists but wasn't in API response, create synthetic entry
-      // This handles stale/empty Monorail API responses while RPC has fresh balance
-      if (monTokenIndex === -1 && monBalanceNum > 0) {
-        const syntheticMonPrice = monBalanceNum > 0 ? usdValue / monBalanceNum : 0;
         balancesRes.push({
           address: '0x0000000000000000000000000000000000000000',
           symbol: 'MON',
           name: 'Monad',
           decimals: 18,
           balance: monBalanceWei.toString(),
-          usd_per_token: syntheticMonPrice.toString(),
-          usd_value: usdValue.toString(),
+          usd_per_token: monPrice.toString(),
+          usd_value: monUsdValue.toString(),
           categories: ['verified', 'native'],
         });
+
+        // Add MON value to total portfolio
+        if (monUsdValue > 0) {
+          usdValue += monUsdValue;
+        }
+      }
+
+      // WMON RPC Fallback: Check if WMON is missing from API response
+      const WMON_ADDRESS = '0x3bd359c1119da7da1d913d1c4d2b7c461115433a'; // mainnet
+      const wmonTokenIndex = balancesRes.findIndex(
+        (token: { symbol?: string; address: string }) =>
+          token.symbol === 'WMON' || token.address.toLowerCase() === WMON_ADDRESS.toLowerCase()
+      );
+
+      if (wmonTokenIndex === -1) {
+        // WMON not in API response - fetch directly from contract
+        try {
+          const wmonBalance = await publicClient.readContract({
+            address: WMON_ADDRESS as `0x${string}`,
+            abi: [{
+              type: 'function',
+              name: 'balanceOf',
+              stateMutability: 'view',
+              inputs: [{ name: 'account', type: 'address' }],
+              outputs: [{ name: '', type: 'uint256' }]
+            }] as const,
+            functionName: 'balanceOf',
+            args: [sessionData.delegator as `0x${string}`],
+          });
+
+          if (wmonBalance > 0n) {
+            // Fetch WMON price (same as MON price since it's wrapped)
+            const wmonPrice = await fetchMonPrice();
+            const wmonBalanceNum = parseFloat(formatUnits(wmonBalance, 18));
+            const wmonUsdValue = wmonPrice > 0 ? wmonBalanceNum * wmonPrice : 0;
+
+            balancesRes.push({
+              address: WMON_ADDRESS,
+              symbol: 'WMON',
+              name: 'Wrapped Monad',
+              decimals: 18,
+              balance: wmonBalance.toString(),
+              usd_per_token: wmonPrice.toString(),
+              usd_value: wmonUsdValue.toString(),
+              categories: ['verified', 'wrapped'],
+            });
+
+            // Add WMON value to total portfolio
+            if (wmonUsdValue > 0) {
+              usdValue += wmonUsdValue;
+            }
+          }
+        } catch (wmonError) {
+          console.warn('[useWalletBalance] WMON RPC balance fetch failed:', wmonError);
+        }
       }
 
       // Save balance snapshot for 24h change tracking

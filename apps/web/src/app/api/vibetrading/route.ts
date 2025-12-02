@@ -16,15 +16,15 @@ import { authMiddleware } from "@/lib/auth/authMiddleware";
 const MONAD_RPC_URL =
   process.env.MONAD_RPC_URL ??
   process.env.NEXT_PUBLIC_MONAD_RPC_URL ??
-  "https://testnet-rpc.monad.xyz";
+  "https://rpc.ankr.com/monad_mainnet";
 const MONAD_CHAIN_ID = Number.parseInt(
-  process.env.MONAD_CHAIN_ID ?? process.env.NEXT_PUBLIC_MONAD_CHAIN_ID ?? "10143",
+  process.env.MONAD_CHAIN_ID ?? process.env.NEXT_PUBLIC_MONAD_CHAIN_ID ?? "143",
   10
 );
 
 const monadChain = {
   id: MONAD_CHAIN_ID,
-  name: "Monad Testnet",
+  name: "Monad",
   nativeCurrency: { name: "Monad", symbol: "MON", decimals: 18 },
   rpcUrls: {
     default: { http: [MONAD_RPC_URL] },
@@ -38,7 +38,7 @@ const VIBETRADING_AMOUNT = parseEther("1.5");
 const VIBETRADING_AMOUNT_HEX = "0x14d1120d7b160000";
 
 // Hypersync configuration
-const HYPERSYNC_URL = process.env.MONAD_HYPERSYNC_URL ?? "https://monad-testnet.hypersync.xyz/query";
+const HYPERSYNC_URL = process.env.MONAD_HYPERSYNC_URL ?? "https://monad.hypersync.xyz/query";
 const ENVIO_TOKEN = process.env.ENVIO_TOKEN_API;
 
 interface HypersyncTransaction {

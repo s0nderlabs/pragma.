@@ -24,6 +24,116 @@ import { PRAGMA_H2_SYSTEM_PROMPT } from "@pragma/core";
 import type { AllowedToken } from "@pragma/core";
 import { onProgress, offProgress, type ProgressEvent } from "@pragma/core/h2/progress/emitter";
 import { authenticatedFetch } from "../api/authenticatedFetch";
+import { createMetricsCollector } from "./metrics";
+import { createBrowserAgent } from "./createBrowserAgent";
+
+/**
+ * Determine if a message requires high reasoning effort
+ *
+ * Uses regex heuristics to detect complex queries that benefit from
+ * extended thinking time. gpt-5-mini defaults to "medium" reasoning,
+ * so we only upgrade to "high" for genuinely complex scenarios.
+ *
+ * Complex queries include:
+ * - Multi-step workflows ("swap X then stake", "after that transfer")
+ * - Batch operations ("swap X, stake Y, wrap Z", "swap and stake")
+ * - Comparative analysis ("best", "cheapest", "optimal")
+ * - Conditional logic ("if...then", "depending on")
+ * - Architecture/knowledge questions ("how does X work", "what is delegation")
+ * - Complex calculations or planning
+ * - Debugging or troubleshooting requests
+ *
+ * @param message - User message to analyze
+ * @returns true if high reasoning should be used
+ */
+function shouldUseHighReasoning(message: string): boolean {
+  // Multi-step workflow patterns
+  const multiStepPatterns = [
+    /\bthen\b.*\b(swap|stake|transfer|send|wrap|unwrap)\b/i,
+    /\b(swap|stake|transfer|send|wrap|unwrap)\b.*\bthen\b/i,
+    /\bafter\s+that\b/i,
+    /\bonce\s+(done|complete|finished)\b/i,
+    /\bfirst\b.*\bthen\b/i,
+    /\band\s+then\b/i,
+    /\bstep\s+\d+/i,
+    /\bsequentially\b/i,
+  ];
+
+  // Comparative/optimization patterns
+  const comparativePatterns = [
+    /\b(best|cheapest|optimal|maximum|minimum|highest|lowest)\b/i,
+    /\bcompare\b/i,
+    /\bwhich\s+(one|option|route)\b/i,
+    /\bmost\s+(efficient|profitable|cost-effective)\b/i,
+  ];
+
+  // Conditional logic patterns
+  const conditionalPatterns = [
+    /\bif\b.*\bthen\b/i,
+    /\bdepending\s+on\b/i,
+    /\bwhen\b.*\b(happens|occurs|is)\b/i,
+    /\bunless\b/i,
+    /\bin\s+case\b/i,
+  ];
+
+  // Complex analysis patterns
+  const analysisPatterns = [
+    /\bexplain\s+(how|why|what)\b/i,
+    /\bwhat\s+would\s+happen\b/i,
+    /\banalyze\b/i,
+    /\bdebug\b/i,
+    /\btroubleshoot\b/i,
+    /\bwhat('s|\s+is)\s+(wrong|the\s+issue|the\s+problem)\b/i,
+    /\bhelp\s+me\s+understand\b/i,
+    /\bplan\s+(out|for)\b/i,
+  ];
+
+  // Batch/parallel operation patterns (multiple operations in one message)
+  const batchPatterns = [
+    // Comma-separated operations (swap X, stake Y, wrap Z)
+    /\b(swap|stake|transfer|send|wrap|unwrap)\b.*,.*\b(swap|stake|transfer|send|wrap|unwrap)\b/i,
+    // "X and Y" pattern with action verbs (but not "and then" which is sequential)
+    /\b(swap|stake|transfer|wrap|unwrap)\b.+\band\s+(?!then\b)(swap|stake|transfer|wrap|unwrap)\b/i,
+    // Multiple token targets (swap to X, Y, and Z)
+    /\bswap\b.*\b(to|into)\b.*,/i,
+  ];
+
+  // Architecture/knowledge questions (require deeper understanding)
+  const knowledgePatterns = [
+    // "how does X work" pattern
+    /\bhow\s+does\b.*\b(work|function|operate)\b/i,
+    // "explain X" without "how/why/what" immediately after
+    /\bexplain\s+(?!how\b|why\b|what\b)(the\s+)?\w+/i,
+    // "what is X" for technical/protocol concepts
+    /\bwhat\s+(is|are)\b.*\b(monad|pragma|apriori|monorail|delegation|consensus|bft|parallel|execution|staking|liquid|epoch|validator)\b/i,
+    // Direct technical term questions
+    /\b(monadbft|parallel\s+execution|delegation\s+(system|toolkit)|liquid\s+staking)\b/i,
+  ];
+
+  // Check all pattern groups
+  const allPatterns = [
+    ...multiStepPatterns,
+    ...comparativePatterns,
+    ...conditionalPatterns,
+    ...analysisPatterns,
+    ...batchPatterns,
+    ...knowledgePatterns,
+  ];
+
+  for (const pattern of allPatterns) {
+    if (pattern.test(message)) {
+      return true;
+    }
+  }
+
+  // Also check for very long messages (likely complex requests)
+  // 300+ chars often indicates detailed multi-part requests
+  if (message.length > 300) {
+    return true;
+  }
+
+  return false;
+}
 
 /**
  * Message tuple format used by LangChain
@@ -127,6 +237,9 @@ export interface BrowserAgentContext {
 
   /** Allowed tokens for swaps */
   allowedTokens?: AllowedToken[];
+
+  /** User's balance data for unverified token symbol resolution */
+  userBalances?: unknown[];
   // Note: sponsorUserOperationFn removed - session key funding is now self-paid (no paymaster)
 }
 
@@ -199,6 +312,7 @@ export async function runBrowserAgent(
           sessionWallet: context.sessionWallet,
           quickMode: context.quickMode,
           allowedTokens: context.allowedTokens,
+          userBalances: context.userBalances, // For unverified token symbol resolution
           fetch: authenticatedFetch, // Authenticated fetch for proxy API calls
         },
 
@@ -287,8 +401,26 @@ export async function streamBrowserAgent(
   // Progress handler - declared here for catch block access
   let progressHandler: ((event: ProgressEvent) => void) | undefined;
 
+  // Performance metrics collector
+  const metrics = createMetricsCollector();
+
   try {
     let currentResponse = "";
+
+    // =========================================================================
+    // Dynamic Reasoning Effort (Regex-Based)
+    // =========================================================================
+
+    // Extract last user message to determine reasoning effort
+    const lastUserMessage = [...messages].reverse().find(([role]) => role === "user");
+    const userContent = lastUserMessage?.[1] || "";
+
+    // Determine reasoning effort: default to medium, upgrade to high for complex queries
+    const reasoningEffort = shouldUseHighReasoning(userContent) ? "high" : "medium";
+    console.log(`[Agent] Reasoning effort: ${reasoningEffort} for message: "${userContent.slice(0, 50)}..."`);
+
+    // Create agent with appropriate reasoning effort (uses full tool registry)
+    const activeAgent = createBrowserAgent({ reasoningEffort });
 
     // Track signatures by run_id for matching tool_end/error to tool_start
     const signatureMap = new Map<string, string>();
@@ -518,12 +650,9 @@ For wrap/unwrap/transfer: ask first, then execute.
 
 Group capabilities with **bold section headers**. Use emojis sparingly. Natural, conversational tone.`;
 
-    // Build system prompt with placeholders replaced (same as H2 CLI)
-    // Formatting instructions now in base system prompt (CRITICAL FORMATTING RULES section)
-    const systemPrompt = PRAGMA_H2_SYSTEM_PROMPT.replace(
-      /\[userAddress from context\]/g,
-      context.userAddress
-    )
+    // Use full system prompt with placeholder replacements (same as H2 CLI)
+    const systemPrompt = PRAGMA_H2_SYSTEM_PROMPT
+      .replace(/\[userAddress from context\]/g, context.userAddress)
       .replace(/\[userAddress\]/g, context.userAddress)
       .replace(/\[EXECUTION_MODE\]/g, modeInstructions);
 
@@ -539,8 +668,11 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
       content,
     }));
 
-    // Stream events from agent
-    const stream = agent.streamEvents(
+    // Mark LLM start
+    metrics.markLLMStart();
+
+    // Stream events from agent (with dynamic reasoning effort)
+    const stream = activeAgent.streamEvents(
       {
         messages: formattedMessages,
       },
@@ -558,6 +690,7 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
           sessionWallet: context.sessionWallet,
           quickMode: context.quickMode,
           allowedTokens: context.allowedTokens,
+          userBalances: context.userBalances, // For unverified token symbol resolution
           fetch: authenticatedFetch, // Authenticated fetch for proxy API calls
           // Note: sponsorUserOperationFn removed - session key funding is now self-paid
         },
@@ -594,6 +727,8 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
         }
 
         if (delta) {
+          // Mark first token only when we have actual content
+          metrics.markFirstToken();
           currentResponse += delta;
           callbacks.onToken?.(delta);
         }
@@ -610,12 +745,18 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
         }
 
         callbacks.onToolStart?.(event.name, input, signature);
+
+        // Track tool start for metrics
+        metrics.markToolStart(event.name, signature);
       } else if (event.event === "on_tool_end") {
         // Tool execution completed
         // Retrieve signature from map using run_id
         const signature = event.run_id ? signatureMap.get(event.run_id) : undefined;
 
         callbacks.onToolEnd?.(event.name, event.data?.output, signature);
+
+        // Track tool end for metrics
+        metrics.markToolEnd(event.name, signature);
 
         // Cleanup
         if (event.run_id) {
@@ -628,9 +769,13 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
 
         callbacks.onToolError?.(
           event.name,
-          event.data?.error?.message || "Unknown error",
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (event.data as any)?.error?.message || "Unknown error",
           signature
         );
+
+        // Track tool end for metrics (even on error)
+        metrics.markToolEnd(event.name, signature);
 
         // Cleanup
         if (event.run_id) {
@@ -642,6 +787,10 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
     // Cleanup progress subscription
     offProgress(progressHandler);
 
+    // Complete metrics and log summary
+    metrics.complete();
+    metrics.logSummary();
+
     callbacks.onComplete?.();
 
     return currentResponse;
@@ -650,6 +799,11 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
     if (progressHandler) {
       offProgress(progressHandler);
     }
+
+    // Log metrics even on error (helps debug where it failed)
+    metrics.complete();
+    metrics.logSummary();
+
     console.error("[BrowserAgent] Streaming failed:", error);
     callbacks.onError?.(
       error instanceof Error ? error : new Error(String(error))

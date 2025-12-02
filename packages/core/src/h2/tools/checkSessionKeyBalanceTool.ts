@@ -42,6 +42,8 @@ export const checkSessionKeyBalanceTool = tool(
         });
       }
 
+      // Simple read-only tool - no progress needed (parent name is sufficient)
+
       // Check balance (batch-aware if estimatedOperations provided)
       const { balance, recommendedFundingAmount } = await checkSessionKeyBalance(
         sessionKeyAddress,
@@ -107,40 +109,7 @@ Session Key Address: ${sessionKeyAddress}`;
   },
   {
     name: "checkSessionKeyBalance",
-    description: `Check session key balance to determine if funding is needed. FREE operation (read-only).
-
-⚡ **WHEN TO CALL THIS TOOL:**
-- **For swaps:** AFTER user confirms with "yes"/"execute"/"proceed", IMMEDIATELY BEFORE calling executeSwap
-  - DO NOT check before getSwapQuote (read-only operation, no gas needed)
-  - Single swap → Call with {estimatedOperations: 1}
-  - Batch swaps → Call with {estimatedOperations: N}
-- **For direct operations (transfer/wrap/unwrap/stake/unstake):** IMMEDIATELY BEFORE calling the execution tool
-  - Single operation → Call with {estimatedOperations: 1}
-  - Batch operations → Call with {estimatedOperations: N}
-- After fundSessionKey completes (to verify funding succeeded)
-- When execution fails with low balance error
-- When user explicitly asks "check my session key balance" or "do I have enough gas?"
-
-⚡ **WHEN NOT TO CALL THIS TOOL:**
-- Before getSwapQuote (read-only operation, doesn't require gas or session key balance)
-- Before showing quotes to user (balance check happens AFTER user confirms, not before)
-- Between multiple tool calls in the same operation (unless funding just occurred)
-
-**Reasoning:** Only write operations (executeSwap, transfer, etc.) require gas. Read operations (getSwapQuote, getBalance) are FREE and don't need balance checks. Balance only changes when funding occurs.
-
-Returns:
-- Current session key balance
-- Whether funding is needed (smart calculation: uses batch requirements if estimatedOperations provided, otherwise 0.1 MON threshold)
-- Recommended funding amount if needed
-- Session key address for reference
-
-If needsFunding = true, call fundSessionKey before proceeding with operations.
-
-Examples:
-- User says "swap 1 MON to USDC" → getSwapQuote → show quote → user confirms "yes" → checkSessionKeyBalance({operationType: "swap", estimatedOperations: 1}) → executeSwap
-- User says "transfer 10 USDC to 0x123..." → checkSessionKeyBalance({operationType: "transfer", estimatedOperations: 1}) → transfer
-- User says "swap to USDC, USDT, USDM" → getSwapQuote (3 quotes) → show quotes → user confirms → checkSessionKeyBalance({operationType: "swap", estimatedOperations: 3}) → executeSwap (batch)
-- User says "stake 1 MON" → checkSessionKeyBalance({operationType: "stake", estimatedOperations: 1}) → stake`,
+    description: "Check if session key needs funding for gas. FREE (read-only). Call AFTER user confirms, BEFORE execution. Call search_tool_docs('checkSessionKeyBalance') for detailed usage.",
     schema: z.object({
       operationType: z.enum(["swap", "transfer", "wrap", "unwrap", "stake", "unstake", "unstakeClaim"]).optional().describe(
         "Type of operation to check balance for. IMPORTANT: Always specify this for accurate gas calculation! " +

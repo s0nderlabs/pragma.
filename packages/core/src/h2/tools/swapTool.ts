@@ -67,11 +67,13 @@ async function resolveTokenWithProxy(
  * Get Monorail configuration from environment
  */
 function getMonorailConfig(): MonorailPathfinderConfig {
-  const appId = process.env.MONORAIL_APP_ID || "pragma-h2";
-  const pathfinderUrl = process.env.MONORAIL_PATHFINDER_URL || "https://testnet-pathfinder.monorail.xyz/v4";
+  // Check both prefixed (Next.js) and non-prefixed env vars for compatibility
+  const appId = process.env.MONORAIL_APP_ID || process.env.NEXT_PUBLIC_MONORAIL_APP_ID || "4101175973046541";
+  const pathfinderUrl = process.env.MONORAIL_PATHFINDER_URL || process.env.NEXT_PUBLIC_MONORAIL_PATHFINDER_URL || "https://pathfinder.monorail.xyz/v4";
   const aggregatorAddress =
     (process.env.MONORAIL_AGGREGATOR_ADDRESS as Address) ||
-    ("0x525B929fCd6a64AfF834f4eeCc6E860486cED700" as Address);
+    (process.env.NEXT_PUBLIC_MONORAIL_AGGREGATOR_ADDRESS as Address) ||
+    ("0xA68A7F0601effDc65C64d9C47cA1b18D96B4352c" as Address);
 
   return {
     appId,

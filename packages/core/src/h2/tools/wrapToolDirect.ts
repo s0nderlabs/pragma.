@@ -40,6 +40,7 @@ import {
   NONCE_ENFORCER_ABI,
   MONAD_CHAIN,
 } from "../config.js";
+import { emitProgress } from "../progress/emitter.js";
 
 const WRAPPED_NATIVE_ABI = [
   {
@@ -99,6 +100,12 @@ export const wrapTool = tool(
       const amountWei = parseUnits(amount, 18);
       const amountFormatted = formatUnits(amountWei, 18);
 
+      // Generate tool signature for progress routing
+      const toolSignature = `wrap:${Date.now()}`;
+
+      // Initial progress
+      emitProgress(`Wrapping ${amountFormatted} MON → WMON...`, "wrap", toolSignature, `Wrap ${amountFormatted} MON`);
+
       // Check user's MON balance
       const userBalance = await publicClient.getBalance({ address: getAddress(userAddress) });
 
@@ -135,6 +142,8 @@ export const wrapTool = tool(
         args: [],
       });
 
+      emitProgress(`Building Wrap Delegation...`, "wrap", toolSignature);
+
       // Create ephemeral delegation for wrap
       // deposit() has no parameters → no enforcement needed
       const { delegation, typedData } = createWrapDelegation({
@@ -170,6 +179,8 @@ export const wrapTool = tool(
         });
       }
 
+      emitProgress(`Executing Wrap Transaction...`, "wrap", toolSignature);
+
       // Execute transaction
       const txHash = await redeemDelegations(
         sessionWallet,
@@ -181,6 +192,8 @@ export const wrapTool = tool(
           mode: ExecutionMode.SingleDefault,
         }],
       );
+
+      emitProgress(`Waiting for Confirmation...`, "wrap", toolSignature);
 
       // Wait for confirmation
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
@@ -229,22 +242,7 @@ Your MON has been wrapped into WMON!`;
   },
   {
     name: "wrap",
-    description: `Wrap native MON into WMON (Wrapped MON) ERC20 token. FREE operation (only gas).
-
-This tool executes immediately - no quote phase needed.
-
-Use when user wants to:
-- Convert MON to WMON
-- Wrap MON for DeFi protocols
-- Get ERC20 version of MON
-
-Process:
-1. Validates you have enough MON
-2. Creates ephemeral delegation (1-time use)
-3. Executes wrap via WMON.deposit()
-4. Returns transaction receipt
-
-Example: "wrap 0.5 MON"`,
+    description: "Wrap MON → WMON. FREE (gas only). Executes immediately. Call search_tool_docs('wrap') for detailed usage.",
     schema: z.object({
       amount: z.string().describe("Amount of MON to wrap (decimal string like '0.5')"),
     }),

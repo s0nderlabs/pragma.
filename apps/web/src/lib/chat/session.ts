@@ -10,7 +10,6 @@ import {
 } from "@pragma/core/delegations/types";
 
 import { listActiveDelegations } from "../storage/delegations";
-import { MONAD_CHAIN_ID } from "../config";
 
 export interface ChatSessionContext {
   session: SessionDelegationInfo;
@@ -59,7 +58,11 @@ const toSessionDelegation = (artifact: DelegationArtifact): SessionDelegationInf
   } satisfies SessionDelegationInfo;
 };
 
-const environment = getDeleGatorEnvironment(MONAD_CHAIN_ID);
+// Use testnet chain ID (10143) for DTK environment lookup since:
+// 1. DTK doesn't have mainnet (143) in its registry yet
+// 2. All DTK contracts are deployed at same CREATE2 addresses on both networks
+const DTK_CHAIN_ID_FOR_ADDRESSES = 10143;
+const environment = getDeleGatorEnvironment(DTK_CHAIN_ID_FOR_ADDRESSES);
 
 export const loadChatSession = (
   kind: "swap" | "transfer",

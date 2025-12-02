@@ -48,6 +48,7 @@ import {
   MONAD_CHAIN,
 } from "../config.js";
 import { APRIORI_ABI } from "../../contracts/aprMonABI.js";
+import { emitProgress } from "../progress/emitter.js";
 
 const ERC20_ABI = [
   {
@@ -105,6 +106,12 @@ export const unstakeRequestTool = tool(
       const sharesWei = parseUnits(amount, 18);
       const sharesFormatted = formatUnits(sharesWei, 18);
 
+      // Generate tool signature for progress routing
+      const toolSignature = `unstakeRequest:${Date.now()}`;
+
+      // First progress with description for parent tool display
+      emitProgress(`Requesting Unstake for ${sharesFormatted} aprMON...`, "unstakeRequest", toolSignature, `Unstake ${sharesFormatted} aprMON`);
+
       // Check aprMON balance
       const aprMonBalance = await publicClient.readContract({
         address: getAddress(APRIORI_ADDRESS),
@@ -150,6 +157,8 @@ export const unstakeRequestTool = tool(
         args: [sharesWei, getAddress(userAddress), getAddress(userAddress)],
       });
 
+      emitProgress(`Building Unstake Delegation...`, "unstakeRequest", toolSignature);
+
       // Create ephemeral delegation for unstake request
       const { delegation, typedData } = createUnstakeRequestDelegation({
         aprioriAddress: getAddress(APRIORI_ADDRESS),
@@ -184,6 +193,8 @@ export const unstakeRequestTool = tool(
         });
       }
 
+      emitProgress(`Executing Unstake Request...`, "unstakeRequest", toolSignature);
+
       // Execute
       const txHash = await redeemDelegations(
         sessionWallet,
@@ -195,6 +206,8 @@ export const unstakeRequestTool = tool(
           mode: ExecutionMode.SingleDefault,
         }],
       );
+
+      emitProgress(`Waiting for Blockchain Confirmation...`, "unstakeRequest", toolSignature);
 
       // Wait for confirmation
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
@@ -328,32 +341,7 @@ Your withdrawal request is queued and will be claimable after the current stakin
   },
   {
     name: "unstakeRequest",
-    description: `Request to unstake aprMON back to MON. FREE operation (only gas).
-
-⚡ Testnet: Withdrawals complete INSTANTLY (withdrawalDelay = 0)
-⏳ Mainnet: Two-step process with 12-18 hour epoch-based delays
-
-Use when user wants to:
-- Unstake aprMON to get MON back
-- Start the withdrawal process
-- Convert aprMON back to native MON
-
-Process:
-1. Validates you have enough aprMON
-2. Calls aPriori.requestRedeem() to create withdrawal request
-3. Returns requestId for tracking
-4. TESTNET: MON returned immediately in same transaction
-5. MAINNET: User must wait 12-18 hours then call unstakeClaim tool
-
-Testnet Flow (Instant):
-- Call this tool → Get MON immediately ✅
-
-Mainnet Flow (Delayed):
-- Step 1 (THIS TOOL): Request unstaking → Get requestId
-- Step 2 (Wait): 12-18 hours for epoch to pass
-- Step 3 (CLAIM TOOL): Claim MON with requestId
-
-Example: "unstake 0.5 aprMON" or "request to unstake all my aprMON"`,
+    description: "Request unstake aprMON → MON. FREE (gas only). Testnet: instant. Mainnet: 12-18h wait. Call search_tool_docs('unstakeRequest') for detailed usage.",
     schema: z.object({
       amount: z.string().describe("Amount of aprMON to unstake (decimal string like '0.5')"),
     }),

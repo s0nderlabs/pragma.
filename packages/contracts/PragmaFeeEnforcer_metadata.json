@@ -1,0 +1,601 @@
+{
+  "compiler": {
+    "version": "0.8.23+commit.f704f362"
+  },
+  "language": "Solidity",
+  "output": {
+    "abi": [
+      {
+        "inputs": [
+          {
+            "internalType": "contract IDelegationManager",
+            "name": "_delegationManager",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "_argsEqualityCheckEnforcer",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "_treasury",
+            "type": "address"
+          }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "bytes32",
+            "name": "delegationHash",
+            "type": "bytes32",
+            "indexed": true
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address",
+            "indexed": true
+          },
+          {
+            "internalType": "uint256",
+            "name": "expectedAmount",
+            "type": "uint256",
+            "indexed": false
+          },
+          {
+            "internalType": "uint256",
+            "name": "actualReceived",
+            "type": "uint256",
+            "indexed": false
+          },
+          {
+            "internalType": "uint256",
+            "name": "feePercentage",
+            "type": "uint256",
+            "indexed": false
+          }
+        ],
+        "type": "event",
+        "name": "FeeOnTransferDetected",
+        "anonymous": false
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "sender",
+            "type": "address",
+            "indexed": true
+          },
+          {
+            "internalType": "bytes32",
+            "name": "delegationHash",
+            "type": "bytes32",
+            "indexed": true
+          },
+          {
+            "internalType": "bool",
+            "name": "isNative",
+            "type": "bool",
+            "indexed": true
+          },
+          {
+            "internalType": "address",
+            "name": "token",
+            "type": "address",
+            "indexed": false
+          },
+          {
+            "internalType": "address",
+            "name": "delegator",
+            "type": "address",
+            "indexed": false
+          },
+          {
+            "internalType": "address",
+            "name": "redeemer",
+            "type": "address",
+            "indexed": false
+          },
+          {
+            "internalType": "uint256",
+            "name": "expectedAmount",
+            "type": "uint256",
+            "indexed": false
+          },
+          {
+            "internalType": "uint256",
+            "name": "actualAmount",
+            "type": "uint256",
+            "indexed": false
+          },
+          {
+            "internalType": "uint256",
+            "name": "balanceBefore",
+            "type": "uint256",
+            "indexed": false
+          },
+          {
+            "internalType": "uint256",
+            "name": "balanceAfter",
+            "type": "uint256",
+            "indexed": false
+          }
+        ],
+        "type": "event",
+        "name": "ValidatedPayment",
+        "anonymous": false
+      },
+      {
+        "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
+        "name": "MAX_FEE_AMOUNT",
+        "outputs": [
+          {
+            "internalType": "uint256",
+            "name": "",
+            "type": "uint256"
+          }
+        ]
+      },
+      {
+        "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
+        "name": "TREASURY",
+        "outputs": [
+          {
+            "internalType": "address",
+            "name": "",
+            "type": "address"
+          }
+        ]
+      },
+      {
+        "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
+        "name": "VERSION",
+        "outputs": [
+          {
+            "internalType": "string",
+            "name": "",
+            "type": "string"
+          }
+        ]
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "bytes",
+            "name": "_terms",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "_args",
+            "type": "bytes"
+          },
+          {
+            "internalType": "ModeCode",
+            "name": "_mode",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes",
+            "name": "",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "_delegationHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "address",
+            "name": "_delegator",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "_redeemer",
+            "type": "address"
+          }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function",
+        "name": "afterAllHook"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "bytes",
+            "name": "",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "",
+            "type": "bytes"
+          },
+          {
+            "internalType": "ModeCode",
+            "name": "",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes",
+            "name": "",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "address",
+            "name": "",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "",
+            "type": "address"
+          }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function",
+        "name": "afterHook"
+      },
+      {
+        "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
+        "name": "argsEqualityCheckEnforcer",
+        "outputs": [
+          {
+            "internalType": "address",
+            "name": "",
+            "type": "address"
+          }
+        ]
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "bytes",
+            "name": "",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "",
+            "type": "bytes"
+          },
+          {
+            "internalType": "ModeCode",
+            "name": "",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes",
+            "name": "",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "address",
+            "name": "",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "",
+            "type": "address"
+          }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function",
+        "name": "beforeAllHook"
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "bytes",
+            "name": "",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "",
+            "type": "bytes"
+          },
+          {
+            "internalType": "ModeCode",
+            "name": "",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes",
+            "name": "",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "address",
+            "name": "",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "",
+            "type": "address"
+          }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function",
+        "name": "beforeHook"
+      },
+      {
+        "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
+        "name": "delegationManager",
+        "outputs": [
+          {
+            "internalType": "contract IDelegationManager",
+            "name": "",
+            "type": "address"
+          }
+        ]
+      },
+      {
+        "inputs": [
+          {
+            "internalType": "bytes",
+            "name": "_terms",
+            "type": "bytes"
+          }
+        ],
+        "stateMutability": "pure",
+        "type": "function",
+        "name": "getTermsInfo",
+        "outputs": [
+          {
+            "internalType": "bool",
+            "name": "isNative_",
+            "type": "bool"
+          },
+          {
+            "internalType": "address",
+            "name": "token_",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "amount_",
+            "type": "uint256"
+          }
+        ]
+      }
+    ],
+    "devdoc": {
+      "kind": "dev",
+      "methods": {
+        "afterAllHook(bytes,bytes,bytes32,bytes,bytes32,address,address)": {
+          "details": "This hook runs AFTER the main operation completes Flow: 1. Decode fee parameters from terms (isNative, token, amount) 2. Decode allowance delegation from args 3. Verify ArgsEqualityCheckEnforcer is first caveat 4. Set args for ArgsEqualityCheckEnforcer (prevents front-running) 5. Build execution calldata (native transfer or ERC20 transfer) 6. Check treasury balance before 7. Redeem allowance delegation (executes fee transfer) 8. Check treasury balance after 9. Verify fee was received",
+          "params": {
+            "_args": "Encoded allowance delegation(s) for fee payment",
+            "_delegationHash": "The hash of the main delegation",
+            "_delegator": "The address of the delegator",
+            "_mode": "The execution mode (must be default)",
+            "_redeemer": "The address redeeming the delegation",
+            "_terms": "Encoded 85 bytes: isNative (1 byte) + token (20 bytes) + amount (32 bytes) + swapAmount (32 bytes)"
+          }
+        },
+        "afterHook(bytes,bytes,bytes32,bytes,bytes32,address,address)": {
+          "details": "This function MUST revert if the conditions are not met.",
+          "params": {
+            "_args": "An optional input parameter set by the redeemer at time of invocation.",
+            "_delegationHash": "The hash of the delegation.",
+            "_delegator": "The address of the delegator.",
+            "_executionCalldata": "The data representing the execution.",
+            "_mode": "The mode of execution for the executionCalldata.",
+            "_redeemer": "The address that is redeeming the delegation.",
+            "_terms": "The terms to enforce set by the delegator."
+          }
+        },
+        "beforeAllHook(bytes,bytes,bytes32,bytes,bytes32,address,address)": {
+          "details": "This function MUST revert if the conditions are not met.",
+          "params": {
+            "_args": "An optional input parameter set by the redeemer at time of invocation.",
+            "_delegationHash": "The hash of the delegation.",
+            "_delegator": "The address of the delegator.",
+            "_executionCalldata": "The data representing the execution.",
+            "_mode": "The mode of execution for the executionCalldata.",
+            "_redeemer": "The address that is redeeming the delegation.",
+            "_terms": "The terms to enforce set by the delegator."
+          }
+        },
+        "beforeHook(bytes,bytes,bytes32,bytes,bytes32,address,address)": {
+          "details": "This function MUST revert if the conditions are not met.",
+          "params": {
+            "_args": "An optional input parameter set by the redeemer at time of invocation.",
+            "_delegationHash": "The hash of the delegation.",
+            "_delegator": "The address of the delegator.",
+            "_executionCalldata": "The data representing the execution.",
+            "_mode": "The mode of execution for the executionCalldata.",
+            "_redeemer": "The address that is redeeming the delegation.",
+            "_terms": "The terms to enforce set by the delegator."
+          }
+        },
+        "constructor": {
+          "params": {
+            "_argsEqualityCheckEnforcer": "The ArgsEqualityCheckEnforcer address",
+            "_delegationManager": "The DelegationManager contract address",
+            "_treasury": "The Pragma treasury address (immutable)"
+          }
+        },
+        "getTermsInfo(bytes)": {
+          "params": {
+            "_terms": "Encoded 85 bytes:   - byte 0: isNative flag (1 = native, 0 = ERC20)   - bytes 1-20: token address (ignored if isNative = true)   - bytes 21-52: fee amount (32 bytes)   - bytes 53-84: swap amount (32 bytes, original amount before fee)"
+          },
+          "returns": {
+            "amount_": "The fee amount to collect",
+            "isNative_": "Whether the fee is in native token",
+            "token_": "The ERC20 token address (address(0) if native)"
+          }
+        }
+      },
+      "version": 1
+    },
+    "userdoc": {
+      "kind": "user",
+      "methods": {
+        "afterAllHook(bytes,bytes,bytes32,bytes,bytes32,address,address)": {
+          "notice": "Enforces fee payment after the main delegation executes"
+        },
+        "afterHook(bytes,bytes,bytes32,bytes,bytes32,address,address)": {
+          "notice": "Enforces conditions after the execution tied to a specific delegation in the redemption process."
+        },
+        "beforeAllHook(bytes,bytes,bytes32,bytes,bytes32,address,address)": {
+          "notice": "Enforces conditions before any actions in a batch redemption process begin."
+        },
+        "beforeHook(bytes,bytes,bytes32,bytes,bytes32,address,address)": {
+          "notice": "Enforces conditions before the execution tied to a specific delegation in the redemption process."
+        },
+        "constructor": {
+          "notice": "Constructs the PragmaFeeEnforcer"
+        },
+        "getTermsInfo(bytes)": {
+          "notice": "Decodes the terms used in this caveat enforcer"
+        }
+      },
+      "version": 1
+    }
+  },
+  "settings": {
+    "remappings": [
+      "@FCL/=lib/delegation-framework/lib/FCL/solidity/src/",
+      "@SCL/=lib/delegation-framework/lib/SCL/src/",
+      "@account-abstraction/=lib/delegation-framework/lib/account-abstraction/contracts/",
+      "@bytes-utils/=lib/delegation-framework/lib/solidity-bytes-utils/contracts/",
+      "@delegation-framework/=lib/delegation-framework/src/",
+      "@erc7579/=lib/delegation-framework/lib/erc7579-implementation/src/",
+      "@openzeppelin/contracts-upgradeable/=lib/delegation-framework/lib/openzeppelin-upgradable-contracts/contracts/",
+      "@openzeppelin/contracts/=lib/delegation-framework/lib/openzeppelin-contracts/contracts/",
+      "@solidity-stringutils/=lib/delegation-framework/lib/solidity-stringutils/src/",
+      "@solidity/=lib/delegation-framework/lib/SCL/src/",
+      "FCL/=lib/delegation-framework/lib/FCL/solidity/src/",
+      "FreshCryptoLib/=lib/delegation-framework/lib/FreshCryptoLib/solidity/src/",
+      "SCL/=lib/delegation-framework/lib/SCL/",
+      "account-abstraction/=lib/delegation-framework/lib/account-abstraction/contracts/",
+      "delegation-framework/=lib/delegation-framework/",
+      "ds-test/=lib/delegation-framework/lib/forge-std/lib/ds-test/src/",
+      "erc4626-tests/=lib/delegation-framework/lib/openzeppelin-contracts/lib/erc4626-tests/",
+      "erc7579-implementation/=lib/delegation-framework/lib/erc7579-implementation/src/",
+      "forge-std/=lib/forge-std/src/",
+      "openzeppelin-contracts/=lib/delegation-framework/lib/openzeppelin-contracts/",
+      "sentinellist/=lib/delegation-framework/lib/erc7579-implementation/node_modules/@rhinestone/sentinellist/src/",
+      "solady/=lib/delegation-framework/lib/erc7579-implementation/node_modules/solady/src/",
+      "solidity-bytes-utils/=lib/delegation-framework/lib/solidity-bytes-utils/contracts/",
+      "solidity-stringutils/=lib/delegation-framework/lib/solidity-stringutils/"
+    ],
+    "optimizer": {
+      "enabled": false,
+      "runs": 200
+    },
+    "metadata": {
+      "useLiteralContent": true,
+      "bytecodeHash": "ipfs"
+    },
+    "compilationTarget": {
+      "src/enforcers/PragmaFeeEnforcer.sol": "PragmaFeeEnforcer"
+    },
+    "evmVersion": "london",
+    "libraries": {}
+  },
+  "sources": {
+    "lib/delegation-framework/lib/account-abstraction/contracts/interfaces/PackedUserOperation.sol": {
+      "keccak256": "0x1129b46381db68eddbc5cb49e50664667b66b03c480453858e7b25eabe444359",
+      "urls": [],
+      "content": "// SPDX-License-Identifier: GPL-3.0\npragma solidity >=0.7.5;\n\n/**\n * User Operation struct\n * @param sender                - The sender account of this request.\n * @param nonce                 - Unique value the sender uses to verify it is not a replay.\n * @param initCode              - If set, the account contract will be created by this constructor/\n * @param callData              - The method call to execute on this account.\n * @param accountGasLimits      - Packed gas limits for validateUserOp and gas limit passed to the callData method call.\n * @param preVerificationGas    - Gas not calculated by the handleOps method, but added to the gas paid.\n *                                Covers batch overhead.\n * @param gasFees               - packed gas fields maxPriorityFeePerGas and maxFeePerGas - Same as EIP-1559 gas parameters.\n * @param paymasterAndData      - If set, this field holds the paymaster address, verification gas limit, postOp gas limit and paymaster-specific extra data\n *                                The paymaster will pay for the transaction instead of the sender.\n * @param signature             - Sender-verified signature over the entire request, the EntryPoint address and the chain ID.\n */\nstruct PackedUserOperation {\n    address sender;\n    uint256 nonce;\n    bytes initCode;\n    bytes callData;\n    bytes32 accountGasLimits;\n    uint256 preVerificationGas;\n    bytes32 gasFees;\n    bytes paymasterAndData;\n    bytes signature;\n}\n",
+      "license": "GPL-3.0"
+    },
+    "lib/delegation-framework/lib/erc7579-implementation/src/interfaces/IERC7579Account.sol": {
+      "keccak256": "0x08368aba5f1bb83eb57e9f8d31a04edee4be69159b4844a6443f65100917011c",
+      "urls": [],
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.21;\n\nimport { CallType, ExecType, ModeCode } from \"../lib/ModeLib.sol\";\n\nstruct Execution {\n    address target;\n    uint256 value;\n    bytes callData;\n}\n\ninterface IERC7579Account {\n    event ModuleInstalled(uint256 moduleTypeId, address module);\n    event ModuleUninstalled(uint256 moduleTypeId, address module);\n\n    /**\n     * @dev Executes a transaction on behalf of the account.\n     *         This function is intended to be called by ERC-4337 EntryPoint.sol\n     * @dev Ensure adequate authorization control: i.e. onlyEntryPointOrSelf\n     *\n     * @dev MSA MUST implement this function signature.\n     * If a mode is requested that is not supported by the Account, it MUST revert\n     * @param mode The encoded execution mode of the transaction. See ModeLib.sol for details\n     * @param executionCalldata The encoded execution call data\n     */\n    function execute(ModeCode mode, bytes calldata executionCalldata) external payable;\n\n    /**\n     * @dev Executes a transaction on behalf of the account.\n     *         This function is intended to be called by Executor Modules\n     * @dev Ensure adequate authorization control: i.e. onlyExecutorModule\n     *\n     * @dev MSA MUST implement this function signature.\n     * If a mode is requested that is not supported by the Account, it MUST revert\n     * @param mode The encoded execution mode of the transaction. See ModeLib.sol for details\n     * @param executionCalldata The encoded execution call data\n     */\n    function executeFromExecutor(\n        ModeCode mode,\n        bytes calldata executionCalldata\n    )\n        external\n        payable\n        returns (bytes[] memory returnData);\n\n    /**\n     * @dev ERC-1271 isValidSignature\n     *         This function is intended to be used to validate a smart account signature\n     * and may forward the call to a validator module\n     *\n     * @param hash The hash of the data that is signed\n     * @param data The data that is signed\n     */\n    function isValidSignature(bytes32 hash, bytes calldata data) external view returns (bytes4);\n\n    /**\n     * @dev installs a Module of a certain type on the smart account\n     * @dev Implement Authorization control of your chosing\n     * @param moduleTypeId the module type ID according the ERC-7579 spec\n     * @param module the module address\n     * @param initData arbitrary data that may be required on the module during `onInstall`\n     * initialization.\n     */\n    function installModule(\n        uint256 moduleTypeId,\n        address module,\n        bytes calldata initData\n    )\n        external\n        payable;\n\n    /**\n     * @dev uninstalls a Module of a certain type on the smart account\n     * @dev Implement Authorization control of your chosing\n     * @param moduleTypeId the module type ID according the ERC-7579 spec\n     * @param module the module address\n     * @param deInitData arbitrary data that may be required on the module during `onUninstall`\n     * de-initialization.\n     */\n    function uninstallModule(\n        uint256 moduleTypeId,\n        address module,\n        bytes calldata deInitData\n    )\n        external\n        payable;\n\n    /**\n     * Function to check if the account supports a certain CallType or ExecType (see ModeLib.sol)\n     * @param encodedMode the encoded mode\n     */\n    function supportsExecutionMode(ModeCode encodedMode) external view returns (bool);\n\n    /**\n     * Function to check if the account supports installation of a certain module type Id\n     * @param moduleTypeId the module type ID according the ERC-7579 spec\n     */\n    function supportsModule(uint256 moduleTypeId) external view returns (bool);\n\n    /**\n     * Function to check if the account has a certain module installed\n     * @param moduleTypeId the module type ID according the ERC-7579 spec\n     *      Note: keep in mind that some contracts can be multiple module types at the same time. It\n     *            thus may be necessary to query multiple module types\n     * @param module the module address\n     * @param additionalContext additional context data that the smart account may interpret to\n     *                          identifiy conditions under which the module is installed.\n     *                          usually this is not necessary, but for some special hooks that\n     *                          are stored in mappings, this param might be needed\n     */\n    function isModuleInstalled(\n        uint256 moduleTypeId,\n        address module,\n        bytes calldata additionalContext\n    )\n        external\n        view\n        returns (bool);\n\n    /**\n     * @dev Returns the account id of the smart account\n     * @return accountImplementationId the account id of the smart account\n     * the accountId should be structured like so:\n     *        \"vendorname.accountname.semver\"\n     */\n    function accountId() external view returns (string memory accountImplementationId);\n}\n",
+      "license": "MIT"
+    },
+    "lib/delegation-framework/lib/erc7579-implementation/src/lib/ExecutionLib.sol": {
+      "keccak256": "0xb436732367ed8a45ddfaa95c9c977ee7674ff5755353c3792a38608640406126",
+      "urls": [],
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.23;\n\nimport { Execution } from \"../interfaces/IERC7579Account.sol\";\n\n/**\n * Helper Library for decoding Execution calldata\n * malloc for memory allocation is bad for gas. use this assembly instead\n */\nlibrary ExecutionLib {\n    error ERC7579DecodingError();\n\n    /**\n     * @notice Decode a batch of `Execution` executionBatch from a `bytes` calldata.\n     * @dev code is copied from solady's LibERC7579.sol\n     * https://github.com/Vectorized/solady/blob/740812cedc9a1fc11e17cb3d4569744367dedf19/src/accounts/LibERC7579.sol#L146\n     *      Credits to Vectorized and the Solady Team\n     */\n    function decodeBatch(bytes calldata executionCalldata)\n        internal\n        pure\n        returns (Execution[] calldata executionBatch)\n    {\n        /// @solidity memory-safe-assembly\n        assembly {\n            let u := calldataload(executionCalldata.offset)\n            let s := add(executionCalldata.offset, u)\n            let e := sub(add(executionCalldata.offset, executionCalldata.length), 0x20)\n            executionBatch.offset := add(s, 0x20)\n            executionBatch.length := calldataload(s)\n            if or(shr(64, u), gt(add(s, shl(5, executionBatch.length)), e)) {\n                mstore(0x00, 0xba597e7e) // `DecodingError()`.\n                revert(0x1c, 0x04)\n            }\n            if executionBatch.length {\n                // Perform bounds checks on the decoded `executionBatch`.\n                // Loop runs out-of-gas if `executionBatch.length` is big enough to cause overflows.\n                for { let i := executionBatch.length } 1 { } {\n                    i := sub(i, 1)\n                    let p := calldataload(add(executionBatch.offset, shl(5, i)))\n                    let c := add(executionBatch.offset, p)\n                    let q := calldataload(add(c, 0x40))\n                    let o := add(c, q)\n                    // forgefmt: disable-next-item\n                    if or(shr(64, or(calldataload(o), or(p, q))),\n                        or(gt(add(c, 0x40), e), gt(add(o, calldataload(o)), e))) {\n                        mstore(0x00, 0xba597e7e) // `DecodingError()`.\n                        revert(0x1c, 0x04)\n                    }\n                    if iszero(i) { break }\n                }\n            }\n        }\n    }\n\n    function encodeBatch(Execution[] memory executions)\n        internal\n        pure\n        returns (bytes memory callData)\n    {\n        callData = abi.encode(executions);\n    }\n\n    function decodeSingle(bytes calldata executionCalldata)\n        internal\n        pure\n        returns (address target, uint256 value, bytes calldata callData)\n    {\n        target = address(bytes20(executionCalldata[0:20]));\n        value = uint256(bytes32(executionCalldata[20:52]));\n        callData = executionCalldata[52:];\n    }\n\n    function encodeSingle(\n        address target,\n        uint256 value,\n        bytes memory callData\n    )\n        internal\n        pure\n        returns (bytes memory userOpCalldata)\n    {\n        userOpCalldata = abi.encodePacked(target, value, callData);\n    }\n}\n",
+      "license": "MIT"
+    },
+    "lib/delegation-framework/lib/erc7579-implementation/src/lib/ModeLib.sol": {
+      "keccak256": "0x02ce0fc8805d1427841f32e2335157e3fae18e99d5c49ba46d53e12fcd1a5185",
+      "urls": [],
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.23;\n\n/**\n * @title ModeLib\n * To allow smart accounts to be very simple, but allow for more complex execution, A custom mode\n * encoding is used.\n *    Function Signature of execute function:\n *           function execute(ModeCode mode, bytes calldata executionCalldata) external payable;\n * This allows for a single bytes32 to be used to encode the execution mode, calltype, execType and\n * context.\n * NOTE: Simple Account implementations only have to scope for the most significant byte. Account  that\n * implement\n * more complex execution modes may use the entire bytes32.\n *\n * |--------------------------------------------------------------------|\n * | CALLTYPE  | EXECTYPE  |   UNUSED   | ModeSelector  |  ModePayload  |\n * |--------------------------------------------------------------------|\n * | 1 byte    | 1 byte    |   4 bytes  | 4 bytes       |   22 bytes    |\n * |--------------------------------------------------------------------|\n *\n * CALLTYPE: 1 byte\n * CallType is used to determine how the executeCalldata paramter of the execute function has to be\n * decoded.\n * It can be either single, batch or delegatecall. In the future different calls could be added.\n * CALLTYPE can be used by a validation module to determine how to decode <userOp.callData[36:]>.\n *\n * EXECTYPE: 1 byte\n * ExecType is used to determine how the account should handle the execution.\n * It can indicate if the execution should revert on failure or continue execution.\n * In the future more execution modes may be added.\n * Default Behavior (EXECTYPE = 0x00) is to revert on a single failed execution. If one execution in\n * a batch fails, the entire batch is reverted\n *\n * UNUSED: 4 bytes\n * Unused bytes are reserved for future use.\n *\n * ModeSelector: bytes4\n * The \"optional\" mode selector can be used by account vendors, to implement custom behavior in\n * their accounts.\n * the way a ModeSelector is to be calculated is bytes4(keccak256(\"vendorname.featurename\"))\n * this is to prevent collisions between different vendors, while allowing innovation and the\n * development of new features without coordination between ERC-7579 implementing accounts\n *\n * ModePayload: 22 bytes\n * Mode payload is used to pass additional data to the smart account execution, this may be\n * interpreted depending on the ModeSelector\n *\n * ExecutionCallData: n bytes\n * single, delegatecall or batch exec abi.encoded as bytes\n */\nimport { Execution } from \"../interfaces/IERC7579Account.sol\";\n\n// Custom type for improved developer experience\ntype ModeCode is bytes32;\n\ntype CallType is bytes1;\n\ntype ExecType is bytes1;\n\ntype ModeSelector is bytes4;\n\ntype ModePayload is bytes22;\n\n// Default CallType\nCallType constant CALLTYPE_SINGLE = CallType.wrap(0x00);\n// Batched CallType\nCallType constant CALLTYPE_BATCH = CallType.wrap(0x01);\n// @dev Implementing delegatecall is OPTIONAL!\n// implement delegatecall with extreme care.\nCallType constant CALLTYPE_STATIC = CallType.wrap(0xFE);\nCallType constant CALLTYPE_DELEGATECALL = CallType.wrap(0xFF);\n\n// @dev default behavior is to revert on failure\n// To allow very simple accounts to use mode encoding, the default behavior is to revert on failure\n// Since this is value 0x00, no additional encoding is required for simple accounts\nExecType constant EXECTYPE_DEFAULT = ExecType.wrap(0x00);\n// @dev account may elect to change execution behavior. For example \"try exec\" / \"allow fail\"\nExecType constant EXECTYPE_TRY = ExecType.wrap(0x01);\n\nModeSelector constant MODE_DEFAULT = ModeSelector.wrap(bytes4(0x00000000));\n// Example declaration of a custom mode selector\nModeSelector constant MODE_OFFSET = ModeSelector.wrap(bytes4(keccak256(\"default.mode.offset\")));\n\n/**\n * @dev ModeLib is a helper library to encode/decode ModeCodes\n */\nlibrary ModeLib {\n    function decode(ModeCode mode)\n        internal\n        pure\n        returns (\n            CallType _calltype,\n            ExecType _execType,\n            ModeSelector _modeSelector,\n            ModePayload _modePayload\n        )\n    {\n        assembly {\n            _calltype := mode\n            _execType := shl(8, mode)\n            _modeSelector := shl(48, mode)\n            _modePayload := shl(80, mode)\n        }\n    }\n\n    function encode(\n        CallType callType,\n        ExecType execType,\n        ModeSelector mode,\n        ModePayload payload\n    )\n        internal\n        pure\n        returns (ModeCode)\n    {\n        return ModeCode.wrap(\n            bytes32(\n                abi.encodePacked(callType, execType, bytes4(0), ModeSelector.unwrap(mode), payload)\n            )\n        );\n    }\n\n    function encodeSimpleBatch() internal pure returns (ModeCode mode) {\n        mode = encode(CALLTYPE_BATCH, EXECTYPE_DEFAULT, MODE_DEFAULT, ModePayload.wrap(0x00));\n    }\n\n    function encodeSimpleSingle() internal pure returns (ModeCode mode) {\n        mode = encode(CALLTYPE_SINGLE, EXECTYPE_DEFAULT, MODE_DEFAULT, ModePayload.wrap(0x00));\n    }\n\n    function getCallType(ModeCode mode) internal pure returns (CallType calltype) {\n        assembly {\n            calltype := mode\n        }\n    }\n}\n\nusing { eqModeSelector as == } for ModeSelector global;\nusing { eqCallType as == } for CallType global;\nusing { eqExecType as == } for ExecType global;\n\nfunction eqCallType(CallType a, CallType b) pure returns (bool) {\n    return CallType.unwrap(a) == CallType.unwrap(b);\n}\n\nfunction eqExecType(ExecType a, ExecType b) pure returns (bool) {\n    return ExecType.unwrap(a) == ExecType.unwrap(b);\n}\n\nfunction eqModeSelector(ModeSelector a, ModeSelector b) pure returns (bool) {\n    return ModeSelector.unwrap(a) == ModeSelector.unwrap(b);\n}\n",
+      "license": "MIT"
+    },
+    "lib/delegation-framework/lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol": {
+      "keccak256": "0xee2337af2dc162a973b4be6d3f7c16f06298259e0af48c5470d2839bfa8a22f4",
+      "urls": [],
+      "content": "// SPDX-License-Identifier: MIT\n// OpenZeppelin Contracts (last updated v5.0.0) (token/ERC20/IERC20.sol)\n\npragma solidity ^0.8.20;\n\n/**\n * @dev Interface of the ERC-20 standard as defined in the ERC.\n */\ninterface IERC20 {\n    /**\n     * @dev Emitted when `value` tokens are moved from one account (`from`) to\n     * another (`to`).\n     *\n     * Note that `value` may be zero.\n     */\n    event Transfer(address indexed from, address indexed to, uint256 value);\n\n    /**\n     * @dev Emitted when the allowance of a `spender` for an `owner` is set by\n     * a call to {approve}. `value` is the new allowance.\n     */\n    event Approval(address indexed owner, address indexed spender, uint256 value);\n\n    /**\n     * @dev Returns the value of tokens in existence.\n     */\n    function totalSupply() external view returns (uint256);\n\n    /**\n     * @dev Returns the value of tokens owned by `account`.\n     */\n    function balanceOf(address account) external view returns (uint256);\n\n    /**\n     * @dev Moves a `value` amount of tokens from the caller's account to `to`.\n     *\n     * Returns a boolean value indicating whether the operation succeeded.\n     *\n     * Emits a {Transfer} event.\n     */\n    function transfer(address to, uint256 value) external returns (bool);\n\n    /**\n     * @dev Returns the remaining number of tokens that `spender` will be\n     * allowed to spend on behalf of `owner` through {transferFrom}. This is\n     * zero by default.\n     *\n     * This value changes when {approve} or {transferFrom} are called.\n     */\n    function allowance(address owner, address spender) external view returns (uint256);\n\n    /**\n     * @dev Sets a `value` amount of tokens as the allowance of `spender` over the\n     * caller's tokens.\n     *\n     * Returns a boolean value indicating whether the operation succeeded.\n     *\n     * IMPORTANT: Beware that changing an allowance with this method brings the risk\n     * that someone may use both the old and the new allowance by unfortunate\n     * transaction ordering. One possible solution to mitigate this race\n     * condition is to first reduce the spender's allowance to 0 and set the\n     * desired value afterwards:\n     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729\n     *\n     * Emits an {Approval} event.\n     */\n    function approve(address spender, uint256 value) external returns (bool);\n\n    /**\n     * @dev Moves a `value` amount of tokens from `from` to `to` using the\n     * allowance mechanism. `value` is then deducted from the caller's\n     * allowance.\n     *\n     * Returns a boolean value indicating whether the operation succeeded.\n     *\n     * Emits a {Transfer} event.\n     */\n    function transferFrom(address from, address to, uint256 value) external returns (bool);\n}\n",
+      "license": "MIT"
+    },
+    "lib/delegation-framework/src/enforcers/CaveatEnforcer.sol": {
+      "keccak256": "0xe6e44a3dfcb667fba89d7dc73ba06327add01a9ef4ecd11f3627d97e337041d5",
+      "urls": [],
+      "content": "// SPDX-License-Identifier: MIT AND Apache-2.0\npragma solidity 0.8.23;\n\nimport { ModeLib } from \"@erc7579/lib/ModeLib.sol\";\n\nimport { ICaveatEnforcer } from \"../interfaces/ICaveatEnforcer.sol\";\nimport { ModeCode, ExecType } from \"../utils/Types.sol\";\nimport { CALLTYPE_SINGLE, CALLTYPE_BATCH, EXECTYPE_DEFAULT, EXECTYPE_TRY } from \"../utils/Constants.sol\";\n\n/**\n * @title CaveatEnforcer\n * @dev This abstract contract enforces caveats before and after the execution of an execution.\n */\nabstract contract CaveatEnforcer is ICaveatEnforcer {\n    using ModeLib for ModeCode;\n\n    /// @inheritdoc ICaveatEnforcer\n    function beforeAllHook(bytes calldata, bytes calldata, ModeCode, bytes calldata, bytes32, address, address) public virtual { }\n\n    /// @inheritdoc ICaveatEnforcer\n    function beforeHook(bytes calldata, bytes calldata, ModeCode, bytes calldata, bytes32, address, address) public virtual { }\n\n    /// @inheritdoc ICaveatEnforcer\n    function afterHook(bytes calldata, bytes calldata, ModeCode, bytes calldata, bytes32, address, address) public virtual { }\n\n    /// @inheritdoc ICaveatEnforcer\n    function afterAllHook(bytes calldata, bytes calldata, ModeCode, bytes calldata, bytes32, address, address) public virtual { }\n\n    /**\n     * @dev Require the function call to be in single call type\n     */\n    modifier onlySingleCallTypeMode(ModeCode _mode) {\n        {\n            require(ModeLib.getCallType(_mode) == CALLTYPE_SINGLE, \"CaveatEnforcer:invalid-call-type\");\n        }\n        _;\n    }\n\n    /**\n     * @dev Require the function call to be in batch call type\n     */\n    modifier onlyBatchCallTypeMode(ModeCode _mode) {\n        {\n            require(ModeLib.getCallType(_mode) == CALLTYPE_BATCH, \"CaveatEnforcer:invalid-call-type\");\n        }\n        _;\n    }\n\n    /**\n     * @dev Require the function call to be in default execution mode\n     */\n    modifier onlyDefaultExecutionMode(ModeCode _mode) {\n        {\n            (, ExecType _execType,,) = _mode.decode();\n            require(_execType == EXECTYPE_DEFAULT, \"CaveatEnforcer:invalid-execution-type\");\n        }\n        _;\n    }\n\n    /**\n     * @dev Require the function call to be in try execution mode\n     */\n    modifier onlyTryExecutionMode(ModeCode _mode) {\n        {\n            (, ExecType _execType,,) = _mode.decode();\n            require(_execType == EXECTYPE_TRY, \"CaveatEnforcer:invalid-execution-type\");\n        }\n        _;\n    }\n}\n",
+      "license": "MIT AND Apache-2.0"
+    },
+    "lib/delegation-framework/src/interfaces/ICaveatEnforcer.sol": {
+      "keccak256": "0x61c2d69cb8cc4b04d5ce786ff1b38c07009a262b64900e58a109239942bfad16",
+      "urls": [],
+      "content": "// SPDX-License-Identifier: MIT AND Apache-2.0\npragma solidity 0.8.23;\n\nimport { ModeCode } from \"../utils/Types.sol\";\n\n/**\n * @title CaveatEnforcer\n * @notice This is an abstract contract that exposes pre and post Execution hooks during delegation redemption.\n * @dev Hooks can be used to enforce conditions before and after an Execution is performed.\n * @dev Reverting during the hooks will revert the entire delegation redemption.\n * @dev Child contracts can implement the beforeAllHook, beforeHook, afterAllHook, afterHook methods.\n * @dev NOTE: There is no guarantee that the Execution is performed. If you are relying on the execution then\n * be sure to use the `afterHook` or `afterAllHook` methods to validate any required conditions.\n */\ninterface ICaveatEnforcer {\n    /**\n     * @notice Enforces conditions before any actions in a batch redemption process begin.\n     * @dev This function MUST revert if the conditions are not met.\n     * @param _terms The terms to enforce set by the delegator.\n     * @param _args An optional input parameter set by the redeemer at time of invocation.\n     * @param _mode The mode of execution for the executionCalldata.\n     * @param _executionCalldata The data representing the execution.\n     * @param _delegationHash The hash of the delegation.\n     * @param _delegator The address of the delegator.\n     * @param _redeemer The address that is redeeming the delegation.\n     */\n    function beforeAllHook(\n        bytes calldata _terms,\n        bytes calldata _args,\n        ModeCode _mode,\n        bytes calldata _executionCalldata,\n        bytes32 _delegationHash,\n        address _delegator,\n        address _redeemer\n    )\n        external;\n\n    /**\n     * @notice Enforces conditions before the execution tied to a specific delegation in the redemption process.\n     * @dev This function MUST revert if the conditions are not met.\n     * @param _terms The terms to enforce set by the delegator.\n     * @param _args An optional input parameter set by the redeemer at time of invocation.\n     * @param _mode The mode of execution for the executionCalldata.\n     * @param _executionCalldata The data representing the execution.\n     * @param _delegationHash The hash of the delegation.\n     * @param _delegator The address of the delegator.\n     * @param _redeemer The address that is redeeming the delegation.\n     */\n    function beforeHook(\n        bytes calldata _terms,\n        bytes calldata _args,\n        ModeCode _mode,\n        bytes calldata _executionCalldata,\n        bytes32 _delegationHash,\n        address _delegator,\n        address _redeemer\n    )\n        external;\n\n    /**\n     * @notice Enforces conditions after the execution tied to a specific delegation in the redemption process.\n     * @dev This function MUST revert if the conditions are not met.\n     * @param _terms The terms to enforce set by the delegator.\n     * @param _args An optional input parameter set by the redeemer at time of invocation.\n     * @param _mode The mode of execution for the executionCalldata.\n     * @param _executionCalldata The data representing the execution.\n     * @param _delegationHash The hash of the delegation.\n     * @param _delegator The address of the delegator.\n     * @param _redeemer The address that is redeeming the delegation.\n     */\n    function afterHook(\n        bytes calldata _terms,\n        bytes calldata _args,\n        ModeCode _mode,\n        bytes calldata _executionCalldata,\n        bytes32 _delegationHash,\n        address _delegator,\n        address _redeemer\n    )\n        external;\n\n    /**\n     * @notice Enforces conditions after all actions in a batch redemption process have been executed.\n     * @dev This function MUST revert if the conditions are not met.\n     * @param _terms The terms to enforce set by the delegator.\n     * @param _args An optional input parameter set by the redeemer at time of invocation.\n     * @param _mode The mode of execution for the executionCalldata.\n     * @param _executionCalldata The data representing the execution.\n     * @param _delegationHash The hash of the delegation.\n     * @param _delegator The address of the delegator.\n     * @param _redeemer The address that is redeeming the delegation.\n     */\n    function afterAllHook(\n        bytes calldata _terms,\n        bytes calldata _args,\n        ModeCode _mode,\n        bytes calldata _executionCalldata,\n        bytes32 _delegationHash,\n        address _delegator,\n        address _redeemer\n    )\n        external;\n}\n",
+      "license": "MIT AND Apache-2.0"
+    },
+    "lib/delegation-framework/src/interfaces/IDelegationManager.sol": {
+      "keccak256": "0x6ba56a87c8770c9ee74142a23a82b476c63024734c92df1b0541da846d4d7fd5",
+      "urls": [],
+      "content": "// SPDX-License-Identifier: MIT AND Apache-2.0\npragma solidity 0.8.23;\n\nimport { Delegation, Execution, ModeCode } from \"../utils/Types.sol\";\n\n/**\n * @title IDelegationManager\n * @notice Interface that exposes methods of a custom DelegationManager implementation.\n */\ninterface IDelegationManager {\n    ////////////////////////////// Events //////////////////////////////\n\n    /// @dev Emitted when a delegation is redeemed\n    event RedeemedDelegation(address indexed rootDelegator, address indexed redeemer, Delegation delegation);\n\n    /// @dev Emitted when a delegation is enabled after being disabled\n    event EnabledDelegation(\n        bytes32 indexed delegationHash, address indexed delegator, address indexed delegate, Delegation delegation\n    );\n\n    /// @dev Emitted when a delegation is disabled\n    event DisabledDelegation(\n        bytes32 indexed delegationHash, address indexed delegator, address indexed delegate, Delegation delegation\n    );\n\n    /// @dev Emitted when the domain hash is set\n    event SetDomain(\n        bytes32 indexed domainHash, string name, string domainVersion, uint256 chainId, address indexed contractAddress\n    );\n\n    ////////////////////////////// Errors //////////////////////////////\n\n    /// @dev Error thrown when a user attempts to use a disabled delegation\n    error CannotUseADisabledDelegation();\n\n    /// @dev Error thrown when the authority in a chain of delegations doesn't match the expected authority\n    error InvalidAuthority();\n\n    /// @dev Error thrown when the redeemer doesn't match the approved delegate\n    error InvalidDelegate();\n\n    /// @dev Error thrown when the delegator of a delegation doesn't match the caller\n    error InvalidDelegator();\n\n    /// @dev Error thrown when the EOA signature provided is invalid\n    error InvalidEOASignature();\n\n    /// @dev Error thrown when the ERC1271 signature provided is invalid\n    error InvalidERC1271Signature();\n\n    /// @dev Error thrown when the signature is empty\n    error EmptySignature();\n\n    /// @dev Error thrown when the delegation provided is already disabled\n    error AlreadyDisabled();\n\n    /// @dev Error thrown when the delegation provided is already enabled\n    error AlreadyEnabled();\n\n    /// @dev Error thrown when the batch size doesn't match the execution array size\n    error BatchDataLengthMismatch();\n\n    ////////////////////////////// MM Implementation Methods //////////////////////////////\n\n    function pause() external;\n\n    function unpause() external;\n\n    function enableDelegation(Delegation calldata _delegation) external;\n\n    function disableDelegation(Delegation calldata _delegation) external;\n\n    function disabledDelegations(bytes32 _delegationHash) external view returns (bool);\n\n    function getDelegationHash(Delegation calldata _delegation) external pure returns (bytes32);\n\n    function redeemDelegations(\n        bytes[] calldata _permissionContexts,\n        ModeCode[] calldata _modes,\n        bytes[] calldata _executionCallDatas\n    )\n        external;\n\n    function getDomainHash() external view returns (bytes32);\n}\n",
+      "license": "MIT AND Apache-2.0"
+    },
+    "lib/delegation-framework/src/utils/Constants.sol": {
+      "keccak256": "0x5f1e2913a96b7f88bc7fbd2de329465822ae0d438ff212883c6dd3bd5e9609a5",
+      "urls": [],
+      "content": "// SPDX-License-Identifier: MIT AND Apache-2.0\npragma solidity 0.8.23;\n\nimport {\n    CALLTYPE_SINGLE, CALLTYPE_BATCH, EXECTYPE_DEFAULT, EXECTYPE_TRY, MODE_DEFAULT, MODE_OFFSET\n} from \"@erc7579/lib/ModeLib.sol\";\n\nbytes32 constant EIP712_DOMAIN_TYPEHASH =\n    keccak256(\"EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)\");\n\n// NOTE: signature is omitted from the Delegation typehash\nbytes32 constant DELEGATION_TYPEHASH = keccak256(\n    \"Delegation(address delegate,address delegator,bytes32 authority,Caveat[] caveats,uint256 salt)Caveat(address enforcer,bytes terms)\"\n);\n\nbytes32 constant CAVEAT_TYPEHASH = keccak256(\"Caveat(address enforcer,bytes terms)\");\n",
+      "license": "MIT AND Apache-2.0"
+    },
+    "lib/delegation-framework/src/utils/Types.sol": {
+      "keccak256": "0xda4094eb4839087157f34750fb4d1a2d6241fbb8ee0d41fd1f2905209e6a05b0",
+      "urls": [],
+      "content": "// SPDX-License-Identifier: MIT AND Apache-2.0\npragma solidity 0.8.23;\n\nimport { PackedUserOperation } from \"@account-abstraction/interfaces/PackedUserOperation.sol\";\nimport { Execution } from \"@erc7579/interfaces/IERC7579Account.sol\";\nimport { ModeCode, CallType, ExecType, ModeSelector, ModePayload } from \"@erc7579/lib/ModeLib.sol\";\n\n/**\n * @title EIP712Domain\n * @notice Struct representing the EIP712 domain for signature validation.\n */\nstruct EIP712Domain {\n    string name;\n    string version;\n    uint256 chainId;\n    address verifyingContract;\n}\n\n/**\n * @title Delegation\n * @notice Struct representing a delegation to give a delegate authority to act on behalf of a delegator.\n * @dev `signature` is ignored during delegation hashing so it can be manipulated post signing.\n */\nstruct Delegation {\n    address delegate;\n    address delegator;\n    bytes32 authority;\n    Caveat[] caveats;\n    uint256 salt;\n    bytes signature;\n}\n\n/**\n * @title Caveat\n * @notice Struct representing a caveat to enforce on a delegation.\n * @dev `args` is ignored during caveat hashing so it can be manipulated post signing.\n */\nstruct Caveat {\n    address enforcer;\n    bytes terms;\n    bytes args;\n}\n\n/**\n * @title P256 Public Key\n * @notice Struct containing the X and Y coordinates of a P256 public key.\n */\nstruct P256PublicKey {\n    uint256 x;\n    uint256 y;\n}\n\nstruct DecodedWebAuthnSignature {\n    uint256 r;\n    uint256 s;\n    bytes authenticatorData;\n    bool requireUserVerification;\n    string clientDataJSONPrefix;\n    string clientDataJSONSuffix;\n    uint256 responseTypeLocation;\n}\n",
+      "license": "MIT AND Apache-2.0"
+    },
+    "src/enforcers/PragmaFeeEnforcer.sol": {
+      "keccak256": "0xf67daa9923255e80bab5009d6a23287282a6e8b1326338636c3211ccd6a25c12",
+      "urls": [],
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity 0.8.23;\n\nimport { ModeLib } from \"@erc7579/lib/ModeLib.sol\";\nimport { ExecutionLib } from \"@erc7579/lib/ExecutionLib.sol\";\nimport { IERC20 } from \"@openzeppelin/contracts/token/ERC20/IERC20.sol\";\n\nimport { CaveatEnforcer } from \"../../lib/delegation-framework/src/enforcers/CaveatEnforcer.sol\";\nimport { Execution, Delegation, ModeCode } from \"../../lib/delegation-framework/src/utils/Types.sol\";\nimport { IDelegationManager } from \"../../lib/delegation-framework/src/interfaces/IDelegationManager.sol\";\n\n/**\n * @title PragmaFeeEnforcer\n * @notice Enforces protocol fee collection for Pragma operations (swaps, stakes, NFT purchases).\n * @dev This enforcer ensures that a 0.5% fee is collected and sent to the Pragma treasury\n * before any operation executes. It handles both native token (MON) and ERC20 token fees.\n *\n * Security Features:\n * - Treasury address is immutable (hardcoded at deployment)\n * - Requires ArgsEqualityCheckEnforcer to prevent front-running\n * - Validates payment received via balance checking\n * - Uses allowance delegation pattern for atomic fee collection\n *\n * Architecture:\n * - User signs fee allowance delegation (transfer fee to treasury)\n * - User signs main operation delegation (with this enforcer as caveat)\n * - Session key redeems main delegation\n * - This enforcer's afterAllHook redeems fee allowance delegation\n * - Fee transfer executes, then main operation completes\n *\n * @dev Based on MetaMask DTK's NativeTokenPaymentEnforcer\n * @dev This enforcer operates only in default execution mode\n */\ncontract PragmaFeeEnforcer is CaveatEnforcer {\n    using ModeLib for ModeCode;\n\n    ////////////////////////////// State //////////////////////////////\n\n    /// @dev The Delegation Manager contract to redeem the delegation\n    IDelegationManager public immutable delegationManager;\n\n    /// @dev The enforcer used to compare args and terms (prevents front-running)\n    address public immutable argsEqualityCheckEnforcer;\n\n    /// @dev The Pragma treasury address (receives all fees)\n    address public immutable TREASURY;\n\n    /// @dev Maximum fee amount to prevent misconfiguration (e.g., 1000 MON)\n    uint256 public constant MAX_FEE_AMOUNT = 1000 ether;\n\n    /// @dev Contract version for deployment verification and frontend integration\n    string public constant VERSION = \"1.0.1\";\n\n    ////////////////////////////// Events //////////////////////////////\n\n    /**\n     * @notice Emitted when a fee payment is validated and collected\n     * @param sender The address that called the delegation manager (session key)\n     * @param delegationHash The hash of the main delegation\n     * @param isNative Whether the fee was in native token (MON) or ERC20\n     * @param token The token address (address(0) for native)\n     * @param delegator The address of the delegator (user's smart account)\n     * @param redeemer The address redeeming the delegation (session key)\n     * @param expectedAmount The expected fee amount (from terms)\n     * @param actualAmount The actual amount received (may differ for fee-on-transfer tokens)\n     * @param balanceBefore Treasury balance before fee collection\n     * @param balanceAfter Treasury balance after fee collection\n     */\n    event ValidatedPayment(\n        address indexed sender,\n        bytes32 indexed delegationHash,\n        bool indexed isNative,\n        address token,\n        address delegator,\n        address redeemer,\n        uint256 expectedAmount,\n        uint256 actualAmount,\n        uint256 balanceBefore,\n        uint256 balanceAfter\n    );\n\n    /**\n     * @notice Emitted when fee-on-transfer token detected (actualReceived < expectedAmount)\n     * @dev Helps monitor token fees and track actual revenue vs expected\n     * @param delegationHash The hash of the main delegation\n     * @param token The token address charging the fee\n     * @param expectedAmount The expected fee amount from terms\n     * @param actualReceived The actual amount received after token's transfer fee\n     * @param feePercentage The token's transfer fee percentage (in basis points, e.g., 1000 = 10%)\n     */\n    event FeeOnTransferDetected(\n        bytes32 indexed delegationHash,\n        address indexed token,\n        uint256 expectedAmount,\n        uint256 actualReceived,\n        uint256 feePercentage\n    );\n\n    ////////////////////////////// Constructor //////////////////////////////\n\n    /**\n     * @notice Constructs the PragmaFeeEnforcer\n     * @param _delegationManager The DelegationManager contract address\n     * @param _argsEqualityCheckEnforcer The ArgsEqualityCheckEnforcer address\n     * @param _treasury The Pragma treasury address (immutable)\n     */\n    constructor(\n        IDelegationManager _delegationManager,\n        address _argsEqualityCheckEnforcer,\n        address _treasury\n    ) {\n        require(address(_delegationManager) != address(0), \"PragmaFeeEnforcer:invalid-delegation-manager\");\n        require(_argsEqualityCheckEnforcer != address(0), \"PragmaFeeEnforcer:invalid-args-enforcer\");\n        require(_treasury != address(0), \"PragmaFeeEnforcer:invalid-treasury\");\n        require(_treasury.code.length == 0, \"PragmaFeeEnforcer:treasury-must-be-eoa\");\n\n        delegationManager = _delegationManager;\n        argsEqualityCheckEnforcer = _argsEqualityCheckEnforcer;\n        TREASURY = _treasury;\n    }\n\n    ////////////////////////////// External Functions //////////////////////////////\n\n    /**\n     * @notice Enforces fee payment after the main delegation executes\n     * @dev This hook runs AFTER the main operation completes\n     *\n     * Flow:\n     * 1. Decode fee parameters from terms (isNative, token, amount)\n     * 2. Decode allowance delegation from args\n     * 3. Verify ArgsEqualityCheckEnforcer is first caveat\n     * 4. Set args for ArgsEqualityCheckEnforcer (prevents front-running)\n     * 5. Build execution calldata (native transfer or ERC20 transfer)\n     * 6. Check treasury balance before\n     * 7. Redeem allowance delegation (executes fee transfer)\n     * 8. Check treasury balance after\n     * 9. Verify fee was received\n     *\n     * @param _terms Encoded 85 bytes: isNative (1 byte) + token (20 bytes) + amount (32 bytes) + swapAmount (32 bytes)\n     * @param _args Encoded allowance delegation(s) for fee payment\n     * @param _mode The execution mode (must be default)\n     * @param _delegationHash The hash of the main delegation\n     * @param _delegator The address of the delegator\n     * @param _redeemer The address redeeming the delegation\n     */\n    function afterAllHook(\n        bytes calldata _terms,\n        bytes calldata _args,\n        ModeCode _mode,\n        bytes calldata,\n        bytes32 _delegationHash,\n        address _delegator,\n        address _redeemer\n    )\n        public\n        override\n        onlyDefaultExecutionMode(_mode)\n    {\n        require(msg.sender == address(delegationManager), \"PragmaFeeEnforcer:only-delegation-manager\");\n\n        // Decode the fee parameters\n        (bool isNative, address token, uint256 amount) = getTermsInfo(_terms);\n\n        // Prepare and execute fee collection\n        (uint256 actualReceived, uint256 balanceBefore, uint256 balanceAfter) =\n            _redeemFeePayment(_args, _delegationHash, _redeemer, isNative, token, amount);\n\n        // Emit event with actual payment details\n        emit ValidatedPayment(\n            msg.sender,\n            _delegationHash,\n            isNative,\n            token,\n            _delegator,\n            _redeemer,\n            amount,\n            actualReceived,\n            balanceBefore,\n            balanceAfter\n        );\n    }\n\n    /**\n     * @dev Internal function to redeem fee payment delegation\n     *\n     * Fee payment is a single operation requiring exactly one allowance delegation:\n     * - Delegation specifies transfer of fee amount to treasury\n     * - Must have ArgsEqualityCheckEnforcer as first caveat (anti front-running)\n     * - Args set by this contract at runtime (delegationHash + redeemer)\n     *\n     * Reduces stack depth in afterAllHook\n     * @return actualReceived The actual amount received (may differ for fee-on-transfer tokens)\n     * @return balanceBefore Treasury balance before fee collection\n     * @return balanceAfter Treasury balance after fee collection\n     */\n    function _redeemFeePayment(\n        bytes calldata _args,\n        bytes32 _delegationHash,\n        address _redeemer,\n        bool isNative,\n        address token,\n        uint256 amount\n    ) internal returns (uint256 actualReceived, uint256 balanceBefore, uint256 balanceAfter) {\n        // Decode allowance delegations\n        Delegation[] memory allowanceDelegations = abi.decode(_args, (Delegation[]));\n\n        // Fee payment is a single operation - requires exactly 1 delegation\n        require(\n            allowanceDelegations.length == 1,\n            \"PragmaFeeEnforcer:must-have-single-allowance-delegation\"\n        );\n\n        // Validate token address for ERC20 payments\n        if (!isNative) {\n            require(token != address(0), \"PragmaFeeEnforcer:invalid-token-address\");\n            require(token.code.length > 0, \"PragmaFeeEnforcer:token-must-be-contract\");\n        }\n\n        // Sanity check: fee amount must not exceed maximum\n        require(amount <= MAX_FEE_AMOUNT, \"PragmaFeeEnforcer:fee-exceeds-maximum\");\n\n        // Verify ArgsEqualityCheckEnforcer is the first caveat (prevents front-running)\n        require(\n            allowanceDelegations[0].caveats.length > 0\n                && allowanceDelegations[0].caveats[0].enforcer == argsEqualityCheckEnforcer,\n            \"PragmaFeeEnforcer:missing-argsEqualityCheckEnforcer\"\n        );\n\n        // Set the args for ArgsEqualityCheckEnforcer (delegationHash + redeemer)\n        allowanceDelegations[0].caveats[0].args = abi.encodePacked(_delegationHash, _redeemer);\n\n        // Prepare execution\n        bytes[] memory permissionContexts = new bytes[](1);\n        permissionContexts[0] = abi.encode(allowanceDelegations);\n\n        bytes[] memory executionCallDatas = new bytes[](1);\n        if (isNative) {\n            executionCallDatas[0] = ExecutionLib.encodeSingle(TREASURY, amount, hex\"\");\n        } else {\n            executionCallDatas[0] = ExecutionLib.encodeSingle(\n                token, 0, abi.encodeWithSelector(IERC20.transfer.selector, TREASURY, amount)\n            );\n        }\n\n        ModeCode[] memory encodedModes = new ModeCode[](1);\n        encodedModes[0] = ModeLib.encodeSimpleSingle();\n\n        // Get balance before\n        balanceBefore = isNative ? TREASURY.balance : IERC20(token).balanceOf(TREASURY);\n\n        // Execute payment\n        delegationManager.redeemDelegations(permissionContexts, encodedModes, executionCallDatas);\n\n        // Verify payment received (supports fee-on-transfer tokens with up to 10% fee)\n        balanceAfter = isNative ? TREASURY.balance : IERC20(token).balanceOf(TREASURY);\n\n        // Protect against malicious tokens manipulating treasury balance\n        require(balanceAfter >= balanceBefore, \"PragmaFeeEnforcer:balance-decreased\");\n\n        actualReceived = balanceAfter - balanceBefore;\n        uint256 minExpected = (amount * 90) / 100; // 90% threshold for fee-on-transfer tokens\n\n        // Emit event if fee-on-transfer detected (actual < expected)\n        if (actualReceived < amount) {\n            uint256 feePercentage = ((amount - actualReceived) * 10000) / amount; // basis points\n            emit FeeOnTransferDetected(_delegationHash, token, amount, actualReceived, feePercentage);\n        }\n\n        require(actualReceived >= minExpected, \"PragmaFeeEnforcer:insufficient-payment\");\n    }\n\n    /**\n     * @notice Decodes the terms used in this caveat enforcer\n     * @param _terms Encoded 85 bytes:\n     *   - byte 0: isNative flag (1 = native, 0 = ERC20)\n     *   - bytes 1-20: token address (ignored if isNative = true)\n     *   - bytes 21-52: fee amount (32 bytes)\n     *   - bytes 53-84: swap amount (32 bytes, original amount before fee)\n     * @return isNative_ Whether the fee is in native token\n     * @return token_ The ERC20 token address (address(0) if native)\n     * @return amount_ The fee amount to collect\n     */\n    function getTermsInfo(bytes calldata _terms)\n        public\n        pure\n        returns (bool isNative_, address token_, uint256 amount_)\n    {\n        require(_terms.length == 85, \"PragmaFeeEnforcer:invalid-terms-length\");\n\n        isNative_ = uint8(_terms[0]) == 1;\n        token_ = address(bytes20(_terms[1:21]));\n        amount_ = uint256(bytes32(_terms[21:53]));\n        uint256 swapAmount = uint256(bytes32(_terms[53:85]));\n\n        require(amount_ > 0, \"PragmaFeeEnforcer:amount-must-be-positive\");\n        require(swapAmount > 0, \"PragmaFeeEnforcer:swap-amount-must-be-positive\");\n\n        // Option A: Percentage-based minimum (0.01% of swap amount)\n        // This ensures fees scale with swap value, works for all token decimals\n        uint256 minFee = swapAmount / 10000; // 0.01% = 1 basis point\n        require(amount_ >= minFee, \"PragmaFeeEnforcer:amount-too-small\");\n    }\n}\n",
+      "license": "MIT"
+    }
+  },
+  "version": 1
+}

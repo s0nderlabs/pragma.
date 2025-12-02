@@ -46,13 +46,13 @@
 import { Address, Hex, getAddress, toHex } from "viem";
 import {
   createDelegation,
-  getDeleGatorEnvironment,
   type Delegation,
   type Caveats,
 } from "@metamask/delegation-toolkit";
 
 import { buildDelegationTypedData } from "../../delegations/typedData.js";
 import { ZERO_SALT } from "../../delegations/hybrid.js";
+import { getDTKEnvironment } from "../config.js";
 
 // ============================================================================
 // Constants
@@ -145,12 +145,12 @@ const buildUnwrapCaveats = (
  * @example
  * ```typescript
  * const unwrapDelegation = createUnwrapDelegation({
- *   wmonAddress: "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701",
+ *   wmonAddress: "0x3bd359c1119da7da1d913d1c4d2b7c461115433a", // mainnet
  *   amount: parseEther("0.5"), // Unwrap 0.5 WMON
  *   delegator: userAddress,
  *   sessionKey: sessionKeyAddress,
  *   nonce: 10,
- *   chainId: 10143,
+ *   chainId: 143, // mainnet
  *   delegationManager: DM_ADDRESS,
  * });
  * ```
@@ -183,8 +183,8 @@ export const createUnwrapDelegation = (
   // Build caveats (timestamp, nonce, limitedCalls: 1)
   const caveats = buildUnwrapCaveats(nonce, expiresAt);
 
-  // Get DTK environment
-  const environment = getDeleGatorEnvironment(chainId);
+  // Get DTK environment (uses workaround chain ID - see config.ts)
+  const environment = getDTKEnvironment();
 
   // Create unsigned delegation
   const delegation = createDelegation({

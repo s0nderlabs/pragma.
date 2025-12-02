@@ -41,6 +41,7 @@ import {
 
 import { SESSION_KEY_FUNDING_AMOUNT } from "./sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
+import { emitProgress } from "../progress/emitter.js";
 import { createNativeTransferDelegation } from "../delegation/transferDelegation.js";
 import {
   DELEGATION_MANAGER_ADDRESS,
@@ -183,6 +184,7 @@ export async function fundSessionKeyViaDelegation(
   });
 
   // Step 6: Submit transaction via delegation redemption
+  emitProgress("Executing Funding Transaction...");
   const txHash = await redeemDelegations(
     sessionWallet,
     publicClient,
@@ -195,6 +197,7 @@ export async function fundSessionKeyViaDelegation(
   );
 
   // Step 7: Wait for confirmation
+  emitProgress("Waiting for Confirmation...");
   const receipt = await publicClient.waitForTransactionReceipt({
     hash: txHash,
   });

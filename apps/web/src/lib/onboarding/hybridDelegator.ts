@@ -16,8 +16,8 @@ import {
   type MonadPublicClient,
   type WalletWithAddress,
 } from "../../lib/clients";
-import { MONAD_CHAIN_ID, PIMLICO_BUNDLER_URL } from "../../lib/config";
-import { sponsorUserOperation, type PimlicoSponsorship } from "../../lib/pimlico";
+import { PIMLICO_BUNDLER_URL } from "../../lib/config";
+import { sponsorUserOperation } from "../../lib/pimlico";
 import { fetchDelegatorNonce } from "@pragma/core/delegations/nonce";
 import { buildSponsorRequest, applySponsorshipToUserOp, type SignableUserOperation } from "./paymasterUtils";
 
@@ -96,12 +96,20 @@ export const createHybridDelegatorHandle = async (
   ownerAddress: Address,
 ): Promise<HybridDelegatorHandle> => {
   const publicClient = createMonadPublicClient();
+
+  // Use testnet chain ID (10143) to get DTK environment since:
+  // 1. DTK doesn't have mainnet (143) in its registry yet
+  // 2. All DTK contracts are deployed at same CREATE2 addresses on both networks
+  const DTK_CHAIN_ID_FOR_ADDRESSES = 10143;
+  const environment = getDeleGatorEnvironment(DTK_CHAIN_ID_FOR_ADDRESSES);
+
   const smartAccount = await toMetaMaskSmartAccount({
     client: publicClient,
     implementation: Implementation.Hybrid,
     signer: { walletClient: walletClient as WalletClient<Transport, typeof monadChain, Account> },
     deployParams: [ownerAddress, [], [], []],
     deploySalt: "0x",
+    environment,  // Pass testnet environment (has same addresses via CREATE2)
   });
 
   // Create authenticated transport for Pimlico bundler
@@ -133,7 +141,7 @@ export const createHybridDelegatorHandle = async (
   return {
     smartAccount,
     delegator: getAddress(address),
-    environment: getDeleGatorEnvironment(MONAD_CHAIN_ID),
+    environment,
     publicClient,
     bundlerClient,
     owner: ownerAddress,

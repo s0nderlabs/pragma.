@@ -16,7 +16,6 @@ import { formatUnits, parseUnits, getAddress, type Address } from "viem";
 
 import { normalizeBalances } from "../../monorail/balances.js";
 import { createErrorFromCode } from "../../errors/index.js";
-import { emitProgress } from "../progress/emitter.js";
 
 // Native MON token address (0x0... represents native token)
 const MON_ADDRESS = "0x0000000000000000000000000000000000000000";
@@ -100,9 +99,8 @@ export const getBalanceTool = tool(
         });
       }
 
-      // Progress: Checking balance
+      // Normalize token input
       const tokenNormalized = token.toUpperCase().trim();
-      emitProgress(`Checking ${tokenNormalized === "ALL" ? "all token" : tokenNormalized} balance...`);
 
       // Fetch all balances via proxy (avoids CORS issues with direct Monorail calls)
       // Use authenticated fetch from configurable if available (browser context)
@@ -272,7 +270,7 @@ export const getBalanceTool = tool(
       if (!targetBalance) {
         // Special handling for WMON - fetch directly from contract if not in Monorail data
         if (tokenNormalized === "WMON") {
-          const WMON_ADDRESS = "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701";
+          const WMON_ADDRESS = "0x3bd359c1119da7da1d913d1c4d2b7c461115433a"; // mainnet
           const ERC20_ABI = [{
             type: "function",
             name: "balanceOf",
@@ -365,8 +363,7 @@ export const getBalanceTool = tool(
   },
   {
     name: "getBalance",
-    description:
-      "Get user's balance for a specific token OR display complete portfolio with USD values. Pass token='all' when user asks 'show my balances', 'what's my portfolio', 'show all my tokens', 'what do I have', etc. Returns all non-zero token balances with USD values and total portfolio value. Pass specific token symbol when user asks about one token ('show my MON balance', 'how much USDC do I have') or uses amount keywords ('swap all my MON'). Always call this BEFORE executing swaps/transfers when user uses amount keywords like 'all', 'max', 'half', 'quarter'. Balances include USD values when available for better clarity.",
+    description: "Get balance for specific token. Use 'all' for portfolio. Call BEFORE swaps when user says 'all/half/max'. Call search_tool_docs('getBalance') for detailed usage.",
     schema: getBalanceSchema,
   }
 );

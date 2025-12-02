@@ -19,6 +19,7 @@ import { formatUnits, parseUnits, getAddress, type Address, type PublicClient } 
 import { normalizeBalances } from "../../monorail/balances.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import { emitProgress } from "../progress/emitter.js";
+import { getNameForAddress } from "../utils/nameResolution.js";
 
 // Native MON token address (0x0... represents native token)
 const MON_ADDRESS = "0x0000000000000000000000000000000000000000";
@@ -103,6 +104,16 @@ export const getAllBalancesTool = tool(
         throw createErrorFromCode("SESSION_INCOMPLETE", {
           message: "User address not found in session. Cannot fetch balances.",
         });
+      }
+
+      // Try to resolve user's NAD/ENS name (optional enhancement)
+      let resolvedName: Awaited<ReturnType<typeof getNameForAddress>> = null;
+      if (publicClient) {
+        try {
+          resolvedName = await getNameForAddress(userAddress, publicClient);
+        } catch {
+          // Name resolution failed, continue without name
+        }
       }
 
       // Generate tool signature for progress routing
@@ -253,13 +264,18 @@ export const getAllBalancesTool = tool(
         })
         .filter((b) => b !== null);
 
+      // Format address display (with name if available)
+      const addressDisplay = resolvedName
+        ? `${resolvedName.name} (${userAddress})`
+        : userAddress;
+
       // Build response
       if (nonZeroBalances.length === 0) {
         return `**Portfolio Balance**
 
 No tokens found. Your wallet appears empty.
 
-Address: ${userAddress}`;
+Address: ${addressDisplay}`;
       }
 
       const balanceLines = nonZeroBalances
@@ -275,7 +291,7 @@ Address: ${userAddress}`;
 
 ${balanceLines}${portfolioValueLine}
 
-Address: ${userAddress}
+Address: ${addressDisplay}
 Tokens: ${nonZeroBalances.length}
 
 Source: Monorail API (cached)`;

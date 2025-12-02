@@ -16,6 +16,7 @@ import { getSessionKeyBalanceTool } from "./getSessionKeyBalanceTool.js";
 import { getSessionKeyPrivateKeyTool } from "./getSessionKeyPrivateKeyTool.js";
 import { listVerifiedTokensTool } from "./listVerifiedTokensTool.js";
 import { getTokenInfoTool } from "./getTokenInfoTool.js";
+import { resolveNameTool } from "./resolveNameTool.js";
 
 // Session Key Management Tools
 import { checkSessionKeyBalanceTool } from "./checkSessionKeyBalanceTool.js";
@@ -83,6 +84,7 @@ export const h2ToolRegistry = [
   getSessionKeyPrivateKeyTool,
   listVerifiedTokensTool,
   getTokenInfoTool,
+  resolveNameTool,
 
   // Session key management tools
   checkSessionKeyBalanceTool,
@@ -133,6 +135,7 @@ export {
   getSessionKeyPrivateKeyTool,
   listVerifiedTokensTool,
   getTokenInfoTool,
+  resolveNameTool,
 
   // Session key management tools
   checkSessionKeyBalanceTool,

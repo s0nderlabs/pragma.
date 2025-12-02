@@ -12,9 +12,10 @@
 
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import type { Address } from "viem";
+import type { Address, PublicClient } from "viem";
 
 import { createErrorFromCode } from "../../errors/index.js";
+import { getNameForAddress, formatAddressWithName } from "../utils/nameResolution.js";
 
 // ============================================================================
 // Tool Implementation
@@ -42,12 +43,23 @@ const getAccountInfoSchema = z.object({
 export const getAccountInfoTool = tool(
   async (_input, config) => {
     try {
-      // Get user address and session data from config
+      // Get user address, session data, and publicClient from config
       const userAddress = config?.configurable?.userAddress as Address | undefined;
       const sessionData = config?.configurable?.sessionData as any;
+      const publicClient = config?.configurable?.publicClient as PublicClient | undefined;
 
       if (!userAddress) {
         return "No account session found. Please login with `/login` to connect your wallet.";
+      }
+
+      // Try to resolve user's NAD/ENS name (optional enhancement)
+      let resolvedName: Awaited<ReturnType<typeof getNameForAddress>> = null;
+      if (publicClient) {
+        try {
+          resolvedName = await getNameForAddress(userAddress, publicClient);
+        } catch {
+          // Name resolution failed, continue without name
+        }
       }
 
       // Build account info response
@@ -56,9 +68,13 @@ export const getAccountInfoTool = tool(
       lines.push("📋 Your Account Information:");
       lines.push("");
 
-      // Smart Account (HybridDelegator)
+      // Smart Account (HybridDelegator) - show name if available
       lines.push(`**Smart Account** (HybridDelegator)`);
-      lines.push(`  ${userAddress}`);
+      if (resolvedName) {
+        lines.push(`  ${resolvedName.name} (${userAddress})`);
+      } else {
+        lines.push(`  ${userAddress}`);
+      }
       lines.push("");
 
       // Additional session details if available

@@ -210,6 +210,8 @@ export function useH2_5Agent() {
         return 'Getting Account Info';
       case 'listVerifiedTokens':
         return 'Listing Verified Tokens';
+      case 'resolveName':
+        return 'Looking Up Address';
 
       // Session key operations
       case 'checkSessionKeyBalance':

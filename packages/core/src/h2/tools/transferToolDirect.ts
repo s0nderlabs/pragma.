@@ -37,6 +37,7 @@ import {
 } from "../delegation/transferDelegation.js";
 import { getMinBalanceForOperation } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
+import { resolveName } from "../utils/nameResolution.js";
 import {
   DELEGATION_MANAGER_ADDRESS,
   NONCE_ENFORCER_ADDRESS,
@@ -122,22 +123,33 @@ export const transferTool = tool(
         });
       }
 
-      // Validate recipient address
-      if (!isAddress(recipientAddress)) {
-        throw createErrorFromCode("INVALID_ADDRESS", {
-          message: `Invalid recipient address: ${recipientAddress}`,
-        });
-      }
-
-      const recipient = getAddress(recipientAddress);
-      const isNativeTransfer = isNativeMON(tokenSymbol);
-
       // Generate tool signature for progress routing
       const toolSignature = `transfer:${Date.now()}`;
 
-      // Initial progress - truncate recipient for display
-      const shortRecipient = `${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)}`;
-      emitProgress(`Transferring ${tokenSymbol} to ${shortRecipient}...`, "transfer", toolSignature, `Transfer ${tokenSymbol}`);
+      // Resolve recipient (supports 0x, .nad, .eth)
+      emitProgress(`Resolving recipient...`, "transfer", toolSignature, `Transfer ${tokenSymbol}`);
+
+      let recipient: Address;
+      let recipientDisplay: string;
+
+      try {
+        const resolved = await resolveName(recipientAddress, publicClient);
+        recipient = resolved.address;
+        // Format display: "name.nad (0x1234...5678)" or just "0x1234...5678"
+        const shortAddr = `${recipient.slice(0, 6)}...${recipient.slice(-4)}`;
+        recipientDisplay = resolved.nameType !== "address"
+          ? `${resolved.originalInput} (${shortAddr})`
+          : shortAddr;
+      } catch (resolveError) {
+        throw createErrorFromCode("INVALID_ADDRESS", {
+          message: (resolveError as Error).message,
+        });
+      }
+
+      const isNativeTransfer = isNativeMON(tokenSymbol);
+
+      // Progress with resolved recipient
+      emitProgress(`Transferring ${tokenSymbol} to ${recipientDisplay}...`, "transfer", toolSignature);
 
       let amountWei: bigint;
       let amountFormatted: string;
@@ -368,7 +380,7 @@ The transfer has been confirmed on-chain!`;
     schema: z.object({
       tokenSymbol: z.string().describe("Token symbol to transfer (e.g., 'USDC', 'MON', 'DAK')"),
       amount: z.string().describe("Amount to transfer (decimal string like '100')"),
-      recipientAddress: z.string().describe("Recipient address (0x...)"),
+      recipientAddress: z.string().describe("Recipient address (0x...), NAD name (.nad), or ENS name (.eth)"),
     }),
   }
 );

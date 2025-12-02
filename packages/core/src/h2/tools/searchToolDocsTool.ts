@@ -149,8 +149,8 @@ const toolDocs: Record<string, string> = {
   // Swap Tools
   getSwapQuote: `**getSwapQuote** - Get swap price from Monorail DEX aggregator
 
-**Protocol Fee:** 0.5% deducted from input amount (Uniswap pattern)
-- Example: User swaps 1.0 USDC → Actually swaps 0.995 USDC (0.005 fee)
+**Protocol Fee:** 1% deducted from input amount (Uniswap pattern)
+- Example: User swaps 1.0 USDC → Actually swaps 0.99 USDC (0.01 fee)
 - User only needs exactly what they specify
 
 **Returns:**
@@ -221,8 +221,8 @@ const toolDocs: Record<string, string> = {
   // aPriori Staking Tools
   stake: `**stake** - Stake MON → aprMON via aPriori liquid staking
 
-**Protocol Fee:** 0.5% deducted from stake amount
-- Example: Stake 1.0 MON → 0.995 MON staked → receive aprMON
+**Protocol Fee:** 1% deducted from stake amount
+- Example: Stake 1.0 MON → 0.99 MON staked → receive aprMON
 
 **Returns:** aprMON which appreciates as staking + MEV rewards accrue
 

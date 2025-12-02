@@ -521,9 +521,9 @@ export const getSwapQuoteTool = tool(
       // Return conversational quote (aggregator selection is automatic/hidden from user)
       return `${slippageCappedWarning}Swap quote ready:
 
-• From: ${amount} ${fromToken} (${netSwapFormatted} ${fromToken} after 0.5% fee)
+• From: ${amount} ${fromToken} (${netSwapFormatted} ${fromToken} after 1% fee)
 • To: ~${finalOutputFormatted} ${isUnverified ? '⚠️ ' : ''}${toToken}
-• Protocol Fee: ${protocolFeeFormatted} ${fromToken} (0.5%)
+• Protocol Fee: ${protocolFeeFormatted} ${fromToken} (1%)
 • Route: ${bestQuote.routeInfo || "Best available"}
 • Gas Estimate: ${bestQuote.gasEstimate ? formatUnits(bestQuote.gasEstimate, 18) : "~0.002"} MON
 • Slippage allowed: ${(validatedSlippageBps / 100).toFixed(2)}% (${validatedSlippageBps} bps)

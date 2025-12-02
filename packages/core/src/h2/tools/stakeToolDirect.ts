@@ -4,14 +4,14 @@
  * Stakes MON → aprMON via aPriori liquid staking protocol in one step.
  *
  * Fee Structure:
- * - Pragma: 0.5% on input (MON being staked)
+ * - Pragma: 1% on input (MON being staked)
  * - Fee sent to Pragma treasury
  * - Remaining MON staked into aPriori
  *
  * Example: User stakes 1.0 MON
- * - Pragma fee: 0.005 MON (0.5%)
- * - Staked: 0.995 MON
- * - Received: ~0.995 aprMON (varies by protocol exchange rate)
+ * - Pragma fee: 0.01 MON (1%)
+ * - Staked: 0.99 MON
+ * - Received: ~0.99 aprMON (varies by protocol exchange rate)
  */
 
 import { tool } from "langchain";
@@ -302,7 +302,7 @@ export const stakeTool = tool(
 
 📊 Receipt:
 • Input: ${amountFormatted} MON
-• Pragma Fee: ${feeAmountFormatted} MON (0.5%)
+• Pragma Fee: ${feeAmountFormatted} MON (1%)
 • Staked: ${netStakeAmountFormatted} MON → aprMON
 • aprMON Balance: ${aprMonBalanceFormatted}
 • Tx Hash: ${txHash}
@@ -345,7 +345,7 @@ Your MON is now earning staking rewards through aPriori. aprMON appreciates in v
   },
   {
     name: "stake",
-    description: "Stake MON → aprMON via aPriori. 0.5% fee. Executes immediately. Call search_tool_docs('stake') for detailed usage.",
+    description: "Stake MON → aprMON via aPriori. 1% fee. Executes immediately. Call search_tool_docs('stake') for detailed usage.",
     schema: z.object({
       amount: z.string().describe("Amount of MON to stake (decimal string like '1.0')"),
     }),

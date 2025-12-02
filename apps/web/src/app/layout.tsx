@@ -22,8 +22,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Pragma Console",
-  description: "HybridDelegator onboarding and delegated execution for Monad",
+  title: "Pragma",
+  description: "Natural language interface for crypto",
 };
 
 // Viewport configuration with safe area support for iOS notch/dynamic island

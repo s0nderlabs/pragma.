@@ -1,13 +1,13 @@
 /**
  * Vibetrading Tool - Beta Tester Easter Egg
  *
- * When users type "/vibetrading", the agent claims 1.5 MON for them.
+ * When users type "/vibetrading", the agent claims 5 MON for them.
  * This is a one-time airdrop for beta testers.
  *
  * Example flows:
  * - User: "/vibetrading"
- * - Agent: calls claimVibetrading() → API sends 1.5 MON
- * - Agent: "🎉 Welcome to the vibe! Just sent 1.5 MON to your account..."
+ * - Agent: calls claimVibetrading() → API sends 5 MON
+ * - Agent: "🎉 Welcome to the vibe! Just sent 5 MON to your account..."
  */
 
 import { tool } from "@langchain/core/tools";
@@ -25,7 +25,7 @@ const vibetradingSchema = z.object({
 /**
  * Claim vibetrading beta tester airdrop
  *
- * This tool sends 1.5 MON to the user's smart account as a beta tester reward.
+ * This tool sends 5 MON to the user's smart account as a beta tester reward.
  * Each user can only claim once.
  *
  * @returns Status message about the claim
@@ -62,7 +62,6 @@ export const vibetradingTool = tool(
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         const errorMessage = errorData.error || `HTTP ${response.status}`;
-        console.error("[vibetradingTool] API error:", errorMessage);
         return JSON.stringify({
           status: "error",
           error: errorMessage,
@@ -91,7 +90,6 @@ export const vibetradingTool = tool(
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("[vibetradingTool] Error:", errorMessage);
       return JSON.stringify({
         status: "error",
         error: errorMessage,
@@ -100,7 +98,7 @@ export const vibetradingTool = tool(
   },
   {
     name: "claimVibetrading",
-    description: "Claim 1.5 MON airdrop. ONLY call when user types EXACTLY '/vibetrading'. Do NOT call for questions about vibetrading. Call search_tool_docs('claimVibetrading') for detailed usage.",
+    description: "Claim 5 MON airdrop. ONLY call when user types EXACTLY '/vibetrading'. Do NOT call for questions about vibetrading. Call search_tool_docs('claimVibetrading') for detailed usage.",
     schema: vibetradingSchema,
   }
 );

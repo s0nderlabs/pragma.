@@ -97,14 +97,7 @@ export const getAccountInfoTool = tool(
 
       return lines.join("\n");
     } catch (error) {
-      // Error logging
       const errorMessage = (error as Error).message;
-      const errorName = (error as Error).name;
-
-      console.error(`[getAccountInfo] Error fetching account info:`, {
-        error: errorName,
-        message: errorMessage,
-      });
 
       throw createErrorFromCode("SESSION_INCOMPLETE", {
         message: `Failed to retrieve account information: ${errorMessage}`,

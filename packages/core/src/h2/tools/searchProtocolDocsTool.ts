@@ -125,7 +125,6 @@ export const searchProtocolDocsTool = tool(
         });
 
         if (!response.ok) {
-          console.warn("[RAG] API returned error:", response.status);
           return "Using system prompt knowledge for protocol information.";
         }
 
@@ -136,15 +135,13 @@ export const searchProtocolDocsTool = tool(
         cacheResult(query, result);
 
         return result;
-      } catch (fetchError) {
+      } catch (_fetchError) {
         // API not available (e.g., during build or in non-web context)
-        console.warn("[RAG] API not available:", fetchError);
         return "Using system prompt knowledge for protocol information.";
       }
 
-    } catch (error) {
+    } catch (_error) {
       // Graceful fallback - don't crash the request
-      console.warn("[RAG] Search failed, falling back to system prompt:", error);
       return "Using system prompt knowledge for protocol information.";
     }
   },

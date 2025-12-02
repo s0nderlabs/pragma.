@@ -74,15 +74,8 @@ import { PROTOCOL_FEES } from "../config.js";
 
 const DEBUG = process.env.H2_DEBUG === "true";
 
-function debugLog(message: string, data?: any) {
-  if (DEBUG) {
-    console.log(`\n[H2 DEBUG] ${message}`);
-    if (data) {
-      console.log(JSON.stringify(data, (key, value) =>
-        typeof value === "bigint" ? value.toString() : value
-      , 2));
-    }
-  }
+function debugLog(_message: string, _data?: any) {
+  // Debug logging disabled in production
 }
 
 // ============================================================================
@@ -243,8 +236,7 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     });
   }
 
-  console.log("[executeSwap] ===== SWAP EXECUTION START =====");
-  console.log("[executeSwap] Quote details:", {
+  debugLog("Swap execution start", {
     quoteId,
     fromToken: quote.fromToken,
     toToken: quote.toToken,
@@ -342,13 +334,6 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     const currentQuote = quote.rankedQuotes[attemptIndex];
     const isLastAttempt = attemptIndex === quote.rankedQuotes.length - 1;
     const isRetry = attemptIndex > 0;
-
-    // Log which aggregator we're attempting
-    console.log(`[executeSwap] ${isRetry ? "RETRY: " : ""}Attempting aggregator ${attemptIndex + 1}/${quote.rankedQuotes.length}:`, {
-      aggregator: currentQuote.aggregator,
-      aggregatorAddress: currentQuote.aggregatorAddress,
-      expectedOutput: currentQuote.rawMinOutput.toString(),
-    });
 
     debugLog(`${isRetry ? "RETRY: " : ""}Attempting aggregator`, {
       attempt: attemptIndex + 1,
@@ -720,11 +705,6 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
       if (!sessionWallet) {
         // FALLBACK: Create temporary wallet using transport from params
         // WARNING: This creates nonce collisions in parallel execution
-        if (DEBUG || process.env.H2_WARN_NONCE) {
-          console.log("\n⚠️  Creating temporary session wallet (deprecated for parallel ops)");
-          console.log("   Recommendation: Pass sessionWallet via config to prevent nonce collisions\n");
-        }
-
         sessionWallet = createWalletClient({
           account: privateKeyToAccount(sessionKeyPrivateKey),
           chain: MONAD_CHAIN,
@@ -755,13 +735,6 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
 
         let txHash: Hex | undefined;
         try {
-          console.log(`[executeSwap] Executing ${bundle.label}:`, {
-            target: bundle.execution.target,
-            value: bundle.execution.value.toString(),
-            calldataLength: bundle.execution.callData.length,
-            calldataPrefix: bundle.execution.callData.slice(0, 10),
-          });
-
           txHash = await redeemDelegations(
             sessionWallet,
             publicClient,
@@ -773,7 +746,6 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
             }],
           );
 
-          console.log(`[executeSwap] ${bundle.label} tx sent:`, txHash);
           debugLog(`${bundle.label} transaction sent`, { hash: txHash });
 
           // Progress: Waiting for confirmation
@@ -795,23 +767,6 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
             finalTxHash = txHash;
           }
     } catch (error: any) {
-      // Detailed error logging for debugging
-      console.error(`[executeSwap] ${bundle.label} FAILED:`, {
-        message: error.message,
-        name: error.name,
-        cause: error.cause?.message,
-        details: error.details,
-        shortMessage: error.shortMessage,
-        metaMessages: error.metaMessages,
-        // Viem-specific error fields
-        data: error.data,
-        reason: error.reason,
-        // Contract call info
-        contractAddress: error.contractAddress,
-        functionName: error.functionName,
-        args: error.args,
-      });
-
       debugLog(`${bundle.label} FAILED`, {
         error: error.message,
         stack: error.stack,
@@ -1019,12 +974,6 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
       // RETRY LOGIC: Decide whether to try next aggregator or throw
       // ====================================================================
       lastError = error as Error;
-
-      console.error(`[executeSwap] Aggregator ${currentQuote.aggregator} FAILED:`, {
-        attempt: attemptIndex + 1,
-        total: quote.rankedQuotes.length,
-        error: lastError.message,
-      });
 
       debugLog("Aggregator execution failed", {
         aggregator: currentQuote.aggregator,

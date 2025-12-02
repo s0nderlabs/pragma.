@@ -118,11 +118,6 @@ You can proceed with swaps, transfers, and other operations.
 
 <!--PRAGMA_METADATA:${JSON.stringify(metadata)}-->`;
     } catch (error) {
-      // Log detailed error for debugging
-      console.error('[fundSessionKeyTool] Full error:', error);
-      console.error('[fundSessionKeyTool] Error message:', (error as Error).message);
-      console.error('[fundSessionKeyTool] Error stack:', (error as Error).stack);
-
       throw createErrorFromCode("TRANSACTION_EXECUTION_FAILED", {
         message: `Failed to fund session key: ${(error as Error).message}`,
         cause: error,

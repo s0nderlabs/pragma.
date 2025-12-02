@@ -263,17 +263,31 @@ const toolDocs: Record<string, string> = {
 
 **Examples:** "check my unstake status" or "are my MON ready to claim?"`,
 
-  // Easter Egg
-  claimVibetrading: `**claimVibetrading** - Claim 1.5 MON beta tester airdrop
+  // Pragma Concept
+  vibetrading: `**Vibetrading** - Pragma's coined term for AI-powered trading
+
+**Definition:** Vibetrading is trading through natural conversation with AI—the trading equivalent of "vibe coding."
+
+Just as vibe coding lets developers build software by describing what they want, vibetrading lets users interact with web3 and crypto by simply saying what they want to do.
+
+**Examples:**
+- "swap half my MON to USDC" → AI understands, gets quote, executes
+- "stake all my MON" → AI handles the entire flow
+- "what's my portfolio worth?" → AI checks balances and calculates
+
+**Why it matters:** No more complex UIs, wallet popups, or confusing DeFi interfaces. Just tell Pragma what you want in plain English.
+
+**Related:** Pragma is the platform that enables vibetrading on Monad.`,
+
+  // Easter Egg Tool
+  claimVibetrading: `**claimVibetrading** - Claim 5 MON beta tester airdrop
 
 **TRIGGER:** ONLY call when user types EXACTLY "/vibetrading" as their message
 
 **DO NOT call for:**
-- "what is vibetrading?" → Explain it instead
-- "tell me about vibetrading" → Explain it instead
+- "what is vibetrading?" → Look up 'vibetrading' concept instead
+- "tell me about vibetrading" → Look up 'vibetrading' concept instead
 - Any casual mentions
-
-**What is vibetrading?** Pragma's term for AI-powered trading through natural conversation—like vibe coding but for trading.
 
 **Returns JSON with status:**
 - status="success": Show celebratory message with amount + txHash

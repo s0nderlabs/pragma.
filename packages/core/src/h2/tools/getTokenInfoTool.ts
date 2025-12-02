@@ -192,9 +192,8 @@ export const getTokenInfoTool = tool(
             return formatUnverifiedToken(tokenData, isVerified);
           }
         }
-      } catch (error) {
+      } catch (_error) {
         // Search failed, continue to address lookup
-        console.error("[getTokenInfoTool] Symbol search error:", error);
       }
     }
 
@@ -215,9 +214,8 @@ export const getTokenInfoTool = tool(
           }
         }
         // 404 means token not found in Monorail, continue to onchain
-      } catch (error) {
+      } catch (_error) {
         // Proxy or API error, continue to onchain
-        console.error("[getTokenInfoTool] Token lookup error:", error);
       }
     }
 

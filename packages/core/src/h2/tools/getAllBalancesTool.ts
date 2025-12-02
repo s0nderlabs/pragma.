@@ -169,9 +169,8 @@ export const getAllBalancesTool = tool(
               balance: rpcMonBalance.toString(),
             };
           }
-        } catch (rpcError) {
+        } catch (_rpcError) {
           // RPC failed, continue with Monorail data only
-          console.warn("[getAllBalances] RPC MON balance fetch failed:", rpcError);
         }
 
         // WMON RPC Fallback: Check if WMON is missing from API response
@@ -213,8 +212,8 @@ export const getAllBalancesTool = tool(
                 categories: ["verified", "wrapped"],
               });
             }
-          } catch (wmonError) {
-            console.warn("[getAllBalances] WMON RPC balance fetch failed:", wmonError);
+          } catch (_wmonError) {
+            // WMON RPC balance fetch failed, continue
           }
         }
       }

@@ -32,10 +32,10 @@ const monadChain = {
   },
 } as const;
 
-// Vibetrading amount: exactly 1.5 MON
-const VIBETRADING_AMOUNT = parseEther("1.5");
-// Hex representation for Hypersync comparison: 0x14d1120d7b160000
-const VIBETRADING_AMOUNT_HEX = "0x14d1120d7b160000";
+// Vibetrading amount: exactly 5 MON
+const VIBETRADING_AMOUNT = parseEther("5");
+// Hex representation for Hypersync comparison: 0x4563918244F40000
+const VIBETRADING_AMOUNT_HEX = "0x4563918244F40000";
 
 // Hypersync configuration
 const HYPERSYNC_URL = process.env.MONAD_HYPERSYNC_URL ?? "https://monad.hypersync.xyz/query";
@@ -59,7 +59,7 @@ interface HypersyncResponse {
 
 /**
  * Check if user has already claimed via Hypersync
- * Queries transactions from admin address to user address with exact 1.5 MON value
+ * Queries transactions from admin address to user address with exact 5 MON value
  */
 async function hasAlreadyClaimedViaHypersync(
   adminAddress: Address,
@@ -98,7 +98,7 @@ async function hasAlreadyClaimedViaHypersync(
 
     const result: HypersyncResponse = await response.json();
 
-    // Check all transactions for exact 1.5 MON value
+    // Check all transactions for exact 5 MON value
     for (const dataItem of result.data) {
       if (!dataItem.transactions) continue;
 
@@ -122,7 +122,7 @@ async function hasAlreadyClaimedViaHypersync(
  * POST /api/vibetrading
  *
  * Easter egg endpoint for beta testers.
- * Sends 1.5 MON to the user's smart account (one-time only).
+ * Sends 5 MON to the user's smart account (one-time only).
  * Uses Hypersync to verify no duplicate claims.
  */
 export async function POST(request: NextRequest) {
@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send 1.5 MON to user's smart account
+    // Send 5 MON to user's smart account
     const txHash = await walletClient.sendTransaction({
       to: smartAccount,
       value: VIBETRADING_AMOUNT,
@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       txHash,
-      amount: "1.5 MON",
+      amount: "5 MON",
       message: "Welcome to vibetrading!",
       smartAccount,
     });

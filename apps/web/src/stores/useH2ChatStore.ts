@@ -43,6 +43,7 @@ function getToolDisplayName(toolName: string): string {
     getBalance: 'Getting Balance',
     getTokenInfo: 'Getting Token Info',
     listVerifiedTokens: 'Listing Verified Tokens',
+    resolveName: 'Looking Up Address',
 
     // Swap
     getSwapQuote: 'Getting Swap Quote',

@@ -108,6 +108,29 @@ const toolDocs: Record<string, string> = {
 
 **IMPORTANT:** Always display the FULL contract address returned.`,
 
+  resolveName: `**resolveName** - Resolve NAD/ENS names to addresses (or reverse)
+
+**Use when:** User asks "what is the address of X.nad/X.eth?" or "who owns 0x...?"
+
+**Supports:**
+- NAD Name Service (.nad) - Monad native, PREFERRED
+- ENS (.eth) - Ethereum mainnet, cross-chain compatible
+- Reverse lookup: 0x address → registered name
+
+**Parameters:**
+- name: NAD name (.nad), ENS name (.eth), or 0x address for reverse lookup
+
+**Examples:**
+- "what is the address of salmo.nad?" → resolveName({ name: "salmo.nad" })
+- "who owns 0x1234...?" → resolveName({ name: "0x1234..." })
+- "look up vitalik.eth" → resolveName({ name: "vitalik.eth" })
+
+**Returns:**
+- Forward: Address + service type (NAD/ENS)
+- Reverse: Registered name or "None found"
+
+**IMPORTANT:** This is for LOOKUP only. For transfers, use the transfer tool directly with names.`,
+
   // Session Key Control Tools
   checkSessionKeyBalance: `**checkSessionKeyBalance** - Check if session key needs gas funding
 
@@ -212,7 +235,17 @@ const toolDocs: Record<string, string> = {
 **Parameters:**
 - token: Token symbol or address
 - amount: Amount to send (supports "all", "half", etc.)
-- recipient: Destination address or ENS name
+- recipient: Destination address (0x...), NAD name (.nad), or ENS name (.eth)
+
+**Name Resolution:**
+- NAD (.nad): Monad native - PREFERRED (e.g., "salmo.nad")
+- ENS (.eth): Ethereum mainnet cross-chain (e.g., "vitalik.eth")
+- Both auto-resolve to 0x addresses
+
+**Examples:**
+- "send 10 USDC to salmo.nad" → resolves NAD name
+- "send 5 MON to vitalik.eth" → resolves ENS name
+- "send 100 USDC to 0x1234..." → direct address
 
 **Mode behavior:**
 - Quick mode: Call immediately

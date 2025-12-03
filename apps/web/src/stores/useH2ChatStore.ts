@@ -17,6 +17,7 @@ import type {
   ToolStep,
   AnyMessage,
   SSEConnectionState,
+  ReasoningSegment,
 } from "@/lib/h2/types";
 import type { RawTokenBalance } from "@pragma/core/monorail/balances";
 
@@ -152,6 +153,8 @@ export interface H2ChatState {
   addMessage: (message: Omit<ChatMessage, "id" | "timestamp">) => void;
   updateMessageContent: (id: string, content: string) => void;
   setMessageRawToolOutput: (id: string, rawToolOutput: string) => void;
+  updateMessageReasoning: (id: string, reasoningContent: string, reasoningDuration?: number) => void;
+  addReasoningSegment: (id: string, content: string, duration?: number) => void;
   setStreamingMessage: (id: string | null) => void;
   clearMessages: () => void;
 
@@ -277,6 +280,38 @@ export const useH2ChatStore = create<H2ChatState>()(
             messages: state.messages.map((msg) =>
               msg.id === id ? { ...msg, rawToolOutput } : msg
             ),
+          }));
+        },
+
+        updateMessageReasoning: (id, reasoningContent, reasoningDuration) => {
+          set((state) => ({
+            messages: state.messages.map((msg) =>
+              msg.id === id
+                ? {
+                    ...msg,
+                    reasoningContent,
+                    ...(reasoningDuration !== undefined && { reasoningDuration }),
+                  }
+                : msg
+            ),
+          }));
+        },
+
+        addReasoningSegment: (id, content, duration) => {
+          set((state) => ({
+            messages: state.messages.map((msg) => {
+              if (msg.id !== id) return msg;
+              const chatMsg = msg as ChatMessage;
+              const newSegment: ReasoningSegment = {
+                id: `seg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                content,
+                duration,
+              };
+              return {
+                ...chatMsg,
+                reasoningSegments: [...(chatMsg.reasoningSegments || []), newSegment],
+              };
+            }),
           }));
         },
 

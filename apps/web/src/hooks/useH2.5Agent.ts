@@ -65,6 +65,8 @@ export function useH2_5Agent() {
   const addMessage = useH2ChatStore((state) => state.addMessage);
   const updateMessageContent = useH2ChatStore((state) => state.updateMessageContent);
   const setMessageRawToolOutput = useH2ChatStore((state) => state.setMessageRawToolOutput);
+  const updateMessageReasoning = useH2ChatStore((state) => state.updateMessageReasoning);
+  const addReasoningSegment = useH2ChatStore((state) => state.addReasoningSegment);
   const setStreamingMessage = useH2ChatStore((state) => state.setStreamingMessage);
   const hideProgress = useH2ChatStore((state) => state.hideProgress);
   const startTool = useH2ChatStore((state) => state.startTool);
@@ -414,6 +416,12 @@ export function useH2_5Agent() {
         // Flush every 50ms for snappy UI updates (reduced from 100ms)
         const tokenBufferRef = { current: '' };
 
+        // Reasoning token buffering (for DeepSeek chain-of-thought)
+        const reasoningBufferRef = { current: '' };        // Current unflushed tokens
+        const currentSegmentRef = { current: '' };         // Current segment being built
+        const reasoningStartTimeRef = { current: 0 };
+        const segmentIndexRef = { current: 0 };            // Track segment count for IDs
+
         // Tool completion tracking for automatic spacing
         // When a tool completes, the next token should start with \n\n
         const justCompletedToolRef = { current: false };
@@ -454,12 +462,89 @@ export function useH2_5Agent() {
           }
         };
 
+        // Flush reasoning buffer to current message (for live streaming display)
+        const flushReasoningBuffer = () => {
+          const reasoningToFlush = reasoningBufferRef.current;
+          if (reasoningToFlush.length === 0) return;
+
+          // Add to current segment
+          currentSegmentRef.current += reasoningToFlush;
+          reasoningBufferRef.current = '';
+
+          const streamingId = useH2ChatStore.getState().streamingMessageId;
+          if (streamingId) {
+            // Update existing message with current segment for live display
+            // This shows the current thinking while streaming
+            updateMessageReasoning(streamingId, currentSegmentRef.current);
+          } else {
+            // Create new assistant message with just reasoning (content comes later)
+            addMessage({
+              role: 'assistant',
+              content: '',
+              isStreaming: true,
+              reasoningContent: currentSegmentRef.current,
+            });
+
+            const newMessage = useH2ChatStore.getState().messages.at(-1);
+            if (newMessage) {
+              setStreamingMessage(newMessage.id);
+            }
+          }
+        };
+
+        // Finalize current reasoning segment (save to array, reset for next segment)
+        const finalizeReasoningSegment = (duration?: number) => {
+          // Flush any remaining buffered reasoning
+          if (reasoningBufferRef.current.length > 0) {
+            currentSegmentRef.current += reasoningBufferRef.current;
+            reasoningBufferRef.current = '';
+          }
+
+          // Only save if there's content
+          if (currentSegmentRef.current.length === 0) return;
+
+          const streamingId = useH2ChatStore.getState().streamingMessageId;
+          if (streamingId) {
+            // Add as segment to the message
+            addReasoningSegment(streamingId, currentSegmentRef.current, duration);
+            // Clear live reasoningContent since we moved it to segments
+            updateMessageReasoning(streamingId, '');
+          }
+
+          // Reset for next segment
+          currentSegmentRef.current = '';
+          segmentIndexRef.current++;
+          reasoningStartTimeRef.current = 0;
+        };
+
         // Auto-flush interval for smooth streaming (50ms for snappy updates)
-        const flushInterval = setInterval(flushTokenBuffer, 50);
+        const flushInterval = setInterval(() => {
+          flushReasoningBuffer();
+          flushTokenBuffer();
+        }, 50);
 
         // Streaming callbacks for UI updates
         const callbacks: BrowserAgentCallbacks = {
+          // DeepSeek reasoning token callback (chain-of-thought)
+          onReasoningToken: (token) => {
+            // Start timing on first reasoning token
+            if (reasoningStartTimeRef.current === 0) {
+              reasoningStartTimeRef.current = Date.now();
+            }
+
+            // Accumulate reasoning in buffer (will be flushed by interval)
+            reasoningBufferRef.current += token;
+          },
+
           onToken: (token) => {
+            // First content token = reasoning phase complete
+            // Finalize current segment with duration
+            if (reasoningStartTimeRef.current > 0 && tokenBufferRef.current.length === 0) {
+              const reasoningDuration = Date.now() - reasoningStartTimeRef.current;
+              // Finalize saves segment and resets for next one
+              finalizeReasoningSegment(reasoningDuration);
+            }
+
             // Safety net: Add spacing after tool completion if LLM didn't
             if (justCompletedToolRef.current) {
               const bufferEndsWithNewlines = tokenBufferRef.current.endsWith('\n\n');
@@ -506,6 +591,15 @@ export function useH2_5Agent() {
           },
 
           onToolStart: (toolName, _input, signature) => {
+            // Finalize any pending reasoning segment before tool execution
+            // This ensures reasoning from before tool call is saved as separate segment
+            if (reasoningStartTimeRef.current > 0 || currentSegmentRef.current.length > 0) {
+              const reasoningDuration = reasoningStartTimeRef.current > 0
+                ? Date.now() - reasoningStartTimeRef.current
+                : undefined;
+              finalizeReasoningSegment(reasoningDuration);
+            }
+
             // Generate description using signature for specifics (e.g., "Swap MON → DAK")
             const description = generateToolDescription(toolName, signature);
             // Use signature as unique key for parallel tool matching
@@ -565,8 +659,9 @@ export function useH2_5Agent() {
           },
 
           onComplete: () => {
-            // Stop flush interval and flush any remaining tokens
+            // Stop flush interval and flush any remaining buffers
             clearInterval(flushInterval);
+            flushReasoningBuffer();
             flushTokenBuffer();
 
             // Attach raw tool output to the LAST assistant message
@@ -594,8 +689,9 @@ export function useH2_5Agent() {
           },
 
           onError: (error) => {
-            // Stop flush interval and flush any remaining tokens
+            // Stop flush interval and flush any remaining buffers
             clearInterval(flushInterval);
+            flushReasoningBuffer();
             flushTokenBuffer();
 
             console.error('[H2.5Agent] Execution error:', error);
@@ -668,6 +764,8 @@ export function useH2_5Agent() {
       addMessage,
       updateMessageContent,
       setMessageRawToolOutput,
+      updateMessageReasoning,
+      addReasoningSegment,
       setStreamingMessage,
       hideProgress,
       startTool,

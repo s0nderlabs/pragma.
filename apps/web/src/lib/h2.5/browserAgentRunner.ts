@@ -155,6 +155,13 @@ export interface BrowserAgentCallbacks {
   onToken?: (token: string) => void;
 
   /**
+   * Reasoning token streaming callback (DeepSeek chain-of-thought)
+   * Called as DeepSeek reasoner streams thinking tokens
+   * Only fires for DeepSeek V3.2+ models with reasoning capability
+   */
+  onReasoningToken?: (token: string) => void;
+
+  /**
    * Progress update callback
    * Called when agent provides status updates
    * @param signature - Unique identifier for parallel tool matching (e.g., "MON-DAK")
@@ -422,11 +429,13 @@ export async function streamBrowserAgent(
     const lastUserMessage = [...messages].reverse().find(([role]) => role === "user");
     const userContent = lastUserMessage?.[1] || "";
 
-    // Determine reasoning effort: default to medium, upgrade to high for complex queries
-    const reasoningEffort = shouldUseHighReasoning(userContent) ? "high" : "medium";
-    console.log(`[Agent] Reasoning effort: ${reasoningEffort} for message: "${userContent.slice(0, 50)}..."`);
+    // Determine reasoning effort for OpenAI (DeepSeek has built-in reasoning)
+    // OpenAI gpt-5-mini uses reasoningEffort: "high" for complex queries, "medium" otherwise
+    const isComplexQuery = shouldUseHighReasoning(userContent);
+    const reasoningEffort = isComplexQuery ? "high" : "medium";
+    console.log(`[Agent] Complex query: ${isComplexQuery}, reasoning effort: ${reasoningEffort} for message: "${userContent.slice(0, 50)}..."`);
 
-    // Create agent with appropriate reasoning effort (uses full tool registry)
+    // Create agent (reasoningEffort only used by OpenAI, DeepSeek ignores it)
     const activeAgent = createBrowserAgent({ reasoningEffort });
 
     // Track signatures by run_id for matching tool_end/error to tool_start
@@ -715,7 +724,8 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
     for await (const event of stream) {
       if (event.event === "on_chat_model_stream") {
         // LLM token streaming
-        const rawContent = event.data?.chunk?.content;
+        const chunk = event.data?.chunk;
+        const rawContent = chunk?.content;
 
         // Extract text delta (handle both string and array formats)
         // OpenAI Responses API returns content as: [{ type: "text", text: "..." }]
@@ -733,11 +743,30 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
           }
         }
 
+        // Parse reasoning markers injected by DeepSeek proxy
+        // Format: <<REASON>>thinking text<<END_REASON>>actual content
+        // LangChain drops unknown fields, so proxy injects reasoning into content
         if (delta) {
-          // Mark first token only when we have actual content
-          metrics.markFirstToken();
-          currentResponse += delta;
-          callbacks.onToken?.(delta);
+          // Extract all reasoning blocks
+          const reasoningRegex = /<<REASON>>([\s\S]*?)<<END_REASON>>/g;
+          let match;
+          let cleanDelta = delta;
+
+          while ((match = reasoningRegex.exec(delta)) !== null) {
+            const reasoningToken = match[1];
+            if (reasoningToken) {
+              callbacks.onReasoningToken?.(reasoningToken);
+            }
+            // Remove the reasoning marker from delta
+            cleanDelta = cleanDelta.replace(match[0], "");
+          }
+
+          // Process remaining content (after removing reasoning markers)
+          if (cleanDelta) {
+            metrics.markFirstToken();
+            currentResponse += cleanDelta;
+            callbacks.onToken?.(cleanDelta);
+          }
         }
       } else if (event.event === "on_tool_start") {
         // Tool execution started

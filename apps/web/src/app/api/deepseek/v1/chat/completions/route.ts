@@ -1,0 +1,288 @@
+/**
+ * DeepSeek Chat Completions API Proxy with Reasoning State Management
+ *
+ * This proxy handles the special requirements of DeepSeek's reasoning model:
+ * 1. Extract reasoning_content from responses
+ * 2. Store reasoning_content keyed by conversation ID
+ * 3. Inject reasoning_content into assistant messages on subsequent requests
+ *
+ * This fixes the "Missing reasoning_content" error that occurs during
+ * multi-turn tool calling conversations.
+ */
+
+import { authMiddleware } from "@/lib/auth/authMiddleware";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+// ============================================================================
+// Conversation State Storage
+// ============================================================================
+
+interface ConversationState {
+  // Map of message index → reasoning_content
+  reasoningContent: Map<number, string>;
+  lastAccess: number;
+}
+
+// In-memory storage for conversation state
+// Key: conversation ID (from x-conversation-id header)
+const conversationState = new Map<string, ConversationState>();
+
+// Cleanup stale conversations (10 minute TTL)
+const CONVERSATION_TTL_MS = 10 * 60 * 1000;
+
+function cleanupStaleConversations() {
+  const now = Date.now();
+  for (const [convId, state] of conversationState) {
+    if (now - state.lastAccess > CONVERSATION_TTL_MS) {
+      conversationState.delete(convId);
+    }
+  }
+}
+
+// Run cleanup every 5 minutes
+setInterval(cleanupStaleConversations, 5 * 60 * 1000);
+
+// ============================================================================
+// Request Handler
+// ============================================================================
+
+export async function POST(request: Request) {
+  // Authenticate request
+  const authError = await authMiddleware(request);
+  if (authError) return authError;
+
+  try {
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) {
+      return Response.json(
+        { error: "DeepSeek API key not configured" },
+        { status: 500 }
+      );
+    }
+
+    const body = await request.json();
+
+    // Get conversation ID from header (or generate one)
+    const convId =
+      request.headers.get("x-conversation-id") ||
+      `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Get or create conversation state
+    let state = conversationState.get(convId);
+    if (!state) {
+      state = {
+        reasoningContent: new Map(),
+        lastAccess: Date.now(),
+      };
+      conversationState.set(convId, state);
+    }
+    state.lastAccess = Date.now();
+
+    // Inject stored reasoning_content into assistant messages
+    const messagesWithReasoning = body.messages.map(
+      (msg: { role: string; reasoning_content?: string }, idx: number) => {
+        if (msg.role === "assistant" && state!.reasoningContent.has(idx)) {
+          return {
+            ...msg,
+            reasoning_content: state!.reasoningContent.get(idx),
+          };
+        }
+        return msg;
+      }
+    );
+
+    // Clear reasoning_content for new user turns (per DeepSeek docs)
+    // When a new user message is added, we should clear old reasoning
+    const lastMessage = body.messages[body.messages.length - 1];
+    if (lastMessage?.role === "user") {
+      // This is a new user turn - keep existing reasoning for tool call continuation
+      // Only clear if this is not a tool result message
+    }
+
+    // Log request details for debugging
+    console.log("[DeepSeek Proxy] Request:", {
+      model: body.model,
+      messageCount: body.messages?.length,
+      stream: body.stream,
+      conversationId: convId,
+      storedReasoningCount: state.reasoningContent.size,
+    });
+
+    // Forward to DeepSeek with modified messages
+    const response = await fetch(
+      "https://api.deepseek.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...body,
+          messages: messagesWithReasoning,
+        }),
+      }
+    );
+
+    console.log("[DeepSeek Proxy] Response status:", response.status);
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error("[DeepSeek Proxy] Error:", response.status, error);
+      return Response.json(
+        { error: `DeepSeek API error: ${response.statusText}`, details: error },
+        { status: response.status }
+      );
+    }
+
+    // Handle streaming response
+    if (body.stream) {
+      return streamWithReasoningExtraction(
+        response,
+        state,
+        body.messages.length,
+        convId
+      );
+    }
+
+    // Handle non-streaming response
+    const data = await response.json();
+
+    // Extract and store reasoning_content from response
+    if (data.choices?.[0]?.message?.reasoning_content) {
+      const msgIndex = body.messages.length; // New assistant message index
+      state.reasoningContent.set(
+        msgIndex,
+        data.choices[0].message.reasoning_content
+      );
+    }
+
+    return Response.json(data);
+  } catch (error) {
+    console.error("[DeepSeek Proxy] Error:", error);
+    return Response.json({ error: "Internal proxy error" }, { status: 500 });
+  }
+}
+
+// ============================================================================
+// Streaming Handler with Reasoning Extraction
+// ============================================================================
+
+async function streamWithReasoningExtraction(
+  response: Response,
+  state: ConversationState,
+  currentMessageCount: number,
+  convId: string
+): Promise<Response> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    return Response.json({ error: "No response body" }, { status: 500 });
+  }
+
+  let accumulatedReasoning = "";
+  const newMessageIndex = currentMessageCount; // Index of the new assistant message
+
+  let chunkCount = 0;
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const decoder = new TextDecoder();
+      const encoder = new TextEncoder();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          chunkCount++;
+
+          // Log first few chunks for debugging (show full chunk to see choices structure)
+          if (chunkCount <= 3) {
+            console.log(`[DeepSeek Proxy] Stream chunk ${chunkCount}:`, chunk.substring(0, 500));
+          }
+
+          // Parse SSE events
+          const lines = chunk.split("\n");
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const data = line.slice(6);
+              if (data === "[DONE]") {
+                // Store accumulated reasoning before ending
+                if (accumulatedReasoning) {
+                  state.reasoningContent.set(
+                    newMessageIndex,
+                    accumulatedReasoning
+                  );
+                }
+                console.log("[DeepSeek Proxy] Stream complete, total chunks:", chunkCount);
+                controller.enqueue(encoder.encode(line + "\n\n"));
+                continue;
+              }
+
+              try {
+                const parsed = JSON.parse(data);
+                const delta = parsed.choices?.[0]?.delta;
+
+                // Extract reasoning_content for storage
+                if (delta?.reasoning_content) {
+                  accumulatedReasoning += delta.reasoning_content;
+                }
+
+                // CRITICAL: LangChain drops unknown fields like reasoning_content
+                // Solution: Inject reasoning into content with markers for client-side parsing
+                // Format: <<REASON>>thinking text<<END_REASON>>
+                if (delta) {
+                  let newContent = delta.content || "";
+
+                  // If there's reasoning_content, wrap it with markers and prepend to content
+                  if (delta.reasoning_content) {
+                    newContent = `<<REASON>>${delta.reasoning_content}<<END_REASON>>${newContent}`;
+                  }
+
+                  // Always set content (even if empty string)
+                  parsed.choices[0].delta.content = newContent;
+
+                  // Remove reasoning_content to avoid confusion (we've moved it to content)
+                  delete parsed.choices[0].delta.reasoning_content;
+                }
+
+                // Re-serialize and pass through (SSE requires \n\n after data lines)
+                const modifiedLine = `data: ${JSON.stringify(parsed)}`;
+                controller.enqueue(encoder.encode(modifiedLine + "\n\n"));
+              } catch {
+                // Not JSON, pass through as-is
+                controller.enqueue(encoder.encode(line + "\n\n"));
+              }
+            } else if (line.trim()) {
+              // Pass through non-data lines (keep-alive, etc.)
+              controller.enqueue(encoder.encode(line + "\n"));
+            }
+          }
+        }
+
+        // Ensure reasoning is stored even if [DONE] wasn't received
+        if (accumulatedReasoning) {
+          state.reasoningContent.set(newMessageIndex, accumulatedReasoning);
+        }
+
+        controller.close();
+      } catch (error) {
+        console.error("[DeepSeek Proxy] Stream error:", error);
+        controller.error(error);
+      }
+    },
+  });
+
+  return new Response(stream, {
+    status: response.status,
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Conversation-Id": convId,
+    },
+  });
+}

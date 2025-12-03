@@ -36,6 +36,16 @@ export type MessageTuple = [string, string];
 export type SSEConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected" | "error";
 
 /**
+ * Reasoning segment from DeepSeek chain-of-thought
+ * Each segment represents one thinking phase (before a tool call or final response)
+ */
+export interface ReasoningSegment {
+  id: string;
+  content: string;
+  duration?: number;
+}
+
+/**
  * Chat message for display
  */
 export interface ChatMessage {
@@ -46,6 +56,12 @@ export interface ChatMessage {
   isStreaming?: boolean;
   /** Raw tool output preserved for rich component parsing (e.g., __nft_gallery__ markers) */
   rawToolOutput?: string;
+  /** Chain-of-thought reasoning content from DeepSeek reasoner (legacy single string) */
+  reasoningContent?: string;
+  /** Array of reasoning segments for multi-turn conversations */
+  reasoningSegments?: ReasoningSegment[];
+  /** Time spent on reasoning phase in milliseconds (legacy) */
+  reasoningDuration?: number;
 }
 
 /**

@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import type { ChatMessage } from '@/lib/h2/types'
 import { useStreamingMessage } from '@/hooks/useStreamingMessage'
 import { MarkdownRenderer } from './MarkdownRenderer'
+import { ThinkingBubble } from './ThinkingBubble'
 import { NFTGallery } from '../nft/NFTGallery'
 import type { NFTGalleryData } from '@pragma/core'
 
@@ -52,7 +53,7 @@ function parseNFTGallery(content: string): { text: string; gallery: NFTGalleryDa
  * Features: Smooth token-by-token streaming, code blocks, tables, lists, NFT galleries.
  */
 export function AIMessage({ message }: AIMessageProps) {
-  const { displayedContent, isBuffering } = useStreamingMessage({
+  const { displayedContent } = useStreamingMessage({
     message,
     enabled: message.isStreaming ?? false,
   })
@@ -74,6 +75,12 @@ export function AIMessage({ message }: AIMessageProps) {
     return parseNFTGallery(displayedContent)
   }, [displayedContent, message.rawToolOutput, message.id])
 
+  // Determine if reasoning is still streaming (has reasoning but no content yet)
+  const isReasoningStreaming = !!(message.isStreaming && message.reasoningContent && !displayedContent)
+
+  // Check if we have any reasoning to display (segments or live content)
+  const hasReasoning = (message.reasoningSegments && message.reasoningSegments.length > 0) || message.reasoningContent
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -82,6 +89,16 @@ export function AIMessage({ message }: AIMessageProps) {
       className="mb-6"
     >
       <div className="text-sm lg:text-base max-lg:min-w-0 max-lg:overflow-hidden">
+        {/* Chain-of-thought reasoning bubble (DeepSeek) */}
+        {hasReasoning && (
+          <ThinkingBubble
+            segments={message.reasoningSegments}
+            content={message.reasoningContent}
+            duration={message.reasoningDuration}
+            isStreaming={isReasoningStreaming}
+          />
+        )}
+
         {/* Render text content */}
         {text && <MarkdownRenderer content={text} />}
 
@@ -92,14 +109,6 @@ export function AIMessage({ message }: AIMessageProps) {
           </div>
         )}
 
-        {/* Streaming cursor */}
-        {(message.isStreaming || isBuffering) && (
-          <motion.span
-            animate={{ opacity: [1, 0.3, 1] }}
-            transition={{ duration: 0.8, repeat: Infinity }}
-            className="inline-block w-1 h-4 bg-[#F2A694] ml-1 align-middle rounded-sm"
-          />
-        )}
       </div>
     </motion.div>
   )

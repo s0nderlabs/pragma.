@@ -10,6 +10,10 @@
  * - Same tool registry and system prompt as server-side H2
  * - Direct Web3Auth bridge (no signature transport)
  *
+ * Model Provider Selection (ENV-based):
+ * - NEXT_PUBLIC_MODEL_PROVIDER=deepseek (default): DeepSeek V3.2 Reasoner (~30x cheaper)
+ * - NEXT_PUBLIC_MODEL_PROVIDER=openai: OpenAI gpt-5-mini
+ *
  * Architecture:
  * ```
  * Browser Component (useH2.5Agent)
@@ -144,30 +148,64 @@ export function createBrowserAgent(config: BrowserAgentConfig): ReturnType<typeo
     }
   }
 
+  // Determine model provider from environment variable
+  // Default: 'deepseek' for cost savings (~30x cheaper than OpenAI)
+  // Fallback: 'openai' for gpt-5-mini if needed
+  const modelProvider = process.env.NEXT_PUBLIC_MODEL_PROVIDER || 'deepseek';
+  const useDeepSeek = modelProvider === 'deepseek';
+
+  // Log model selection for debugging
+  if (typeof window !== 'undefined') {
+    console.log(`[BrowserAgent] Using model provider: ${modelProvider}`);
+  }
+
+  // Generate session-based conversation ID for DeepSeek reasoning_content state
+  // This ID is generated ONCE per agent session and used for ALL requests
+  // Required for multi-turn tool calling (proxy stores reasoning_content by conv ID)
+  const conversationId = `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
   // Initialize ChatOpenAI model (routes through proxy for security)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const modelConfig: Record<string, any> = {
-    model: config.model || 'gpt-5-mini',
-    apiKey: config.apiKey || 'proxy-not-used', // Proxy doesn't validate
-    streaming: config.streaming ?? true, // Enable streaming by default
-    useResponsesApi: true, // Use OpenAI Responses API
-    timeout: config.timeout || 60000, // 60 second timeout
-    maxRetries: 2, // Retry failed requests
-    configuration: {
-      // Absolute URL required by OpenAI SDK's URL constructor
-      // Must include /v1 so LangChain calls /api/h2/v1/responses (not /api/h2/responses)
-      baseURL: typeof window !== 'undefined'
-        ? `${window.location.origin}/api/h2/v1`
-        : 'http://localhost:3000/api/h2/v1',
-      // Use authenticated fetch for JWT + signature authentication
-      fetch: authenticatedFetch as typeof fetch,
-    },
-  };
+  const modelConfig: Record<string, any> = useDeepSeek
+    ? {
+        // DeepSeek V3.2 Reasoner configuration
+        model: 'deepseek-reasoner',
+        apiKey: config.apiKey || 'proxy-not-used',
+        streaming: config.streaming ?? true,
+        timeout: config.timeout || 120000, // 120s (reasoning takes longer)
+        maxRetries: 2,
+        configuration: {
+          baseURL: typeof window !== 'undefined'
+            ? `${window.location.origin}/api/deepseek/v1`
+            : 'http://localhost:3000/api/deepseek/v1',
+          fetch: authenticatedFetch as typeof fetch,
+          defaultHeaders: {
+            'x-conversation-id': conversationId,
+          },
+        },
+      }
+    : {
+        // OpenAI gpt-5-mini configuration (Responses API)
+        model: config.model || 'gpt-5-mini',
+        apiKey: config.apiKey || 'proxy-not-used',
+        streaming: config.streaming ?? true,
+        useResponsesApi: true, // OpenAI Responses API (not Chat Completions)
+        timeout: config.timeout || 60000, // 60s standard
+        maxRetries: 2,
+        // Use reasoning effort for OpenAI (DeepSeek has built-in reasoning)
+        ...(config.reasoningEffort && {
+          modelKwargs: { reasoning_effort: config.reasoningEffort },
+        }),
+        configuration: {
+          baseURL: typeof window !== 'undefined'
+            ? `${window.location.origin}/api/h2`
+            : 'http://localhost:3000/api/h2',
+          fetch: authenticatedFetch as typeof fetch,
+        },
+      };
 
-  // Add reasoning effort if specified (gpt-5-mini supports this)
-  if (config.reasoningEffort) {
-    modelConfig.reasoningEffort = config.reasoningEffort;
-  }
+  // Note: DeepSeek reasoner has built-in chain-of-thought (reasoning_content field)
+  // OpenAI uses reasoning_effort model parameter
 
   const model = new ChatOpenAI(modelConfig);
 

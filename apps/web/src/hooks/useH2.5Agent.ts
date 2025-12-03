@@ -64,6 +64,7 @@ export function useH2_5Agent() {
   // Store actions (same as H2)
   const addMessage = useH2ChatStore((state) => state.addMessage);
   const updateMessageContent = useH2ChatStore((state) => state.updateMessageContent);
+  const setMessageRawToolOutput = useH2ChatStore((state) => state.setMessageRawToolOutput);
   const setStreamingMessage = useH2ChatStore((state) => state.setStreamingMessage);
   const hideProgress = useH2ChatStore((state) => state.hideProgress);
   const startTool = useH2ChatStore((state) => state.startTool);
@@ -417,6 +418,11 @@ export function useH2_5Agent() {
         // When a tool completes, the next token should start with \n\n
         const justCompletedToolRef = { current: false };
 
+        // Raw tool output tracking for rich content markers (NFT gallery, etc.)
+        // LLM rewrites tool output, so we capture raw output in onToolEnd
+        // and attach it to the final message for UI component detection
+        const pendingRawOutputRef = { current: '' };
+
         const flushTokenBuffer = () => {
           // Atomic read-and-clear operation to prevent race conditions
           const contentToFlush = tokenBufferRef.current;
@@ -515,6 +521,26 @@ export function useH2_5Agent() {
             // Set flag so next token gets automatic spacing if needed
             justCompletedToolRef.current = true;
 
+            // Capture raw tool output if it contains rich content markers
+            // LLM rewrites tool output, losing markers like __nft_gallery__
+            // We preserve the raw output for UI component detection in AIMessage
+
+            // Extract string output - handle both string and object formats
+            let outputStr = '';
+            if (typeof output === 'string') {
+              outputStr = output;
+            } else if (output && typeof output === 'object') {
+              // LangChain may wrap output in object with content/text property
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const outputObj = output as any;
+              outputStr = outputObj.content || outputObj.text || outputObj.output || JSON.stringify(output);
+            }
+
+            // Check for rich content markers
+            if (outputStr && outputStr.includes('__nft_gallery__')) {
+              pendingRawOutputRef.current = outputStr;
+            }
+
             // Trigger immediate balance refresh for transaction-based tools
             const transactionTools = [
               'executeSwap',
@@ -542,6 +568,22 @@ export function useH2_5Agent() {
             // Stop flush interval and flush any remaining tokens
             clearInterval(flushInterval);
             flushTokenBuffer();
+
+            // Attach raw tool output to the LAST assistant message
+            // NOTE: Can't use streamingMessageId - it's cleared when tools start (line 368 in store)
+            // Instead, find the last assistant message which is the one we just finalized
+            if (pendingRawOutputRef.current) {
+              const messages = useH2ChatStore.getState().messages;
+              // Find the last assistant message
+              const lastAssistantMsg = [...messages].reverse().find(
+                msg => msg.role === 'assistant'
+              );
+
+              if (lastAssistantMsg) {
+                setMessageRawToolOutput(lastAssistantMsg.id, pendingRawOutputRef.current);
+              }
+              pendingRawOutputRef.current = '';
+            }
 
             // Mark all running tools as completed to prevent cross-message pollution
             completeAllRunningTools();
@@ -587,6 +629,10 @@ export function useH2_5Agent() {
             quickMode,
             allowedTokens,
             userBalances: allTokens, // User's balance data for unverified token symbol resolution
+            // CRITICAL: Pass authenticated fetch for API proxy calls
+            // Tools use this to make authenticated requests to /api/* routes
+            fetch: authenticatedFetch,
+            origin: typeof window !== 'undefined' ? window.location.origin : '',
             // CRITICAL FIX: Read directly from Zustand store, not local state
             // This avoids React state timing race where local state hasn't updated yet
             // after onboarding stores the smartAccount. Using getState() is synchronous.
@@ -621,6 +667,7 @@ export function useH2_5Agent() {
       // Note: smartAccount and bundlerClient removed - now read directly from store
       addMessage,
       updateMessageContent,
+      setMessageRawToolOutput,
       setStreamingMessage,
       hideProgress,
       startTool,

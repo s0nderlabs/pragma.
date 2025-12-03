@@ -55,8 +55,9 @@ const MIN_VERIFICATION_GAS_LIMIT = 200_000n;
 
 // Minimum floor for preVerificationGas
 // Bundler estimates can underestimate, especially for Monad mainnet
-// Required ~153k observed in production, so 160k provides safety margin
-const MIN_PRE_VERIFICATION_GAS = 160_000n;
+// Required ~172k observed in production (varies with calldata size)
+// Using 200k provides sufficient safety margin for variable-size UserOps
+const MIN_PRE_VERIFICATION_GAS = 200_000n;
 
 // Buffer multiplier for gas estimates (150% = 1.5x)
 // Provides safety margin for on-chain variability

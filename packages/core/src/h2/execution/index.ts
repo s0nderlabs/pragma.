@@ -15,6 +15,7 @@ export type {
   UnwrapQuoteData,
   H2ExecutionContext,
   ExecutionResult,
+  NFTListResult,
 } from "./types.js";
 
 // Errors
@@ -72,6 +73,9 @@ export { executeSwap } from "./executeSwap.js";
 export { executeTransfer } from "./executeTransfer.js";
 export { executeWrap } from "./executeWrap.js";
 export { executeUnwrap } from "./executeUnwrap.js";
+export { executeNFTBuy } from "./executeNFTBuy.js";
+export { executeNFTTransfer } from "./executeNFTTransfer.js";
+export { executeNFTList } from "./executeNFTList.js";
 
 // Session Key Funding
 export { fundSessionKeyViaUserOp } from "./sessionKeyFundingUserOp.js";

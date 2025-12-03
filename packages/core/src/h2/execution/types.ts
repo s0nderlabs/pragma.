@@ -296,3 +296,93 @@ export class SessionKeyFundingError extends Error {
     this.name = "SessionKeyFundingError";
   }
 }
+
+// ============================================================================
+// NFT Types
+// ============================================================================
+
+/**
+ * NFT buy quote data (stored for execution)
+ */
+export interface NFTBuyQuoteData {
+  /** Unique quote identifier */
+  quoteId: string;
+  /** NFT contract address */
+  contractAddress: Address;
+  /** Token ID */
+  tokenId: string;
+  /** NFT name */
+  nftName: string;
+  /** Collection slug */
+  collectionSlug: string;
+  /** Listing order hash */
+  orderHash: Hex;
+  /** Listing chain */
+  listingChain: string;
+  /** Protocol address (Seaport) */
+  protocolAddress: Address;
+  /** Total price in wei */
+  priceWei: bigint;
+  /** Total price formatted */
+  priceFormatted: string;
+  /** Currency symbol (MON, WMON, etc.) */
+  currency: string;
+  /** OpenSea fulfillment data (for execution) */
+  fulfillmentData?: unknown;
+  /** Quote creation timestamp */
+  createdAt: number;
+  /** Quote expiry timestamp */
+  expiresAt: number;
+  /** User address (smart account) */
+  userAddress: Address;
+}
+
+/**
+ * NFT transfer quote data (stored for execution)
+ */
+export interface NFTTransferQuoteData {
+  /** Unique quote identifier */
+  quoteId: string;
+  /** NFT contract address */
+  contractAddress: Address;
+  /** Token ID */
+  tokenId: string;
+  /** NFT name */
+  nftName: string;
+  /** Token standard */
+  tokenStandard: "erc721" | "erc1155";
+  /** Recipient address */
+  recipient: Address;
+  /** Amount to transfer (for ERC1155) */
+  amount: number;
+  /** Gas estimate in wei */
+  gasEstimate: bigint;
+  /** Quote creation timestamp */
+  createdAt: number;
+  /** Quote expiry timestamp */
+  expiresAt: number;
+  /** User address (smart account) */
+  userAddress: Address;
+}
+
+/**
+ * Result of NFT listing execution
+ */
+export interface NFTListResult {
+  /** Whether listing was successful */
+  success: boolean;
+  /** Seaport order hash (from OpenSea API if indexed) */
+  orderHash?: Hex;
+  /** OpenSea listing URL */
+  listingUrl: string;
+  /** Listing price formatted (e.g., "1.5 MON") */
+  priceFormatted: string;
+  /** Listing expiry timestamp (Unix seconds) */
+  expiresAt: number;
+  /** Transaction hash if approval was needed */
+  approvalTxHash?: Hex;
+  /** Transaction hash for on-chain order validation */
+  validateTxHash?: Hex;
+  /** Whether the listing was successfully indexed on OpenSea */
+  indexedOnOpenSea?: boolean;
+}

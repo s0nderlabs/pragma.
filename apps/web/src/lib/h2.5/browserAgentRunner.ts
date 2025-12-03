@@ -241,6 +241,13 @@ export interface BrowserAgentContext {
   /** User's balance data for unverified token symbol resolution */
   userBalances?: unknown[];
   // Note: sponsorUserOperationFn removed - session key funding is now self-paid (no paymaster)
+
+  /** Authenticated fetch function for API proxy calls */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  fetch?: (url: string, options?: any) => Promise<Response>;
+
+  /** Origin URL for API calls (e.g., http://localhost:3000) */
+  origin?: string;
 }
 
 /**

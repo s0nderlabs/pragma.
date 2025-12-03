@@ -151,6 +151,7 @@ export interface H2ChatState {
   // Actions
   addMessage: (message: Omit<ChatMessage, "id" | "timestamp">) => void;
   updateMessageContent: (id: string, content: string) => void;
+  setMessageRawToolOutput: (id: string, rawToolOutput: string) => void;
   setStreamingMessage: (id: string | null) => void;
   clearMessages: () => void;
 
@@ -267,6 +268,14 @@ export const useH2ChatStore = create<H2ChatState>()(
           set((state) => ({
             messages: state.messages.map((msg) =>
               msg.id === id ? { ...msg, content } : msg
+            ),
+          }));
+        },
+
+        setMessageRawToolOutput: (id, rawToolOutput) => {
+          set((state) => ({
+            messages: state.messages.map((msg) =>
+              msg.id === id ? { ...msg, rawToolOutput } : msg
             ),
           }));
         },

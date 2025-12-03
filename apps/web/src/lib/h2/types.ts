@@ -44,6 +44,8 @@ export interface ChatMessage {
   content: string;
   timestamp: number;
   isStreaming?: boolean;
+  /** Raw tool output preserved for rich component parsing (e.g., __nft_gallery__ markers) */
+  rawToolOutput?: string;
 }
 
 /**

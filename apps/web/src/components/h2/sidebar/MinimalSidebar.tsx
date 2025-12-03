@@ -14,6 +14,7 @@ import { WalletCard } from './WalletCard'
 import { SpaceNavigation } from './SpaceNavigation'
 import { ActivityTab } from './tabs/ActivityTab'
 import { BalancesTab } from './tabs/BalancesTab'
+import { NFTsTab } from './tabs/NFTsTab'
 import { SettingsTab } from './tabs/SettingsTab'
 import { CopyNotification } from '../notifications/CopyNotification'
 import { DeployNotification } from '../notifications/DeployNotification'
@@ -44,7 +45,7 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
   const { monBalance, usdValue, change24h, isLoading, refresh } = useWalletBalance()
   const { showCopy, showCopyNotification, errorMessage } = useNotificationStore()
   const toggleShortcutPanel = useShortcutPanelStore((state) => state.toggle)
-  const [activeTab, setActiveTab] = useState<'activity' | 'balances' | 'settings'>('activity')
+  const [activeTab, setActiveTab] = useState<'activity' | 'balances' | 'nfts' | 'settings'>('activity')
   const [openMethod, setOpenMethod] = useState<'hover' | 'keyboard' | null>(null)
   const [isHovering, setIsHovering] = useState(false)
 
@@ -152,14 +153,14 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
       // Alt + Arrow Left/Right - Navigate tabs
       else if (e.code === 'ArrowLeft' && e.altKey) {
         e.preventDefault()
-        const tabs: Array<'activity' | 'balances' | 'settings'> = ['activity', 'balances', 'settings']
+        const tabs: Array<'activity' | 'balances' | 'nfts' | 'settings'> = ['activity', 'balances', 'nfts', 'settings']
         const currentIndex = tabs.indexOf(activeTab)
         const prevIndex = currentIndex > 0 ? currentIndex - 1 : tabs.length - 1
         setActiveTab(tabs[prevIndex])
       }
       else if (e.code === 'ArrowRight' && e.altKey) {
         e.preventDefault()
-        const tabs: Array<'activity' | 'balances' | 'settings'> = ['activity', 'balances', 'settings']
+        const tabs: Array<'activity' | 'balances' | 'nfts' | 'settings'> = ['activity', 'balances', 'nfts', 'settings']
         const currentIndex = tabs.indexOf(activeTab)
         const nextIndex = currentIndex < tabs.length - 1 ? currentIndex + 1 : 0
         setActiveTab(tabs[nextIndex])
@@ -295,6 +296,17 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
                       <BalancesTab />
                     </motion.div>
                   )}
+                  {activeTab === 'nfts' && (
+                    <motion.div
+                      key="nfts"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <NFTsTab />
+                    </motion.div>
+                  )}
                   {activeTab === 'settings' && (
                     <motion.div
                       key="settings"
@@ -399,6 +411,17 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
                           transition={{ duration: 0.2 }}
                         >
                           <BalancesTab />
+                        </motion.div>
+                      )}
+                      {activeTab === 'nfts' && (
+                        <motion.div
+                          key="nfts-mobile"
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <NFTsTab />
                         </motion.div>
                       )}
                       {activeTab === 'settings' && (

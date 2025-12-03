@@ -33,3 +33,6 @@ export * from "./h2/delegation/index.js";
 export * from "./h2/execution/index.js";
 export * from "./h2/config.js";
 export * from "./h2/progress/emitter.js";
+
+// OpenSea NFT Exports
+export * from "./opensea/index.js";

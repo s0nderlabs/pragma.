@@ -3,7 +3,7 @@ import { MONAD_BLOCK_EXPLORER_URL } from '@/lib/config'
 
 export interface ActivityRecord {
   id: string
-  type: 'swap' | 'transfer' | 'wrap' | 'unwrap' | 'stake' | 'unstake' | 'unstakeClaim' | 'funding' | 'withdrawal'
+  type: 'swap' | 'transfer' | 'wrap' | 'unwrap' | 'stake' | 'unstake' | 'unstakeClaim' | 'funding' | 'withdrawal' | 'nftBuy' | 'nftTransfer'
   timestamp: number
   status: 'success' | 'failed' | 'pending'
 
@@ -23,6 +23,12 @@ export interface ActivityRecord {
   toAmount?: string    // Output amount ("3.50")
   amount?: string      // Legacy field
   recipientAddress?: string  // Recipient address (for transfers)
+
+  // NFT metadata (for modal)
+  nftName?: string             // NFT name
+  collectionSlug?: string      // Collection slug
+  tokenId?: string             // NFT token ID
+  contractAddress?: string     // NFT contract address
 
   // Delegation metadata (for modal)
   delegator?: string           // Smart account address
@@ -59,6 +65,8 @@ export const EXECUTION_TOOLS = [
   'unstakeClaim',
   'fundSessionKey',
   'withdrawSessionKeyBalance',
+  'executeNFTBuy',
+  'transferNFT',
 ] as const
 
 function parseOperationType(toolName: string): ActivityRecord['type'] {
@@ -71,6 +79,8 @@ function parseOperationType(toolName: string): ActivityRecord['type'] {
   if (toolName === 'unstakeClaim') return 'unstakeClaim'
   if (toolName === 'fundSessionKey') return 'funding'
   if (toolName === 'withdrawSessionKeyBalance') return 'withdrawal'
+  if (toolName === 'executeNFTBuy') return 'nftBuy'
+  if (toolName === 'transferNFT') return 'nftTransfer'
   return 'swap' // fallback
 }
 
@@ -212,7 +222,9 @@ function generateDisplayText(
   fromToken?: string,
   toAmount?: string,
   toToken?: string,
-  fundingMethod?: string
+  fundingMethod?: string,
+  nftName?: string,
+  price?: string
 ): string {
   if (type === 'swap' && fromAmount && fromToken && toAmount && toToken) {
     return `Swapped ${formatAmountForDisplay(fromAmount)} ${fromToken} → Received ${formatAmountForDisplay(toAmount)} ${toToken}`
@@ -250,6 +262,22 @@ function generateDisplayText(
 
   if (type === 'withdrawal' && fromAmount && fromToken) {
     return `Withdraw ${formatAmountForDisplay(fromAmount)} ${fromToken}`
+  }
+
+  if (type === 'nftBuy') {
+    const nftLabel = nftName ? `"${nftName}"` : 'NFT'
+    if (price) {
+      return `Bought ${nftLabel} for ${price}`
+    }
+    if (fromAmount && fromToken) {
+      return `Bought ${nftLabel} for ${formatAmountForDisplay(fromAmount)} ${fromToken}`
+    }
+    return `Bought ${nftLabel}`
+  }
+
+  if (type === 'nftTransfer') {
+    const nftLabel = nftName ? `"${nftName}"` : 'NFT'
+    return `Transferred ${nftLabel}`
   }
 
   // Fallback
@@ -336,7 +364,9 @@ function extractFromToolMessage(msg: Extract<AnyMessage, { role: 'tool' }>): Act
         fromToken,
         toAmount,
         toToken,
-        data.fundingMethod
+        data.fundingMethod,
+        data.nftName,
+        data.price
       )
 
       // Extract delegation metadata
@@ -361,6 +391,12 @@ function extractFromToolMessage(msg: Extract<AnyMessage, { role: 'tool' }>): Act
         toAmount,
         toToken,
         recipientAddress: data.recipientAddress,
+
+        // NFT metadata
+        nftName: data.nftName,
+        collectionSlug: data.collectionSlug,
+        tokenId: data.tokenId,
+        contractAddress: data.contractAddress,
 
         // Delegation metadata
         delegator: delegationMeta?.delegator,

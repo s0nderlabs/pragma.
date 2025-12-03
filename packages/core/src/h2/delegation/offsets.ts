@@ -198,6 +198,50 @@ export const ERC20_APPROVE_OFFSETS = {
  * Use `ExactExecutionEnforcer` which validates ALL THREE fields (target, value, callData).
  * See: createNativeTransferDelegation() in transferDelegation.ts
  */
+/**
+ * ERC721/ERC1155 setApprovalForAll Function Offsets
+ *
+ * Function signature:
+ * ```solidity
+ * function setApprovalForAll(
+ *   address operator,  // offset 4   ← ENFORCE THIS
+ *   bool approved      // offset 36  ← ENFORCE THIS
+ * ) external;
+ * ```
+ *
+ * ABI encoding: selector (4 bytes) + operator (32 bytes) + approved (32 bytes)
+ *
+ * Security Note:
+ * Both operator and approved MUST be enforced to prevent:
+ * - Operator substitution (attacker sets themselves as operator)
+ * - Approval manipulation (attacker changes approved to false when user wants true)
+ */
+export const ERC721_SETAPPROVALFORALL_OFFSETS = {
+  /**
+   * Function selector: 0xa22cb465
+   * Not used for enforcement, included for reference
+   */
+  SELECTOR: 0,
+
+  /**
+   * Operator address (bytes 4-36)
+   * ⚠️ CRITICAL: MUST ENFORCE THIS to prevent operator substitution
+   *
+   * The operator is the address being authorized to manage all NFTs.
+   * This must match the Seaport conduit address for OpenSea listings.
+   */
+  OPERATOR: 4,
+
+  /**
+   * Approved boolean (bytes 36-68)
+   * ⚠️ CRITICAL: MUST ENFORCE THIS to prevent approval manipulation
+   *
+   * The approved parameter grants or revokes approval.
+   * Enforcing this prevents attackers from revoking when user wants to grant.
+   */
+  APPROVED: 36,
+} as const;
+
 export const NATIVE_TRANSFER_OFFSETS = {
   /**
    * Target address (bytes 0-32)
@@ -230,6 +274,7 @@ export type MonorailAggregateOffset = keyof typeof MONORAIL_AGGREGATE_OFFSETS;
 export type ERC20TransferOffset = keyof typeof ERC20_TRANSFER_OFFSETS;
 export type ERC20ApproveOffset = keyof typeof ERC20_APPROVE_OFFSETS;
 export type NativeTransferOffset = keyof typeof NATIVE_TRANSFER_OFFSETS;
+export type ERC721SetApprovalForAllOffset = keyof typeof ERC721_SETAPPROVALFORALL_OFFSETS;
 
 /**
  * Validation helpers

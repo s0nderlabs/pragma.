@@ -20,7 +20,7 @@
  */
 
 import type { BaseMessage } from "@langchain/core/messages";
-import { PRAGMA_H2_SYSTEM_PROMPT } from "@pragma/core";
+import { PRAGMA_H2_SYSTEM_PROMPT, PRAGMA_H2_SYSTEM_PROMPT_DEEPSEEK } from "@pragma/core";
 import type { AllowedToken } from "@pragma/core";
 import { onProgress, offProgress, type ProgressEvent } from "@pragma/core/h2/progress/emitter";
 import { authenticatedFetch } from "../api/authenticatedFetch";
@@ -666,8 +666,16 @@ For wrap/unwrap/transfer: ask first, then execute.
 
 Group capabilities with **bold section headers**. Use emojis sparingly. Natural, conversational tone.`;
 
-    // Use full system prompt with placeholder replacements (same as H2 CLI)
-    const systemPrompt = PRAGMA_H2_SYSTEM_PROMPT
+    // Select prompt based on model provider
+    // DeepSeek: Full tailored prompt with parallel execution, output checkpoints, etc.
+    // OpenAI (GPT-5-mini): Base prompt (designed for GPT's natural behavior)
+    const modelProvider = process.env.NEXT_PUBLIC_MODEL_PROVIDER || 'deepseek';
+    const basePrompt = modelProvider === 'deepseek'
+      ? PRAGMA_H2_SYSTEM_PROMPT_DEEPSEEK
+      : PRAGMA_H2_SYSTEM_PROMPT;
+
+    // Apply placeholder replacements
+    const systemPrompt = basePrompt
       .replace(/\[userAddress from context\]/g, context.userAddress)
       .replace(/\[userAddress\]/g, context.userAddress)
       .replace(/\[EXECUTION_MODE\]/g, modeInstructions);

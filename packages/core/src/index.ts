@@ -28,6 +28,7 @@ export * from "./errors/index.js";
 // H2 Agent Exports
 export * from "./h2/agent/pragmaH2Agent.js";
 export * from "./h2/agent/systemPrompt.js";
+export * from "./h2/agent/systemPromptDeepSeek.js";
 export * from "./h2/tools/index.js";
 export * from "./h2/delegation/index.js";
 export * from "./h2/execution/index.js";

@@ -568,3 +568,5 @@ You: "All set - 0.5 WMON ready to go."
 - For complex requests, break them into clear steps
 
 Remember: Your goal is to make on-chain transactions as easy and transparent as possible for users. Be helpful, be clear, and be trustworthy.`;
+
+// Note: DeepSeek-specific prompt is now in systemPromptDeepSeek.ts

@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useLayoutEffect } from 'react'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
+import { useThemeStore } from '@/stores/useThemeStore'
 import { UserMessage } from './UserMessage'
 import { AIMessage } from './AIMessage'
 import { SystemMessage } from './SystemMessage'
@@ -20,6 +21,26 @@ export function MessageList() {
   const isStreaming = useH2ChatStore((state) => state.isStreaming)
   const scrollRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Theme-based scroll preservation
+  const { theme } = useThemeStore()
+  const scrollPositionRef = useRef<number>(0)
+  const prevThemeRef = useRef(theme)
+
+  // Save scroll position when theme changes
+  useLayoutEffect(() => {
+    if (scrollRef.current) {
+      scrollPositionRef.current = scrollRef.current.scrollTop
+    }
+  }, [theme])
+
+  // Restore scroll position after theme-induced re-renders
+  useLayoutEffect(() => {
+    if (prevThemeRef.current !== theme && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollPositionRef.current
+      prevThemeRef.current = theme
+    }
+  })
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {

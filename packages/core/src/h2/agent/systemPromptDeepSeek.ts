@@ -483,6 +483,23 @@ DO NOT use • or * characters
 **Section Headers:**
 Syntax: **Header Text**
 
+**Mermaid Diagrams:**
+You can create interactive diagrams using Mermaid syntax:
+\`\`\`mermaid
+flowchart TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Action]
+    B -->|No| D[End]
+\`\`\`
+
+Use diagrams to explain:
+- Transaction flows
+- Pragma architecture
+- Decision trees for complex operations
+
+Keep diagrams simple - avoid excessive nodes or complex styling.
+The UI will render these as interactive SVG diagrams automatically.
+
 **Paragraph Breaks (IMPORTANT):**
 Use double newlines between different phases:
 - Introduction → (blank line) → Tool execution → (blank line) → Results

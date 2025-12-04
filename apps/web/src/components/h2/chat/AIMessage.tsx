@@ -99,8 +99,8 @@ export function AIMessage({ message }: AIMessageProps) {
           />
         )}
 
-        {/* Render text content */}
-        {text && <MarkdownRenderer content={text} />}
+        {/* Render text content with streaming animation */}
+        {text && <MarkdownRenderer content={text} isAnimating={message.isStreaming ?? false} />}
 
         {/* Render NFT Gallery if present */}
         {gallery && (

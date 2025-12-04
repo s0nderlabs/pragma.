@@ -68,8 +68,8 @@ export async function GET(request: Request) {
     const listings = data.listings || [];
     const nfts: unknown[] = [];
 
-    // Fetch NFT details for each listing (up to 10 to avoid rate limits)
-    const fetchPromises = listings.slice(0, 10).map(async (listing: { protocol_data: { parameters: { offer: Array<{ token: string; identifierOrCriteria: string }> } } }) => {
+    // Fetch NFT details for each listing (limit param already caps at 100)
+    const fetchPromises = listings.map(async (listing: { protocol_data: { parameters: { offer: Array<{ token: string; identifierOrCriteria: string }> } } }) => {
       try {
         const offer = listing.protocol_data.parameters.offer[0];
         if (!offer) return null;
@@ -88,8 +88,14 @@ export async function GET(request: Request) {
           const nftData = await nftResponse.json();
           return {
             ...nftData,
+            // Map metadata fields to expected NFT type fields
+            image_url: nftData.image,
+            display_image_url: nftData.image,
+            collection, // Add collection slug from request
             contract: offer.token,
             identifier: offer.identifierOrCriteria,
+            // Construct OpenSea URL for linking
+            opensea_url: `https://opensea.io/assets/monad/${offer.token}/${offer.identifierOrCriteria}`,
           };
         }
         return null;

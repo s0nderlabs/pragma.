@@ -3,6 +3,56 @@ import { z } from "zod";
 import { getAddress, type Address, erc20Abi } from "viem";
 import { type AllowedToken } from "../../monorail/tokens.js";
 
+// ERC165 Interface IDs
+const ERC721_INTERFACE_ID = "0x80ac58cd";
+const ERC1155_INTERFACE_ID = "0xd9b67a26";
+
+// ERC165 ABI for supportsInterface
+const supportsInterfaceAbi = [
+  {
+    name: "supportsInterface",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "interfaceId", type: "bytes4" }],
+    outputs: [{ type: "bool" }],
+  },
+] as const;
+
+// ERC721 name ABI
+const erc721NameAbi = [
+  {
+    name: "name",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "string" }],
+  },
+  {
+    name: "symbol",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "string" }],
+  },
+] as const;
+
+// OpenSea collection response type
+interface CollectionInfoResponse {
+  collection: {
+    slug: string;
+    name: string;
+    description?: string;
+    opensea_url: string;
+    contracts: Array<{ address: Address; chain: string }>;
+  };
+  stats: {
+    total_supply: number;
+    total_listings: number;
+    floor_price?: number;
+    floor_price_symbol?: string;
+  } | null;
+}
+
 /**
  * getTokenInfoTool - Get detailed information about any token (verified or unverified)
  *
@@ -100,6 +150,63 @@ Basic data was fetched directly from the blockchain.
 - Check token on block explorer (https://monadexplorer.com)
 - Never trade significant amounts without independent verification
 - Be aware that this token may be malicious or fake`;
+}
+
+/**
+ * Format NFT contract output
+ */
+function formatNFTContract(data: {
+  address: string;
+  name: string;
+  symbol?: string;
+  standard: "ERC-721" | "ERC-1155";
+  collectionSlug?: string;
+  collectionName?: string;
+  floorPrice?: number;
+  floorPriceSymbol?: string;
+  totalSupply?: number;
+  totalListings?: number;
+  openseaUrl?: string;
+}): string {
+  const lines: string[] = [
+    `🖼️ **${data.collectionName || data.name}** (NFT Collection)`,
+    "",
+    `**Contract Address:** \`${data.address}\``,
+    `**Standard:** ${data.standard}`,
+  ];
+
+  if (data.symbol) {
+    lines.push(`**Symbol:** ${data.symbol}`);
+  }
+
+  if (data.collectionSlug) {
+    lines.push(`**Collection Slug:** \`${data.collectionSlug}\``);
+  }
+
+  if (data.floorPrice !== undefined) {
+    lines.push(`**Floor Price:** ${data.floorPrice} ${data.floorPriceSymbol || "MON"}`);
+  }
+
+  if (data.totalSupply !== undefined) {
+    lines.push(`**Total Supply:** ${data.totalSupply.toLocaleString()}`);
+  }
+
+  if (data.totalListings !== undefined) {
+    lines.push(`**Listed:** ${data.totalListings.toLocaleString()}`);
+  }
+
+  if (data.openseaUrl) {
+    lines.push(`**OpenSea:** ${data.openseaUrl}`);
+  }
+
+  lines.push("");
+  lines.push("This is an **NFT collection**, not a fungible token.");
+
+  if (data.collectionSlug) {
+    lines.push(`Use \`browseCollection\` with slug "${data.collectionSlug}" to see available NFTs.`);
+  }
+
+  return lines.join("\n");
 }
 
 /**
@@ -220,6 +327,95 @@ export const getTokenInfoTool = tool(
     }
 
     // =========================================================================
+    // Tier 4.5: Detect NFT contracts (ERC721/ERC1155) before ERC20 check
+    // =========================================================================
+    if (trimmed.startsWith("0x") && publicClient) {
+      try {
+        const checksumAddress = getAddress(trimmed as Address);
+
+        // Check ERC165 supportsInterface for ERC721 and ERC1155
+        const [is721Result, is1155Result] = await Promise.allSettled([
+          publicClient.readContract({
+            address: checksumAddress,
+            abi: supportsInterfaceAbi,
+            functionName: "supportsInterface",
+            args: [ERC721_INTERFACE_ID as `0x${string}`],
+          }),
+          publicClient.readContract({
+            address: checksumAddress,
+            abi: supportsInterfaceAbi,
+            functionName: "supportsInterface",
+            args: [ERC1155_INTERFACE_ID as `0x${string}`],
+          }),
+        ]);
+
+        const is721 = is721Result.status === "fulfilled" && is721Result.value === true;
+        const is1155 = is1155Result.status === "fulfilled" && is1155Result.value === true;
+
+        if (is721 || is1155) {
+          // This is an NFT contract!
+          const standard = is721 ? "ERC-721" : "ERC-1155";
+
+          // Try to get name and symbol
+          let name = "Unknown NFT";
+          let symbol: string | undefined;
+
+          try {
+            const [nameResult, symbolResult] = await Promise.allSettled([
+              publicClient.readContract({
+                address: checksumAddress,
+                abi: erc721NameAbi,
+                functionName: "name",
+              }),
+              publicClient.readContract({
+                address: checksumAddress,
+                abi: erc721NameAbi,
+                functionName: "symbol",
+              }),
+            ]);
+
+            if (nameResult.status === "fulfilled") {
+              name = nameResult.value as string;
+            }
+            if (symbolResult.status === "fulfilled") {
+              symbol = symbolResult.value as string;
+            }
+          } catch {
+            // Name/symbol not available, continue with defaults
+          }
+
+          // Try to fetch collection info from OpenSea
+          let collectionInfo: CollectionInfoResponse | null = null;
+          try {
+            const response = await fetchFn(`/api/opensea/collection?contract=${checksumAddress}`);
+            if (response.ok) {
+              collectionInfo = await response.json() as CollectionInfoResponse;
+            }
+          } catch {
+            // OpenSea lookup failed, continue without collection info
+          }
+
+          return formatNFTContract({
+            address: checksumAddress,
+            name,
+            symbol,
+            standard,
+            collectionSlug: collectionInfo?.collection?.slug,
+            collectionName: collectionInfo?.collection?.name,
+            floorPrice: collectionInfo?.stats?.floor_price,
+            floorPriceSymbol: collectionInfo?.stats?.floor_price_symbol,
+            totalSupply: collectionInfo?.stats?.total_supply,
+            totalListings: collectionInfo?.stats?.total_listings,
+            openseaUrl: collectionInfo?.collection?.opensea_url,
+          });
+        }
+      } catch {
+        // supportsInterface failed, contract might not support ERC165
+        // Continue to ERC20 check
+      }
+    }
+
+    // =========================================================================
     // Tier 5: Try onchain (ERC20 basic data)
     // =========================================================================
     if (trimmed.startsWith("0x") && publicClient) {
@@ -252,19 +448,20 @@ export const getTokenInfoTool = tool(
           decimals: decimals as number,
         });
       } catch {
-        return `❌ **Token Not Found**
+        return `❌ **Contract Not Recognized**
 
-The address \`${trimmed}\` is not a valid ERC20 token on Monad.
+The address \`${trimmed}\` could not be identified as a token or NFT contract.
 
 **Possible reasons:**
+- Contract does not implement ERC20, ERC721, or ERC1155 standard
 - Invalid or malformed address
-- Contract does not implement ERC20 standard
 - Contract does not exist at this address
 - Network issues or RPC errors
 
 **Suggestion:**
 - Verify the address is correct
-- Check if token exists on block explorer: https://monadexplorer.com/address/${trimmed}
+- Check on block explorer: https://monadexplorer.com/address/${trimmed}
+- If this is an NFT, try \`getCollectionInfo\` with the contract address
 - Use \`listVerifiedTokens\` to see all verified tokens`;
       }
     }

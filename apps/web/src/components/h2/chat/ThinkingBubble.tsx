@@ -144,13 +144,13 @@ function ThinkingSegment({
           >
             <div className="mt-3 ml-2 pl-5 pr-4 py-3 relative">
               {/* Decorative quote mark */}
-              <span className="absolute left-0 -top-1 text-2xl text-[#E07A5F]/40 font-serif select-none">"</span>
+              <span className="absolute left-0 -top-1 text-2xl text-[#E07A5F]/40 font-serif select-none">{'"'}</span>
               <div className="text-[13px] text-neutral-600 dark:text-neutral-400 leading-[1.8] font-serif italic space-y-2">
                 {segment.content.split(/(?<=[.!?])\s+(?=[A-Z])/).map((paragraph, i) => (
                   <p key={i}>{paragraph}</p>
                 ))}
               </div>
-              <span className="absolute right-1 -bottom-2 text-2xl text-[#E07A5F]/40 font-serif select-none">"</span>
+              <span className="absolute right-1 -bottom-2 text-2xl text-[#E07A5F]/40 font-serif select-none">{'"'}</span>
             </div>
           </motion.div>
         )}
@@ -236,13 +236,13 @@ function StreamingSegment({
           >
             <div className="mt-3 ml-2 pl-5 pr-4 py-3 relative">
               {/* Decorative quote mark */}
-              <span className="absolute left-0 -top-1 text-2xl text-[#E07A5F]/40 font-serif select-none">"</span>
+              <span className="absolute left-0 -top-1 text-2xl text-[#E07A5F]/40 font-serif select-none">{'"'}</span>
               <div className="text-[13px] text-neutral-600 dark:text-neutral-400 leading-[1.8] font-serif italic space-y-2">
                 {content.split(/(?<=[.!?])\s+(?=[A-Z])/).map((paragraph, i) => (
                   <p key={i}>{paragraph}</p>
                 ))}
               </div>
-              <span className="absolute right-1 -bottom-2 text-2xl text-[#E07A5F]/40 font-serif select-none">"</span>
+              <span className="absolute right-1 -bottom-2 text-2xl text-[#E07A5F]/40 font-serif select-none">{'"'}</span>
             </div>
           </motion.div>
         )}

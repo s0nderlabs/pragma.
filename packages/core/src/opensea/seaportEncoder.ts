@@ -172,6 +172,7 @@ export const SEAPORT_ABI = [
 
 /** OpenSea fulfillment transaction input_data structure */
 export interface OpenSeaInputData {
+  // Nested structure (legacy format)
   advancedOrder?: {
     parameters: {
       offerer: string;
@@ -204,6 +205,41 @@ export interface OpenSeaInputData {
     signature: string;
     extraData: string;
   };
+
+  // Flat structure (current OpenSea API format for fulfillAdvancedOrder)
+  // Order parameters directly in input_data, not nested under advancedOrder
+  parameters?: {
+    offerer: string;
+    zone: string;
+    offer: Array<{
+      itemType: number;
+      token: string;
+      identifierOrCriteria: string;
+      startAmount: string;
+      endAmount: string;
+    }>;
+    consideration: Array<{
+      itemType: number;
+      token: string;
+      identifierOrCriteria: string;
+      startAmount: string;
+      endAmount: string;
+      recipient: string;
+    }>;
+    orderType: number;
+    startTime: string | number;
+    endTime: string | number;
+    zoneHash: string;
+    salt: string | number;
+    conduitKey: string;
+    totalOriginalConsiderationItems: number;
+  };
+  numerator?: number;
+  denominator?: number;
+  signature?: string;
+  extraData?: string;
+
+  // Shared fields
   criteriaResolvers?: Array<{
     orderIndex: number;
     side: number;
@@ -212,11 +248,8 @@ export interface OpenSeaInputData {
     criteriaProof: string[];
   }>;
   fulfillerConduitKey?: string;
-  recipient?: {
-    value: string;
-  };
-  // For basic orders
-  parameters?: any;
+  // Recipient can be string (flat) or object (nested)
+  recipient?: string | { value: string };
 }
 
 /** OpenSea fulfillment transaction structure */
@@ -241,9 +274,18 @@ export interface OpenSeaTransaction {
 export function encodeSeaportFulfillment(transaction: OpenSeaTransaction): Hex {
   const { function: fnName, input_data } = transaction;
 
-  // Handle fulfillAdvancedOrder
-  if (fnName === "fulfillAdvancedOrder" && input_data.advancedOrder) {
-    return encodeFulfillAdvancedOrder(input_data);
+  // Handle fulfillAdvancedOrder (both nested and flat structures)
+  // Use startsWith because OpenSea API returns full signature: "fulfillAdvancedOrder(((address,..."
+  if (fnName.startsWith("fulfillAdvancedOrder")) {
+    // Nested structure: advancedOrder contains the order data
+    if (input_data.advancedOrder) {
+      return encodeFulfillAdvancedOrder(input_data);
+    }
+    // Flat structure: parameters, numerator, etc. directly in input_data
+    // (OpenSea API returns this format)
+    if (input_data.parameters) {
+      return encodeFulfillAdvancedOrderFlat(input_data);
+    }
   }
 
   // Handle fulfillBasicOrder variants
@@ -307,8 +349,92 @@ function encodeFulfillAdvancedOrder(inputData: OpenSeaInputData): Hex {
     criteriaProof: resolver.criteriaProof as Hex[],
   }));
 
-  // Get recipient address
-  const recipientAddress = (recipient?.value || "0x0000000000000000000000000000000000000000") as Address;
+  // Get recipient address (handle both string and { value: string } formats)
+  const recipientAddress = (
+    typeof recipient === "string"
+      ? recipient
+      : recipient?.value || "0x0000000000000000000000000000000000000000"
+  ) as Address;
+
+  // Get conduit key
+  const conduitKey = (fulfillerConduitKey || "0x0000000000000000000000000000000000000000000000000000000000000000") as Hex;
+
+  return encodeFunctionData({
+    abi: SEAPORT_ABI,
+    functionName: "fulfillAdvancedOrder",
+    args: [transformedOrder, transformedResolvers, conduitKey, recipientAddress],
+  });
+}
+
+/**
+ * Encode fulfillAdvancedOrder call from flat input_data structure
+ * (OpenSea API returns data flat, not nested under advancedOrder key)
+ */
+function encodeFulfillAdvancedOrderFlat(inputData: OpenSeaInputData): Hex {
+  const {
+    parameters,
+    numerator,
+    denominator,
+    signature,
+    extraData,
+    criteriaResolvers,
+    fulfillerConduitKey,
+    recipient,
+  } = inputData as any;
+
+  if (!parameters) {
+    throw new Error("parameters is required for fulfillAdvancedOrder");
+  }
+
+  // Transform to advancedOrder structure matching the ABI
+  const transformedOrder = {
+    parameters: {
+      offerer: parameters.offerer as Address,
+      zone: parameters.zone as Address,
+      offer: parameters.offer.map((item: any) => ({
+        itemType: item.itemType,
+        token: item.token as Address,
+        identifierOrCriteria: BigInt(item.identifierOrCriteria),
+        startAmount: BigInt(item.startAmount),
+        endAmount: BigInt(item.endAmount),
+      })),
+      consideration: parameters.consideration.map((item: any) => ({
+        itemType: item.itemType,
+        token: item.token as Address,
+        identifierOrCriteria: BigInt(item.identifierOrCriteria),
+        startAmount: BigInt(item.startAmount),
+        endAmount: BigInt(item.endAmount),
+        recipient: item.recipient as Address,
+      })),
+      orderType: parameters.orderType,
+      startTime: BigInt(parameters.startTime),
+      endTime: BigInt(parameters.endTime),
+      zoneHash: parameters.zoneHash as Hex,
+      salt: BigInt(parameters.salt),
+      conduitKey: parameters.conduitKey as Hex,
+      totalOriginalConsiderationItems: BigInt(parameters.totalOriginalConsiderationItems),
+    },
+    numerator: BigInt(numerator || 1),
+    denominator: BigInt(denominator || 1),
+    signature: (signature || "0x") as Hex,
+    extraData: (extraData || "0x") as Hex,
+  };
+
+  // Transform criteriaResolvers
+  const transformedResolvers = (criteriaResolvers || []).map((resolver: any) => ({
+    orderIndex: BigInt(resolver.orderIndex),
+    side: resolver.side,
+    index: BigInt(resolver.index),
+    identifier: BigInt(resolver.identifier),
+    criteriaProof: resolver.criteriaProof as Hex[],
+  }));
+
+  // Get recipient address (handle both string and { value: string } formats)
+  const recipientAddress = (
+    typeof recipient === "string"
+      ? recipient
+      : recipient?.value || "0x0000000000000000000000000000000000000000"
+  ) as Address;
 
   // Get conduit key
   const conduitKey = (fulfillerConduitKey || "0x0000000000000000000000000000000000000000000000000000000000000000") as Hex;

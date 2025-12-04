@@ -335,6 +335,50 @@ export class OpenSeaClient {
     return this.request<CollectionStats>(endpoint);
   }
 
+  /**
+   * Get collection info by contract address
+   *
+   * Looks up a token ID from the contract to get the collection slug,
+   * then fetches full collection details.
+   *
+   * @param contractAddress - NFT contract address
+   * @returns Collection details or null if not found
+   */
+  async getCollectionByContract(contractAddress: Address): Promise<Collection | null> {
+    try {
+      // Fetch any NFT from the contract to get the collection slug
+      const nftEndpoint = `/chain/${this.chain}/contract/${getAddress(contractAddress)}/nfts/1`;
+      const nftResponse = await this.request<NFTResponse>(nftEndpoint);
+
+      if (!nftResponse?.nft?.collection) {
+        return null;
+      }
+
+      // Use the slug to get full collection details
+      return await this.getCollection(nftResponse.nft.collection);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get collection info and stats combined
+   *
+   * @param slug - OpenSea collection slug
+   * @returns Combined collection info and stats
+   */
+  async getCollectionWithStats(slug: string): Promise<{ collection: Collection; stats: CollectionStats } | null> {
+    try {
+      const [collection, stats] = await Promise.all([
+        this.getCollection(slug),
+        this.getCollectionStats(slug),
+      ]);
+      return { collection, stats };
+    } catch {
+      return null;
+    }
+  }
+
   // ============================================================================
   // Listing Endpoints
   // ============================================================================

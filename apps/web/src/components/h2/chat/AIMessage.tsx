@@ -67,8 +67,9 @@ export function AIMessage({ message }: AIMessageProps) {
     if (message.rawToolOutput) {
       const { gallery: galleryFromRaw } = parseNFTGallery(message.rawToolOutput)
       if (galleryFromRaw) {
-        // Use LLM's formatted text, but gallery from raw output
-        return { text: displayedContent, gallery: galleryFromRaw }
+        // Strip marker from displayedContent in case LLM echoed tool output verbatim
+        const { text: cleanedText } = parseNFTGallery(displayedContent)
+        return { text: cleanedText, gallery: galleryFromRaw }
       }
     }
     // Fall back to parsing displayedContent

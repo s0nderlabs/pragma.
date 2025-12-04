@@ -66,16 +66,29 @@ function buildGalleryData(
   };
 }
 
-function formatNFTListAsText(nfts: NFT[], userAddress: string): string {
+/**
+ * Collection metadata for agent context
+ */
+interface CollectionMeta {
+  name: string;
+  slug: string;
+  contract: string;
+  count: number;
+}
+
+function formatNFTListAsText(nfts: NFT[], userAddress: string): { text: string; collections: CollectionMeta[] } {
   if (nfts.length === 0) {
-    return `**Your NFTs**
+    return {
+      text: `**Your NFTs**
 
 No NFTs found in your wallet.
 
-Address: ${userAddress}`;
+Address: ${userAddress}`,
+      collections: [],
+    };
   }
 
-  // Group by collection
+  // Group by collection slug
   const byCollection = new Map<string, NFT[]>();
   for (const nft of nfts) {
     const collection = nft.collection || "Unknown";
@@ -86,24 +99,53 @@ Address: ${userAddress}`;
   }
 
   const lines: string[] = [`**Your NFTs** (${nfts.length} total)`, ""];
+  const collectionsMeta: CollectionMeta[] = [];
 
-  for (const [collection, collectionNfts] of byCollection) {
-    lines.push(`**${collection}** (${collectionNfts.length})`);
+  for (const [slug, collectionNfts] of byCollection) {
+    // Derive collection name from NFT names (remove token ID suffix)
+    const firstNft = collectionNfts[0];
+    let collectionName = slug;
+
+    // Try to extract collection name from NFT name (e.g., "Bored Cat #123" -> "Bored Cat")
+    if (firstNft.name) {
+      const nameParts = firstNft.name.split(/\s*#\d+/);
+      if (nameParts[0] && nameParts[0].trim().length > 0) {
+        collectionName = nameParts[0].trim();
+      }
+    }
+
+    // Store metadata for agent
+    collectionsMeta.push({
+      name: collectionName,
+      slug,
+      contract: firstNft.contract,
+      count: collectionNfts.length,
+    });
+
+    // Human-readable output: show name, not slug
+    lines.push(`**${collectionName}** (${collectionNfts.length} NFT${collectionNfts.length > 1 ? "s" : ""})`);
 
     for (const nft of collectionNfts.slice(0, 5)) {
       const name = getNFTDisplayName(nft);
       const img = nft.display_image_url || nft.image_url;
-      lines.push(`  ${img ? "🖼️" : "📄"} ${name} [${nft.contract}:${nft.identifier}]`);
+      lines.push(`  ${img ? "🖼️" : "📄"} ${name}`);
     }
 
     if (collectionNfts.length > 5) {
       lines.push(`  ... and ${collectionNfts.length - 5} more`);
     }
+
+    // Show contract address (important for identification)
+    lines.push(`  Contract: \`${firstNft.contract}\``);
     lines.push("");
   }
 
-  lines.push(`Address: ${userAddress}`);
-  return lines.join("\n");
+  lines.push(`Wallet: ${userAddress}`);
+
+  return {
+    text: lines.join("\n"),
+    collections: collectionsMeta,
+  };
 }
 
 // ============================================================================
@@ -158,13 +200,20 @@ export const getMyNFTsTool = tool(
         nextCursor
       );
 
-      const textOutput = formatNFTListAsText(nfts, checksummedAddress);
+      const { text: textOutput, collections } = formatNFTListAsText(nfts, checksummedAddress);
+
+      // Include collections metadata in gallery data for agent context
+      const enrichedGalleryData = {
+        ...galleryData,
+        collections, // Array of { name, slug, contract, count }
+      };
 
       // Return text for LLM + structured data marker for UI
+      // Agent can use collections array to find slug for follow-up operations
       return `${textOutput}
 
 __nft_gallery__
-${JSON.stringify(galleryData)}`;
+${JSON.stringify(enrichedGalleryData)}`;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("[getMyNFTsTool] Error:", errorMessage);

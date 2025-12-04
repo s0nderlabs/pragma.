@@ -154,7 +154,10 @@ export interface H2ChatState {
   updateMessageContent: (id: string, content: string) => void;
   setMessageRawToolOutput: (id: string, rawToolOutput: string) => void;
   updateMessageReasoning: (id: string, reasoningContent: string, reasoningDuration?: number) => void;
-  addReasoningSegment: (id: string, content: string, duration?: number) => void;
+  addReasoningSegment: (id: string, content: string, duration?: number, summary?: string) => string;
+  updateReasoningSegmentSummary: (segmentId: string, summary: string) => void;
+  appendReasoningSegmentSummary: (segmentId: string, token: string) => void;
+  setSegmentSummarizing: (segmentId: string, isSummarizing: boolean) => void;
   setStreamingMessage: (id: string | null) => void;
   clearMessages: () => void;
 
@@ -297,19 +300,89 @@ export const useH2ChatStore = create<H2ChatState>()(
           }));
         },
 
-        addReasoningSegment: (id, content, duration) => {
+        addReasoningSegment: (id, content, duration, summary) => {
+          // Generate segment ID before set() so we can return it
+          const segmentId = `seg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           set((state) => ({
             messages: state.messages.map((msg) => {
               if (msg.id !== id) return msg;
               const chatMsg = msg as ChatMessage;
               const newSegment: ReasoningSegment = {
-                id: `seg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                id: segmentId,
                 content,
                 duration,
+                summary,
               };
               return {
                 ...chatMsg,
                 reasoningSegments: [...(chatMsg.reasoningSegments || []), newSegment],
+              };
+            }),
+          }));
+          return segmentId;
+        },
+
+        updateReasoningSegmentSummary: (segmentId, summary) => {
+          set((state) => ({
+            messages: state.messages.map((msg) => {
+              const chatMsg = msg as ChatMessage;
+              if (!chatMsg.reasoningSegments) return msg;
+
+              // Find segment by ID across all messages
+              const hasSegment = chatMsg.reasoningSegments.some(seg => seg.id === segmentId);
+              if (!hasSegment) return msg;
+
+              const updatedSegments = chatMsg.reasoningSegments.map((seg) =>
+                seg.id === segmentId ? { ...seg, summary } : seg
+              );
+
+              return {
+                ...chatMsg,
+                reasoningSegments: updatedSegments,
+              };
+            }),
+          }));
+        },
+
+        appendReasoningSegmentSummary: (segmentId, token) => {
+          set((state) => ({
+            messages: state.messages.map((msg) => {
+              const chatMsg = msg as ChatMessage;
+              if (!chatMsg.reasoningSegments) return msg;
+
+              const hasSegment = chatMsg.reasoningSegments.some(seg => seg.id === segmentId);
+              if (!hasSegment) return msg;
+
+              const updatedSegments = chatMsg.reasoningSegments.map((seg) =>
+                seg.id === segmentId
+                  ? { ...seg, summary: (seg.summary || '') + token }
+                  : seg
+              );
+
+              return {
+                ...chatMsg,
+                reasoningSegments: updatedSegments,
+              };
+            }),
+          }));
+        },
+
+        setSegmentSummarizing: (segmentId, isSummarizing) => {
+          set((state) => ({
+            messages: state.messages.map((msg) => {
+              const chatMsg = msg as ChatMessage;
+              if (!chatMsg.reasoningSegments) return msg;
+
+              const hasSegment = chatMsg.reasoningSegments.some(seg => seg.id === segmentId);
+              if (!hasSegment) return msg;
+
+              const updatedSegments = chatMsg.reasoningSegments.map((seg) =>
+                seg.id === segmentId ? { ...seg, isSummarizing } : seg
+              );
+
+              return {
+                ...chatMsg,
+                reasoningSegments: updatedSegments,
               };
             }),
           }));

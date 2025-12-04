@@ -190,77 +190,92 @@ async function streamWithReasoningExtraction(
     async start(controller) {
       const decoder = new TextDecoder();
       const encoder = new TextEncoder();
+      let lineBuffer = ''; // Buffer for incomplete SSE lines
+
+      // Helper to process a single complete SSE line
+      const processLine = (line: string) => {
+        if (line.startsWith("data: ")) {
+          const data = line.slice(6);
+          if (data === "[DONE]") {
+            // Store accumulated reasoning before ending
+            if (accumulatedReasoning) {
+              state.reasoningContent.set(
+                newMessageIndex,
+                accumulatedReasoning
+              );
+            }
+            console.log("[DeepSeek Proxy] Stream complete, total chunks:", chunkCount);
+            controller.enqueue(encoder.encode(line + "\n\n"));
+            return;
+          }
+
+          try {
+            const parsed = JSON.parse(data);
+            const delta = parsed.choices?.[0]?.delta;
+
+            // Extract reasoning_content for storage
+            if (delta?.reasoning_content) {
+              accumulatedReasoning += delta.reasoning_content;
+            }
+
+            // CRITICAL: LangChain drops unknown fields like reasoning_content
+            // Solution: Inject reasoning into content with markers for client-side parsing
+            // Format: <<REASON>>thinking text<<END_REASON>>
+            if (delta) {
+              let newContent = delta.content || "";
+
+              // If there's reasoning_content, wrap it with markers and prepend to content
+              if (delta.reasoning_content) {
+                newContent = `<<REASON>>${delta.reasoning_content}<<END_REASON>>${newContent}`;
+              }
+
+              // Always set content (even if empty string)
+              parsed.choices[0].delta.content = newContent;
+
+              // Remove reasoning_content to avoid confusion (we've moved it to content)
+              delete parsed.choices[0].delta.reasoning_content;
+            }
+
+            // Re-serialize and pass through (SSE requires \n\n after data lines)
+            const modifiedLine = `data: ${JSON.stringify(parsed)}`;
+            controller.enqueue(encoder.encode(modifiedLine + "\n\n"));
+          } catch {
+            // Not JSON, pass through as-is
+            controller.enqueue(encoder.encode(line + "\n\n"));
+          }
+        } else if (line.trim()) {
+          // Pass through non-data lines (keep-alive, etc.)
+          controller.enqueue(encoder.encode(line + "\n"));
+        }
+      };
 
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const chunk = decoder.decode(value, { stream: true });
+          // Accumulate data in buffer (TCP can split at arbitrary byte boundaries)
+          lineBuffer += decoder.decode(value, { stream: true });
           chunkCount++;
 
-          // Log first few chunks for debugging (show full chunk to see choices structure)
+          // Log first few chunks for debugging
           if (chunkCount <= 3) {
-            console.log(`[DeepSeek Proxy] Stream chunk ${chunkCount}:`, chunk.substring(0, 500));
+            console.log(`[DeepSeek Proxy] Stream chunk ${chunkCount}:`, lineBuffer.substring(0, 500));
           }
 
-          // Parse SSE events
-          const lines = chunk.split("\n");
+          // Split into lines and keep incomplete last line in buffer
+          const lines = lineBuffer.split("\n");
+          lineBuffer = lines.pop() || ''; // Keep last (possibly incomplete) line
+
+          // Process only complete lines
           for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              const data = line.slice(6);
-              if (data === "[DONE]") {
-                // Store accumulated reasoning before ending
-                if (accumulatedReasoning) {
-                  state.reasoningContent.set(
-                    newMessageIndex,
-                    accumulatedReasoning
-                  );
-                }
-                console.log("[DeepSeek Proxy] Stream complete, total chunks:", chunkCount);
-                controller.enqueue(encoder.encode(line + "\n\n"));
-                continue;
-              }
-
-              try {
-                const parsed = JSON.parse(data);
-                const delta = parsed.choices?.[0]?.delta;
-
-                // Extract reasoning_content for storage
-                if (delta?.reasoning_content) {
-                  accumulatedReasoning += delta.reasoning_content;
-                }
-
-                // CRITICAL: LangChain drops unknown fields like reasoning_content
-                // Solution: Inject reasoning into content with markers for client-side parsing
-                // Format: <<REASON>>thinking text<<END_REASON>>
-                if (delta) {
-                  let newContent = delta.content || "";
-
-                  // If there's reasoning_content, wrap it with markers and prepend to content
-                  if (delta.reasoning_content) {
-                    newContent = `<<REASON>>${delta.reasoning_content}<<END_REASON>>${newContent}`;
-                  }
-
-                  // Always set content (even if empty string)
-                  parsed.choices[0].delta.content = newContent;
-
-                  // Remove reasoning_content to avoid confusion (we've moved it to content)
-                  delete parsed.choices[0].delta.reasoning_content;
-                }
-
-                // Re-serialize and pass through (SSE requires \n\n after data lines)
-                const modifiedLine = `data: ${JSON.stringify(parsed)}`;
-                controller.enqueue(encoder.encode(modifiedLine + "\n\n"));
-              } catch {
-                // Not JSON, pass through as-is
-                controller.enqueue(encoder.encode(line + "\n\n"));
-              }
-            } else if (line.trim()) {
-              // Pass through non-data lines (keep-alive, etc.)
-              controller.enqueue(encoder.encode(line + "\n"));
-            }
+            processLine(line);
           }
+        }
+
+        // Process any remaining buffer after stream ends
+        if (lineBuffer.trim()) {
+          processLine(lineBuffer);
         }
 
         // Ensure reasoning is stored even if [DONE] wasn't received

@@ -32,6 +32,7 @@ import { createAgent } from 'langchain';
 import { ChatOpenAI } from '@langchain/openai';
 import { h2ToolRegistry } from '@pragma/core';
 import { authenticatedFetch } from '@/lib/api/authenticatedFetch';
+import { wrapToolsForDeepSeek } from './wrapToolsForDeepSeek';
 
 /**
  * Browser agent configuration
@@ -210,7 +211,13 @@ export function createBrowserAgent(config: BrowserAgentConfig): ReturnType<typeo
   const model = new ChatOpenAI(modelConfig);
 
   // Use custom tools if provided, otherwise use full registry
-  const tools = config.tools || [...h2ToolRegistry];
+  let tools = config.tools || [...h2ToolRegistry];
+
+  // For DeepSeek: wrap entry-point tools with reminder text
+  // This reinforces critical behaviors (text output + thinking summary)
+  if (useDeepSeek) {
+    tools = wrapToolsForDeepSeek(tools);
+  }
 
   // Create agent using LangChain 1.0 pattern (identical to server-side)
   const agent = createAgent({

@@ -29,6 +29,7 @@ import { authenticatedFetch } from '@/lib/api/authenticatedFetch';
 import { createBrowserAgent, validateBrowserEnvironment } from '@/lib/h2.5/createBrowserAgent';
 import { createDirectWeb3AuthBridge } from '@/lib/h2.5/directWeb3AuthBridge';
 import { streamBrowserAgent } from '@/lib/h2.5/browserAgentRunner';
+import { streamSummarize } from '@/lib/h2.5/streamSummarize';
 import type { MessageTuple, BrowserAgentCallbacks } from '@/lib/h2.5/browserAgentRunner';
 import { createHybridDelegatorHandle } from '@/lib/onboarding/hybridDelegator';
 import { useNotificationStore } from '@/stores/useNotificationStore';
@@ -67,6 +68,9 @@ export function useH2_5Agent() {
   const setMessageRawToolOutput = useH2ChatStore((state) => state.setMessageRawToolOutput);
   const updateMessageReasoning = useH2ChatStore((state) => state.updateMessageReasoning);
   const addReasoningSegment = useH2ChatStore((state) => state.addReasoningSegment);
+  const updateReasoningSegmentSummary = useH2ChatStore((state) => state.updateReasoningSegmentSummary);
+  const appendReasoningSegmentSummary = useH2ChatStore((state) => state.appendReasoningSegmentSummary);
+  const setSegmentSummarizing = useH2ChatStore((state) => state.setSegmentSummarizing);
   const setStreamingMessage = useH2ChatStore((state) => state.setStreamingMessage);
   const hideProgress = useH2ChatStore((state) => state.hideProgress);
   const startTool = useH2ChatStore((state) => state.startTool);
@@ -420,7 +424,6 @@ export function useH2_5Agent() {
         const reasoningBufferRef = { current: '' };        // Current unflushed tokens
         const currentSegmentRef = { current: '' };         // Current segment being built
         const reasoningStartTimeRef = { current: 0 };
-        const segmentIndexRef = { current: 0 };            // Track segment count for IDs
 
         // Tool completion tracking for automatic spacing
         // When a tool completes, the next token should start with \n\n
@@ -503,17 +506,37 @@ export function useH2_5Agent() {
           // Only save if there's content
           if (currentSegmentRef.current.length === 0) return;
 
+          const cleanContent = currentSegmentRef.current.trim();
           const streamingId = useH2ChatStore.getState().streamingMessageId;
+
           if (streamingId) {
-            // Add as segment to the message
-            addReasoningSegment(streamingId, currentSegmentRef.current, duration);
+            // Add segment immediately and capture its ID for streaming summary
+            const segmentId = addReasoningSegment(streamingId, cleanContent, duration, undefined);
             // Clear live reasoningContent since we moved it to segments
             updateMessageReasoning(streamingId, '');
+
+            // Start streaming summary (no char limit - summarize ALL reasoning)
+            setSegmentSummarizing(segmentId, true);
+            streamSummarize(
+              cleanContent,
+              (token) => {
+                // Append each token as it streams in
+                appendReasoningSegmentSummary(segmentId, token);
+              },
+              (summary) => {
+                // Complete - set final summary and clear summarizing flag
+                updateReasoningSegmentSummary(segmentId, summary);
+                setSegmentSummarizing(segmentId, false);
+              },
+              () => {
+                // Error - just clear summarizing flag (silent fail)
+                setSegmentSummarizing(segmentId, false);
+              }
+            );
           }
 
           // Reset for next segment
           currentSegmentRef.current = '';
-          segmentIndexRef.current++;
           reasoningStartTimeRef.current = 0;
         };
 

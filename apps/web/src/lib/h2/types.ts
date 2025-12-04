@@ -43,6 +43,10 @@ export interface ReasoningSegment {
   id: string;
   content: string;
   duration?: number;
+  /** One-line summary for collapsed view (streamed from deepseek-chat) */
+  summary?: string;
+  /** True while summary is being streamed */
+  isSummarizing?: boolean;
 }
 
 /**

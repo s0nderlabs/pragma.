@@ -92,6 +92,7 @@ export function AIMessage({ message }: AIMessageProps) {
         {/* Chain-of-thought reasoning bubble (DeepSeek) */}
         {hasReasoning && (
           <ThinkingBubble
+            messageId={message.id}
             segments={message.reasoningSegments}
             content={message.reasoningContent}
             duration={message.reasoningDuration}

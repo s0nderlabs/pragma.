@@ -160,6 +160,7 @@ Pragma turns your natural language requests into safe blockchain transactions. Y
 **Learn more:** https://s0nderlabs.xyz
 **Network:** Monad (EVM-compatible blockchain, chain ID 143)
 **Native token:** MON | Wrapped: WMON
+**Explorer:** https://monadvision.com/
 
 ---
 

@@ -10,6 +10,7 @@ import { z } from "zod";
 import type { Address } from "viem";
 import { formatUnits } from "viem";
 import type { NFT, NFTListing, NFTGalleryData, NFTDisplayData } from "../../opensea/types.js";
+import { getMonUsdPrice, formatMonWithUsd } from "./helpers/monPrice.js";
 
 // ============================================================================
 // Tool Schema
@@ -40,6 +41,9 @@ export const browseCollectionTool = tool(
       const origin = config?.configurable?.origin as string || "";
 
       const { collection, limit = 12, maxPrice } = input;
+
+      // Fetch MON/USD price for USD conversion (async, cached)
+      const monUsdPrice = await getMonUsdPrice(fetchFn, origin);
 
       // Build query params
       const params = new URLSearchParams({
@@ -81,7 +85,13 @@ export const browseCollectionTool = tool(
 
         const priceWei = BigInt(listing.price.current.value);
         const decimals = listing.price.current.decimals;
-        const formattedPrice = `${formatUnits(priceWei, decimals)} ${listing.price.current.currency}`;
+        const priceInMon = parseFloat(formatUnits(priceWei, decimals));
+        const currency = listing.price.current.currency;
+
+        // Format price with USD equivalent if available
+        const formattedPrice = currency === "MON"
+          ? formatMonWithUsd(priceInMon, monUsdPrice)
+          : `${priceInMon} ${currency}`;
 
         return {
           nft,
@@ -90,11 +100,11 @@ export const browseCollectionTool = tool(
           orderHash: listing.order_hash,
           formattedPrice,
           priceWei: priceWei.toString(),
-          canBuy: listing.status === "active",
+          canBuy: listing.status?.toUpperCase() === "ACTIVE",
         };
       });
 
-      // Build text output
+      // Build text output with USD prices
       const textOutput = `Found ${listings.length} listings in "${collection}":\n\n${displayNfts
         .slice(0, 5)
         .map((d, i) => `${i + 1}. ${d.nft.name || `#${d.nft.identifier}`} - ${d.formattedPrice}`)

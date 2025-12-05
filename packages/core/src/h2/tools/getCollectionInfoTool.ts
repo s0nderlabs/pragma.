@@ -9,6 +9,7 @@ import { tool } from "langchain";
 import { z } from "zod";
 import { getAddress, type Address, formatUnits } from "viem";
 import { emitProgress } from "../progress/emitter.js";
+import { getMonUsdPrice, formatMonWithUsd } from "./helpers/monPrice.js";
 
 // ============================================================================
 // Types
@@ -136,7 +137,8 @@ function formatCollectionOutput(
   activeListings: number,
   hasMore: boolean,
   floorPrice?: string,
-  floorCurrency?: string
+  floorCurrency?: string,
+  monUsdPrice?: number
 ): string {
   const { collection, stats } = data;
 
@@ -158,9 +160,18 @@ function formatCollectionOutput(
 
   // Use floor price from listings (real-time) over stats (stale)
   if (floorPrice) {
-    lines.push(`  • Floor Price: **${floorPrice} ${floorCurrency || "MON"}**`);
+    const priceNum = parseFloat(floorPrice);
+    const currency = floorCurrency || "MON";
+    const priceWithUsd = currency === "MON" && !isNaN(priceNum)
+      ? formatMonWithUsd(priceNum, monUsdPrice)
+      : `${floorPrice} ${currency}`;
+    lines.push(`  • Floor Price: **${priceWithUsd}**`);
   } else if (stats?.floor_price) {
-    lines.push(`  • Floor Price: **${formatFloorPrice(stats.floor_price, stats.floor_price_symbol)}**`);
+    const symbol = stats.floor_price_symbol || "MON";
+    const priceWithUsd = symbol === "MON"
+      ? formatMonWithUsd(stats.floor_price, monUsdPrice)
+      : formatFloorPrice(stats.floor_price, symbol);
+    lines.push(`  • Floor Price: **${priceWithUsd}**`);
   } else {
     lines.push(`  • Floor Price: **No listings**`);
   }
@@ -248,6 +259,9 @@ export const getCollectionInfoTool = tool(
 
       const data = await response.json() as CollectionResponse;
 
+      // Fetch MON/USD price for USD conversion (async, cached)
+      const monUsdPrice = await getMonUsdPrice(fetchFn, origin);
+
       // Count active listings and get floor price (OpenSea stats are stale/incomplete)
       emitProgress("Counting active listings...", "getCollectionInfo", toolSignature);
       const { count: activeListings, hasMore, floorPrice, floorCurrency } = await countActiveListings(
@@ -256,7 +270,7 @@ export const getCollectionInfoTool = tool(
         data.collection.slug
       );
 
-      return formatCollectionOutput(data, activeListings, hasMore, floorPrice, floorCurrency);
+      return formatCollectionOutput(data, activeListings, hasMore, floorPrice, floorCurrency, monUsdPrice);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("[getCollectionInfoTool] Error:", errorMessage);

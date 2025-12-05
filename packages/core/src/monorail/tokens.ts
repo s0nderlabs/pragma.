@@ -21,6 +21,8 @@ export interface RawMonorailToken {
   logoUrl?: string;
   logo_uri?: string;
   image_uri?: string;  // Monorail v2 API field name
+  usd_per_token?: string;  // USD price per token
+  mon_per_token?: string;  // MON price per token
 }
 
 export interface MonorailTokenClientConfig {
@@ -43,6 +45,8 @@ export interface AllowedToken {
   kind?: TokenKind;
   categories?: string[];
   logoURI?: string;
+  usdPerToken?: number;  // USD price per token
+  monPerToken?: number;  // MON price per token
 }
 
 export interface TokenCacheEntry {
@@ -281,6 +285,10 @@ export const fetchSingleTokenFromMonorail = async (
 
     if (!parsed) return undefined;
 
+    // Parse price fields
+    const usdPerToken = raw.usd_per_token ? parseFloat(raw.usd_per_token) : undefined;
+    const monPerToken = raw.mon_per_token ? parseFloat(raw.mon_per_token) : undefined;
+
     return {
       address: parsed.address,
       symbol: parsed.symbol || address.slice(0, 8),
@@ -289,6 +297,8 @@ export const fetchSingleTokenFromMonorail = async (
       categories: parsed.categories || [],
       logoURI: parsed.logoURI,
       kind: "erc20",
+      usdPerToken: usdPerToken && !isNaN(usdPerToken) ? usdPerToken : undefined,
+      monPerToken: monPerToken && !isNaN(monPerToken) ? monPerToken : undefined,
     };
   } catch (error) {
     console.warn(`[Monorail] Token lookup failed for ${address}:`, error);

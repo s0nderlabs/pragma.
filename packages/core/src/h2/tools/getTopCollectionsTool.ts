@@ -8,6 +8,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { emitProgress } from "../progress/emitter.js";
+import { getMonUsdPrice, formatMonWithUsd } from "./helpers/monPrice.js";
 
 // ============================================================================
 // Types
@@ -106,7 +107,7 @@ const getTopCollectionsSchema = z.object({
 // Helpers
 // ============================================================================
 
-function formatNumber(num: number): string {
+function formatCompact(num: number): string {
   if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
   if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
   return num.toFixed(2);
@@ -130,6 +131,9 @@ export const getTopCollectionsTool = tool(
         : "Fetching top Monad collections";
       const toolSignature = `getTopCollections:${search || "top"}`;
       emitProgress(description, "getTopCollections", toolSignature, "Getting Collections");
+
+      // Fetch MON/USD price for USD conversion (async, cached)
+      const monUsdPrice = await getMonUsdPrice(fetchFn, origin);
 
       // Fetch collections with stats (when not searching)
       const includeStats = !search;
@@ -191,8 +195,12 @@ export const getTopCollectionsTool = tool(
       const limitedCount = Math.min(collections.length, limit);
       for (const coll of collections.slice(0, limitedCount)) {
         const verified = coll.safelist_status === "verified" ? " ✓" : "";
-        const floor = coll.stats?.floor_price ? `Floor: ${formatNumber(coll.stats.floor_price)} MON` : "";
-        const vol = coll.stats?.volume_1d ? `24h Vol: ~${formatNumber(coll.stats.volume_1d)} MON` : "";
+        const floor = coll.stats?.floor_price
+          ? `Floor: ${formatMonWithUsd(coll.stats.floor_price, monUsdPrice, { compact: true })}`
+          : "";
+        const vol = coll.stats?.volume_1d
+          ? `24h Vol: ~${formatCompact(coll.stats.volume_1d)} MON`
+          : "";
         const sales = coll.stats?.sales_1d ? `(${coll.stats.sales_1d} sales)` : "";
         const statsStr = [floor, vol, sales].filter(Boolean).join(" | ");
 

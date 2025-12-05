@@ -65,7 +65,79 @@ function formatFloorPrice(price: number | undefined, symbol: string = "MON"): st
   return `${price} ${symbol}`;
 }
 
-function formatCollectionOutput(data: CollectionResponse): string {
+// Listing price structure from OpenSea API
+interface ListingPrice {
+  current: {
+    currency: string;
+    decimals: number;
+    value: string;
+  };
+}
+
+interface ListingData {
+  price: ListingPrice;
+  order_hash: string;
+}
+
+interface ListingsResponse {
+  listings?: ListingData[];
+  next?: string;
+}
+
+/**
+ * Count active listings and get floor price by paginating through the listings endpoint.
+ * OpenSea V2 API does NOT provide total_listings in stats, so we must paginate.
+ * Listings are sorted by price (lowest first), so the first listing is the floor.
+ */
+async function countActiveListings(
+  fetchFn: typeof fetch,
+  origin: string,
+  slug: string,
+  maxPages: number = 5 // Cap at 5 pages (1000 listings max)
+): Promise<{ count: number; hasMore: boolean; floorPrice?: string; floorCurrency?: string }> {
+  let totalCount = 0;
+  let nextCursor: string | undefined;
+  let page = 0;
+  let floorPrice: string | undefined;
+  let floorCurrency: string | undefined;
+
+  do {
+    const params = new URLSearchParams({
+      collection: slug,
+      limit: "200", // Max per page per OpenSea docs
+    });
+    if (nextCursor) params.set("next", nextCursor);
+
+    const response = await fetchFn(`${origin}/api/opensea/listings?${params.toString()}`);
+    if (!response.ok) break;
+
+    const data = await response.json() as ListingsResponse;
+    const listings = data.listings || [];
+    totalCount += listings.length;
+
+    // Get floor price from first listing (sorted by price ascending)
+    if (!floorPrice && listings.length > 0) {
+      const firstListing = listings[0];
+      const priceWei = BigInt(firstListing.price.current.value);
+      const decimals = firstListing.price.current.decimals;
+      floorPrice = formatUnits(priceWei, decimals);
+      floorCurrency = firstListing.price.current.currency;
+    }
+
+    nextCursor = data.next;
+    page++;
+  } while (nextCursor && page < maxPages);
+
+  return { count: totalCount, hasMore: !!nextCursor, floorPrice, floorCurrency };
+}
+
+function formatCollectionOutput(
+  data: CollectionResponse,
+  activeListings: number,
+  hasMore: boolean,
+  floorPrice?: string,
+  floorCurrency?: string
+): string {
   const { collection, stats } = data;
 
   const lines: string[] = [
@@ -81,12 +153,29 @@ function formatCollectionOutput(data: CollectionResponse): string {
   }
 
   // Add stats
-  if (stats) {
-    lines.push("");
-    lines.push("**Stats:**");
+  lines.push("");
+  lines.push("**Stats:**");
+
+  // Use floor price from listings (real-time) over stats (stale)
+  if (floorPrice) {
+    lines.push(`  • Floor Price: **${floorPrice} ${floorCurrency || "MON"}**`);
+  } else if (stats?.floor_price) {
     lines.push(`  • Floor Price: **${formatFloorPrice(stats.floor_price, stats.floor_price_symbol)}**`);
+  } else {
+    lines.push(`  • Floor Price: **No listings**`);
+  }
+
+  if (stats) {
     lines.push(`  • Total Supply: ${stats.total_supply?.toLocaleString() || "Unknown"}`);
-    lines.push(`  • Listed: ${stats.total_listings?.toLocaleString() || 0}`);
+  }
+
+  // Show REAL listing count from pagination (not stale stats)
+  const listingDisplay = hasMore
+    ? `${activeListings.toLocaleString()}+`  // More than we counted
+    : activeListings.toLocaleString();
+  lines.push(`  • Active Listings: ${listingDisplay}`);
+
+  if (stats) {
     lines.push(`  • Owners: ${stats.total_owners?.toLocaleString() || "Unknown"}`);
     if (stats.average_price) {
       lines.push(`  • Avg Price: ${stats.average_price} ${stats.floor_price_symbol || "MON"}`);
@@ -159,7 +248,15 @@ export const getCollectionInfoTool = tool(
 
       const data = await response.json() as CollectionResponse;
 
-      return formatCollectionOutput(data);
+      // Count active listings and get floor price (OpenSea stats are stale/incomplete)
+      emitProgress("Counting active listings...", "getCollectionInfo", toolSignature);
+      const { count: activeListings, hasMore, floorPrice, floorCurrency } = await countActiveListings(
+        fetchFn,
+        origin,
+        data.collection.slug
+      );
+
+      return formatCollectionOutput(data, activeListings, hasMore, floorPrice, floorCurrency);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("[getCollectionInfoTool] Error:", errorMessage);

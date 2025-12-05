@@ -2,13 +2,20 @@
  * OpenSea NFT Details API Proxy
  *
  * Get details for a specific NFT by contract and tokenId.
- * Endpoint: GET /api/opensea/nft?contract=0x...&tokenId=42
- * Alternative: GET /api/opensea/nft?collection=slug&tokenId=42
+ * Supports BOTH contract address and collection slug for agent compatibility.
+ *
+ * Endpoints:
+ * - GET /api/opensea/nft?contract=0x...&tokenId=42
+ * - GET /api/opensea/nft?collection=slug&tokenId=42 (auto-resolves to contract)
  */
 
 import { NextResponse } from "next/server";
-import { getAddress, type Address } from "viem";
+import { type Address } from "viem";
 import { authMiddleware } from "@/lib/auth/authMiddleware";
+import {
+  isContractAddress,
+  resolveToContractAddress,
+} from "@/lib/opensea/resolveCollection";
 
 const OPENSEA_API_BASE_URL = "https://api.opensea.io/api/v2";
 const OPENSEA_CHAIN = "monad";
@@ -39,32 +46,40 @@ export async function GET(request: Request) {
     );
   }
 
-  if (!contract && !collection) {
+  // Accept either contract address or collection slug
+  const identifier = contract || collection;
+  if (!identifier) {
     return NextResponse.json(
       { error: "Missing required contract or collection parameter" },
       { status: 400 }
     );
   }
 
-  let url: string;
+  // Resolve identifier to contract address (handles both formats)
+  let contractAddress: Address | null;
 
-  if (contract) {
-    // Validate contract address format
-    let checksummedAddress: Address;
-    try {
-      checksummedAddress = getAddress(contract);
-    } catch {
-      return NextResponse.json({ error: "Invalid contract address format" }, { status: 400 });
+  if (isContractAddress(identifier)) {
+    // Already a contract address - resolve validates it
+    contractAddress = await resolveToContractAddress(identifier, apiKey);
+    if (!contractAddress) {
+      return NextResponse.json(
+        { error: "Invalid contract address format" },
+        { status: 400 }
+      );
     }
-    // Use NFT endpoint for full details including traits/rarity: GET /api/v2/chain/{chain}/contract/{address}/nfts/{tokenId}
-    url = `${OPENSEA_API_BASE_URL}/chain/${OPENSEA_CHAIN}/contract/${checksummedAddress}/nfts/${tokenId}`;
   } else {
-    // Collection slug lookup not supported for single NFT - return error
-    return NextResponse.json(
-      { error: "Collection slug not supported. Use contract address instead." },
-      { status: 400 }
-    );
+    // It's a collection slug - resolve to contract via OpenSea
+    contractAddress = await resolveToContractAddress(identifier, apiKey);
+    if (!contractAddress) {
+      return NextResponse.json(
+        { error: `Collection not found: "${identifier}". Check the slug or use contract address.` },
+        { status: 404 }
+      );
+    }
   }
+
+  // Build OpenSea API URL
+  const url = `${OPENSEA_API_BASE_URL}/chain/${OPENSEA_CHAIN}/contract/${contractAddress}/nfts/${tokenId}`;
 
   try {
     const response = await fetch(url, {

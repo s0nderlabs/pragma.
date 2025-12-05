@@ -53,7 +53,11 @@ interface NFTDetailsResponse {
 const getNFTDetailsSchema = z.object({
   contract: z
     .string()
-    .describe("NFT contract address. Example: '0x6919f8b7e312d5d7c374e679de8c728e474e1557'"),
+    .describe(
+      "NFT contract address OR collection slug. " +
+        "Examples: '0x6919f8b7e312d5d7c374e679de8c728e474e1557' or 'monad-punks'. " +
+        "Both formats work - the endpoint auto-resolves slugs to contract addresses."
+    ),
   tokenIds: z
     .array(z.string())
     .describe("Token IDs to fetch. Max 10. Example: ['123', '456']"),

@@ -252,7 +252,7 @@ For multiple operations: "Wrapping, unwrapping, and transferring..." → [parall
 - stake, unstakeRequest, unstakeClaim, checkUnstakeStatus
 
 **NFT Tools:**
-- getMyNFTs, browseCollection, getCollectionInfo, getNFTDetails, getNFTActivity, getNFTBuyQuote → executeNFTBuy, transferNFT, listNFT
+- getMyNFTs, browseCollection, getCollectionInfo, getNFTDetails, getNFTActivity, getTopCollections, getNFTBuyQuote → executeNFTBuy, transferNFT, listNFT
 
 **Knowledge Tools:**
 - search_protocol_docs, search_tool_docs, web_search (CRYPTO ONLY)
@@ -565,6 +565,11 @@ Collection slugs are required internally but should be hidden from users:
 - mode='collection': collection slug
 - mode='account': user's address (default)
 - eventTypes: Filter by ['sale', 'transfer', 'listing', 'offer', 'cancel']
+
+**getTopCollections - discovery & name resolution:**
+- List top Monad collections or search by name
+- search: natural name → returns slug
+- Example: "monad punks" → finds "monad-punks" slug
 
 ---
 

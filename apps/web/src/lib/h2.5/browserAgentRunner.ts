@@ -542,13 +542,41 @@ export async function streamBrowserAgent(
           }
           return toolName;
 
+        case 'getTopCollections':
+          // For top collections: use search term or 'top'
+          if (inputObj.search) {
+            return `${toolName}:search:${String(inputObj.search).slice(0, 20)}`;
+          }
+          return `${toolName}:top`;
+
         case 'getMyNFTs':
         case 'browseCollection':
         case 'getCollectionInfo':
+          return toolName;
+
         case 'getNFTBuyQuote':
+          // For NFT quotes: use collection + tokenId for uniqueness
+          if (inputObj.collection && inputObj.tokenId) {
+            return `${toolName}:${String(inputObj.collection).slice(0, 10)}-${inputObj.tokenId}`;
+          }
+          return toolName;
+
         case 'executeNFTBuy':
+          // For NFT execution: use quoteId (matches tool's emitted signature)
+          if (inputObj.quoteId) {
+            return `${toolName}:${String(inputObj.quoteId)}`;
+          }
+          return toolName;
+
         case 'transferNFT':
+          // For NFT transfer: use contract:tokenId (matches tool's emitted signature)
+          if (inputObj.contract && inputObj.tokenId) {
+            return `${toolName}:${String(inputObj.contract)}:${inputObj.tokenId}`;
+          }
+          return toolName;
+
         case 'listNFT':
+          // listNFT doesn't use unique signatures in the tool, so just use toolName
           return toolName;
 
         // Tools that use toolName as signature (no parallel batching needed)

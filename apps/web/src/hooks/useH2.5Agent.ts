@@ -253,6 +253,8 @@ export function useH2_5Agent() {
         return 'Getting NFT Details';
       case 'getNFTActivity':
         return 'Getting NFT Activity';
+      case 'getTopCollections':
+        return 'Getting Collections';
       case 'getNFTBuyQuote':
         return 'Getting NFT Quote';
       case 'executeNFTBuy':

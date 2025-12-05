@@ -36,7 +36,11 @@ const DEFAULT_DURATION_DAYS = 7;
 const listNFTSchema = z.object({
   contract: z
     .string()
-    .describe("NFT contract address. Example: '0x123...'"),
+    .describe(
+      "NFT contract address (must be a valid 0x address). " +
+        "Example: '0x6919f8b7e312d5d7c374e679de8c728e474e1557'. " +
+        "If you only have the collection name, use getTopCollections first to find the contract."
+    ),
   tokenId: z
     .string()
     .describe("Token ID to list. Example: '42'"),

@@ -54,6 +54,7 @@ import { browseCollectionTool } from "./browseCollectionTool.js";
 import { getCollectionInfoTool } from "./getCollectionInfoTool.js";
 import { getNFTDetailsTool } from "./getNFTDetailsTool.js";
 import { getNFTActivityTool } from "./getNFTActivityTool.js";
+import { getTopCollectionsTool } from "./getTopCollectionsTool.js";
 import { getNFTBuyQuoteTool } from "./getNFTBuyQuoteTool.js";
 import { executeNFTBuyTool } from "./executeNFTBuyTool.js";
 import { transferNFTTool } from "./transferNFTTool.js";
@@ -133,6 +134,7 @@ export const h2ToolRegistry = [
   getCollectionInfoTool,
   getNFTDetailsTool,
   getNFTActivityTool,
+  getTopCollectionsTool,
   getNFTBuyQuoteTool,
   executeNFTBuyTool,
   transferNFTTool,
@@ -195,6 +197,7 @@ export {
   getCollectionInfoTool,
   getNFTDetailsTool,
   getNFTActivityTool,
+  getTopCollectionsTool,
   getNFTBuyQuoteTool,
   executeNFTBuyTool,
   transferNFTTool,

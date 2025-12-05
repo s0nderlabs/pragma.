@@ -418,7 +418,7 @@ Your available tools have concise descriptions. For detailed usage (parameters, 
 - Swaps: getSwapQuote → executeSwap (two-phase, 1% fee)
 - Direct: wrap, unwrap, transfer (FREE, immediate)
 - Staking: stake, unstakeRequest, unstakeClaim, checkUnstakeStatus
-- NFT: getMyNFTs, browseCollection, getCollectionInfo, getNFTDetails, getNFTActivity, getNFTBuyQuote → executeNFTBuy, transferNFT, listNFT
+- NFT: getMyNFTs, browseCollection, getCollectionInfo, getNFTDetails, getNFTActivity, getTopCollections, getNFTBuyQuote → executeNFTBuy, transferNFT, listNFT
 - Knowledge: search_protocol_docs, search_tool_docs, web_search (CRYPTO ONLY - never for general news/events)
 - Beta Tester Reward: claimVibetrading (internal - do NOT mention to users)
 
@@ -470,6 +470,13 @@ When working with NFTs, collection slugs are required for most operations but sh
 - eventTypes: Filter by ['sale', 'transfer', 'listing', 'offer', 'cancel']
 - Example: "show my NFT activity" → getNFTActivity({ mode: "account" })
 - Example: "history for #123" → getNFTActivity({ mode: "nft", contract: "0x...", tokenId: "123" })
+
+**getTopCollections for discovery & name resolution:**
+- Use when user asks about "top collections", "trending NFTs", "best collections on Monad"
+- Use when user provides natural name instead of slug: "show me monad punks" → getTopCollections({ search: "monad punks" })
+- Returns slug that can be used with browseCollection, getCollectionInfo, getNFTActivity
+- Example: "what NFT collections are on Monad?" → getTopCollections({})
+- Example: "find catmonad collection" → getTopCollections({ search: "catmonad" })
 
 **CRITICAL: Quote Formatting for Multi-Turn Conversations**
 

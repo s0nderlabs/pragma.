@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useLayoutEffect } from 'react'
+import { useEffect, useRef, useLayoutEffect, useState, useCallback } from 'react'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { useThemeStore } from '@/stores/useThemeStore'
 import { UserMessage } from './UserMessage'
@@ -8,24 +8,38 @@ import { AIMessage } from './AIMessage'
 import { SystemMessage } from './SystemMessage'
 import { ToolMessage } from './ToolMessage'
 import { ThinkingIndicator } from './ThinkingIndicator'
+import { ChevronDown } from 'lucide-react'
 import type { ToolMessage as ToolMessageType } from '@/lib/h2/types'
 
 /**
  * MessageList Component (H2 Enabled)
  *
  * Renders all messages from H2 agent with real-time streaming.
- * Features: Auto-scroll, streaming support, progress indicators.
+ * Features: Auto-scroll (ChatGPT/Claude-style), streaming support, progress indicators.
  */
 export function MessageList() {
   const messages = useH2ChatStore((state) => state.messages)
   const isStreaming = useH2ChatStore((state) => state.isStreaming)
   const scrollRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [isAtBottom, setIsAtBottom] = useState(true)
+
+  // Track last message content for scroll trigger during streaming
+  const lastMessage = messages[messages.length - 1]
+  const lastMessageContent = lastMessage && 'content' in lastMessage ? lastMessage.content : ''
 
   // Theme-based scroll preservation
   const { theme } = useThemeStore()
   const scrollPositionRef = useRef<number>(0)
   const prevThemeRef = useRef(theme)
+
+  // Detect if user is at bottom of scroll
+  const handleScroll = useCallback(() => {
+    if (!scrollRef.current) return
+    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
+    const atBottom = scrollHeight - scrollTop - clientHeight < 100
+    setIsAtBottom(atBottom)
+  }, [])
 
   // Save scroll position when theme changes
   useLayoutEffect(() => {
@@ -42,40 +56,66 @@ export function MessageList() {
     }
   })
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll only if user is at bottom (respects user scroll like ChatGPT/Claude)
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    if (isAtBottom && messagesEndRef.current) {
+      // Instant scroll during streaming, smooth when complete
+      messagesEndRef.current.scrollIntoView({ behavior: isStreaming ? 'auto' : 'smooth' })
     }
-  }, [messages.length, isStreaming])
+  }, [messages.length, isStreaming, lastMessageContent, isAtBottom])
+
+  // Scroll to bottom handler (for button)
+  // Don't set isAtBottom immediately - let handleScroll detect it naturally
+  // This allows the button to stay visible during the smooth scroll animation
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [])
 
   return (
-    <div ref={scrollRef} className="h-full overflow-y-auto px-4 lg:px-8 pt-6 pb-32">
-      <div className="max-w-4xl mx-auto">
-        {messages.map((message) => {
-          switch (message.role) {
-            case 'user':
-              return <UserMessage key={message.id} message={message} />
-            case 'assistant':
-              return <AIMessage key={message.id} message={message} />
-            case 'system':
-              return <SystemMessage key={message.id} message={message} />
-            case 'tool':
-              return <ToolMessage key={message.id} message={message as ToolMessageType} />
-            default:
-              return null
-          }
-        })}
+    <div className="h-full relative">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="h-full overflow-y-auto px-4 lg:px-8 pt-6 pb-32 scroll-smooth"
+      >
+        <div className="max-w-4xl mx-auto">
+          {messages.map((message) => {
+            switch (message.role) {
+              case 'user':
+                return <UserMessage key={message.id} message={message} />
+              case 'assistant':
+                return <AIMessage key={message.id} message={message} />
+              case 'system':
+                return <SystemMessage key={message.id} message={message} />
+              case 'tool':
+                return <ToolMessage key={message.id} message={message as ToolMessageType} />
+              default:
+                return null
+            }
+          })}
 
-        {/* Thinking Indicator - shows before AI starts responding */}
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        {isStreaming && messages.length > 0 && !(messages[messages.length - 1] as any)?.isStreaming && (
-          <ThinkingIndicator />
-        )}
+          {/* Thinking Indicator - shows before AI starts responding */}
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          {isStreaming && messages.length > 0 && !(messages[messages.length - 1] as any)?.isStreaming && (
+            <ThinkingIndicator />
+          )}
 
-        {/* Scroll anchor */}
-        <div ref={messagesEndRef} />
+          {/* Scroll anchor */}
+          <div ref={messagesEndRef} />
+        </div>
       </div>
+
+      {/* Scroll to bottom button (ChatGPT/Claude-style) */}
+      {/* Positioned relative to chat area, always centered regardless of sidebar */}
+      {!isAtBottom && (
+        <button
+          onClick={scrollToBottom}
+          className="absolute bottom-28 left-1/2 -translate-x-1/2 z-50 flex items-center justify-center w-8 h-8 rounded-full bg-neutral-800 border border-neutral-700 text-neutral-400 hover:text-white hover:bg-neutral-700 transition-all shadow-lg"
+          aria-label="Scroll to bottom"
+        >
+          <ChevronDown className="w-4 h-4" />
+        </button>
+      )}
     </div>
   )
 }

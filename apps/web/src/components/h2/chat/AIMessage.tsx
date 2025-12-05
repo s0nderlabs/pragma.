@@ -1,13 +1,14 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import type { ChatMessage } from '@/lib/h2/types'
 import { useStreamingMessage } from '@/hooks/useStreamingMessage'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { ThinkingBubble } from './ThinkingBubble'
 import { NFTGallery } from '../nft/NFTGallery'
-import type { NFTGalleryData } from '@pragma/core'
+import type { NFTGalleryData, NFTDisplayData } from '@pragma/core'
+import { useAgentContext } from '@/contexts/H2AgentContext'
 
 interface AIMessageProps {
   message: ChatMessage
@@ -53,10 +54,24 @@ function parseNFTGallery(content: string): { text: string; gallery: NFTGalleryDa
  * Features: Smooth token-by-token streaming, code blocks, tables, lists, NFT galleries.
  */
 export function AIMessage({ message }: AIMessageProps) {
+  const { sendMessage, isStreaming } = useAgentContext()
+
   const { displayedContent } = useStreamingMessage({
     message,
     enabled: message.isStreaming ?? false,
   })
+
+  // Handle NFT buy button click - sends purchase request to agent
+  const handleBuyClick = useCallback(async (nft: NFTDisplayData) => {
+    if (isStreaming) return // Don't interrupt ongoing operations
+
+    const nftName = nft.nft.name || `#${nft.nft.identifier}`
+    const collection = nft.nft.collection
+    const price = nft.formattedPrice || 'the listed price'
+
+    // Send purchase request to agent
+    await sendMessage(`Buy ${nftName} from ${collection} for ${price}`)
+  }, [sendMessage, isStreaming])
 
   // Parse content for special components (NFT gallery, etc.)
   // Check rawToolOutput first for gallery (has preserved markers from tool output)
@@ -107,7 +122,7 @@ export function AIMessage({ message }: AIMessageProps) {
         {/* Render NFT Gallery if present */}
         {gallery && (
           <div className="mt-4">
-            <NFTGallery data={gallery} />
+            <NFTGallery data={gallery} onBuyClick={handleBuyClick} />
           </div>
         )}
 

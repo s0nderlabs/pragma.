@@ -503,7 +503,7 @@ export const getSwapQuoteTool = tool(
 • To: ~${finalOutputFormatted} ${isUnverified ? '⚠️ ' : ''}${toToken}
 • Protocol Fee: ${protocolFeeFormatted} ${fromToken} (1%)
 • Route: ${bestQuote.routeInfo || "Best available"}
-• Gas Estimate: ${bestQuote.gasEstimate ? formatUnits(bestQuote.gasEstimate, 18) : "~0.002"} MON
+• Gas Estimate: ${bestQuote.gasEstimate ? formatUnits(bestQuote.gasEstimate * 50_000_000_000n, 18) : "~0.01"} MON
 • Slippage allowed: ${(validatedSlippageBps / 100).toFixed(2)}% (${validatedSlippageBps} bps)
 • Sources checked: ${rankedQuotes.length + failedAggregators.length} DEX aggregators
 

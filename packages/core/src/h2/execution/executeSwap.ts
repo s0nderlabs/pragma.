@@ -956,6 +956,7 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
         txHash: finalTxHash,
         blockNumber: receipt.blockNumber,
         gasUsed: receipt.gasUsed,
+        effectiveGasPrice: receipt.effectiveGasPrice,
         status,
         actualOutput,
         actualOutputFormatted: formatUnits(actualOutput, quote.toTokenDecimals),

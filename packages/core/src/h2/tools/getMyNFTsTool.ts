@@ -12,6 +12,7 @@ import { getAddress, type Address, formatUnits } from "viem";
 import type { NFT, NFTDisplayData, NFTGalleryData } from "../../opensea/types.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import { emitProgress } from "../progress/emitter.js";
+import { getMonUsdPrice, formatMonWithUsd } from "./helpers/monPrice.js";
 
 // ============================================================================
 // Configuration
@@ -135,7 +136,8 @@ async function fetchFloorPrice(
 function formatNFTListAsText(
   nfts: NFT[],
   userAddress: string,
-  floorPrices: Map<string, { price?: string; currency?: string }>
+  floorPrices: Map<string, { price?: string; currency?: string }>,
+  monUsdPrice?: number
 ): { text: string; collections: CollectionMeta[] } {
   if (nfts.length === 0) {
     return {
@@ -189,10 +191,18 @@ Address: ${userAddress}`,
       floorCurrency,
     });
 
-    // Human-readable output: show name and floor price
-    const floorDisplay = floorPrice
-      ? ` • Floor: ${floorPrice} ${floorCurrency || "MON"}`
-      : "";
+    // Human-readable output: show name and floor price with USD
+    let floorDisplay = "";
+    if (floorPrice) {
+      const currency = floorCurrency || "MON";
+      const currencyUpper = currency.toUpperCase();
+      // Check for MON/WMON (case-insensitive) - OpenSea may return different cases
+      if ((currencyUpper === "MON" || currencyUpper === "WMON") && monUsdPrice) {
+        floorDisplay = ` • Floor: ${formatMonWithUsd(parseFloat(floorPrice), monUsdPrice)}`;
+      } else {
+        floorDisplay = ` • Floor: ${floorPrice} ${currency}`;
+      }
+    }
     lines.push(`**${collectionName}** (${collectionNfts.length} NFT${collectionNfts.length > 1 ? "s" : ""}${floorDisplay})`);
 
     for (const nft of collectionNfts.slice(0, 5)) {
@@ -273,6 +283,10 @@ export const getMyNFTsTool = tool(
       );
       const floorPrices = new Map(floorPriceResults);
 
+      // Fetch MON/USD price for floor price display
+      const origin = (config?.configurable?.origin as string) || "";
+      const monUsdPrice = await getMonUsdPrice(fetchFn, origin);
+
       // Format results
       emitProgress("Formatting NFT Gallery...", "getMyNFTs", toolSignature);
 
@@ -283,7 +297,7 @@ export const getMyNFTsTool = tool(
         nextCursor
       );
 
-      const { text: textOutput, collections } = formatNFTListAsText(nfts, checksummedAddress, floorPrices);
+      const { text: textOutput, collections } = formatNFTListAsText(nfts, checksummedAddress, floorPrices, monUsdPrice);
 
       // Include collections metadata in gallery data for agent context
       const enrichedGalleryData = {

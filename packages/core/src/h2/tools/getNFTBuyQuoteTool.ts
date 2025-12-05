@@ -11,6 +11,7 @@ import type { Address, Hex } from "viem";
 import { formatUnits, getAddress } from "viem";
 import { generateQuoteId, storeNFTBuyQuote } from "../execution/quoteStore.js";
 import type { NFTBuyQuoteData } from "../execution/types.js";
+import { getMonUsdPrice, formatMonWithUsd } from "./helpers/monPrice.js";
 
 // ============================================================================
 // Configuration
@@ -88,7 +89,16 @@ export const getNFTBuyQuoteTool = tool(
       const priceWei = BigInt(listing.price.current.value);
       const decimals = listing.price.current.decimals;
       const currency = listing.price.current.currency;
-      const priceFormatted = `${formatUnits(priceWei, decimals)} ${currency}`;
+      const priceAmount = parseFloat(formatUnits(priceWei, decimals));
+
+      // Format with USD if MON/WMON
+      let priceFormatted: string;
+      if (currency === "MON" || currency === "WMON") {
+        const monUsdPrice = await getMonUsdPrice(fetchFn, origin);
+        priceFormatted = formatMonWithUsd(priceAmount, monUsdPrice);
+      } else {
+        priceFormatted = `${priceAmount} ${currency}`;
+      }
 
       // Generate and store quote
       const quoteId = generateQuoteId();

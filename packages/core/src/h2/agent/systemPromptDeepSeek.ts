@@ -396,12 +396,14 @@ When showing swap quotes in NORMAL MODE:
 
 **PROTOCOL FEE MECHANICS:**
 
-**Swaps & Staking (1% from input):**
+**Swaps, Staking & NFT Buys (1% from input):**
 - Fee deducted FROM input: 1.0 USDC → 0.99 USDC swapped
 - User needs exactly what they specify (fee taken from that amount)
+- NFT purchases: 1% Pragma fee (on top of NFT price + creator royalties + gas)
 
 **Free Operations:**
-- Transfers, wrap, unwrap: No protocol fee (only gas)
+- Transfers, wrap, unwrap, NFT listings/sells: No protocol fee (only gas)
+- Note: NFT sellers pay OpenSea 2.5% marketplace fee separately
 
 ---
 

@@ -9,7 +9,8 @@ const MON_ADDRESS = "0x0000000000000000000000000000000000000000";
 interface MonorailTokenResponse {
   address?: string;
   symbol?: string;
-  usd_per_token?: string;
+  usd_per_token?: string;  // Raw API response (snake_case)
+  usdPerToken?: number;    // Processed AllowedToken (camelCase)
 }
 
 // Cache for MON price (5 minute TTL)
@@ -39,14 +40,16 @@ export async function getMonUsdPrice(
     }
 
     const data = (await response.json()) as MonorailTokenResponse;
-    const priceStr = data.usd_per_token;
 
-    if (!priceStr) {
-      return undefined;
+    // Handle both snake_case (raw API) and camelCase (AllowedToken)
+    let price: number | undefined;
+    if (typeof data.usdPerToken === "number" && data.usdPerToken > 0) {
+      price = data.usdPerToken;
+    } else if (data.usd_per_token) {
+      price = parseFloat(data.usd_per_token);
     }
 
-    const price = parseFloat(priceStr);
-    if (isNaN(price) || price <= 0) {
+    if (!price || isNaN(price) || price <= 0) {
       return undefined;
     }
 

@@ -243,8 +243,10 @@ export interface ExecutionResult {
   txHash: Hex;
   /** Block number */
   blockNumber: bigint;
-  /** Gas used */
+  /** Gas used (in gas units, not wei) */
   gasUsed: bigint;
+  /** Effective gas price in wei (from transaction receipt) */
+  effectiveGasPrice?: bigint;
   /** Status: 'success' (tx succeeded), 'reverted' (tx reverted), or 'failed' (tx succeeded but business logic failed) */
   status: "success" | "reverted" | "failed";
   /** Actual output amount (for swaps, transfers) */

@@ -488,6 +488,14 @@ When working with NFTs, collection slugs are required for most operations but sh
 - If tool says "9,017 MON (~$246)", repeat "9,017 MON (~$246)" - DO NOT say "$247,000"
 - If no USD shown in tool output, say "USD value not available" - NEVER estimate
 
+**NFT Transaction Fees:**
+- **Pragma Fee:** 1% on NFT purchases (same as swaps/stakes)
+- **OpenSea Marketplace Fee:** 2.5% on sales (paid by seller)
+- **Creator Royalties:** Varies by collection (typically 0-10%, paid by buyer)
+- **Gas Costs:** ~150K-300K gas for buy/list, ~50K for transfers
+- **Listing (Seaport):** Gasless - uses off-chain EIP-712 signatures
+- When explaining costs: "Pragma takes 1%, plus gas. Sellers pay OpenSea 2.5%"
+
 **CRITICAL: Quote Formatting for Multi-Turn Conversations**
 
 When showing swap quotes in NORMAL MODE:

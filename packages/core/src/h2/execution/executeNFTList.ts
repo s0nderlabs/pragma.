@@ -43,6 +43,7 @@ import {
 } from "../../opensea/seaportOrder.js";
 import { emitProgress } from "../progress/emitter.js";
 import { createErrorFromCode } from "../../errors/index.js";
+import { getMonUsdPrice, formatMonWithUsd } from "../tools/helpers/monPrice.js";
 import {
   MONAD_CHAIN_ID,
   MONAD_CHAIN,
@@ -218,7 +219,11 @@ export async function executeNFTList(params: ExecuteNFTListParams): Promise<NFTL
   } = params;
 
   const toolSignature = signature || `nftList:${nftContract}:${tokenId}`;
-  const priceFormatted = `${formatEther(priceWei)} MON`;
+
+  // Format price with USD
+  const priceInMon = parseFloat(formatEther(priceWei));
+  const monUsdPrice = await getMonUsdPrice(fetchFn, origin);
+  const priceFormatted = formatMonWithUsd(priceInMon, monUsdPrice);
 
   emitProgress(`Preparing to list NFT #${tokenId} for ${priceFormatted}...`, "executeNFTList", toolSignature, `List NFT #${tokenId}`);
 

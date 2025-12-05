@@ -95,8 +95,11 @@ export const executeSwapTool = tool(
         description: resolvedDescription, // Pass resolved description for parent display update
       });
 
-      // Format receipt
-      const gasUsedFormatted = formatUnits(result.gasUsed, 18);
+      // Format receipt - calculate actual gas cost (gasUsed × effectiveGasPrice)
+      // gasUsed is in gas units, effectiveGasPrice is in wei per gas unit
+      const gasPrice = result.effectiveGasPrice || 50_000_000_000n; // 50 gwei fallback for Monad
+      const gasCostWei = result.gasUsed * gasPrice;
+      const gasUsedFormatted = formatUnits(gasCostWei, 18);
 
       // Format message for LLM (clean, human-readable)
       const message = `Swap executed successfully!

@@ -9,6 +9,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { getAddress, formatUnits, type Address } from "viem";
 import { emitProgress } from "../progress/emitter.js";
+import { getMonUsdPrice, formatMonWithUsd } from "./helpers/monPrice.js";
 
 // ============================================================================
 // Types
@@ -104,11 +105,18 @@ const getNFTActivitySchema = z.object({
 // Helper Functions
 // ============================================================================
 
-function formatPrice(payment: PaymentInfo | undefined): string {
+function formatPrice(payment: PaymentInfo | undefined, monUsdPrice?: number): string {
   if (!payment) return "";
   try {
     const amount = formatUnits(BigInt(payment.quantity), payment.decimals);
-    return `${parseFloat(amount).toFixed(4)} ${payment.symbol}`;
+    const numAmount = parseFloat(amount);
+
+    // Use USD formatting for MON/WMON
+    if (payment.symbol === "MON" || payment.symbol === "WMON") {
+      return formatMonWithUsd(numAmount, monUsdPrice);
+    }
+
+    return `${numAmount.toFixed(4)} ${payment.symbol}`;
   } catch {
     return "";
   }
@@ -117,6 +125,34 @@ function formatPrice(payment: PaymentInfo | undefined): string {
 function formatAddress(addr: string): string {
   if (!addr || addr.length < 10) return addr || "Unknown";
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+}
+
+/**
+ * Collect all unique addresses from events for the JSON metadata block
+ */
+function collectAddresses(events: AssetEvent[]): Record<string, string> {
+  const addresses: Record<string, string> = {};
+
+  for (const event of events) {
+    // Sale event
+    if ("seller" in event && "buyer" in event) {
+      if (event.seller) addresses[formatAddress(event.seller)] = event.seller;
+      if (event.buyer) addresses[formatAddress(event.buyer)] = event.buyer;
+    }
+    // Transfer event
+    if ("from_address" in event && "to_address" in event) {
+      if (event.from_address) addresses[formatAddress(event.from_address)] = event.from_address;
+      if (event.to_address) addresses[formatAddress(event.to_address)] = event.to_address;
+    }
+    // Order event
+    if ("maker" in event) {
+      const orderEvent = event as OrderEvent;
+      if (orderEvent.maker) addresses[formatAddress(orderEvent.maker)] = orderEvent.maker;
+      if (orderEvent.taker) addresses[formatAddress(orderEvent.taker)] = orderEvent.taker;
+    }
+  }
+
+  return addresses;
 }
 
 function formatTimestamp(ts: number): string {
@@ -131,13 +167,13 @@ function formatTimestamp(ts: number): string {
   return date.toLocaleDateString();
 }
 
-function formatEvent(event: AssetEvent): string {
+function formatEvent(event: AssetEvent, monUsdPrice?: number): string {
   const time = formatTimestamp(event.event_timestamp);
 
   // Sale event
   if ("seller" in event && "buyer" in event) {
     const nftName = event.nft?.name || `#${event.nft?.identifier}`;
-    const price = formatPrice(event.payment);
+    const price = formatPrice(event.payment, monUsdPrice);
     return `**Sale** ${time}\n   ${nftName} sold for ${price}\n   ${formatAddress(event.seller)} -> ${formatAddress(event.buyer)}`;
   }
 
@@ -151,7 +187,7 @@ function formatEvent(event: AssetEvent): string {
   const orderEvent = event as OrderEvent;
   const type = orderEvent.event_type;
   const typeName = type.charAt(0).toUpperCase() + type.slice(1);
-  const price = formatPrice(orderEvent.payment);
+  const price = formatPrice(orderEvent.payment, monUsdPrice);
   const nftName = orderEvent.asset?.name || `#${orderEvent.asset?.identifier || "?"}`;
   return `**${typeName}** ${time}\n   ${nftName}${price ? ` for ${price}` : ""}\n   by ${formatAddress(orderEvent.maker)}`;
 }
@@ -236,6 +272,9 @@ export const getNFTActivityTool = tool(
         return `No activity found for this ${mode}.`;
       }
 
+      // Fetch MON/USD price for formatting
+      const monUsdPrice = await getMonUsdPrice(fetchFn, origin);
+
       // Format output
       const lines: string[] = [];
 
@@ -248,7 +287,7 @@ export const getNFTActivityTool = tool(
       }
 
       for (const event of events.slice(0, limit)) {
-        lines.push(formatEvent(event));
+        lines.push(formatEvent(event, monUsdPrice));
         lines.push(""); // blank line between events
       }
 
@@ -256,7 +295,16 @@ export const getNFTActivityTool = tool(
         lines.push(`_Showing ${Math.min(events.length, limit)} most recent events_`);
       }
 
-      return lines.join("\n").trim();
+      // Collect full addresses for agent to use in lookups
+      const addressMap = collectAddresses(events.slice(0, limit));
+
+      // Add JSON metadata block with full addresses (hidden from user display)
+      const metadata = {
+        addressLookup: addressMap,
+        note: "Use addressLookup to get full addresses from truncated ones shown above"
+      };
+
+      return `${lines.join("\n").trim()}\n\n<!--ACTIVITY_METADATA:${JSON.stringify(metadata)}-->`;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("[getNFTActivityTool] Error:", errorMessage);

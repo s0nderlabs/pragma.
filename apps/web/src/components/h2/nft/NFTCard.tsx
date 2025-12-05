@@ -112,15 +112,18 @@ export function NFTCard({
             <div className="flex items-center justify-between pt-2">
               <span className="text-sm font-mono text-gray-700 dark:text-white/80">{price}</span>
               {canBuy && onBuy && (
-                <button
+                <motion.button
                   onClick={(e) => {
                     e.stopPropagation();
                     onBuy();
                   }}
-                  className="px-3 py-1 text-xs font-medium bg-gray-200 dark:bg-white/10 hover:bg-gray-300 dark:hover:bg-white/20 rounded-lg transition-colors text-gray-700 dark:text-white"
+                  className="cursor-pointer px-4 py-1.5 text-xs font-medium bg-terracotta text-white rounded-[32px]"
+                  whileHover={{ scale: 1.05, y: -1 }}
+                  whileTap={{ scale: 0.95 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
                 >
                   Buy
-                </button>
+                </motion.button>
               )}
             </div>
           )}

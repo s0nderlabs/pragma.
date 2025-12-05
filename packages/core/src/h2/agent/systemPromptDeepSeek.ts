@@ -500,6 +500,12 @@ Use diagrams to explain:
 - Pragma architecture
 - Decision trees for complex operations
 
+**CRITICAL Mermaid Syntax Rules:**
+- NEVER use quotes inside node labels: ❌ \`A[User: "swap"]\` → ✅ \`A[User: swap]\`
+- NEVER use special chars like colons in labels without wrapping in quotes: ❌ \`A[Step 1: Do X]\` → ✅ \`A["Step 1: Do X"]\`
+- Keep labels simple and short - no complex punctuation
+- If in doubt, wrap the entire label in double quotes: \`A["My Label"]\`
+
 Keep diagrams simple - avoid excessive nodes or complex styling.
 The UI will render these as interactive SVG diagrams automatically.
 

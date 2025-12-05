@@ -28,6 +28,9 @@ export function MessageList() {
   const lastMessage = messages[messages.length - 1]
   const lastMessageContent = lastMessage && 'content' in lastMessage ? lastMessage.content : ''
 
+  // Track previous message count to detect new user messages
+  const prevMessagesLengthRef = useRef(messages.length)
+
   // Theme-based scroll preservation
   const { theme } = useThemeStore()
   const scrollPositionRef = useRef<number>(0)
@@ -56,13 +59,18 @@ export function MessageList() {
     }
   })
 
-  // Auto-scroll only if user is at bottom (respects user scroll like ChatGPT/Claude)
+  // Auto-scroll: always scroll on new user message, otherwise only if at bottom
   useEffect(() => {
-    if (isAtBottom && messagesEndRef.current) {
-      // Instant scroll during streaming, smooth when complete
-      messagesEndRef.current.scrollIntoView({ behavior: isStreaming ? 'auto' : 'smooth' })
+    const isNewMessage = messages.length > prevMessagesLengthRef.current
+    const lastIsUser = lastMessage?.role === 'user'
+
+    // Scroll when: at bottom during streaming OR new user message sent
+    if (messagesEndRef.current && (isAtBottom || (isNewMessage && lastIsUser))) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [messages.length, isStreaming, lastMessageContent, isAtBottom])
+
+    prevMessagesLengthRef.current = messages.length
+  }, [messages.length, isStreaming, lastMessageContent, isAtBottom, lastMessage?.role])
 
   // Scroll to bottom handler (for button)
   // Don't set isAtBottom immediately - let handleScroll detect it naturally

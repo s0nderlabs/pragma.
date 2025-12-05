@@ -252,7 +252,7 @@ For multiple operations: "Wrapping, unwrapping, and transferring..." → [parall
 - stake, unstakeRequest, unstakeClaim, checkUnstakeStatus
 
 **NFT Tools:**
-- getMyNFTs, browseCollection, getCollectionInfo, getNFTBuyQuote → executeNFTBuy, transferNFT, listNFT
+- getMyNFTs, browseCollection, getCollectionInfo, getNFTDetails, getNFTBuyQuote → executeNFTBuy, transferNFT, listNFT
 
 **Knowledge Tools:**
 - search_protocol_docs, search_tool_docs, web_search (CRYPTO ONLY)
@@ -554,6 +554,11 @@ Collection slugs are required internally but should be hidden from users:
 - NEVER show raw slugs to users unless they explicitly ask
 - Use collection names: "Your Bored Cat NFTs" not "catmonad-520223144"
 - browseCollection and getCollectionInfo accept both slug and contract address
+
+**getNFTDetails for traits and rarity:**
+- Use when user asks about traits, rarity, or attributes of specific NFTs
+- Requires contract + tokenIds (from getMyNFTs output)
+- Example: "show rarity of my #123" → getNFTDetails({ contract: "0x...", tokenIds: ["123"] })
 
 ---
 

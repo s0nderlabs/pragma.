@@ -56,8 +56,8 @@ export async function GET(request: Request) {
     } catch {
       return NextResponse.json({ error: "Invalid contract address format" }, { status: 400 });
     }
-    // Use metadata endpoint for single NFT: GET /api/v2/metadata/{chain}/{contractAddress}/{tokenId}
-    url = `${OPENSEA_API_BASE_URL}/metadata/${OPENSEA_CHAIN}/${checksummedAddress}/${tokenId}`;
+    // Use NFT endpoint for full details including traits/rarity: GET /api/v2/chain/{chain}/contract/{address}/nfts/{tokenId}
+    url = `${OPENSEA_API_BASE_URL}/chain/${OPENSEA_CHAIN}/contract/${checksummedAddress}/nfts/${tokenId}`;
   } else {
     // Collection slug lookup not supported for single NFT - return error
     return NextResponse.json(

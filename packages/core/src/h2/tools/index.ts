@@ -52,6 +52,7 @@ import { webSearchTool } from "./webSearchTool.js";
 import { getMyNFTsTool } from "./getMyNFTsTool.js";
 import { browseCollectionTool } from "./browseCollectionTool.js";
 import { getCollectionInfoTool } from "./getCollectionInfoTool.js";
+import { getNFTDetailsTool } from "./getNFTDetailsTool.js";
 import { getNFTBuyQuoteTool } from "./getNFTBuyQuoteTool.js";
 import { executeNFTBuyTool } from "./executeNFTBuyTool.js";
 import { transferNFTTool } from "./transferNFTTool.js";
@@ -129,6 +130,7 @@ export const h2ToolRegistry = [
   getMyNFTsTool,
   browseCollectionTool,
   getCollectionInfoTool,
+  getNFTDetailsTool,
   getNFTBuyQuoteTool,
   executeNFTBuyTool,
   transferNFTTool,
@@ -189,6 +191,7 @@ export {
   getMyNFTsTool,
   browseCollectionTool,
   getCollectionInfoTool,
+  getNFTDetailsTool,
   getNFTBuyQuoteTool,
   executeNFTBuyTool,
   transferNFTTool,

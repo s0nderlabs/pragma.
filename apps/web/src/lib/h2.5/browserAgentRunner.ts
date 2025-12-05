@@ -525,6 +525,24 @@ export async function streamBrowserAgent(
           }
           break;
 
+        // NFT tools - use contract:tokenIds for matching
+        case 'getNFTDetails':
+          // For NFT details: use contract:tokenIds hash
+          if (inputObj.contract && inputObj.tokenIds) {
+            const ids = Array.isArray(inputObj.tokenIds) ? inputObj.tokenIds.join(',') : inputObj.tokenIds;
+            return `${toolName}:${String(inputObj.contract).slice(0, 10)}:${ids}`;
+          }
+          return toolName;
+
+        case 'getMyNFTs':
+        case 'browseCollection':
+        case 'getCollectionInfo':
+        case 'getNFTBuyQuote':
+        case 'executeNFTBuy':
+        case 'transferNFT':
+        case 'listNFT':
+          return toolName;
+
         // Tools that use toolName as signature (no parallel batching needed)
         case 'checkSessionKeyBalance':
         case 'fundSessionKey':

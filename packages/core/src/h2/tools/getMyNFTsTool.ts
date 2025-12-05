@@ -7,7 +7,7 @@
 
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { getAddress, type Address } from "viem";
+import { getAddress, type Address, formatUnits } from "viem";
 
 import type { NFT, NFTDisplayData, NFTGalleryData } from "../../opensea/types.js";
 import { createErrorFromCode } from "../../errors/index.js";
@@ -74,9 +74,69 @@ interface CollectionMeta {
   slug: string;
   contract: string;
   count: number;
+  floorPrice?: string;
+  floorCurrency?: string;
 }
 
-function formatNFTListAsText(nfts: NFT[], userAddress: string): { text: string; collections: CollectionMeta[] } {
+/**
+ * Listing price structure from OpenSea API
+ */
+interface ListingPrice {
+  current: {
+    currency: string;
+    decimals: number;
+    value: string;
+  };
+}
+
+interface ListingData {
+  price: ListingPrice;
+}
+
+interface ListingsResponse {
+  listings?: ListingData[];
+}
+
+/**
+ * Fetch floor price for a collection from listings endpoint
+ * Returns the price of the cheapest listing (first result, sorted by price)
+ */
+async function fetchFloorPrice(
+  fetchFn: typeof fetch,
+  slug: string
+): Promise<{ price?: string; currency?: string }> {
+  try {
+    const params = new URLSearchParams({
+      collection: slug,
+      limit: "1", // Only need the first (cheapest) listing
+    });
+
+    const response = await fetchFn(`/api/opensea/listings?${params.toString()}`);
+    if (!response.ok) return {};
+
+    const data = await response.json() as ListingsResponse;
+    const listings = data.listings || [];
+
+    if (listings.length > 0) {
+      const firstListing = listings[0];
+      const priceWei = BigInt(firstListing.price.current.value);
+      const decimals = firstListing.price.current.decimals;
+      const price = formatUnits(priceWei, decimals);
+      const currency = firstListing.price.current.currency;
+      return { price, currency };
+    }
+
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+function formatNFTListAsText(
+  nfts: NFT[],
+  userAddress: string,
+  floorPrices: Map<string, { price?: string; currency?: string }>
+): { text: string; collections: CollectionMeta[] } {
   if (nfts.length === 0) {
     return {
       text: `**Your NFTs**
@@ -114,16 +174,26 @@ Address: ${userAddress}`,
       }
     }
 
+    // Get floor price for this collection
+    const floorData = floorPrices.get(slug);
+    const floorPrice = floorData?.price;
+    const floorCurrency = floorData?.currency;
+
     // Store metadata for agent
     collectionsMeta.push({
       name: collectionName,
       slug,
       contract: firstNft.contract,
       count: collectionNfts.length,
+      floorPrice,
+      floorCurrency,
     });
 
-    // Human-readable output: show name, not slug
-    lines.push(`**${collectionName}** (${collectionNfts.length} NFT${collectionNfts.length > 1 ? "s" : ""})`);
+    // Human-readable output: show name and floor price
+    const floorDisplay = floorPrice
+      ? ` • Floor: ${floorPrice} ${floorCurrency || "MON"}`
+      : "";
+    lines.push(`**${collectionName}** (${collectionNfts.length} NFT${collectionNfts.length > 1 ? "s" : ""}${floorDisplay})`);
 
     for (const nft of collectionNfts.slice(0, 5)) {
       const name = getNFTDisplayName(nft);
@@ -190,6 +260,19 @@ export const getMyNFTsTool = tool(
       const data = (await response.json()) as { nfts: NFT[]; next?: string };
       const { nfts, next: nextCursor } = data;
 
+      // Get unique collection slugs from NFTs
+      const uniqueSlugs = [...new Set(nfts.map(nft => nft.collection).filter(Boolean))] as string[];
+
+      // Fetch floor prices for all collections in parallel
+      emitProgress("Fetching floor prices...", "getMyNFTs", toolSignature);
+      const floorPriceResults = await Promise.all(
+        uniqueSlugs.map(async (slug) => {
+          const floorData = await fetchFloorPrice(fetchFn, slug);
+          return [slug, floorData] as const;
+        })
+      );
+      const floorPrices = new Map(floorPriceResults);
+
       // Format results
       emitProgress("Formatting NFT Gallery...", "getMyNFTs", toolSignature);
 
@@ -200,7 +283,7 @@ export const getMyNFTsTool = tool(
         nextCursor
       );
 
-      const { text: textOutput, collections } = formatNFTListAsText(nfts, checksummedAddress);
+      const { text: textOutput, collections } = formatNFTListAsText(nfts, checksummedAddress, floorPrices);
 
       // Include collections metadata in gallery data for agent context
       const enrichedGalleryData = {

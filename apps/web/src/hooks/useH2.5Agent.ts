@@ -242,6 +242,24 @@ export function useH2_5Agent() {
       case 'search_tool_docs':
         return 'Searching Tool Docs';
 
+      // NFT operations
+      case 'getMyNFTs':
+        return 'Fetching Your NFTs';
+      case 'browseCollection':
+        return 'Browsing Collection';
+      case 'getCollectionInfo':
+        return 'Getting Collection Info';
+      case 'getNFTDetails':
+        return 'Getting NFT Details';
+      case 'getNFTBuyQuote':
+        return 'Getting NFT Quote';
+      case 'executeNFTBuy':
+        return 'Buying NFT';
+      case 'transferNFT':
+        return 'Transferring NFT';
+      case 'listNFT':
+        return 'Listing NFT';
+
       default:
         return formatToolName(toolName);
     }

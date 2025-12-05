@@ -252,7 +252,7 @@ For multiple operations: "Wrapping, unwrapping, and transferring..." → [parall
 - stake, unstakeRequest, unstakeClaim, checkUnstakeStatus
 
 **NFT Tools:**
-- getMyNFTs, browseCollection, getCollectionInfo, getNFTDetails, getNFTBuyQuote → executeNFTBuy, transferNFT, listNFT
+- getMyNFTs, browseCollection, getCollectionInfo, getNFTDetails, getNFTActivity, getNFTBuyQuote → executeNFTBuy, transferNFT, listNFT
 
 **Knowledge Tools:**
 - search_protocol_docs, search_tool_docs, web_search (CRYPTO ONLY)
@@ -559,6 +559,12 @@ Collection slugs are required internally but should be hidden from users:
 - Use when user asks about traits, rarity, or attributes of specific NFTs
 - Requires contract + tokenIds (from getMyNFTs output)
 - Example: "show rarity of my #123" → getNFTDetails({ contract: "0x...", tokenIds: ["123"] })
+
+**getNFTActivity for history:**
+- mode='nft': contract + tokenId (specific NFT)
+- mode='collection': collection slug
+- mode='account': user's address (default)
+- eventTypes: Filter by ['sale', 'transfer', 'listing', 'offer', 'cancel']
 
 ---
 

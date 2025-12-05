@@ -534,6 +534,14 @@ export async function streamBrowserAgent(
           }
           return toolName;
 
+        case 'getNFTActivity':
+          // For NFT activity: use mode:identifier
+          if (inputObj.mode) {
+            const id = inputObj.contract ? String(inputObj.contract).slice(0, 10) : inputObj.collection ? String(inputObj.collection) : inputObj.account ? String(inputObj.account).slice(0, 10) : 'user';
+            return `${toolName}:${inputObj.mode}:${id}`;
+          }
+          return toolName;
+
         case 'getMyNFTs':
         case 'browseCollection':
         case 'getCollectionInfo':

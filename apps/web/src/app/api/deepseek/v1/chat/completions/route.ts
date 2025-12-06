@@ -3,46 +3,60 @@
  *
  * This proxy handles the special requirements of DeepSeek's reasoning model:
  * 1. Extract reasoning_content from responses
- * 2. Store reasoning_content keyed by conversation ID
+ * 2. Store reasoning_content in Upstash Redis (via @vercel/kv)
  * 3. Inject reasoning_content into assistant messages on subsequent requests
  *
- * This fixes the "Missing reasoning_content" error that occurs during
- * multi-turn tool calling conversations.
+ * ARCHITECTURE (Dec 2024):
+ * Uses Upstash Redis (Vercel KV) for shared state across serverless instances.
+ * This solves the "Missing reasoning_content" error in Vercel production where
+ * in-memory Maps don't persist across different serverless instances.
  */
 
 import { authMiddleware } from "@/lib/auth/authMiddleware";
+import { kv } from "@vercel/kv";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // ============================================================================
-// Conversation State Storage
+// Upstash KV Helpers
 // ============================================================================
 
-interface ConversationState {
-  // Map of message index → reasoning_content
-  reasoningContent: Map<number, string>;
-  lastAccess: number;
+// TTL for reasoning storage (24 hours)
+const REASONING_TTL_SECONDS = 24 * 60 * 60;
+
+/**
+ * Get the Redis key for a specific reasoning entry
+ * Format: reasoning:{conversationId}:{messageIndex}
+ */
+function getReasoningKey(convId: string, msgIdx: number): string {
+  return `reasoning:${convId}:${msgIdx}`;
 }
 
-// In-memory storage for conversation state
-// Key: conversation ID (from x-conversation-id header)
-const conversationState = new Map<string, ConversationState>();
-
-// Cleanup stale conversations (10 minute TTL)
-const CONVERSATION_TTL_MS = 10 * 60 * 1000;
-
-function cleanupStaleConversations() {
-  const now = Date.now();
-  for (const [convId, state] of conversationState) {
-    if (now - state.lastAccess > CONVERSATION_TTL_MS) {
-      conversationState.delete(convId);
-    }
+/**
+ * Store reasoning content in Upstash with TTL
+ */
+async function storeReasoning(
+  convId: string,
+  msgIdx: number,
+  reasoning: string
+): Promise<void> {
+  if (reasoning?.trim()) {
+    await kv.set(getReasoningKey(convId, msgIdx), reasoning, {
+      ex: REASONING_TTL_SECONDS,
+    });
   }
 }
 
-// Run cleanup every 5 minutes
-setInterval(cleanupStaleConversations, 5 * 60 * 1000);
+/**
+ * Get reasoning content from Upstash
+ */
+async function getReasoning(
+  convId: string,
+  msgIdx: number
+): Promise<string | null> {
+  return kv.get<string>(getReasoningKey(convId, msgIdx));
+}
 
 // ============================================================================
 // Request Handler
@@ -69,37 +83,26 @@ export async function POST(request: Request) {
       request.headers.get("x-conversation-id") ||
       `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // Get or create conversation state
-    let state = conversationState.get(convId);
-    if (!state) {
-      state = {
-        reasoningContent: new Map(),
-        lastAccess: Date.now(),
-      };
-      conversationState.set(convId, state);
-    }
-    state.lastAccess = Date.now();
-
-    // Inject stored reasoning_content into assistant messages
-    const messagesWithReasoning = body.messages.map(
-      (msg: { role: string; reasoning_content?: string }, idx: number) => {
-        if (msg.role === "assistant" && state!.reasoningContent.has(idx)) {
-          return {
-            ...msg,
-            reasoning_content: state!.reasoningContent.get(idx),
-          };
+    // Inject stored reasoning_content into assistant messages (from Upstash KV)
+    const messagesWithReasoning = await Promise.all(
+      body.messages.map(
+        async (
+          msg: { role: string; reasoning_content?: string },
+          idx: number
+        ) => {
+          if (msg.role === "assistant") {
+            const reasoning = await getReasoning(convId, idx);
+            if (reasoning) {
+              return {
+                ...msg,
+                reasoning_content: reasoning,
+              };
+            }
+          }
+          return msg;
         }
-        return msg;
-      }
+      )
     );
-
-    // Clear reasoning_content for new user turns (per DeepSeek docs)
-    // When a new user message is added, we should clear old reasoning
-    const lastMessage = body.messages[body.messages.length - 1];
-    if (lastMessage?.role === "user") {
-      // This is a new user turn - keep existing reasoning for tool call continuation
-      // Only clear if this is not a tool result message
-    }
 
     // Log request details for debugging
     console.log("[DeepSeek Proxy] Request:", {
@@ -107,7 +110,6 @@ export async function POST(request: Request) {
       messageCount: body.messages?.length,
       stream: body.stream,
       conversationId: convId,
-      storedReasoningCount: state.reasoningContent.size,
     });
 
     // Forward to DeepSeek with modified messages
@@ -141,19 +143,19 @@ export async function POST(request: Request) {
     if (body.stream) {
       return streamWithReasoningExtraction(
         response,
-        state,
-        body.messages.length,
-        convId
+        convId,
+        body.messages.length
       );
     }
 
     // Handle non-streaming response
     const data = await response.json();
 
-    // Extract and store reasoning_content from response
+    // Extract and store reasoning_content in Upstash
     if (data.choices?.[0]?.message?.reasoning_content) {
       const msgIndex = body.messages.length; // New assistant message index
-      state.reasoningContent.set(
+      await storeReasoning(
+        convId,
         msgIndex,
         data.choices[0].message.reasoning_content
       );
@@ -172,9 +174,8 @@ export async function POST(request: Request) {
 
 async function streamWithReasoningExtraction(
   response: Response,
-  state: ConversationState,
-  currentMessageCount: number,
-  convId: string
+  convId: string,
+  currentMessageCount: number
 ): Promise<Response> {
   const reader = response.body?.getReader();
   if (!reader) {
@@ -186,25 +187,31 @@ async function streamWithReasoningExtraction(
 
   let chunkCount = 0;
 
+  // We need to store reasoning after stream completes, but ReadableStream.start
+  // doesn't support returning a promise. So we'll store in the [DONE] handler
+  // and also after the loop as a fallback.
+  let reasoningStored = false;
+
   const stream = new ReadableStream({
     async start(controller) {
       const decoder = new TextDecoder();
       const encoder = new TextEncoder();
-      let lineBuffer = ''; // Buffer for incomplete SSE lines
+      let lineBuffer = ""; // Buffer for incomplete SSE lines
 
       // Helper to process a single complete SSE line
-      const processLine = (line: string) => {
+      const processLine = async (line: string) => {
         if (line.startsWith("data: ")) {
           const data = line.slice(6);
           if (data === "[DONE]") {
-            // Store accumulated reasoning before ending
-            if (accumulatedReasoning) {
-              state.reasoningContent.set(
-                newMessageIndex,
-                accumulatedReasoning
-              );
+            // Store accumulated reasoning to Upstash before ending
+            if (accumulatedReasoning && !reasoningStored) {
+              await storeReasoning(convId, newMessageIndex, accumulatedReasoning);
+              reasoningStored = true;
             }
-            console.log("[DeepSeek Proxy] Stream complete, total chunks:", chunkCount);
+            console.log(
+              "[DeepSeek Proxy] Stream complete, total chunks:",
+              chunkCount
+            );
             controller.enqueue(encoder.encode(line + "\n\n"));
             return;
           }
@@ -260,27 +267,31 @@ async function streamWithReasoningExtraction(
 
           // Log first few chunks for debugging
           if (chunkCount <= 3) {
-            console.log(`[DeepSeek Proxy] Stream chunk ${chunkCount}:`, lineBuffer.substring(0, 500));
+            console.log(
+              `[DeepSeek Proxy] Stream chunk ${chunkCount}:`,
+              lineBuffer.substring(0, 500)
+            );
           }
 
           // Split into lines and keep incomplete last line in buffer
           const lines = lineBuffer.split("\n");
-          lineBuffer = lines.pop() || ''; // Keep last (possibly incomplete) line
+          lineBuffer = lines.pop() || ""; // Keep last (possibly incomplete) line
 
           // Process only complete lines
           for (const line of lines) {
-            processLine(line);
+            await processLine(line);
           }
         }
 
         // Process any remaining buffer after stream ends
         if (lineBuffer.trim()) {
-          processLine(lineBuffer);
+          await processLine(lineBuffer);
         }
 
         // Ensure reasoning is stored even if [DONE] wasn't received
-        if (accumulatedReasoning) {
-          state.reasoningContent.set(newMessageIndex, accumulatedReasoning);
+        if (accumulatedReasoning && !reasoningStored) {
+          await storeReasoning(convId, newMessageIndex, accumulatedReasoning);
+          reasoningStored = true;
         }
 
         controller.close();

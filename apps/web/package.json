@@ -28,6 +28,7 @@
     "@react-three/fiber": "^9.4.0",
     "@studio-freight/lenis": "^1.0.42",
     "@vercel/analytics": "^1.5.0",
+    "@vercel/kv": "^3.0.0",
     "@vercel/speed-insights": "^1.2.0",
     "@web3auth/ethereum-provider": "^8.12.4",
     "@web3auth/modal": "^8.12.4",

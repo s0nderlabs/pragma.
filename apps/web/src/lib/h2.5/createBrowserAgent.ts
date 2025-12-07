@@ -11,7 +11,8 @@
  * - Direct Web3Auth bridge (no signature transport)
  *
  * Model Provider Selection (ENV-based):
- * - NEXT_PUBLIC_MODEL_PROVIDER=deepseek (default): DeepSeek V3.2 Reasoner (~30x cheaper)
+ * - NEXT_PUBLIC_MODEL_PROVIDER=deepseek (default): DeepSeek V3.2 Reasoner
+ * - NEXT_PUBLIC_MODEL_PROVIDER=kimi: Kimi K2 Thinking (Moonshot AI)
  * - NEXT_PUBLIC_MODEL_PROVIDER=openai: OpenAI gpt-5-mini
  *
  * Architecture:
@@ -150,17 +151,17 @@ export function createBrowserAgent(config: BrowserAgentConfig): ReturnType<typeo
   }
 
   // Determine model provider from environment variable
-  // Default: 'deepseek' for cost savings (~30x cheaper than OpenAI)
-  // Fallback: 'openai' for gpt-5-mini if needed
+  // Options: 'deepseek' (default), 'kimi', 'openai'
   const modelProvider = process.env.NEXT_PUBLIC_MODEL_PROVIDER || 'deepseek';
   const useDeepSeek = modelProvider === 'deepseek';
+  const useKimi = modelProvider === 'kimi';
 
   // Log model selection for debugging
   if (typeof window !== 'undefined') {
     console.log(`[BrowserAgent] Using model provider: ${modelProvider}`);
   }
 
-  // Generate session-based conversation ID for DeepSeek reasoning_content state
+  // Generate session-based conversation ID for reasoning_content state
   // This ID is generated ONCE per agent session and used for ALL requests
   // Required for multi-turn tool calling (proxy stores reasoning_content by conv ID)
   const conversationId = `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -179,6 +180,24 @@ export function createBrowserAgent(config: BrowserAgentConfig): ReturnType<typeo
           baseURL: typeof window !== 'undefined'
             ? `${window.location.origin}/api/deepseek/v1`
             : 'http://localhost:3000/api/deepseek/v1',
+          fetch: authenticatedFetch as typeof fetch,
+          defaultHeaders: {
+            'x-conversation-id': conversationId,
+          },
+        },
+      }
+    : useKimi
+    ? {
+        // Kimi K2 Thinking configuration (Moonshot AI)
+        model: 'kimi-k2-thinking',
+        apiKey: config.apiKey || 'proxy-not-used',
+        streaming: config.streaming ?? true,
+        timeout: config.timeout || 120000, // 120s (reasoning takes longer)
+        maxRetries: 2,
+        configuration: {
+          baseURL: typeof window !== 'undefined'
+            ? `${window.location.origin}/api/kimi/v1`
+            : 'http://localhost:3000/api/kimi/v1',
           fetch: authenticatedFetch as typeof fetch,
           defaultHeaders: {
             'x-conversation-id': conversationId,
@@ -213,9 +232,9 @@ export function createBrowserAgent(config: BrowserAgentConfig): ReturnType<typeo
   // Use custom tools if provided, otherwise use full registry
   let tools = config.tools || [...h2ToolRegistry];
 
-  // For DeepSeek: wrap entry-point tools with reminder text
+  // For reasoning models (DeepSeek, Kimi): wrap tools with reminder text
   // This reinforces critical behaviors (text output + thinking summary)
-  if (useDeepSeek) {
+  if (useDeepSeek || useKimi) {
     tools = wrapToolsForDeepSeek(tools);
   }
 

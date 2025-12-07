@@ -319,7 +319,7 @@ ${JSON.stringify(enrichedGalleryData)}`;
   },
   {
     name: "getMyNFTs",
-    description: "SOURCE OF TRUTH for owned NFTs. You CANNOT know what NFTs the user owns without calling this tool. Never guess NFT ownership. Returns visual gallery from OpenSea.",
+    description: "Get NFTs owned by user from OpenSea. Returns visual gallery. Use for 'show my NFTs'.",
     schema: getMyNFTsSchema,
   }
 );

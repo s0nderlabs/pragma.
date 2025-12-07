@@ -354,7 +354,7 @@ export const getBalanceTool = tool(
   },
   {
     name: "getBalance",
-    description: "SOURCE OF TRUTH for token balances. You CANNOT know how much of any token the user has without calling this tool. Never guess balances. Call BEFORE swaps when user says 'all/half/max'. Use 'all' for portfolio.",
+    description: "Get balance for specific token. Use 'all' for portfolio. Call BEFORE swaps when user says 'all/half/max'. Call search_tool_docs('getBalance') for detailed usage.",
     schema: getBalanceSchema,
   }
 );

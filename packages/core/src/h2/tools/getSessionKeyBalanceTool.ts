@@ -50,7 +50,7 @@ export const getSessionKeyBalanceTool = tool(
   },
   {
     name: "getSessionKeyBalance",
-    description: "SOURCE OF TRUTH for session key balance. You CANNOT know how much MON is in the session key without calling this tool. Never guess gas balance.",
+    description: "Get session key MON balance (gas funds). Use for 'session key balance' questions. Call search_tool_docs('getSessionKeyBalance') for detailed usage.",
     schema: getSessionKeyBalanceSchema,
   }
 );

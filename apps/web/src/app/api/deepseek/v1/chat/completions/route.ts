@@ -187,6 +187,14 @@ async function streamWithReasoningExtraction(
 
   let chunkCount = 0;
 
+  // Token tracking: capture usage from final chunk
+  let usageData: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    reasoning_tokens?: number;
+    total_tokens?: number;
+  } | null = null;
+
   // We need to store reasoning after stream completes, but ReadableStream.start
   // doesn't support returning a promise. So we'll store in the [DONE] handler
   // and also after the loop as a fallback.
@@ -208,6 +216,19 @@ async function streamWithReasoningExtraction(
               await storeReasoning(convId, newMessageIndex, accumulatedReasoning);
               reasoningStored = true;
             }
+
+            // Inject usage event before [DONE] for token tracking
+            if (usageData) {
+              const usageEvent = {
+                type: "usage",
+                usage: usageData,
+              };
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify(usageEvent)}\n\n`)
+              );
+              console.log("[DeepSeek Proxy] Token usage:", usageData);
+            }
+
             console.log(
               "[DeepSeek Proxy] Stream complete, total chunks:",
               chunkCount
@@ -223,6 +244,16 @@ async function streamWithReasoningExtraction(
             // Extract reasoning_content for storage
             if (delta?.reasoning_content) {
               accumulatedReasoning += delta.reasoning_content;
+            }
+
+            // Capture usage from final chunk (contains usage field)
+            if (parsed.usage) {
+              usageData = {
+                prompt_tokens: parsed.usage.prompt_tokens,
+                completion_tokens: parsed.usage.completion_tokens,
+                reasoning_tokens: parsed.usage.completion_tokens_details?.reasoning_tokens,
+                total_tokens: parsed.usage.total_tokens,
+              };
             }
 
             // CRITICAL: LangChain drops unknown fields like reasoning_content

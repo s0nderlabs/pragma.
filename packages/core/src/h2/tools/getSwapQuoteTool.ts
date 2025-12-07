@@ -522,7 +522,7 @@ This quote is ready to execute. Would you like me to proceed with the swap?`;
   },
   {
     name: "getSwapQuote",
-    description: "SOURCE OF TRUTH for swap quotes. You CANNOT know swap rates or output amounts without calling this tool. Any quote you display MUST come from this tool's response. Returns quote ID for executeSwap. Best price from multiple DEX aggregators with fallback support.",
+    description: "Get best swap quote from multiple DEX aggregators. Returns quote ID for executeSwap. Automatically selects best price with fallback support.",
     schema: z.object({
       fromToken: z.string().describe("Token to swap from (symbol like 'MON' or address like '0x...')"),
       toToken: z.string().describe("Token to swap to (symbol like 'USDC' or address like '0x...')"),

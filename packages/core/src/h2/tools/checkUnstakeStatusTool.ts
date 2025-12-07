@@ -152,7 +152,7 @@ You haven't created any withdrawal requests yet. To unstake aprMON, use the unst
   },
   {
     name: "checkUnstakeStatus",
-    description: "SOURCE OF TRUTH for unstake status. You CANNOT know if requests are claimable without calling this tool. Never guess unstake status. Returns claimable/pending status.",
+    description: "Check status of unstake requests. FREE (read-only). Returns claimable/pending status. Call search_tool_docs('checkUnstakeStatus') for detailed usage.",
     schema: z.object({}),
   }
 );

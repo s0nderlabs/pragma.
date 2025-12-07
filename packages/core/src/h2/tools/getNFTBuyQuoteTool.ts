@@ -141,7 +141,7 @@ This quote expires in 5 minutes. To purchase, use the executeNFTBuy tool with th
   },
   {
     name: "getNFTBuyQuote",
-    description: "SOURCE OF TRUTH for NFT purchase prices. You CANNOT know buy prices without calling this tool. Never estimate purchase costs. Returns price and quote ID for executeNFTBuy.",
+    description: "Get buy quote for an NFT. Returns price and quote ID for executeNFTBuy.",
     schema: getNFTBuyQuoteSchema,
   }
 );

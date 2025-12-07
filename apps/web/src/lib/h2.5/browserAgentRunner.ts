@@ -26,6 +26,7 @@ import { onProgress, offProgress, type ProgressEvent } from "@pragma/core/h2/pro
 import { authenticatedFetch } from "../api/authenticatedFetch";
 import { createMetricsCollector } from "./metrics";
 import { createBrowserAgent } from "./createBrowserAgent";
+import { tokenTracker } from "./tokenTracker";
 
 /**
  * Determine if a message requires high reasoning effort
@@ -420,6 +421,11 @@ export async function streamBrowserAgent(
 
   try {
     let currentResponse = "";
+
+    // Token tracking for hallucination detection
+    let reasoningTokenCount = 0;
+    let outputTokenCount = 0;
+    let toolCallCount = 0;
 
     // =========================================================================
     // Dynamic Reasoning Effort (Regex-Based)
@@ -818,6 +824,8 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
             const reasoningToken = match[1];
             if (reasoningToken) {
               callbacks.onReasoningToken?.(reasoningToken);
+              // Track reasoning tokens (~4 chars per token)
+              reasoningTokenCount += Math.ceil(reasoningToken.length / 4);
             }
             // Remove the reasoning marker from delta
             cleanDelta = cleanDelta.replace(match[0], "");
@@ -828,6 +836,8 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
             metrics.markFirstToken();
             currentResponse += cleanDelta;
             callbacks.onToken?.(cleanDelta);
+            // Track output tokens (~4 chars per token)
+            outputTokenCount += Math.ceil(cleanDelta.length / 4);
           }
         }
       } else if (event.event === "on_tool_start") {
@@ -846,6 +856,9 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
 
         // Track tool start for metrics
         metrics.markToolStart(event.name, signature);
+
+        // Count tool calls for token tracking
+        toolCallCount++;
       } else if (event.event === "on_tool_end") {
         // Tool execution completed
         // Retrieve signature from map using run_id
@@ -888,6 +901,19 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
     // Complete metrics and log summary
     metrics.complete();
     metrics.logSummary();
+
+    // Record token metrics for hallucination detection
+    // Input tokens estimated from message history (~4 chars per token)
+    const inputTokenEstimate = messages.reduce((acc, [, content]) => {
+      return acc + Math.ceil((content?.length || 0) / 4);
+    }, 0);
+
+    tokenTracker.recordTurn(
+      inputTokenEstimate,
+      outputTokenCount,
+      reasoningTokenCount,
+      messages.length + 1 // +1 for the assistant response being added
+    );
 
     callbacks.onComplete?.();
 

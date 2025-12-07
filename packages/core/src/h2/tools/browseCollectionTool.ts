@@ -132,7 +132,7 @@ ${JSON.stringify(galleryData)}`;
   },
   {
     name: "browseCollection",
-    description: "SOURCE OF TRUTH for collection items and listings. You CANNOT know what items are available without calling this tool. Returns visual gallery.",
+    description: "Browse NFT listings in a collection. Returns visual gallery. Use for 'show me [collection] NFTs'.",
     schema: browseCollectionSchema,
   }
 );

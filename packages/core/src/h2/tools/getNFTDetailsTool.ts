@@ -186,7 +186,7 @@ export const getNFTDetailsTool = tool(
   },
   {
     name: "getNFTDetails",
-    description: "SOURCE OF TRUTH for NFT traits and rarity. You CANNOT know NFT attributes without calling this tool. Never guess traits. Returns detailed attributes for up to 10 NFTs.",
+    description: "Get traits and rarity for specific NFTs. Returns detailed attributes for up to 10 NFTs.",
     schema: getNFTDetailsSchema,
   }
 );

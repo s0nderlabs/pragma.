@@ -210,6 +210,14 @@ async function streamWithReasoningExtraction(
 
   let chunkCount = 0;
 
+  // Token tracking: capture usage from final chunk
+  let usageData: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    reasoning_tokens?: number;
+    total_tokens?: number;
+  } | null = null;
+
   // We need to store reasoning after stream completes, but ReadableStream.start
   // doesn't support returning a promise. So we'll store in the [DONE] handler
   // and also after the loop as a fallback.
@@ -234,6 +242,19 @@ async function streamWithReasoningExtraction(
                 );
               reasoningStored = true;
             }
+
+            // Inject usage event before [DONE] for token tracking
+            if (usageData) {
+              const usageEvent = {
+                type: "usage",
+                usage: usageData,
+              };
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify(usageEvent)}\n\n`)
+              );
+              console.log("[Kimi K2 Proxy] Token usage:", usageData);
+            }
+
             console.log(
               "[Kimi K2 Proxy] Stream complete, total chunks:",
               chunkCount
@@ -242,13 +263,14 @@ async function streamWithReasoningExtraction(
             return;
           }
 
-          // PERF FIX 2: Fast path - skip JSON parse when no reasoning_content
-          if (!data.includes('"reasoning_content"')) {
+          // PERF FIX 2: Fast path - skip JSON parse when no reasoning_content and no usage
+          // Must check for usage to capture token counts
+          if (!data.includes('"reasoning_content"') && !data.includes('"usage"')) {
             controller.enqueue(encoder.encode(line + "\n\n"));
             return;
           }
 
-          // Slow path: Parse and transform chunks with reasoning_content
+          // Slow path: Parse and transform chunks with reasoning_content or usage
           try {
             const parsed = JSON.parse(data);
             const delta = parsed.choices?.[0]?.delta;
@@ -256,6 +278,16 @@ async function streamWithReasoningExtraction(
             // Extract reasoning_content for storage (using array push)
             if (delta?.reasoning_content) {
               reasoningChunks.push(delta.reasoning_content);
+            }
+
+            // Capture usage from final chunk (contains usage field)
+            if (parsed.usage) {
+              usageData = {
+                prompt_tokens: parsed.usage.prompt_tokens,
+                completion_tokens: parsed.usage.completion_tokens,
+                reasoning_tokens: parsed.usage.completion_tokens_details?.reasoning_tokens,
+                total_tokens: parsed.usage.total_tokens,
+              };
             }
 
             // CRITICAL: LangChain drops unknown fields like reasoning_content

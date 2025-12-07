@@ -220,7 +220,7 @@ export const getTopCollectionsTool = tool(
   },
   {
     name: "getTopCollections",
-    description: "SOURCE OF TRUTH for trending NFT collections. You CANNOT know rankings or volumes without calling this tool. Lists top Monad collections or search by name.",
+    description: "List top Monad NFT collections by volume/floor price, or search by name.",
     schema: getTopCollectionsSchema,
   }
 );

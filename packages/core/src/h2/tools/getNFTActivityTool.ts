@@ -314,7 +314,7 @@ export const getNFTActivityTool = tool(
   {
     name: "getNFTActivity",
     description:
-      "Get NFT activity history (sales, transfers, listings). Query by NFT, collection, or account.",
+      "SOURCE OF TRUTH for NFT activity. You CANNOT know sales, transfers, or listings without calling this tool. Never guess activity data. Query by NFT, collection, or account.",
     schema: getNFTActivitySchema,
   }
 );

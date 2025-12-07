@@ -279,7 +279,7 @@ export const getCollectionInfoTool = tool(
   },
   {
     name: "getCollectionInfo",
-    description: "Get NFT collection details including floor price, supply, and listings. Accepts collection slug or contract address.",
+    description: "SOURCE OF TRUTH for NFT collection data and floor prices. You CANNOT know collection prices without calling this tool. Never estimate prices. Returns floor price, supply, and listings.",
     schema: getCollectionInfoSchema,
   }
 );

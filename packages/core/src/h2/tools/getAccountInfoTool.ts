@@ -124,7 +124,7 @@ export const getAccountInfoTool = tool(
   {
     name: "getAccountInfo",
     description:
-      "Get user's account and session information including smart account address, owner address, and session key. Call this when user asks 'what account am I using?', 'show my address', 'what is my wallet?', 'whoami', or similar account-related questions.",
+      "SOURCE OF TRUTH for account info. You CANNOT know user's smart account address, owner address, or session key without calling this tool. Never guess addresses. Use for 'what account', 'show my address', 'whoami' questions.",
     schema: getAccountInfoSchema,
   }
 );

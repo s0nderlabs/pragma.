@@ -13,6 +13,7 @@
  * Model Provider Selection (ENV-based):
  * - NEXT_PUBLIC_MODEL_PROVIDER=deepseek (default): DeepSeek V3.2 Reasoner
  * - NEXT_PUBLIC_MODEL_PROVIDER=kimi: Kimi K2 Thinking (Moonshot AI)
+ * - NEXT_PUBLIC_MODEL_PROVIDER=grok: Grok 4.1 Fast Reasoning (xAI)
  * - NEXT_PUBLIC_MODEL_PROVIDER=openai: OpenAI gpt-5-mini
  *
  * Architecture:
@@ -142,8 +143,8 @@ export function createBrowserAgent(
     }
 
     // Check AsyncLocalStorage polyfill
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       typeof (window as any).async_hooks === "undefined" ||
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       !(window as any).async_hooks.AsyncLocalStorage
@@ -155,10 +156,11 @@ export function createBrowserAgent(
   }
 
   // Determine model provider from environment variable
-  // Options: 'deepseek' (default), 'kimi', 'openai'
+  // Options: 'deepseek' (default), 'kimi', 'grok', 'openai'
   const modelProvider = process.env.NEXT_PUBLIC_MODEL_PROVIDER || "deepseek";
   const useDeepSeek = modelProvider === "deepseek";
   const useKimi = modelProvider === "kimi";
+  const useGrok = modelProvider === "grok";
 
   // Log model selection for debugging
   if (typeof window !== "undefined") {
@@ -212,6 +214,24 @@ export function createBrowserAgent(
           },
         },
       }
+    : useGrok
+    ? {
+        // Grok 4.1 Fast Reasoning configuration (xAI)
+        // Best-in-class tool calling, 2M context, 50% lower hallucination
+        // Note: Reasoning is encrypted (no visible thinking bubble)
+        model: "grok-4-1-fast-reasoning",
+        apiKey: config.apiKey || "proxy-not-used",
+        streaming: config.streaming ?? true,
+        timeout: config.timeout || 120000, // 120s for complex reasoning
+        maxRetries: 2,
+        configuration: {
+          baseURL:
+            typeof window !== "undefined"
+              ? `${window.location.origin}/api/grok/v1`
+              : "http://localhost:3000/api/grok/v1",
+          fetch: authenticatedFetch as typeof fetch,
+        },
+      }
     : {
         // OpenAI gpt-5-mini configuration (Responses API)
         model: config.model || "gpt-5-mini",
@@ -243,6 +263,7 @@ export function createBrowserAgent(
 
   // For reasoning models (DeepSeek, Kimi): wrap tools with reminder text
   // This reinforces critical behaviors (text output + thinking summary)
+  // Note: Grok has best-in-class tool calling and doesn't need wrapping
   if (useDeepSeek || useKimi) {
     tools = wrapToolsForDeepSeek(tools);
   }

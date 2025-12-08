@@ -20,7 +20,7 @@
  */
 
 import type { BaseMessage } from "@langchain/core/messages";
-import { PRAGMA_H2_SYSTEM_PROMPT, PRAGMA_H2_SYSTEM_PROMPT_DEEPSEEK } from "@pragma/core";
+import { PRAGMA_H2_SYSTEM_PROMPT, PRAGMA_H2_SYSTEM_PROMPT_DEEPSEEK, PRAGMA_H2_SYSTEM_PROMPT_GROK } from "@pragma/core";
 import type { AllowedToken } from "@pragma/core";
 import { onProgress, offProgress, type ProgressEvent } from "@pragma/core/h2/progress/emitter";
 import { authenticatedFetch } from "../api/authenticatedFetch";
@@ -727,12 +727,12 @@ For wrap/unwrap/transfer: ask first, then execute.
 Group capabilities with **bold section headers**. Use emojis sparingly. Natural, conversational tone.`;
 
     // Select prompt based on model provider
-    // DeepSeek: Full tailored prompt with parallel execution, output checkpoints, etc.
-    // OpenAI (GPT-5-mini): Base prompt (designed for GPT's natural behavior)
+    // - DeepSeek/Kimi/Grok: Comprehensive prompt with full tool docs (no compression)
+    // - OpenAI (GPT-5-mini): Base prompt (designed for GPT's natural behavior)
     const modelProvider = process.env.NEXT_PUBLIC_MODEL_PROVIDER || 'deepseek';
-    const basePrompt = modelProvider === 'deepseek'
-      ? PRAGMA_H2_SYSTEM_PROMPT_DEEPSEEK
-      : PRAGMA_H2_SYSTEM_PROMPT;
+    const basePrompt =
+      ['deepseek', 'kimi', 'grok'].includes(modelProvider) ? PRAGMA_H2_SYSTEM_PROMPT_GROK :
+      PRAGMA_H2_SYSTEM_PROMPT;
 
     // Apply placeholder replacements
     const systemPrompt = basePrompt

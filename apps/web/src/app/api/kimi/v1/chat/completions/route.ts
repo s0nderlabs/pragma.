@@ -90,40 +90,69 @@ export async function POST(request: Request) {
       request.headers.get("x-conversation-id") ||
       `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // Inject stored reasoning_content into assistant messages (from Upstash KV)
-    // Also filter out empty assistant messages (Kimi K2 is stricter than DeepSeek)
-    const messagesWithReasoning = (
-      await Promise.all(
-        body.messages.map(
-          async (
-            msg: {
-              role: string;
-              content?: string;
-              reasoning_content?: string;
-              tool_calls?: unknown[];
-            },
-            idx: number
-          ) => {
-            if (msg.role === "assistant") {
-              // Skip empty assistant messages (no content AND no tool_calls)
-              // Kimi K2 requires non-empty content for assistant messages
-              if (!msg.content && !msg.tool_calls?.length) {
-                return null; // Will be filtered out
-              }
+    // =========================================================================
+    // Inject Reasoning for ALL Assistant Messages
+    // =========================================================================
+    // Kimi requires reasoning_content for ALL assistant messages.
+    // We store reasoning in Redis as responses come in, and inject it back
+    // for ALL assistants (not just the last one).
+    //
+    // The turn-based sliding window in browserAgentRunner.ts handles pruning
+    // old turns to prevent hallucinations. Here we just inject reasoning.
+    //
+    // Note: Kimi K2 is stricter - also filter out empty assistant messages.
 
-              const reasoning = await getReasoning(convId, idx);
-              if (reasoning) {
-                return {
-                  ...msg,
-                  reasoning_content: reasoning,
-                };
-              }
-            }
-            return msg;
+    // Filter out empty assistant messages (Kimi K2 requirement)
+    // Then inject reasoning for ALL remaining assistants
+    const filteredMessages = body.messages.filter(
+      (msg: { role: string; content?: string; tool_calls?: unknown[] }) => {
+        if (msg.role === "assistant") {
+          // Skip empty assistant messages (no content AND no tool_calls)
+          if (!msg.content && !msg.tool_calls?.length) {
+            return false;
           }
-        )
+        }
+        return true;
+      }
+    );
+
+    // Inject reasoning for ALL assistant messages
+    const messagesWithReasoning = await Promise.all(
+      filteredMessages.map(
+        async (
+          msg: { role: string; reasoning_content?: string },
+          idx: number
+        ) => {
+          if (msg.role === "assistant") {
+            // Find original index in body.messages for Redis lookup
+            const originalIdx = body.messages.findIndex(
+              (m: { role: string; content?: string }) =>
+                m.role === msg.role && m.content === (msg as { content?: string }).content
+            );
+            const reasoning = await getReasoning(
+              convId,
+              originalIdx >= 0 ? originalIdx : idx
+            );
+            if (reasoning) {
+              return { ...msg, reasoning_content: reasoning };
+            }
+          }
+          return msg;
+        }
       )
-    ).filter(Boolean); // Remove null entries (empty assistant messages)
+    );
+
+    // Count assistants for logging
+    const assistantCount = filteredMessages.filter(
+      (msg: { role: string }) => msg.role === "assistant"
+    ).length;
+
+    // Log reasoning injection for debugging
+    console.log("[Kimi K2 Proxy] Reasoning injection:", {
+      originalCount: body.messages.length,
+      filteredCount: filteredMessages.length,
+      assistantCount,
+    });
 
     // Log request details for debugging
     console.log("[Kimi K2 Proxy] Request:", {

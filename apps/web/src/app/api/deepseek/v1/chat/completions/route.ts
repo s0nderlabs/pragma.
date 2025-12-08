@@ -83,7 +83,17 @@ export async function POST(request: Request) {
       request.headers.get("x-conversation-id") ||
       `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // Inject stored reasoning_content into assistant messages (from Upstash KV)
+    // =========================================================================
+    // Inject Reasoning for ALL Assistant Messages
+    // =========================================================================
+    // DeepSeek requires reasoning_content for ALL assistant messages.
+    // We store reasoning in Redis as responses come in, and inject it back
+    // for ALL assistants (not just the last one).
+    //
+    // The turn-based sliding window in browserAgentRunner.ts handles pruning
+    // old turns to prevent hallucinations. Here we just inject reasoning.
+
+    // Inject reasoning for ALL assistant messages
     const messagesWithReasoning = await Promise.all(
       body.messages.map(
         async (
@@ -93,16 +103,24 @@ export async function POST(request: Request) {
           if (msg.role === "assistant") {
             const reasoning = await getReasoning(convId, idx);
             if (reasoning) {
-              return {
-                ...msg,
-                reasoning_content: reasoning,
-              };
+              return { ...msg, reasoning_content: reasoning };
             }
           }
           return msg;
         }
       )
     );
+
+    // Count assistants for logging
+    const assistantCount = body.messages.filter(
+      (msg: { role: string }) => msg.role === "assistant"
+    ).length;
+
+    // Log reasoning injection for debugging
+    console.log("[DeepSeek Proxy] Reasoning injection:", {
+      messageCount: body.messages.length,
+      assistantCount,
+    });
 
     // Log request details for debugging
     console.log("[DeepSeek Proxy] Request:", {

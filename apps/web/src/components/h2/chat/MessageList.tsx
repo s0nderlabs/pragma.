@@ -31,6 +31,9 @@ export function MessageList() {
   // Track previous message count to detect new user messages
   const prevMessagesLengthRef = useRef(messages.length)
 
+  // RAF-based scroll to prevent jitter with fast-streaming models
+  const scrollPendingRef = useRef(false)
+
   // Theme-based scroll preservation
   const { theme } = useThemeStore()
   const scrollPositionRef = useRef<number>(0)
@@ -60,13 +63,23 @@ export function MessageList() {
   })
 
   // Auto-scroll: always scroll on new user message, otherwise only if at bottom
+  // Uses RAF to coalesce rapid updates and prevent jitter with fast-streaming models
   useEffect(() => {
     const isNewMessage = messages.length > prevMessagesLengthRef.current
     const lastIsUser = lastMessage?.role === 'user'
 
-    // Scroll when: at bottom during streaming OR new user message sent
-    if (messagesEndRef.current && (isAtBottom || (isNewMessage && lastIsUser))) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    // Should scroll:
+    // 1. Always during streaming (follow the content)
+    // 2. At bottom when not streaming
+    // 3. New user message sent
+    const shouldScroll = isStreaming || isAtBottom || (isNewMessage && lastIsUser)
+
+    if (messagesEndRef.current && shouldScroll && !scrollPendingRef.current) {
+      scrollPendingRef.current = true
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+        scrollPendingRef.current = false
+      })
     }
 
     prevMessagesLengthRef.current = messages.length

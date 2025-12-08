@@ -146,13 +146,6 @@ export type MessageTuple = ["user" | "assistant" | "system", string];
 // Turn-Based Sliding Window (Anti-Hallucination)
 // ============================================================================
 
-/**
- * Result of applying sliding window to messages
- */
-interface SlidingWindowResult {
-  messages: MessageTuple[];
-  contextSummary: string | null;
-}
 
 /**
  * Apply turn-based sliding window to conversation history
@@ -174,7 +167,7 @@ interface SlidingWindowResult {
  *   Turn 3: [user3, assistant(tool), tool, assistant(final)]  → KEEP
  *   Turn 4: [user4]                                           → KEEP (current)
  */
-function applySlidingWindow(messages: MessageTuple[]): SlidingWindowResult {
+function applySlidingWindow(messages: MessageTuple[]): MessageTuple[] {
   // Filter out system messages for counting (they're re-added separately)
   const nonSystemMessages = messages.filter(([role]) => role !== "system");
 
@@ -188,7 +181,7 @@ function applySlidingWindow(messages: MessageTuple[]): SlidingWindowResult {
 
   // Less than 2 turns? Keep everything (no trimming needed)
   if (userIndices.length < 2) {
-    return { messages, contextSummary: null };
+    return messages;
   }
 
   // Keep from second-to-last user message onward (= last complete turn + current turn)
@@ -202,80 +195,10 @@ function applySlidingWindow(messages: MessageTuple[]): SlidingWindowResult {
     console.log(`  [${idx}] ${role}: ${preview.replace(/\n/g, ' ')}`);
   });
 
-  // Generate summary of dropped turns
-  const oldMessages = nonSystemMessages.slice(0, keepFromIndex);
-  const contextSummary = generateContextSummary(oldMessages);
-
   // Preserve system messages from original
   const systemMessages = messages.filter(([role]) => role === "system");
 
-  return {
-    messages: [...systemMessages, ...recentMessages],
-    contextSummary,
-  };
-}
-
-/**
- * Generate a context summary from old messages
- *
- * CRITICAL: Never include specific values (balances, prices, amounts)!
- * These become hallucination sources when the model "remembers" them.
- *
- * @param oldMessages - Messages to summarize
- * @returns Summary string or empty if no meaningful actions
- */
-function generateContextSummary(oldMessages: MessageTuple[]): string {
-  const actions = new Set<string>();
-
-  for (const [role, content] of oldMessages) {
-    if (role === "user") {
-      const lower = content.toLowerCase();
-
-      // Detect action categories (without capturing specific values)
-      if (/balance|portfolio|what do i have|holdings/i.test(lower)) {
-        actions.add("checked balances");
-      }
-      if (/swap|exchange|convert|trade/i.test(lower)) {
-        actions.add("performed swaps");
-      }
-      if (/nft|collection|punk|monkey/i.test(lower)) {
-        actions.add("browsed NFTs");
-      }
-      if (/stake|unstake|aprmon|staking/i.test(lower)) {
-        actions.add("discussed staking");
-      }
-      if (/transfer|send/i.test(lower)) {
-        actions.add("made transfers");
-      }
-      if (/wrap|unwrap|wmon/i.test(lower)) {
-        actions.add("wrapped/unwrapped tokens");
-      }
-      if (/fund|session|gas/i.test(lower)) {
-        actions.add("managed session key");
-      }
-      if (/price|cost|worth|value/i.test(lower)) {
-        actions.add("checked prices");
-      }
-    }
-  }
-
-  // No meaningful actions detected - still provide generic reminder
-  if (actions.size === 0) {
-    return `## Previous Context
-
-Earlier messages were trimmed for efficiency.
-
-⚠️ CRITICAL: You have NO memory of previous data.
-You MUST call tools to get current balances, prices, or any on-chain data.`;
-  }
-
-  return `## Previous Context (ALL VALUES ARE STALE)
-
-Earlier in this conversation, the user:
-${[...actions].map((a) => `- ${a}`).join("\n")}
-
-⚠️ CRITICAL: Any balances, prices, or amounts from earlier are OUTDATED.
-You MUST call tools to get current data. NEVER use values from memory.`;
+  return [...systemMessages, ...recentMessages];
 }
 
 /**
@@ -909,23 +832,17 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
     // =========================================================================
     // Apply sliding window BEFORE sending to agent to prevent context pollution.
     // Old assistant responses contain stale data that causes hallucinations.
-    const { messages: windowedMessages, contextSummary } = applySlidingWindow(messages);
+    const windowedMessages = applySlidingWindow(messages);
 
     // Log sliding window application
     console.log(`[Agent] Sliding window:`, {
       originalMessageCount: messages.length,
       windowedMessageCount: windowedMessages.length,
       trimmed: messages.length !== windowedMessages.length,
-      contextSummary: contextSummary ? contextSummary.split('\n').slice(0, 3).join(' | ') : null,
     });
 
     // Apply placeholder replacements
-    // If context was trimmed, append the summary to system prompt
-    const systemPromptWithContext = contextSummary
-      ? `${basePrompt}\n\n${contextSummary}`
-      : basePrompt;
-
-    const systemPrompt = systemPromptWithContext
+    const systemPrompt = basePrompt
       .replace(/\[userAddress from context\]/g, context.userAddress)
       .replace(/\[userAddress\]/g, context.userAddress)
       .replace(/\[EXECUTION_MODE\]/g, modeInstructions);

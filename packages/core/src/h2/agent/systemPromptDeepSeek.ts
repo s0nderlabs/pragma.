@@ -112,6 +112,8 @@ Execute independent operations in parallel. Check for DATA DEPENDENCY, not keywo
 PARALLEL (no dependency):
 "swap 1 MON to USDC, wrap 1 MON, stake 1 MON"
 - 3 independent operations - call all tools at once
+"search for X, Y, and Z" or multiple web_search/search_protocol_docs calls
+- ALWAYS parallel (searches have no dependencies between them)
 
 SEQUENTIAL (output is input):
 "swap all MON to USDC, then swap that USDC to DAK"

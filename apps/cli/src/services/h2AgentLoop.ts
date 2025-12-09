@@ -286,17 +286,15 @@ For SWAPS:
 3. IMMEDIATELY BEFORE executeSwap → call checkSessionKeyBalance with estimatedOperations
    - Single swap → {estimatedOperations: 1}
    - Batch swaps → {estimatedOperations: N}
-4. If needsFunding = true → AUTOMATICALLY call fundSessionKey (no user permission needed)
-5. After funding completes → call checkSessionKeyBalance AGAIN to verify
-6. ONLY THEN call executeSwap
+4. If needsFunding = true → call fundSessionKey (no user permission needed)
+5. After fundSessionKey succeeds → call executeSwap directly (do NOT check balance again)
 
 For DIRECT operations (transfer/wrap/unwrap/stake/unstake):
 1. IMMEDIATELY BEFORE execution tool → call checkSessionKeyBalance
    - Single operation → {estimatedOperations: 1}
    - Batch operations → {estimatedOperations: N}
-2. If needsFunding = true → AUTOMATICALLY call fundSessionKey (no user permission needed)
-3. After funding completes → call checkSessionKeyBalance AGAIN to verify
-4. ONLY THEN call the execution tool
+2. If needsFunding = true → call fundSessionKey (no user permission needed)
+3. After fundSessionKey succeeds → call execution tool directly (do NOT check balance again)
 
 Session key funding is a maintenance operation that does not require user confirmation.
 
@@ -339,17 +337,15 @@ For SWAPS:
 3. IMMEDIATELY BEFORE executeSwap → call checkSessionKeyBalance with estimatedOperations
    - Single swap → {estimatedOperations: 1}
    - Batch swaps → {estimatedOperations: N}
-4. If needsFunding = true → AUTOMATICALLY call fundSessionKey (no user permission needed)
-5. After funding completes → call checkSessionKeyBalance AGAIN to verify
-6. ONLY THEN call executeSwap
+4. If needsFunding = true → call fundSessionKey (no user permission needed)
+5. After fundSessionKey succeeds → call executeSwap directly (do NOT check balance again)
 
 For DIRECT operations (transfer/wrap/unwrap/stake/unstake):
 1. IMMEDIATELY BEFORE execution tool → call checkSessionKeyBalance
    - Single operation → {estimatedOperations: 1}
    - Batch operations → {estimatedOperations: N}
-2. If needsFunding = true → AUTOMATICALLY call fundSessionKey (no user permission needed)
-3. After funding completes → call checkSessionKeyBalance AGAIN to verify
-4. ONLY THEN call the execution tool
+2. If needsFunding = true → call fundSessionKey (no user permission needed)
+3. After fundSessionKey succeeds → call execution tool directly (do NOT check balance again)
 
 Session key funding is a maintenance operation that does not require user confirmation.
 
@@ -513,17 +509,15 @@ For SWAPS:
 3. IMMEDIATELY BEFORE executeSwap → call checkSessionKeyBalance with estimatedOperations
    - Single swap → {estimatedOperations: 1}
    - Batch swaps → {estimatedOperations: N}
-4. If needsFunding = true → AUTOMATICALLY call fundSessionKey (no user permission needed)
-5. After funding completes → call checkSessionKeyBalance AGAIN to verify
-6. ONLY THEN call executeSwap
+4. If needsFunding = true → call fundSessionKey (no user permission needed)
+5. After fundSessionKey succeeds → call executeSwap directly (do NOT check balance again)
 
 For DIRECT operations (transfer/wrap/unwrap/stake/unstake):
 1. IMMEDIATELY BEFORE execution tool → call checkSessionKeyBalance
    - Single operation → {estimatedOperations: 1}
    - Batch operations → {estimatedOperations: N}
-2. If needsFunding = true → AUTOMATICALLY call fundSessionKey (no user permission needed)
-3. After funding completes → call checkSessionKeyBalance AGAIN to verify
-4. ONLY THEN call the execution tool
+2. If needsFunding = true → call fundSessionKey (no user permission needed)
+3. After fundSessionKey succeeds → call execution tool directly (do NOT check balance again)
 
 Session key funding is a maintenance operation that does not require user confirmation.
 

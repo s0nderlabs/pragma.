@@ -126,6 +126,8 @@ Examples of IN-SCOPE questions (answer these with tools):
 - "swap to USDC, wrap 1 MON, stake 1 MON" → 3 parallel tool calls
 - "show my NFTs and my token balance" → 2 parallel tool calls
 - Multiple getBalance calls for different tokens → parallel
+- Multiple web searches → ALWAYS parallel (no dependencies between searches)
+- Multiple protocol doc searches → ALWAYS parallel
 
 **Execute sequentially** when output is input for next operation:
 - "swap MON to USDC, then swap that USDC to DAK" → must wait for first swap amount

@@ -257,6 +257,8 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
                   address={walletData.address}
                   monBalance={walletData.monBalance}
                   isDeploying={isDeploying}
+                  status={status}
+                  connect={connect}
                 />
               </div>
 
@@ -374,6 +376,8 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
                       address={walletData.address}
                       monBalance={walletData.monBalance}
                       isDeploying={isDeploying}
+                      status={status}
+                      connect={connect}
                     />
                   </div>
 

@@ -22,6 +22,7 @@ import {
   ERC20_TRANSFER_OFFSETS,
   ERC20_APPROVE_OFFSETS,
   NATIVE_TRANSFER_OFFSETS,
+  ERC721_SETAPPROVALFORALL_OFFSETS,
 } from "./offsets.js";
 import { ALLOWED_CALLDATA_ENFORCER_ADDRESS } from "../config.js";
 
@@ -206,6 +207,52 @@ export function buildNativeTransferEnforcement(recipient: Address): AllowedCalld
     {
       startIndex: NATIVE_TRANSFER_OFFSETS.TARGET,
       value: pad(recipient, { size: 32 }),
+    },
+  ];
+}
+
+/**
+ * Build AllowedCalldata config for ERC721/ERC1155 setApprovalForAll delegation
+ *
+ * Enforces BOTH operator and approved parameters.
+ * This prevents two critical attack vectors:
+ * 1. Operator substitution: Attacker changes operator to themselves
+ * 2. Approval manipulation: Attacker revokes when user wants to grant
+ *
+ * Example attack without operator enforcement:
+ * - User confirms: "approve Seaport to trade my NFTs"
+ * - Attacker modifies: "approve AttackerContract to trade my NFTs"
+ * - Attacker steals user's NFTs via malicious operator
+ *
+ * @param operator - Operator address (typically Seaport conduit)
+ * @param approved - Whether to grant (true) or revoke (false) approval
+ * @returns AllowedCalldata builder configuration array for DTK
+ *
+ * @example
+ * ```typescript
+ * const configs = buildSetApprovalForAllEnforcement(
+ *   "0x1E0049783F008A0085193E00003D00cd54003c71", // Seaport conduit
+ *   true // Grant approval
+ * );
+ * // Returns: [
+ * //   { startIndex: 4, value: "0x000...operator" },
+ * //   { startIndex: 36, value: "0x000...0001" }
+ * // ]
+ * ```
+ */
+export function buildSetApprovalForAllEnforcement(
+  operator: Address,
+  approved: boolean
+): AllowedCalldataBuilderConfig[] {
+  return [
+    {
+      startIndex: ERC721_SETAPPROVALFORALL_OFFSETS.OPERATOR,
+      value: pad(operator, { size: 32 }), // Left-pad address to 32 bytes
+    },
+    {
+      startIndex: ERC721_SETAPPROVALFORALL_OFFSETS.APPROVED,
+      // Convert boolean to uint256 (1 for true, 0 for false)
+      value: pad(toHex(approved ? 1n : 0n), { size: 32 }),
     },
   ];
 }

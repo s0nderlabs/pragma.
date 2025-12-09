@@ -29,6 +29,7 @@ import { authenticatedFetch } from '@/lib/api/authenticatedFetch';
 import { createBrowserAgent, validateBrowserEnvironment } from '@/lib/h2.5/createBrowserAgent';
 import { createDirectWeb3AuthBridge } from '@/lib/h2.5/directWeb3AuthBridge';
 import { streamBrowserAgent } from '@/lib/h2.5/browserAgentRunner';
+import { streamSummarize } from '@/lib/h2.5/streamSummarize';
 import type { MessageTuple, BrowserAgentCallbacks } from '@/lib/h2.5/browserAgentRunner';
 import { createHybridDelegatorHandle } from '@/lib/onboarding/hybridDelegator';
 import { useNotificationStore } from '@/stores/useNotificationStore';
@@ -64,6 +65,12 @@ export function useH2_5Agent() {
   // Store actions (same as H2)
   const addMessage = useH2ChatStore((state) => state.addMessage);
   const updateMessageContent = useH2ChatStore((state) => state.updateMessageContent);
+  const setMessageRawToolOutput = useH2ChatStore((state) => state.setMessageRawToolOutput);
+  const updateMessageReasoning = useH2ChatStore((state) => state.updateMessageReasoning);
+  const addReasoningSegment = useH2ChatStore((state) => state.addReasoningSegment);
+  const updateReasoningSegmentSummary = useH2ChatStore((state) => state.updateReasoningSegmentSummary);
+  const appendReasoningSegmentSummary = useH2ChatStore((state) => state.appendReasoningSegmentSummary);
+  const setSegmentSummarizing = useH2ChatStore((state) => state.setSegmentSummarizing);
   const setStreamingMessage = useH2ChatStore((state) => state.setStreamingMessage);
   const hideProgress = useH2ChatStore((state) => state.hideProgress);
   const startTool = useH2ChatStore((state) => state.startTool);
@@ -234,6 +241,28 @@ export function useH2_5Agent() {
       case 'searchToolDocs':
       case 'search_tool_docs':
         return 'Searching Tool Docs';
+
+      // NFT operations
+      case 'getMyNFTs':
+        return 'Fetching Your NFTs';
+      case 'browseCollection':
+        return 'Browsing Collection';
+      case 'getCollectionInfo':
+        return 'Getting Collection Info';
+      case 'getNFTDetails':
+        return 'Getting NFT Details';
+      case 'getNFTActivity':
+        return 'Getting NFT Activity';
+      case 'getTopCollections':
+        return 'Getting Collections';
+      case 'getNFTBuyQuote':
+        return 'Getting NFT Quote';
+      case 'executeNFTBuy':
+        return 'Buying NFT';
+      case 'transferNFT':
+        return 'Transferring NFT';
+      case 'listNFT':
+        return 'Listing NFT';
 
       default:
         return formatToolName(toolName);
@@ -413,9 +442,19 @@ export function useH2_5Agent() {
         // Flush every 50ms for snappy UI updates (reduced from 100ms)
         const tokenBufferRef = { current: '' };
 
+        // Reasoning token buffering (for DeepSeek chain-of-thought)
+        const reasoningBufferRef = { current: '' };        // Current unflushed tokens
+        const currentSegmentRef = { current: '' };         // Current segment being built
+        const reasoningStartTimeRef = { current: 0 };
+
         // Tool completion tracking for automatic spacing
         // When a tool completes, the next token should start with \n\n
         const justCompletedToolRef = { current: false };
+
+        // Raw tool output tracking for rich content markers (NFT gallery, etc.)
+        // LLM rewrites tool output, so we capture raw output in onToolEnd
+        // and attach it to the final message for UI component detection
+        const pendingRawOutputRef = { current: '' };
 
         const flushTokenBuffer = () => {
           // Atomic read-and-clear operation to prevent race conditions
@@ -448,12 +487,109 @@ export function useH2_5Agent() {
           }
         };
 
+        // Flush reasoning buffer to current message (for live streaming display)
+        const flushReasoningBuffer = () => {
+          const reasoningToFlush = reasoningBufferRef.current;
+          if (reasoningToFlush.length === 0) return;
+
+          // Add to current segment
+          currentSegmentRef.current += reasoningToFlush;
+          reasoningBufferRef.current = '';
+
+          const streamingId = useH2ChatStore.getState().streamingMessageId;
+          if (streamingId) {
+            // Update existing message with current segment for live display
+            // This shows the current thinking while streaming
+            updateMessageReasoning(streamingId, currentSegmentRef.current);
+          } else {
+            // Create new assistant message with just reasoning (content comes later)
+            addMessage({
+              role: 'assistant',
+              content: '',
+              isStreaming: true,
+              reasoningContent: currentSegmentRef.current,
+            });
+
+            const newMessage = useH2ChatStore.getState().messages.at(-1);
+            if (newMessage) {
+              setStreamingMessage(newMessage.id);
+            }
+          }
+        };
+
+        // Finalize current reasoning segment (save to array, reset for next segment)
+        const finalizeReasoningSegment = (duration?: number) => {
+          // Flush any remaining buffered reasoning
+          if (reasoningBufferRef.current.length > 0) {
+            currentSegmentRef.current += reasoningBufferRef.current;
+            reasoningBufferRef.current = '';
+          }
+
+          // Only save if there's content
+          if (currentSegmentRef.current.length === 0) return;
+
+          const cleanContent = currentSegmentRef.current.trim();
+          const streamingId = useH2ChatStore.getState().streamingMessageId;
+
+          if (streamingId) {
+            // Add segment immediately and capture its ID for streaming summary
+            const segmentId = addReasoningSegment(streamingId, cleanContent, duration, undefined);
+            // Clear live reasoningContent since we moved it to segments
+            updateMessageReasoning(streamingId, '');
+
+            // Start streaming summary (no char limit - summarize ALL reasoning)
+            setSegmentSummarizing(segmentId, true);
+            streamSummarize(
+              cleanContent,
+              (token) => {
+                // Append each token as it streams in
+                appendReasoningSegmentSummary(segmentId, token);
+              },
+              (summary) => {
+                // Complete - set final summary and clear summarizing flag
+                updateReasoningSegmentSummary(segmentId, summary);
+                setSegmentSummarizing(segmentId, false);
+              },
+              () => {
+                // Error - just clear summarizing flag (silent fail)
+                setSegmentSummarizing(segmentId, false);
+              }
+            );
+          }
+
+          // Reset for next segment
+          currentSegmentRef.current = '';
+          reasoningStartTimeRef.current = 0;
+        };
+
         // Auto-flush interval for smooth streaming (50ms for snappy updates)
-        const flushInterval = setInterval(flushTokenBuffer, 50);
+        const flushInterval = setInterval(() => {
+          flushReasoningBuffer();
+          flushTokenBuffer();
+        }, 50);
 
         // Streaming callbacks for UI updates
         const callbacks: BrowserAgentCallbacks = {
+          // DeepSeek reasoning token callback (chain-of-thought)
+          onReasoningToken: (token) => {
+            // Start timing on first reasoning token
+            if (reasoningStartTimeRef.current === 0) {
+              reasoningStartTimeRef.current = Date.now();
+            }
+
+            // Accumulate reasoning in buffer (will be flushed by interval)
+            reasoningBufferRef.current += token;
+          },
+
           onToken: (token) => {
+            // First content token = reasoning phase complete
+            // Finalize current segment with duration
+            if (reasoningStartTimeRef.current > 0 && tokenBufferRef.current.length === 0) {
+              const reasoningDuration = Date.now() - reasoningStartTimeRef.current;
+              // Finalize saves segment and resets for next one
+              finalizeReasoningSegment(reasoningDuration);
+            }
+
             // Safety net: Add spacing after tool completion if LLM didn't
             if (justCompletedToolRef.current) {
               const bufferEndsWithNewlines = tokenBufferRef.current.endsWith('\n\n');
@@ -500,6 +636,15 @@ export function useH2_5Agent() {
           },
 
           onToolStart: (toolName, _input, signature) => {
+            // Finalize any pending reasoning segment before tool execution
+            // This ensures reasoning from before tool call is saved as separate segment
+            if (reasoningStartTimeRef.current > 0 || currentSegmentRef.current.length > 0) {
+              const reasoningDuration = reasoningStartTimeRef.current > 0
+                ? Date.now() - reasoningStartTimeRef.current
+                : undefined;
+              finalizeReasoningSegment(reasoningDuration);
+            }
+
             // Generate description using signature for specifics (e.g., "Swap MON → DAK")
             const description = generateToolDescription(toolName, signature);
             // Use signature as unique key for parallel tool matching
@@ -514,6 +659,26 @@ export function useH2_5Agent() {
 
             // Set flag so next token gets automatic spacing if needed
             justCompletedToolRef.current = true;
+
+            // Capture raw tool output if it contains rich content markers
+            // LLM rewrites tool output, losing markers like __nft_gallery__
+            // We preserve the raw output for UI component detection in AIMessage
+
+            // Extract string output - handle both string and object formats
+            let outputStr = '';
+            if (typeof output === 'string') {
+              outputStr = output;
+            } else if (output && typeof output === 'object') {
+              // LangChain may wrap output in object with content/text property
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const outputObj = output as any;
+              outputStr = outputObj.content || outputObj.text || outputObj.output || JSON.stringify(output);
+            }
+
+            // Check for rich content markers
+            if (outputStr && outputStr.includes('__nft_gallery__')) {
+              pendingRawOutputRef.current = outputStr;
+            }
 
             // Trigger immediate balance refresh for transaction-based tools
             const transactionTools = [
@@ -539,9 +704,26 @@ export function useH2_5Agent() {
           },
 
           onComplete: () => {
-            // Stop flush interval and flush any remaining tokens
+            // Stop flush interval and flush any remaining buffers
             clearInterval(flushInterval);
+            flushReasoningBuffer();
             flushTokenBuffer();
+
+            // Attach raw tool output to the LAST assistant message
+            // NOTE: Can't use streamingMessageId - it's cleared when tools start (line 368 in store)
+            // Instead, find the last assistant message which is the one we just finalized
+            if (pendingRawOutputRef.current) {
+              const messages = useH2ChatStore.getState().messages;
+              // Find the last assistant message
+              const lastAssistantMsg = [...messages].reverse().find(
+                msg => msg.role === 'assistant'
+              );
+
+              if (lastAssistantMsg) {
+                setMessageRawToolOutput(lastAssistantMsg.id, pendingRawOutputRef.current);
+              }
+              pendingRawOutputRef.current = '';
+            }
 
             // Mark all running tools as completed to prevent cross-message pollution
             completeAllRunningTools();
@@ -552,8 +734,9 @@ export function useH2_5Agent() {
           },
 
           onError: (error) => {
-            // Stop flush interval and flush any remaining tokens
+            // Stop flush interval and flush any remaining buffers
             clearInterval(flushInterval);
+            flushReasoningBuffer();
             flushTokenBuffer();
 
             console.error('[H2.5Agent] Execution error:', error);
@@ -587,6 +770,10 @@ export function useH2_5Agent() {
             quickMode,
             allowedTokens,
             userBalances: allTokens, // User's balance data for unverified token symbol resolution
+            // CRITICAL: Pass authenticated fetch for API proxy calls
+            // Tools use this to make authenticated requests to /api/* routes
+            fetch: authenticatedFetch,
+            origin: typeof window !== 'undefined' ? window.location.origin : '',
             // CRITICAL FIX: Read directly from Zustand store, not local state
             // This avoids React state timing race where local state hasn't updated yet
             // after onboarding stores the smartAccount. Using getState() is synchronous.
@@ -621,6 +808,9 @@ export function useH2_5Agent() {
       // Note: smartAccount and bundlerClient removed - now read directly from store
       addMessage,
       updateMessageContent,
+      setMessageRawToolOutput,
+      updateMessageReasoning,
+      addReasoningSegment,
       setStreamingMessage,
       hideProgress,
       startTool,

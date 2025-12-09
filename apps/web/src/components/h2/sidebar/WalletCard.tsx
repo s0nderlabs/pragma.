@@ -13,6 +13,8 @@ interface WalletCardProps {
   address: string
   monBalance: string
   isDeploying?: boolean
+  status?: string
+  connect?: () => Promise<void>
 }
 
 /**
@@ -22,7 +24,7 @@ interface WalletCardProps {
  * Always visible, never scrolls away
  * Clean, minimal design with perfect typography hierarchy
  */
-export function WalletCard({ balance, change24h, address, monBalance, isDeploying }: WalletCardProps) {
+export function WalletCard({ balance, change24h, address, monBalance, isDeploying, status, connect }: WalletCardProps) {
   const { balanceVisible, toggleBalance } = useSidebarStore()
   const [copied, setCopied] = useState(false)
 
@@ -68,12 +70,19 @@ export function WalletCard({ balance, change24h, address, monBalance, isDeployin
     }).format(amount)
   }
 
-  const handleCopyAddress = () => {
-    // Only copy if we have a valid address (not empty, not zero)
-    if (address && address !== '' && address !== '0x0000000000000000000000000000000000000000') {
+  // Check if wallet is connected
+  const isConnected = address && address !== '' && address !== '0x0000000000000000000000000000000000000000'
+  const isConnecting = status === 'connecting' || status === 'initializing'
+
+  const handleAddressClick = async () => {
+    if (isConnected) {
+      // Copy address if connected
       navigator.clipboard.writeText(address)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
+    } else if (connect && !isConnecting) {
+      // Trigger wallet connect if not connected
+      await connect()
     }
   }
 
@@ -82,7 +91,8 @@ export function WalletCard({ balance, change24h, address, monBalance, isDeployin
       {/* Address Row */}
       <div className="flex items-center justify-between">
         <button
-          onClick={handleCopyAddress}
+          onClick={handleAddressClick}
+          disabled={isConnecting}
           className={cn(
             "flex items-center gap-2",
             "px-3 py-1.5 rounded-[16px]",
@@ -90,21 +100,25 @@ export function WalletCard({ balance, change24h, address, monBalance, isDeployin
             "text-xs font-mono",
             "bg-white/10",
             "hover:bg-white/15",
-            "text-white/60"
+            "text-white/60",
+            !isConnected && "hover:bg-accent/20 hover:text-white",
+            isConnecting && "opacity-50 cursor-not-allowed"
           )}
         >
-          <span>{formatAddress(address)}</span>
-          {copied ? (
-            <motion.span
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="text-green-500"
-            >
-              ✓
-            </motion.span>
-          ) : (
-            <Copy className="w-3 h-3" />
-          )}
+          <span>{isConnecting ? 'Connecting...' : formatAddress(address)}</span>
+          {isConnected ? (
+            copied ? (
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="text-green-500"
+              >
+                ✓
+              </motion.span>
+            ) : (
+              <Copy className="w-3 h-3" />
+            )
+          ) : null}
         </button>
 
         {/* Network Indicator */}

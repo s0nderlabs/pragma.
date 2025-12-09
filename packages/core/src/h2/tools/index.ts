@@ -48,6 +48,18 @@ import { searchToolDocsTool } from "./searchToolDocsTool.js";
 // Web Search Tools
 import { webSearchTool } from "./webSearchTool.js";
 
+// NFT Tools (OpenSea)
+import { getMyNFTsTool } from "./getMyNFTsTool.js";
+import { browseCollectionTool } from "./browseCollectionTool.js";
+import { getCollectionInfoTool } from "./getCollectionInfoTool.js";
+import { getNFTDetailsTool } from "./getNFTDetailsTool.js";
+import { getNFTActivityTool } from "./getNFTActivityTool.js";
+import { getTopCollectionsTool } from "./getTopCollectionsTool.js";
+import { getNFTBuyQuoteTool } from "./getNFTBuyQuoteTool.js";
+import { executeNFTBuyTool } from "./executeNFTBuyTool.js";
+import { transferNFTTool } from "./transferNFTTool.js";
+import { listNFTTool } from "./listNFTTool.js";
+
 // ============================================================================
 // Tool Registry
 // ============================================================================
@@ -115,6 +127,18 @@ export const h2ToolRegistry = [
 
   // Web search tools
   webSearchTool,
+
+  // NFT tools (OpenSea)
+  getMyNFTsTool,
+  browseCollectionTool,
+  getCollectionInfoTool,
+  getNFTDetailsTool,
+  getNFTActivityTool,
+  getTopCollectionsTool,
+  getNFTBuyQuoteTool,
+  executeNFTBuyTool,
+  transferNFTTool,
+  listNFTTool,
 ] as const;
 
 /**
@@ -166,4 +190,16 @@ export {
 
   // Web search tools
   webSearchTool,
+
+  // NFT tools (OpenSea)
+  getMyNFTsTool,
+  browseCollectionTool,
+  getCollectionInfoTool,
+  getNFTDetailsTool,
+  getNFTActivityTool,
+  getTopCollectionsTool,
+  getNFTBuyQuoteTool,
+  executeNFTBuyTool,
+  transferNFTTool,
+  listNFTTool,
 };

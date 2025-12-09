@@ -20,12 +20,13 @@
  */
 
 import type { BaseMessage } from "@langchain/core/messages";
-import { PRAGMA_H2_SYSTEM_PROMPT } from "@pragma/core";
+import { PRAGMA_H2_SYSTEM_PROMPT, PRAGMA_H2_SYSTEM_PROMPT_DEEPSEEK, PRAGMA_H2_SYSTEM_PROMPT_GROK } from "@pragma/core";
 import type { AllowedToken } from "@pragma/core";
 import { onProgress, offProgress, type ProgressEvent } from "@pragma/core/h2/progress/emitter";
 import { authenticatedFetch } from "../api/authenticatedFetch";
 import { createMetricsCollector } from "./metrics";
 import { createBrowserAgent } from "./createBrowserAgent";
+import { tokenTracker } from "./tokenTracker";
 
 /**
  * Determine if a message requires high reasoning effort
@@ -141,6 +142,65 @@ function shouldUseHighReasoning(message: string): boolean {
  */
 export type MessageTuple = ["user" | "assistant" | "system", string];
 
+// ============================================================================
+// Turn-Based Sliding Window (Anti-Hallucination)
+// ============================================================================
+
+
+/**
+ * Apply turn-based sliding window to conversation history
+ *
+ * A "turn" = 1 user message + agent's complete response (including all tool calls)
+ *
+ * Strategy:
+ * - Keep FULL last turn (all tool calls, results, reasoning preserved)
+ * - Keep current user message (start of new turn)
+ * - Drop everything before last turn
+ *
+ * This prevents:
+ * - Hallucinations from stale data in old turns
+ * - Breaking tool call flow (full turn context preserved)
+ *
+ * Example:
+ *   Turn 1: [user1, assistant(tool), tool, assistant(final)]  → DROP
+ *   Turn 2: [user2, assistant(tool), tool, assistant(final)]  → DROP
+ *   Turn 3: [user3, assistant(tool), tool, assistant(final)]  → KEEP
+ *   Turn 4: [user4]                                           → KEEP (current)
+ */
+function applySlidingWindow(messages: MessageTuple[]): MessageTuple[] {
+  // Filter out system messages for counting (they're re-added separately)
+  const nonSystemMessages = messages.filter(([role]) => role !== "system");
+
+  // Find all user message indices (each user message starts a new turn)
+  const userIndices: number[] = [];
+  nonSystemMessages.forEach(([role], idx) => {
+    if (role === "user") {
+      userIndices.push(idx);
+    }
+  });
+
+  // Less than 2 turns? Keep everything (no trimming needed)
+  if (userIndices.length < 2) {
+    return messages;
+  }
+
+  // Keep from second-to-last user message onward (= last complete turn + current turn)
+  const keepFromIndex = userIndices[userIndices.length - 2];
+  const recentMessages = nonSystemMessages.slice(keepFromIndex);
+
+  // Log kept messages for debugging
+  console.log(`[SlidingWindow] Keeping ${recentMessages.length} messages from turn ${userIndices.length - 1}:`);
+  recentMessages.forEach(([role, content], idx) => {
+    const preview = content.length > 100 ? content.slice(0, 100) + '...' : content;
+    console.log(`  [${idx}] ${role}: ${preview.replace(/\n/g, ' ')}`);
+  });
+
+  // Preserve system messages from original
+  const systemMessages = messages.filter(([role]) => role === "system");
+
+  return [...systemMessages, ...recentMessages];
+}
+
 /**
  * Browser agent execution callbacks
  *
@@ -153,6 +213,13 @@ export interface BrowserAgentCallbacks {
    * Called as LLM streams tokens
    */
   onToken?: (token: string) => void;
+
+  /**
+   * Reasoning token streaming callback (DeepSeek chain-of-thought)
+   * Called as DeepSeek reasoner streams thinking tokens
+   * Only fires for DeepSeek V3.2+ models with reasoning capability
+   */
+  onReasoningToken?: (token: string) => void;
 
   /**
    * Progress update callback
@@ -241,6 +308,13 @@ export interface BrowserAgentContext {
   /** User's balance data for unverified token symbol resolution */
   userBalances?: unknown[];
   // Note: sponsorUserOperationFn removed - session key funding is now self-paid (no paymaster)
+
+  /** Authenticated fetch function for API proxy calls */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  fetch?: (url: string, options?: any) => Promise<Response>;
+
+  /** Origin URL for API calls (e.g., http://localhost:3000) */
+  origin?: string;
 }
 
 /**
@@ -407,6 +481,11 @@ export async function streamBrowserAgent(
   try {
     let currentResponse = "";
 
+    // Token tracking for hallucination detection
+    let reasoningTokenCount = 0;
+    let outputTokenCount = 0;
+    let toolCallCount = 0;
+
     // =========================================================================
     // Dynamic Reasoning Effort (Regex-Based)
     // =========================================================================
@@ -415,11 +494,13 @@ export async function streamBrowserAgent(
     const lastUserMessage = [...messages].reverse().find(([role]) => role === "user");
     const userContent = lastUserMessage?.[1] || "";
 
-    // Determine reasoning effort: default to medium, upgrade to high for complex queries
-    const reasoningEffort = shouldUseHighReasoning(userContent) ? "high" : "medium";
-    console.log(`[Agent] Reasoning effort: ${reasoningEffort} for message: "${userContent.slice(0, 50)}..."`);
+    // Determine reasoning effort for OpenAI (DeepSeek has built-in reasoning)
+    // OpenAI gpt-5-mini uses reasoningEffort: "high" for complex queries, "medium" otherwise
+    const isComplexQuery = shouldUseHighReasoning(userContent);
+    const reasoningEffort = isComplexQuery ? "high" : "medium";
+    console.log(`[Agent] Complex query: ${isComplexQuery}, reasoning effort: ${reasoningEffort} for message: "${userContent.slice(0, 50)}..."`);
 
-    // Create agent with appropriate reasoning effort (uses full tool registry)
+    // Create agent (reasoningEffort only used by OpenAI, DeepSeek ignores it)
     const activeAgent = createBrowserAgent({ reasoningEffort });
 
     // Track signatures by run_id for matching tool_end/error to tool_start
@@ -509,6 +590,60 @@ export async function streamBrowserAgent(
           }
           break;
 
+        // NFT tools - use contract:tokenIds for matching
+        case 'getNFTDetails':
+          // For NFT details: use contract:tokenIds hash
+          if (inputObj.contract && inputObj.tokenIds) {
+            const ids = Array.isArray(inputObj.tokenIds) ? inputObj.tokenIds.join(',') : inputObj.tokenIds;
+            return `${toolName}:${String(inputObj.contract).slice(0, 10)}:${ids}`;
+          }
+          return toolName;
+
+        case 'getNFTActivity':
+          // For NFT activity: use mode:identifier
+          if (inputObj.mode) {
+            const id = inputObj.contract ? String(inputObj.contract).slice(0, 10) : inputObj.collection ? String(inputObj.collection) : inputObj.account ? String(inputObj.account).slice(0, 10) : 'user';
+            return `${toolName}:${inputObj.mode}:${id}`;
+          }
+          return toolName;
+
+        case 'getTopCollections':
+          // For top collections: use search term or 'top'
+          if (inputObj.search) {
+            return `${toolName}:search:${String(inputObj.search).slice(0, 20)}`;
+          }
+          return `${toolName}:top`;
+
+        case 'getMyNFTs':
+        case 'browseCollection':
+        case 'getCollectionInfo':
+          return toolName;
+
+        case 'getNFTBuyQuote':
+          // For NFT quotes: use collection + tokenId for uniqueness
+          if (inputObj.collection && inputObj.tokenId) {
+            return `${toolName}:${String(inputObj.collection).slice(0, 10)}-${inputObj.tokenId}`;
+          }
+          return toolName;
+
+        case 'executeNFTBuy':
+          // For NFT execution: use quoteId (matches tool's emitted signature)
+          if (inputObj.quoteId) {
+            return `${toolName}:${String(inputObj.quoteId)}`;
+          }
+          return toolName;
+
+        case 'transferNFT':
+          // For NFT transfer: use contract:tokenId (matches tool's emitted signature)
+          if (inputObj.contract && inputObj.tokenId) {
+            return `${toolName}:${String(inputObj.contract)}:${inputObj.tokenId}`;
+          }
+          return toolName;
+
+        case 'listNFT':
+          // listNFT doesn't use unique signatures in the tool, so just use toolName
+          return toolName;
+
         // Tools that use toolName as signature (no parallel batching needed)
         case 'checkSessionKeyBalance':
         case 'fundSessionKey':
@@ -528,16 +663,33 @@ export async function streamBrowserAgent(
     const modeInstructions = context.quickMode
       ? `YOU ARE IN QUICK MODE - Execute all operations WITHOUT asking for user confirmation.
 
-**EXECUTION STRATEGY:**
-- SEQUENTIAL (Multi-Step): When operations have dependencies (e.g., "swap MON to USDC then swap to DAI")
-  → Keywords: "then", "after", "once", "and then"
-  → Execute: Operation 1 → wait for completion → Operation 2
+**EXECUTION STRATEGY - DATA DEPENDENCY ANALYSIS:**
 
-- PARALLEL (Batch): When operations are independent (e.g., "swap to USDC, USDT, and USDM")
-  → Keywords: "and", comma-separated, no "then"
-  → Execute: All operations at the same time (faster)
+Before executing multiple operations, analyze DATA FLOW:
 
-Always prefer PARALLEL execution for independent operations.
+1. **PARALLEL** - Operations are INDEPENDENT (no shared data):
+   - "swap 1 MON to USDC and swap 1 MON to DAK" → PARALLEL (both use MON as input)
+   - "wrap 1 MON, stake 1 MON, swap 1 MON to USDC" → PARALLEL (each uses fresh MON)
+   - "show NFTs and show balances" → PARALLEL (read-only, no dependencies)
+
+2. **SEQUENTIAL** - Output of one is INPUT to next:
+   - "swap MON to USDC, then swap that USDC to DAK" → SEQUENTIAL (USDC output → USDC input)
+   - "swap all my MON to USDC" → SEQUENTIAL (need balance first)
+   - "getSwapQuote → executeSwap" → SEQUENTIAL (need quoteId)
+
+**Decision Rule:**
+- If operation B needs the RESULT of operation A → SEQUENTIAL
+- If operation B uses FRESH inputs (not A's output) → PARALLEL
+
+**Examples:**
+| User Request | Execution | Why |
+|-------------|-----------|-----|
+| "swap 1 MON to USDC, 1 MON to DAK, 1 MON to WETH" | PARALLEL | Each uses fresh 1 MON |
+| "swap all MON to USDC then swap half to DAK" | SEQUENTIAL | Second needs USDC amount from first |
+| "wrap 1 MON and stake 1 MON" | PARALLEL | Independent operations |
+| "swap to USDC and send it to alice.nad" | SEQUENTIAL | Transfer needs swap output |
+
+CRITICAL: Do NOT rely on keywords alone. "swap X and swap Y" could be SEQUENTIAL if Y uses X's output.
 
 **SESSION KEY FUNDING:**
 Before executing batch operations (2+ swaps/transfers), ALWAYS check session key balance:
@@ -589,16 +741,33 @@ For wrap/unwrap/transfer: call tool directly.
 Group capabilities with **bold section headers**. Use emojis sparingly. Natural, conversational tone.`
       : `YOU ARE IN NORMAL MODE - Ask for user confirmation BEFORE executing.
 
-**EXECUTION STRATEGY:**
-- SEQUENTIAL (Multi-Step): When operations have dependencies (e.g., "swap MON to USDC then swap to DAI")
-  → Keywords: "then", "after", "once", "and then"
-  → Execute: Operation 1 → wait for completion → Operation 2
+**EXECUTION STRATEGY - DATA DEPENDENCY ANALYSIS:**
 
-- PARALLEL (Batch): When operations are independent (e.g., "swap to USDC, USDT, and USDM")
-  → Keywords: "and", comma-separated, no "then"
-  → Plan all operations → show all quotes → execute in parallel after confirmation
+Before executing multiple operations, analyze DATA FLOW:
 
-Always prefer PARALLEL execution for independent operations.
+1. **PARALLEL** - Operations are INDEPENDENT (no shared data):
+   - "swap 1 MON to USDC and swap 1 MON to DAK" → PARALLEL (both use MON as input)
+   - "wrap 1 MON, stake 1 MON, swap 1 MON to USDC" → PARALLEL (each uses fresh MON)
+   - "show NFTs and show balances" → PARALLEL (read-only, no dependencies)
+
+2. **SEQUENTIAL** - Output of one is INPUT to next:
+   - "swap MON to USDC, then swap that USDC to DAK" → SEQUENTIAL (USDC output → USDC input)
+   - "swap all my MON to USDC" → SEQUENTIAL (need balance first)
+   - "getSwapQuote → executeSwap" → SEQUENTIAL (need quoteId)
+
+**Decision Rule:**
+- If operation B needs the RESULT of operation A → SEQUENTIAL
+- If operation B uses FRESH inputs (not A's output) → PARALLEL
+
+**Examples:**
+| User Request | Execution | Why |
+|-------------|-----------|-----|
+| "swap 1 MON to USDC, 1 MON to DAK, 1 MON to WETH" | PARALLEL | Each uses fresh 1 MON |
+| "swap all MON to USDC then swap half to DAK" | SEQUENTIAL | Second needs USDC amount from first |
+| "wrap 1 MON and stake 1 MON" | PARALLEL | Independent operations |
+| "swap to USDC and send it to alice.nad" | SEQUENTIAL | Transfer needs swap output |
+
+CRITICAL: Do NOT rely on keywords alone. "swap X and swap Y" could be SEQUENTIAL if Y uses X's output.
 
 **SESSION KEY FUNDING:**
 Before executing batch operations (2+ swaps/transfers), ALWAYS check session key balance:
@@ -650,8 +819,30 @@ For wrap/unwrap/transfer: ask first, then execute.
 
 Group capabilities with **bold section headers**. Use emojis sparingly. Natural, conversational tone.`;
 
-    // Use full system prompt with placeholder replacements (same as H2 CLI)
-    const systemPrompt = PRAGMA_H2_SYSTEM_PROMPT
+    // Select prompt based on model provider
+    // - DeepSeek/Kimi/Grok: Comprehensive prompt with full tool docs (no compression)
+    // - OpenAI (GPT-5-mini): Base prompt (designed for GPT's natural behavior)
+    const modelProvider = process.env.NEXT_PUBLIC_MODEL_PROVIDER || 'deepseek';
+    const basePrompt =
+      ['deepseek', 'kimi', 'grok'].includes(modelProvider) ? PRAGMA_H2_SYSTEM_PROMPT_GROK :
+      PRAGMA_H2_SYSTEM_PROMPT;
+
+    // =========================================================================
+    // Sliding Window (Anti-Hallucination)
+    // =========================================================================
+    // Apply sliding window BEFORE sending to agent to prevent context pollution.
+    // Old assistant responses contain stale data that causes hallucinations.
+    const windowedMessages = applySlidingWindow(messages);
+
+    // Log sliding window application
+    console.log(`[Agent] Sliding window:`, {
+      originalMessageCount: messages.length,
+      windowedMessageCount: windowedMessages.length,
+      trimmed: messages.length !== windowedMessages.length,
+    });
+
+    // Apply placeholder replacements
+    const systemPrompt = basePrompt
       .replace(/\[userAddress from context\]/g, context.userAddress)
       .replace(/\[userAddress\]/g, context.userAddress)
       .replace(/\[EXECUTION_MODE\]/g, modeInstructions);
@@ -659,7 +850,7 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
     // Prepend system prompt to messages (filter out any existing system messages)
     const messagesWithSystem: MessageTuple[] = [
       ["system", systemPrompt],
-      ...messages.filter(([role]) => role !== "system"),
+      ...windowedMessages.filter(([role]) => role !== "system"),
     ];
 
     // Format messages for LangChain
@@ -708,7 +899,8 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
     for await (const event of stream) {
       if (event.event === "on_chat_model_stream") {
         // LLM token streaming
-        const rawContent = event.data?.chunk?.content;
+        const chunk = event.data?.chunk;
+        const rawContent = chunk?.content;
 
         // Extract text delta (handle both string and array formats)
         // OpenAI Responses API returns content as: [{ type: "text", text: "..." }]
@@ -726,11 +918,34 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
           }
         }
 
+        // Parse reasoning markers injected by DeepSeek proxy
+        // Format: <<REASON>>thinking text<<END_REASON>>actual content
+        // LangChain drops unknown fields, so proxy injects reasoning into content
         if (delta) {
-          // Mark first token only when we have actual content
-          metrics.markFirstToken();
-          currentResponse += delta;
-          callbacks.onToken?.(delta);
+          // Extract all reasoning blocks
+          const reasoningRegex = /<<REASON>>([\s\S]*?)<<END_REASON>>/g;
+          let match;
+          let cleanDelta = delta;
+
+          while ((match = reasoningRegex.exec(delta)) !== null) {
+            const reasoningToken = match[1];
+            if (reasoningToken) {
+              callbacks.onReasoningToken?.(reasoningToken);
+              // Track reasoning tokens (~4 chars per token)
+              reasoningTokenCount += Math.ceil(reasoningToken.length / 4);
+            }
+            // Remove the reasoning marker from delta
+            cleanDelta = cleanDelta.replace(match[0], "");
+          }
+
+          // Process remaining content (after removing reasoning markers)
+          if (cleanDelta) {
+            metrics.markFirstToken();
+            currentResponse += cleanDelta;
+            callbacks.onToken?.(cleanDelta);
+            // Track output tokens (~4 chars per token)
+            outputTokenCount += Math.ceil(cleanDelta.length / 4);
+          }
         }
       } else if (event.event === "on_tool_start") {
         // Tool execution started
@@ -748,6 +963,9 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
 
         // Track tool start for metrics
         metrics.markToolStart(event.name, signature);
+
+        // Count tool calls for token tracking
+        toolCallCount++;
       } else if (event.event === "on_tool_end") {
         // Tool execution completed
         // Retrieve signature from map using run_id
@@ -790,6 +1008,19 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
     // Complete metrics and log summary
     metrics.complete();
     metrics.logSummary();
+
+    // Record token metrics for hallucination detection
+    // Input tokens estimated from message history (~4 chars per token)
+    const inputTokenEstimate = messages.reduce((acc, [, content]) => {
+      return acc + Math.ceil((content?.length || 0) / 4);
+    }, 0);
+
+    tokenTracker.recordTurn(
+      inputTokenEstimate,
+      outputTokenCount,
+      reasoningTokenCount,
+      messages.length + 1 // +1 for the assistant response being added
+    );
 
     callbacks.onComplete?.();
 

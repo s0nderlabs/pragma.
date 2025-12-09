@@ -166,7 +166,7 @@ export const swapTool = tool(
 • To: ~${finalOutputFormatted} ${isUnverified ? '⚠️ ' : ''}${toToken} (${toTokenAddress})
 • Price Impact: ${quote.compoundImpact || "unknown"}%
 • Route: ${routeNames.join(" → ") || "Direct"}
-• Gas Estimate: ${quote.gasEstimate ? formatUnits(quote.gasEstimate, 18) : "unknown"} MON
+• Gas Estimate: ${quote.gasEstimate ? formatUnits(quote.gasEstimate * 50_000_000_000n, 18) : "unknown"} MON
 • Quote ID: ${quote.quoteId}${unverifiedWarning}`;
     } catch (error) {
       throw createErrorFromCode("QUOTE_RPC_ERROR", {

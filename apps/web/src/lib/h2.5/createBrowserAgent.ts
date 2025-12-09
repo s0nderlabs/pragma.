@@ -10,6 +10,12 @@
  * - Same tool registry and system prompt as server-side H2
  * - Direct Web3Auth bridge (no signature transport)
  *
+ * Model Provider Selection (ENV-based):
+ * - NEXT_PUBLIC_MODEL_PROVIDER=deepseek (default): DeepSeek V3.2 Reasoner
+ * - NEXT_PUBLIC_MODEL_PROVIDER=kimi: Kimi K2 Thinking (Moonshot AI)
+ * - NEXT_PUBLIC_MODEL_PROVIDER=grok: Grok 4.1 Fast Reasoning (xAI)
+ * - NEXT_PUBLIC_MODEL_PROVIDER=openai: OpenAI gpt-5-mini
+ *
  * Architecture:
  * ```
  * Browser Component (useH2.5Agent)
@@ -24,10 +30,11 @@
  * ```
  */
 
-import { createAgent } from 'langchain';
-import { ChatOpenAI } from '@langchain/openai';
-import { h2ToolRegistry } from '@pragma/core';
-import { authenticatedFetch } from '@/lib/api/authenticatedFetch';
+import { createAgent } from "langchain";
+import { ChatOpenAI } from "@langchain/openai";
+import { h2ToolRegistry } from "@pragma/core";
+import { authenticatedFetch } from "@/lib/api/authenticatedFetch";
+import { wrapToolsForDeepSeek } from "./wrapToolsForDeepSeek";
 
 /**
  * Browser agent configuration
@@ -119,60 +126,147 @@ export interface BrowserAgentConfig {
  * });
  * ```
  */
-export function createBrowserAgent(config: BrowserAgentConfig): ReturnType<typeof createAgent> {
+export function createBrowserAgent(
+  config: BrowserAgentConfig
+): ReturnType<typeof createAgent> {
   // API key is optional now (proxy handles authentication)
   // No validation needed - proxy will handle errors
 
   // Validate polyfills loaded (Zone.js + AsyncLocalStorage)
-  if (typeof window !== 'undefined') {
+  if (typeof window !== "undefined") {
     // Check Zone.js
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (typeof (window as any).Zone === 'undefined') {
+    if (typeof (window as any).Zone === "undefined") {
       throw new Error(
-        'Zone.js polyfill not loaded! Import @/lib/polyfills before creating agent.'
+        "Zone.js polyfill not loaded! Import @/lib/polyfills before creating agent."
       );
     }
 
     // Check AsyncLocalStorage polyfill
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (typeof (window as any).async_hooks === 'undefined' ||
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        !(window as any).async_hooks.AsyncLocalStorage) {
+    if (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      typeof (window as any).async_hooks === "undefined" ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      !(window as any).async_hooks.AsyncLocalStorage
+    ) {
       throw new Error(
-        'AsyncLocalStorage polyfill not loaded! Import @/lib/polyfills before creating agent.'
+        "AsyncLocalStorage polyfill not loaded! Import @/lib/polyfills before creating agent."
       );
     }
   }
 
+  // Determine model provider from environment variable
+  // Options: 'deepseek' (default), 'kimi', 'grok', 'openai'
+  const modelProvider = process.env.NEXT_PUBLIC_MODEL_PROVIDER || "deepseek";
+  const useDeepSeek = modelProvider === "deepseek";
+  const useKimi = modelProvider === "kimi";
+  const useGrok = modelProvider === "grok";
+
+  // Log model selection for debugging
+  if (typeof window !== "undefined") {
+    console.log(`[BrowserAgent] Using model provider: ${modelProvider}`);
+  }
+
+  // Generate session-based conversation ID for reasoning_content state
+  // This ID is generated ONCE per agent session and used for ALL requests
+  // Required for multi-turn tool calling (proxy stores reasoning_content by conv ID)
+  const conversationId = `conv-${Date.now()}-${Math.random()
+    .toString(36)
+    .substr(2, 9)}`;
+
   // Initialize ChatOpenAI model (routes through proxy for security)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const modelConfig: Record<string, any> = {
-    model: config.model || 'gpt-5-mini',
-    apiKey: config.apiKey || 'proxy-not-used', // Proxy doesn't validate
-    streaming: config.streaming ?? true, // Enable streaming by default
-    useResponsesApi: true, // Use OpenAI Responses API
-    timeout: config.timeout || 60000, // 60 second timeout
-    maxRetries: 2, // Retry failed requests
-    configuration: {
-      // Absolute URL required by OpenAI SDK's URL constructor
-      // Must include /v1 so LangChain calls /api/h2/v1/responses (not /api/h2/responses)
-      baseURL: typeof window !== 'undefined'
-        ? `${window.location.origin}/api/h2/v1`
-        : 'http://localhost:3000/api/h2/v1',
-      // Use authenticated fetch for JWT + signature authentication
-      fetch: authenticatedFetch as typeof fetch,
-    },
-  };
+  const modelConfig: Record<string, any> = useDeepSeek
+    ? {
+        // DeepSeek V3.2 Reasoner configuration
+        model: "deepseek-reasoner",
+        apiKey: config.apiKey || "proxy-not-used",
+        streaming: config.streaming ?? true,
+        timeout: config.timeout || 120000, // 120s (reasoning takes longer)
+        maxRetries: 2,
+        configuration: {
+          baseURL:
+            typeof window !== "undefined"
+              ? `${window.location.origin}/api/deepseek/v1`
+              : "http://localhost:3000/api/deepseek/v1",
+          fetch: authenticatedFetch as typeof fetch,
+          defaultHeaders: {
+            "x-conversation-id": conversationId,
+          },
+        },
+      }
+    : useKimi
+    ? {
+        // Kimi K2 Thinking configuration (Moonshot AI)
+        model: "kimi-k2-thinking-turbo",
+        apiKey: config.apiKey || "proxy-not-used",
+        streaming: config.streaming ?? true,
+        timeout: config.timeout || 120000, // 120s (reasoning takes longer)
+        maxRetries: 2,
+        configuration: {
+          baseURL:
+            typeof window !== "undefined"
+              ? `${window.location.origin}/api/kimi/v1`
+              : "http://localhost:3000/api/kimi/v1",
+          fetch: authenticatedFetch as typeof fetch,
+          defaultHeaders: {
+            "x-conversation-id": conversationId,
+          },
+        },
+      }
+    : useGrok
+    ? {
+        // Grok 4.1 Fast Reasoning configuration (xAI)
+        // Best-in-class tool calling, 2M context, 50% lower hallucination
+        // Note: Reasoning is encrypted (no visible thinking bubble)
+        model: "grok-4-1-fast-reasoning",
+        apiKey: config.apiKey || "proxy-not-used",
+        streaming: config.streaming ?? true,
+        timeout: config.timeout || 120000, // 120s for complex reasoning
+        maxRetries: 2,
+        configuration: {
+          baseURL:
+            typeof window !== "undefined"
+              ? `${window.location.origin}/api/grok/v1`
+              : "http://localhost:3000/api/grok/v1",
+          fetch: authenticatedFetch as typeof fetch,
+        },
+      }
+    : {
+        // OpenAI gpt-5-mini configuration (Responses API)
+        model: config.model || "gpt-5-mini",
+        apiKey: config.apiKey || "proxy-not-used",
+        streaming: config.streaming ?? true,
+        useResponsesApi: true, // OpenAI Responses API (not Chat Completions)
+        timeout: config.timeout || 60000, // 60s standard
+        maxRetries: 2,
+        // Use reasoning effort for OpenAI (DeepSeek has built-in reasoning)
+        ...(config.reasoningEffort && {
+          modelKwargs: { reasoning_effort: config.reasoningEffort },
+        }),
+        configuration: {
+          baseURL:
+            typeof window !== "undefined"
+              ? `${window.location.origin}/api/h2`
+              : "http://localhost:3000/api/h2",
+          fetch: authenticatedFetch as typeof fetch,
+        },
+      };
 
-  // Add reasoning effort if specified (gpt-5-mini supports this)
-  if (config.reasoningEffort) {
-    modelConfig.reasoningEffort = config.reasoningEffort;
-  }
+  // Note: DeepSeek reasoner has built-in chain-of-thought (reasoning_content field)
+  // OpenAI uses reasoning_effort model parameter
 
   const model = new ChatOpenAI(modelConfig);
 
   // Use custom tools if provided, otherwise use full registry
-  const tools = config.tools || [...h2ToolRegistry];
+  let tools = config.tools || [...h2ToolRegistry];
+
+  // For reasoning models (DeepSeek, Kimi): wrap tools with reminder text
+  // This reinforces critical behaviors (text output + thinking summary)
+  // Note: Grok has best-in-class tool calling and doesn't need wrapping
+  if (useDeepSeek || useKimi) {
+    tools = wrapToolsForDeepSeek(tools);
+  }
 
   // Create agent using LangChain 1.0 pattern (identical to server-side)
   const agent = createAgent({
@@ -201,24 +295,30 @@ export function createBrowserAgent(config: BrowserAgentConfig): ReturnType<typeo
  */
 export function validateBrowserEnvironment(): void {
   // Check browser environment
-  if (typeof window === 'undefined') {
-    throw new Error('Browser agent requires window global (cannot run in SSR)');
+  if (typeof window === "undefined") {
+    throw new Error("Browser agent requires window global (cannot run in SSR)");
   }
 
   // Check Zone.js
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (typeof (window as any).Zone === 'undefined') {
-    throw new Error('Zone.js not loaded. Import @/lib/polyfills in your page component.');
+  if (typeof (window as any).Zone === "undefined") {
+    throw new Error(
+      "Zone.js not loaded. Import @/lib/polyfills in your page component."
+    );
   }
 
   // Check AsyncLocalStorage
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (typeof (window as any).async_hooks === 'undefined') {
-    throw new Error('async_hooks polyfill not loaded. Import @/lib/polyfills in your page component.');
+  if (typeof (window as any).async_hooks === "undefined") {
+    throw new Error(
+      "async_hooks polyfill not loaded. Import @/lib/polyfills in your page component."
+    );
   }
 
   // Check Web APIs needed by viem
-  if (typeof crypto === 'undefined' || !crypto.subtle) {
-    throw new Error('Web Crypto API not available. Use HTTPS or modern browser.');
+  if (typeof crypto === "undefined" || !crypto.subtle) {
+    throw new Error(
+      "Web Crypto API not available. Use HTTPS or modern browser."
+    );
   }
 }

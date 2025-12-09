@@ -9,7 +9,7 @@
  */
 
 import { randomBytes } from "node:crypto";
-import type { SwapQuoteData, TransferQuoteData, WrapQuoteData, UnwrapQuoteData } from "./types.js";
+import type { SwapQuoteData, TransferQuoteData, WrapQuoteData, UnwrapQuoteData, NFTBuyQuoteData, NFTTransferQuoteData } from "./types.js";
 import { QuoteExpiredError, QuoteNotFoundError } from "./types.js";
 
 // ============================================================================
@@ -24,6 +24,8 @@ const swapQuotes = new Map<string, SwapQuoteData>();
 const transferQuotes = new Map<string, TransferQuoteData>();
 const wrapQuotes = new Map<string, WrapQuoteData>();
 const unwrapQuotes = new Map<string, UnwrapQuoteData>();
+const nftBuyQuotes = new Map<string, NFTBuyQuoteData>();
+const nftTransferQuotes = new Map<string, NFTTransferQuoteData>();
 
 /**
  * Quote expiry time in milliseconds (5 minutes)
@@ -231,6 +233,100 @@ export function deleteUnwrapQuote(quoteId: string): void {
 }
 
 // ============================================================================
+// NFT Buy Quotes
+// ============================================================================
+
+/**
+ * Store an NFT buy quote (auto-expires after 5 minutes)
+ */
+export function storeNFTBuyQuote(quote: NFTBuyQuoteData): string {
+  nftBuyQuotes.set(quote.quoteId, quote);
+
+  // Auto-delete after expiry
+  setTimeout(() => {
+    nftBuyQuotes.delete(quote.quoteId);
+  }, QUOTE_EXPIRY_MS);
+
+  return quote.quoteId;
+}
+
+/**
+ * Retrieve an NFT buy quote
+ * @throws {QuoteNotFoundError} If quote not found
+ * @throws {QuoteExpiredError} If quote expired
+ */
+export function getNFTBuyQuote(quoteId: string): NFTBuyQuoteData {
+  const quote = nftBuyQuotes.get(quoteId);
+
+  if (!quote) {
+    throw new QuoteNotFoundError(quoteId);
+  }
+
+  // Check expiry
+  const now = Date.now();
+  if (now > quote.expiresAt) {
+    nftBuyQuotes.delete(quoteId);
+    throw new QuoteExpiredError(quoteId);
+  }
+
+  return quote;
+}
+
+/**
+ * Delete an NFT buy quote
+ */
+export function deleteNFTBuyQuote(quoteId: string): void {
+  nftBuyQuotes.delete(quoteId);
+}
+
+// ============================================================================
+// NFT Transfer Quotes
+// ============================================================================
+
+/**
+ * Store an NFT transfer quote (auto-expires after 5 minutes)
+ */
+export function storeNFTTransferQuote(quote: NFTTransferQuoteData): string {
+  nftTransferQuotes.set(quote.quoteId, quote);
+
+  // Auto-delete after expiry
+  setTimeout(() => {
+    nftTransferQuotes.delete(quote.quoteId);
+  }, QUOTE_EXPIRY_MS);
+
+  return quote.quoteId;
+}
+
+/**
+ * Retrieve an NFT transfer quote
+ * @throws {QuoteNotFoundError} If quote not found
+ * @throws {QuoteExpiredError} If quote expired
+ */
+export function getNFTTransferQuote(quoteId: string): NFTTransferQuoteData {
+  const quote = nftTransferQuotes.get(quoteId);
+
+  if (!quote) {
+    throw new QuoteNotFoundError(quoteId);
+  }
+
+  // Check expiry
+  const now = Date.now();
+  if (now > quote.expiresAt) {
+    nftTransferQuotes.delete(quoteId);
+    throw new QuoteExpiredError(quoteId);
+  }
+
+  return quote;
+}
+
+/**
+ * Delete an NFT transfer quote
+ */
+export function deleteNFTTransferQuote(quoteId: string): void {
+  nftTransferQuotes.delete(quoteId);
+}
+
+// ============================================================================
 // Cleanup
 // ============================================================================
 
@@ -242,6 +338,8 @@ export function clearAllQuotes(): void {
   transferQuotes.clear();
   wrapQuotes.clear();
   unwrapQuotes.clear();
+  nftBuyQuotes.clear();
+  nftTransferQuotes.clear();
 }
 
 /**
@@ -253,6 +351,8 @@ export function getQuoteStoreStats() {
     transferQuotes: transferQuotes.size,
     wrapQuotes: wrapQuotes.size,
     unwrapQuotes: unwrapQuotes.size,
-    total: swapQuotes.size + transferQuotes.size + wrapQuotes.size + unwrapQuotes.size,
+    nftBuyQuotes: nftBuyQuotes.size,
+    nftTransferQuotes: nftTransferQuotes.size,
+    total: swapQuotes.size + transferQuotes.size + wrapQuotes.size + unwrapQuotes.size + nftBuyQuotes.size + nftTransferQuotes.size,
   };
 }

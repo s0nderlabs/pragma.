@@ -136,6 +136,17 @@
 }
 
 @layer base {
+  /* Text selection highlight - Terracotta theme */
+  ::selection {
+    background-color: hsl(11 69% 62% / 0.35);
+    color: inherit;
+  }
+
+  ::-moz-selection {
+    background-color: hsl(11 69% 62% / 0.35);
+    color: inherit;
+  }
+
   * {
     border-color: hsl(var(--border));
   }

@@ -1,12 +1,49 @@
 'use client'
 
+import { useMemo, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import type { ChatMessage } from '@/lib/h2/types'
 import { useStreamingMessage } from '@/hooks/useStreamingMessage'
 import { MarkdownRenderer } from './MarkdownRenderer'
+import { ThinkingBubble } from './ThinkingBubble'
+import { NFTGallery } from '../nft/NFTGallery'
+import type { NFTGalleryData, NFTDisplayData } from '@pragma/core'
+import { useAgentContext } from '@/contexts/H2AgentContext'
 
 interface AIMessageProps {
   message: ChatMessage
+}
+
+/**
+ * Parse NFT gallery data from message content
+ * Format: __nft_gallery__\n{JSON}
+ */
+function parseNFTGallery(content: string): { text: string; gallery: NFTGalleryData | null } {
+  const marker = '__nft_gallery__'
+  const markerIndex = content.indexOf(marker)
+
+  if (markerIndex === -1) {
+    return { text: content, gallery: null }
+  }
+
+  // Get text before marker
+  const textBefore = content.slice(0, markerIndex).trim()
+
+  // Get JSON after marker
+  const afterMarker = content.slice(markerIndex + marker.length).trim()
+
+  try {
+    // Find the JSON object (starts with { and ends with })
+    const jsonMatch = afterMarker.match(/^\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const gallery = JSON.parse(jsonMatch[0]) as NFTGalleryData
+      return { text: textBefore, gallery }
+    }
+  } catch {
+    // JSON parse failed, return text only
+  }
+
+  return { text: content.replace(marker, '').trim(), gallery: null }
 }
 
 /**
@@ -14,13 +51,51 @@ interface AIMessageProps {
  *
  * AI messages with rich markdown support, syntax highlighting, and streaming.
  * Now integrated with H2 streaming via useStreamingMessage hook.
- * Features: Smooth token-by-token streaming, code blocks, tables, lists.
+ * Features: Smooth token-by-token streaming, code blocks, tables, lists, NFT galleries.
  */
 export function AIMessage({ message }: AIMessageProps) {
-  const { displayedContent, isBuffering } = useStreamingMessage({
+  const { sendMessage, isStreaming } = useAgentContext()
+
+  const { displayedContent } = useStreamingMessage({
     message,
     enabled: message.isStreaming ?? false,
   })
+
+  // Handle NFT buy button click - sends purchase request to agent
+  const handleBuyClick = useCallback(async (nft: NFTDisplayData) => {
+    if (isStreaming) return // Don't interrupt ongoing operations
+
+    const nftName = nft.nft.name || `#${nft.nft.identifier}`
+    const collection = nft.nft.collection
+    const price = nft.formattedPrice || 'the listed price'
+
+    // Send purchase request to agent
+    await sendMessage(`Buy ${nftName} from ${collection} for ${price}`)
+  }, [sendMessage, isStreaming])
+
+  // Parse content for special components (NFT gallery, etc.)
+  // Check rawToolOutput first for gallery (has preserved markers from tool output)
+  // LLM rewrites tool output, losing markers like __nft_gallery__
+  // We preserve raw output in message.rawToolOutput for component detection
+  const { text, gallery } = useMemo(() => {
+    // Try to extract gallery from rawToolOutput first (preserved markers)
+    if (message.rawToolOutput) {
+      const { gallery: galleryFromRaw } = parseNFTGallery(message.rawToolOutput)
+      if (galleryFromRaw) {
+        // Strip marker from displayedContent in case LLM echoed tool output verbatim
+        const { text: cleanedText } = parseNFTGallery(displayedContent)
+        return { text: cleanedText, gallery: galleryFromRaw }
+      }
+    }
+    // Fall back to parsing displayedContent
+    return parseNFTGallery(displayedContent)
+  }, [displayedContent, message.rawToolOutput, message.id])
+
+  // Determine if reasoning is still streaming (has reasoning but no content yet)
+  const isReasoningStreaming = !!(message.isStreaming && message.reasoningContent && !displayedContent)
+
+  // Check if we have any reasoning to display (segments or live content)
+  const hasReasoning = (message.reasoningSegments && message.reasoningSegments.length > 0) || message.reasoningContent
 
   return (
     <motion.div
@@ -30,14 +105,27 @@ export function AIMessage({ message }: AIMessageProps) {
       className="mb-6"
     >
       <div className="text-sm lg:text-base max-lg:min-w-0 max-lg:overflow-hidden">
-        <MarkdownRenderer content={displayedContent} />
-        {(message.isStreaming || isBuffering) && (
-          <motion.span
-            animate={{ opacity: [1, 0.3, 1] }}
-            transition={{ duration: 0.8, repeat: Infinity }}
-            className="inline-block w-1 h-4 bg-[#F2A694] ml-1 align-middle rounded-sm"
+        {/* Chain-of-thought reasoning bubble (DeepSeek) */}
+        {hasReasoning && (
+          <ThinkingBubble
+            messageId={message.id}
+            segments={message.reasoningSegments}
+            content={message.reasoningContent}
+            duration={message.reasoningDuration}
+            isStreaming={isReasoningStreaming}
           />
         )}
+
+        {/* Render text content with streaming animation */}
+        {text && <MarkdownRenderer content={text} isAnimating={message.isStreaming ?? false} />}
+
+        {/* Render NFT Gallery if present */}
+        {gallery && (
+          <div className="mt-4">
+            <NFTGallery data={gallery} onBuyClick={handleBuyClick} />
+          </div>
+        )}
+
       </div>
     </motion.div>
   )

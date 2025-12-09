@@ -452,32 +452,80 @@ export async function fundSessionKey(
       };
     }
 
-    // REFILL FUNDING: Use delegation approach (session key has enough to pay gas)
-    // Session key has ≥ 0.1 MON - use delegation pattern
-    if (!config.sessionKeyPrivateKey || !config.ownerAddress) {
+    // REFILL FUNDING: Try delegation first, fall back to UserOp if it fails
+    // Session key has ≥ 0.02 MON - attempt delegation pattern
+    if (config.sessionKeyPrivateKey && config.ownerAddress) {
+      try {
+        emitProgress("Building Funding Delegation...");
+        const result = await fundSessionKeyViaDelegation({
+          smartAccountAddress: config.smartAccountAddress,
+          sessionKeyAddress: config.sessionKeyAddress,
+          sessionKeyPrivateKey: config.sessionKeyPrivateKey,
+          ownerAddress: config.ownerAddress,
+          chainId: config.chainId,
+          publicClient,
+          web3authBridge,
+          transport, // Pass authenticated transport from caller
+          fundingAmount, // Pass dynamic funding amount
+        });
+
+        return {
+          txHash: result.transactionHash,
+          newBalance: result.newBalance,
+          fundedAmount: result.fundedAmount,
+        };
+      } catch (delegationError) {
+        // Delegation failed (likely insufficient gas) - fall back to UserOp
+        console.warn(
+          `[sessionKeyManager] Delegation funding failed, falling back to UserOp: ${(delegationError as Error).message}`
+        );
+
+        // Check if we have UserOp requirements for fallback
+        if (config.smartAccount && config.bundlerClient) {
+          emitProgress("Delegation failed, using UserOp fallback...");
+          const userOpResult = await fundSessionKeyViaUserOp({
+            smartAccountAddress: config.smartAccountAddress,
+            sessionKeyAddress: config.sessionKeyAddress,
+            smartAccount: config.smartAccount,
+            bundlerClient: config.bundlerClient,
+            publicClient,
+            fundingAmount,
+          });
+
+          return {
+            txHash: userOpResult.transactionHash || userOpResult.userOpHash,
+            newBalance: userOpResult.newBalance,
+            fundedAmount: userOpResult.fundedAmount,
+          };
+        }
+
+        // No fallback available, re-throw original error
+        throw delegationError;
+      }
+    }
+
+    // No delegation credentials - use UserOp directly
+    if (!config.smartAccount || !config.bundlerClient) {
       throw new SessionKeyFundingError(
-        "Refill funding requires sessionKeyPrivateKey and ownerAddress. " +
-        "These are needed to create and sign ephemeral delegation."
+        "Session key funding requires either delegation credentials (sessionKeyPrivateKey, ownerAddress) " +
+        "or UserOp credentials (smartAccount, bundlerClient)."
       );
     }
 
-    emitProgress("Building Funding Delegation...");
-    const result = await fundSessionKeyViaDelegation({
+    emitProgress("Building Funding Transaction...");
+    const userOpResult = await fundSessionKeyViaUserOp({
       smartAccountAddress: config.smartAccountAddress,
       sessionKeyAddress: config.sessionKeyAddress,
-      sessionKeyPrivateKey: config.sessionKeyPrivateKey,
-      ownerAddress: config.ownerAddress,
-      chainId: config.chainId,
+      smartAccount: config.smartAccount,
+      bundlerClient: config.bundlerClient,
       publicClient,
-      web3authBridge,
-      transport, // Pass authenticated transport from caller
-      fundingAmount, // Pass dynamic funding amount
+      fundingAmount,
     });
 
     return {
-      txHash: result.transactionHash,
-      newBalance: result.newBalance,
-      fundedAmount: result.fundedAmount,
+      txHash: userOpResult.transactionHash || userOpResult.userOpHash,
+      newBalance: userOpResult.newBalance,
+      fundedAmount: userOpResult.fundedAmount,
     };
   } catch (error) {
     if (error instanceof SessionKeyFundingError) {

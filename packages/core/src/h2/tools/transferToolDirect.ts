@@ -85,14 +85,24 @@ const isNativeMON = (tokenSymbol: string): boolean => {
   return tokenSymbol.toUpperCase() === "MON";
 };
 
+// User balance token interface (from Monorail balances API)
+interface UserBalanceToken {
+  address: string;
+  symbol?: string;
+  name?: string;
+  decimals: number;
+  categories?: string[];
+}
+
 export const transferTool = tool(
-  async ({ tokenSymbol, amount, recipientAddress }, config) => {
+  async ({ token, amount, to }, config) => {
     try {
       const userAddress = config?.configurable?.userAddress as Address;
       const publicClient = config?.configurable?.publicClient as PublicClient;
       const sessionData = config?.configurable?.sessionData as any;
       const web3authBridge = config?.configurable?.web3authBridge as any;
       const allowedTokens = config?.configurable?.allowedTokens as any[];
+      const userBalances = config?.configurable?.userBalances as UserBalanceToken[] | undefined;
       let sessionWallet = config?.configurable?.sessionWallet;
       const transport = config?.configurable?.transport as Transport;
 
@@ -123,8 +133,75 @@ export const transferTool = tool(
         });
       }
 
-      // Generate tool signature for progress routing
-      const toolSignature = `transfer:${Date.now()}`;
+      // Resolve token: can be symbol (USDC) or address (0x...)
+      let tokenAddress: Address;
+      let tokenDecimals: number;
+      let tokenSymbol: string;
+      let isNativeTransfer = false;
+
+      // Check if native MON transfer first
+      if (isNativeMON(token)) {
+        isNativeTransfer = true;
+        tokenSymbol = "MON";
+        tokenDecimals = 18;
+        tokenAddress = "0x0000000000000000000000000000000000000000" as Address;
+      } else if (token.startsWith("0x") && isAddress(token)) {
+        // Direct address input - read token info onchain
+        tokenAddress = getAddress(token as Address);
+        try {
+          const [onchainDecimals, onchainSymbol] = await Promise.all([
+            publicClient.readContract({
+              address: tokenAddress,
+              abi: ERC20_ABI,
+              functionName: "decimals",
+            }),
+            publicClient.readContract({
+              address: tokenAddress,
+              abi: ERC20_ABI,
+              functionName: "symbol",
+            }),
+          ]);
+          tokenDecimals = onchainDecimals as number;
+          tokenSymbol = onchainSymbol as string;
+        } catch {
+          throw createErrorFromCode("TOKEN_NOT_FOUND", {
+            message: `Could not read token info from address ${token}. Make sure it's a valid ERC20 contract.`,
+          });
+        }
+      } else {
+        // Symbol input - check allowedTokens first, then userBalances
+        const allowedMatch = allowedTokens.find(
+          (t: any) => t.symbol?.toUpperCase() === token.toUpperCase()
+        );
+
+        if (allowedMatch) {
+          tokenAddress = getAddress(allowedMatch.address);
+          tokenDecimals = allowedMatch.decimals || 18;
+          tokenSymbol = allowedMatch.symbol;
+        } else if (userBalances) {
+          // Fallback: check user's balance for unverified tokens they own
+          const balanceMatch = userBalances.find(
+            (b) => b.symbol?.toUpperCase() === token.toUpperCase()
+          );
+          if (balanceMatch) {
+            tokenAddress = getAddress(balanceMatch.address as Address);
+            tokenDecimals = balanceMatch.decimals;
+            tokenSymbol = balanceMatch.symbol || token;
+          } else {
+            throw createErrorFromCode("TOKEN_NOT_FOUND", {
+              message: `Token "${token}" not found. Try using the contract address (0x...) instead.`,
+            });
+          }
+        } else {
+          throw createErrorFromCode("TOKEN_NOT_FOUND", {
+            message: `Token "${token}" not found in verified list. Try using the contract address (0x...) instead.`,
+          });
+        }
+      }
+
+      // Generate tool signature for progress routing (must match frontend's format)
+      // Format: transfer:TOKEN-0x1234... (first 8 chars of recipient)
+      const toolSignature = `transfer:${token.toUpperCase()}-${to.slice(0, 8)}`;
 
       // Resolve recipient (supports 0x, .nad, .eth)
       emitProgress(`Resolving recipient...`, "transfer", toolSignature, `Transfer ${tokenSymbol}`);
@@ -133,7 +210,7 @@ export const transferTool = tool(
       let recipientDisplay: string;
 
       try {
-        const resolved = await resolveName(recipientAddress, publicClient);
+        const resolved = await resolveName(to, publicClient);
         recipient = resolved.address;
         // Format display: "name.nad (0x1234...5678)" or just "0x1234...5678"
         const shortAddr = `${recipient.slice(0, 6)}...${recipient.slice(-4)}`;
@@ -146,56 +223,24 @@ export const transferTool = tool(
         });
       }
 
-      const isNativeTransfer = isNativeMON(tokenSymbol);
-
       // Progress with resolved recipient
       emitProgress(`Transferring ${tokenSymbol} to ${recipientDisplay}...`, "transfer", toolSignature);
 
-      let amountWei: bigint;
-      let amountFormatted: string;
-      let tokenAddress: Address;
-      let decimals: number;
+      // Parse amount
+      const amountWei = parseUnits(amount, tokenDecimals);
+      const amountFormatted = formatUnits(amountWei, tokenDecimals);
 
-      // Zero address represents native token (MON)
-      const NATIVE_TOKEN_ADDRESS = "0x0000000000000000000000000000000000000000" as Address;
-
+      // Check balance
       if (isNativeTransfer) {
-        // Native MON transfer
-        decimals = 18;
-        amountWei = parseUnits(amount, decimals);
-        amountFormatted = formatUnits(amountWei, decimals);
-
         // Check MON balance
         const monBalance = await publicClient.getBalance({ address: getAddress(userAddress) });
-
         if (monBalance < amountWei) {
           throw createErrorFromCode("INSUFFICIENT_BALANCE", {
-            message: `Insufficient MON balance. Required: ${amountFormatted}, Available: ${formatUnits(monBalance, decimals)}`,
+            message: `Insufficient MON balance. Required: ${amountFormatted}, Available: ${formatUnits(monBalance, 18)}`,
           });
         }
-
-        // Use zero address for native token representation
-        tokenAddress = NATIVE_TOKEN_ADDRESS;
       } else {
-        // ERC20 token transfer
-        // Find token in allowed list
-        const token = allowedTokens.find(
-          (t: any) => t.symbol.toUpperCase() === tokenSymbol.toUpperCase()
-        );
-
-        if (!token) {
-          throw createErrorFromCode("TOKEN_NOT_FOUND", {
-            message: `Token ${tokenSymbol} not found in allowed list`,
-          });
-        }
-
-        tokenAddress = getAddress(token.address);
-        decimals = token.decimals || 18;
-
-        amountWei = parseUnits(amount, decimals);
-        amountFormatted = formatUnits(amountWei, decimals);
-
-        // Check token balance
+        // Check ERC20 token balance
         const tokenBalance = await publicClient.readContract({
           address: tokenAddress,
           abi: ERC20_ABI,
@@ -205,7 +250,7 @@ export const transferTool = tool(
 
         if (tokenBalance < amountWei) {
           throw createErrorFromCode("INSUFFICIENT_BALANCE", {
-            message: `Insufficient ${tokenSymbol} balance. Required: ${amountFormatted}, Available: ${formatUnits(tokenBalance, decimals)}`,
+            message: `Insufficient ${tokenSymbol} balance. Required: ${amountFormatted}, Available: ${formatUnits(tokenBalance, tokenDecimals)}`,
           });
         }
       }
@@ -376,11 +421,11 @@ The transfer has been confirmed on-chain!`;
   },
   {
     name: "transfer",
-    description: "Transfer tokens or MON to address. FREE (gas only). Executes immediately. Call search_tool_docs('transfer') for detailed usage.",
+    description: "Transfer tokens or MON to address. FREE (gas only). Executes immediately. Supports both verified tokens (by symbol) and unverified tokens (by contract address). Call search_tool_docs('transfer') for detailed usage.",
     schema: z.object({
-      tokenSymbol: z.string().describe("Token symbol to transfer (e.g., 'USDC', 'MON', 'DAK')"),
+      token: z.string().describe("Token symbol (e.g., 'USDC', 'MON') or contract address (0x...) for unverified tokens"),
       amount: z.string().describe("Amount to transfer (decimal string like '100')"),
-      recipientAddress: z.string().describe("Recipient address (0x...), NAD name (.nad), or ENS name (.eth)"),
+      to: z.string().describe("Recipient address (0x...), NAD name (.nad), or ENS name (.eth)"),
     }),
   }
 );

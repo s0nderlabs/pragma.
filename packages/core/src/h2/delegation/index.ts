@@ -47,6 +47,24 @@ export {
   type TransferDelegationResult,
 } from "./transferDelegation.js";
 
+export {
+  createNFTBuyDelegation,
+  type NFTBuyDelegationContext,
+  type NFTBuyDelegationResult,
+} from "./nftBuyDelegation.js";
+
+export {
+  createNFTTransferDelegation,
+  type NFTTransferDelegationContext,
+  type NFTTransferDelegationResult,
+} from "./nftTransferDelegation.js";
+
+export {
+  createNFTApprovalDelegation,
+  type NFTApprovalDelegationContext,
+  type NFTApprovalDelegationResult,
+} from "./nftApprovalDelegation.js";
+
 // ============================================================================
 // Calldata Enforcement Utilities
 // ============================================================================
@@ -56,6 +74,7 @@ export {
   buildSwapEnforcement,
   buildERC20TransferEnforcement,
   buildNativeTransferEnforcement,
+  buildSetApprovalForAllEnforcement,
   validateAddress,
   validateAmount,
   validateBuilderConfig,
@@ -71,6 +90,7 @@ export {
   MONORAIL_AGGREGATE_OFFSETS,
   ERC20_TRANSFER_OFFSETS,
   NATIVE_TRANSFER_OFFSETS,
+  ERC721_SETAPPROVALFORALL_OFFSETS,
   getMonorailOffset,
   getERC20Offset,
   getNativeOffset,
@@ -78,4 +98,5 @@ export {
   type MonorailAggregateOffset,
   type ERC20TransferOffset,
   type NativeTransferOffset,
+  type ERC721SetApprovalForAllOffset,
 } from "./offsets.js";

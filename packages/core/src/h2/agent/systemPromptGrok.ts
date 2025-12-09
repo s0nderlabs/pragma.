@@ -1472,10 +1472,12 @@ flowchart TD
 - A[You request swap]      ← plain text, no quotes
 - A[User says hello]       ← rephrase without quotes
 - A["Step 1: Do X"]        ← outer quotes OK for special chars like colons
+- A["text<br/>with O(1)"]  ← quote complex labels with special chars/HTML
 
 **Other rules:**
 - Keep diagrams simple (max 5-7 nodes)
 - Use for: multi-step workflows, decision trees, execution flows
+- Quote node labels containing: <br/>, parentheses, special chars
 
 ### Error Messages
 When tools fail:

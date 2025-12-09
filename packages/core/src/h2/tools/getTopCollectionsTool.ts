@@ -204,9 +204,9 @@ export const getTopCollectionsTool = tool(
         const sales = coll.stats?.sales_1d ? `(${coll.stats.sales_1d} sales)` : "";
         const statsStr = [floor, vol, sales].filter(Boolean).join(" | ");
 
-        lines.push(`- **${coll.name}**${verified}`);
+        // Put slug inline with name to prevent agent from stripping it when summarizing
+        lines.push(`- **${coll.name}** (\`${coll.collection}\`)${verified}`);
         if (statsStr) lines.push(`  ${statsStr}`);
-        lines.push(`  Slug: \`${coll.collection}\``);
       }
 
       lines.push(`\n_Showing top ${limitedCount} collections by ${sortBy === "volume" ? "24h volume" : "market cap"}_`);

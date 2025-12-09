@@ -84,23 +84,30 @@ export async function POST(request: Request) {
       `conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     // =========================================================================
-    // Inject Reasoning for ALL Assistant Messages
+    // Inject Reasoning for Current Turn Only (Per DeepSeek Docs)
     // =========================================================================
-    // DeepSeek requires reasoning_content for ALL assistant messages.
-    // We store reasoning in Redis as responses come in, and inject it back
-    // for ALL assistants (not just the last one).
+    // DeepSeek docs specify:
+    // - KEEP reasoning_content within a tool-calling chain (same turn)
+    // - DISCARD reasoning_content when user sends new message (new turn)
     //
-    // The turn-based sliding window in browserAgentRunner.ts handles pruning
-    // old turns to prevent hallucinations. Here we just inject reasoning.
+    // We find the last user message and only inject reasoning for assistants
+    // AFTER that index. This saves tokens and follows API best practices.
 
-    // Inject reasoning for ALL assistant messages
+    // Find index of last user message (start of current turn)
+    const lastUserIdx = body.messages.reduce(
+      (lastIdx: number, msg: { role: string }, idx: number) =>
+        msg.role === "user" ? idx : lastIdx,
+      -1
+    );
+
+    // Only inject reasoning for assistant messages AFTER last user message
     const messagesWithReasoning = await Promise.all(
       body.messages.map(
         async (
           msg: { role: string; reasoning_content?: string },
           idx: number
         ) => {
-          if (msg.role === "assistant") {
+          if (msg.role === "assistant" && idx > lastUserIdx) {
             const reasoning = await getReasoning(convId, idx);
             if (reasoning) {
               return { ...msg, reasoning_content: reasoning };
@@ -112,14 +119,20 @@ export async function POST(request: Request) {
     );
 
     // Count assistants for logging
-    const assistantCount = body.messages.filter(
+    const totalAssistants = body.messages.filter(
       (msg: { role: string }) => msg.role === "assistant"
+    ).length;
+    const currentTurnAssistants = body.messages.filter(
+      (msg: { role: string }, idx: number) =>
+        msg.role === "assistant" && idx > lastUserIdx
     ).length;
 
     // Log reasoning injection for debugging
     console.log("[DeepSeek Proxy] Reasoning injection:", {
       messageCount: body.messages.length,
-      assistantCount,
+      lastUserIdx,
+      totalAssistants,
+      currentTurnAssistants, // Only these get reasoning injected
     });
 
     // Log request details for debugging

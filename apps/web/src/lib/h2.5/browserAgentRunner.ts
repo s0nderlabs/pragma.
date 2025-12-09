@@ -644,6 +644,19 @@ export async function streamBrowserAgent(
           // listNFT doesn't use unique signatures in the tool, so just use toolName
           return toolName;
 
+        // Search tools - use query for parallel batching
+        case 'web_search':
+          if (inputObj.query) {
+            return `${toolName}:${String(inputObj.query)}`;
+          }
+          return toolName;
+
+        case 'search_protocol_docs':
+          if (inputObj.query) {
+            return `${toolName}:${String(inputObj.query)}`;
+          }
+          return toolName;
+
         // Tools that use toolName as signature (no parallel batching needed)
         case 'checkSessionKeyBalance':
         case 'fundSessionKey':

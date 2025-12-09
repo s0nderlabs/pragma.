@@ -67,10 +67,10 @@ function getToolDisplayName(toolName: string): string {
     unstakeClaim: 'Claiming Unstake',
     checkUnstakeStatus: 'Checking Unstake Status',
 
-    // Search & Docs
-    web_search: 'Searching the Web',
-    searchProtocolDocs: 'Searching Protocol Docs',
-    search_protocol_docs: 'Searching Protocol Docs',
+    // Search & Docs (must match progress event descriptions)
+    web_search: 'Web Search',
+    searchProtocolDocs: 'Protocol Docs',
+    search_protocol_docs: 'Protocol Docs',
     searchToolDocs: 'Searching Tool Docs',
     search_tool_docs: 'Searching Tool Docs',
 
@@ -95,6 +95,9 @@ function getReadableParentDescription(toolName: string, count: number): string {
     unstakeRequest: 'Requesting Unstakes',
     wrap: 'Wrapping MON',
     unwrap: 'Unwrapping WMON',
+    // Search tools (for parallel queries)
+    web_search: 'Searching the Web',
+    search_protocol_docs: 'Searching Protocol Docs',
   };
 
   const base = batchDescriptions[toolName] || getToolDisplayName(toolName);
@@ -443,16 +446,19 @@ export const useH2ChatStore = create<H2ChatState>()(
           // Use single functional update to ensure each call sees accumulated state
           // This prevents race conditions when multiple tools start in rapid succession
           set((state) => {
-            // If no signature provided, look up from pending signatures
-            // This handles the case where progress events arrive before tool_start
+            // Check if signature is just the fallback (toolName only, no specifics)
+            // This happens when generateSignatureFromInput couldn't parse the input
+            // In that case, prefer pending signature from progress event (more reliable)
             const pendingSignatures = new Map(state.pendingSignatures);
             let resolvedSignature = signature;
-            if (!signature) {
-              const pendingSigs = pendingSignatures.get(toolName);
-              if (pendingSigs && pendingSigs.length > 0) {
-                resolvedSignature = pendingSigs.shift(); // Take first pending signature
-                pendingSignatures.set(toolName, pendingSigs);
-              }
+
+            const isJustToolNameFallback = signature === toolName;
+            const pendingSigs = pendingSignatures.get(toolName);
+
+            // Use pending signature if: no signature provided OR signature is just the fallback
+            if ((!signature || isJustToolNameFallback) && pendingSigs && pendingSigs.length > 0) {
+              resolvedSignature = pendingSigs.shift(); // Take first pending signature
+              pendingSignatures.set(toolName, pendingSigs);
             }
 
             // Track in activeTools using signature as key for uniqueness

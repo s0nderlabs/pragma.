@@ -13,6 +13,7 @@
 
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Configuration
@@ -88,6 +89,9 @@ const webSearchSchema = z.object({
 export const webSearchTool = tool(
   async ({ query }, config): Promise<string> => {
     try {
+      // Emit progress with the actual search query
+      emitProgress(`Searching: "${query}"`, "web_search", `web_search:${query}`, "Web Search");
+
       // Check cache first
       const cachedResult = getCachedResult(query);
       if (cachedResult) {

@@ -12,6 +12,7 @@
 
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Configuration
@@ -89,6 +90,9 @@ const searchProtocolDocsSchema = z.object({
 export const searchProtocolDocsTool = tool(
   async ({ query }, config): Promise<string> => {
     try {
+      // Emit progress with the actual search query
+      emitProgress(`Searching docs: "${query}"`, "search_protocol_docs", `search_protocol_docs:${query}`, "Protocol Docs");
+
       // Check cache first
       const cachedResult = getCachedResult(query);
       if (cachedResult) {

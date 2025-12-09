@@ -23,6 +23,7 @@ export function MessageList() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
+  const [userScrolledUp, setUserScrolledUp] = useState(false)
 
   // Track last message content for scroll trigger during streaming
   const lastMessage = messages[messages.length - 1]
@@ -34,18 +35,36 @@ export function MessageList() {
   // RAF-based scroll to prevent jitter with fast-streaming models
   const scrollPendingRef = useRef(false)
 
+  // Track last scroll position to detect actual scroll direction
+  const lastScrollTopRef = useRef(0)
+
   // Theme-based scroll preservation
   const { theme } = useThemeStore()
   const scrollPositionRef = useRef<number>(0)
   const prevThemeRef = useRef(theme)
 
-  // Detect if user is at bottom of scroll
+  // Detect if user is at bottom of scroll and track manual scroll-up
   const handleScroll = useCallback(() => {
     if (!scrollRef.current) return
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
     const atBottom = scrollHeight - scrollTop - clientHeight < 100
     setIsAtBottom(atBottom)
-  }, [])
+
+    // Detect ACTUAL user scroll-up (scrollTop decreased)
+    // 5px threshold ignores micro-movements from content growth
+    const scrolledUp = scrollTop < lastScrollTopRef.current - 5
+
+    // Only pause auto-scroll if user actually scrolled up during streaming
+    if (scrolledUp && isStreaming) {
+      setUserScrolledUp(true)
+    }
+    // Reset when user returns to bottom
+    if (atBottom) {
+      setUserScrolledUp(false)
+    }
+
+    lastScrollTopRef.current = scrollTop
+  }, [isStreaming])
 
   // Save scroll position when theme changes
   useLayoutEffect(() => {
@@ -62,17 +81,20 @@ export function MessageList() {
     }
   })
 
-  // Auto-scroll: always scroll on new user message, otherwise only if at bottom
+  // Auto-scroll: respects user scroll intent while maintaining fast-streaming support
   // Uses RAF to coalesce rapid updates and prevent jitter with fast-streaming models
   useEffect(() => {
     const isNewMessage = messages.length > prevMessagesLengthRef.current
     const lastIsUser = lastMessage?.role === 'user'
 
+    // Check if last message is actively streaming content
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const isContentStreaming = (lastMessage as any)?.isStreaming === true
+
     // Should scroll:
-    // 1. Always during streaming (follow the content)
-    // 2. At bottom when not streaming
-    // 3. New user message sent
-    const shouldScroll = isStreaming || isAtBottom || (isNewMessage && lastIsUser)
+    // 1. User hasn't manually scrolled up (respects user intent)
+    // 2. AND one of: content streaming, at bottom, or new user message
+    const shouldScroll = !userScrolledUp && (isContentStreaming || isAtBottom || (isNewMessage && lastIsUser))
 
     if (messagesEndRef.current && shouldScroll && !scrollPendingRef.current) {
       scrollPendingRef.current = true
@@ -83,7 +105,7 @@ export function MessageList() {
     }
 
     prevMessagesLengthRef.current = messages.length
-  }, [messages.length, isStreaming, lastMessageContent, isAtBottom, lastMessage?.role])
+  }, [messages.length, isStreaming, lastMessageContent, isAtBottom, lastMessage?.role, userScrolledUp, lastMessage])
 
   // Scroll to bottom handler (for button)
   // Don't set isAtBottom immediately - let handleScroll detect it naturally

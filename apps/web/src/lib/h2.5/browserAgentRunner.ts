@@ -709,7 +709,7 @@ Before executing batch operations (2+ swaps/transfers), ALWAYS check session key
 1. Count total operations planned (swaps, transfers, stakes, etc.)
 2. Call checkSessionKeyBalance with estimatedOperations parameter (e.g., {estimatedOperations: 3})
 3. If needsFunding = true, call fundSessionKey and WAIT for it to complete
-4. After fundSessionKey succeeds, proceed directly to execution (do NOT check balance again - fundSessionKey already verified)
+4. ONLY THEN (after fundSessionKey completes) → proceed to execution (do NOT check balance again)
 
 CRITICAL: Session key funding MUST complete and be verified before swaps start.
 Do NOT parallelize funding with swaps - this causes race conditions and stuck transactions.
@@ -729,14 +729,14 @@ For SWAPS:
    - Single swap → {estimatedOperations: 1}
    - Batch swaps → {estimatedOperations: N}
 4. If needsFunding = true → call fundSessionKey (no user permission needed)
-5. After fundSessionKey succeeds → call executeSwap directly (do NOT check balance again)
+5. ONLY THEN (after fundSessionKey completes) → call executeSwap (do NOT check balance again)
 
 For DIRECT operations (transfer/wrap/unwrap/stake/unstake):
 1. IMMEDIATELY BEFORE execution tool → call checkSessionKeyBalance
    - Single operation → {estimatedOperations: 1}
    - Batch operations → {estimatedOperations: N}
 2. If needsFunding = true → call fundSessionKey (no user permission needed)
-3. After fundSessionKey succeeds → call execution tool directly (do NOT check balance again)
+3. ONLY THEN (after fundSessionKey completes) → call execution tool (do NOT check balance again)
 
 Session key funding is a maintenance operation that does not require user confirmation.
 
@@ -783,7 +783,7 @@ Before executing batch operations (2+ swaps/transfers), ALWAYS check session key
 1. Count total operations planned (swaps, transfers, stakes, etc.)
 2. Call checkSessionKeyBalance with estimatedOperations parameter (e.g., {estimatedOperations: 3})
 3. If needsFunding = true, call fundSessionKey and WAIT for it to complete
-4. After fundSessionKey succeeds, proceed directly to execution (do NOT check balance again - fundSessionKey already verified)
+4. ONLY THEN (after fundSessionKey completes) → proceed to execution (do NOT check balance again)
 
 CRITICAL: Session key funding MUST complete and be verified before swaps start.
 Do NOT parallelize funding with swaps - this causes race conditions and stuck transactions.
@@ -803,7 +803,7 @@ For SWAPS:
    - Single swap → {estimatedOperations: 1}
    - Batch swaps → {estimatedOperations: N}
 4. If needsFunding = true → call fundSessionKey (no user permission needed)
-5. After fundSessionKey succeeds → call executeSwap directly (do NOT check balance again)
+5. ONLY THEN (after fundSessionKey completes) → call executeSwap (do NOT check balance again)
 
 For DIRECT operations (transfer/wrap/unwrap/stake/unstake):
 1. Show intent to user and wait for approval
@@ -811,7 +811,7 @@ For DIRECT operations (transfer/wrap/unwrap/stake/unstake):
    - Single operation → {estimatedOperations: 1}
    - Batch operations → {estimatedOperations: N}
 3. If needsFunding = true → call fundSessionKey (no user permission needed)
-4. After fundSessionKey succeeds → call execution tool directly (do NOT check balance again)
+4. ONLY THEN (after fundSessionKey completes) → call execution tool (do NOT check balance again)
 
 Session key funding is a maintenance operation that does not require user confirmation.
 

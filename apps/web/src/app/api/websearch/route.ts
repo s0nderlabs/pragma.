@@ -1,8 +1,11 @@
 /**
- * Web Search API Route - OpenAI Native Web Search
+ * Web Search API Route - xAI Grok Native Web Search
  *
- * Server-side endpoint for web searches using OpenAI's built-in web_search tool.
+ * Server-side endpoint for web searches using xAI's Grok web_search tool.
  * Called by webSearchTool during H2 agent execution.
+ *
+ * Why Grok? DeepSeek, Kimi, and other LLMs don't have native web search.
+ * Grok's Responses API provides real-time web search with citations.
  *
  * Security: Accepts EITHER:
  * 1. Internal API key (x-rag-internal-key header) - for server-to-server calls
@@ -22,8 +25,8 @@ import { authMiddleware } from "@/lib/auth/authMiddleware";
 // Internal API key for server-to-server calls (reuses RAG_INTERNAL_KEY)
 const INTERNAL_API_KEY = process.env.RAG_INTERNAL_KEY;
 
-// OpenAI API key for web search
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+// xAI API key for Grok web search
+const XAI_API_KEY = process.env.XAI_API_KEY;
 
 // ============================================================================
 // Types
@@ -50,7 +53,8 @@ interface Citation {
 // ============================================================================
 
 /**
- * Extract citations from OpenAI response
+ * Extract citations from xAI Grok response
+ * xAI uses the same OpenAI-compatible response format
  */
 function extractCitations(response: OpenAI.Responses.Response): Citation[] {
   const citations: Citation[] = [];
@@ -79,19 +83,23 @@ function extractCitations(response: OpenAI.Responses.Response): Citation[] {
 }
 
 // ============================================================================
-// Singleton OpenAI Client
+// Singleton xAI Client (OpenAI-compatible)
 // ============================================================================
 
-let openaiClient: OpenAI | null = null;
+let xaiClient: OpenAI | null = null;
 
-function getOpenAIClient(): OpenAI {
-  if (!openaiClient) {
-    if (!OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY not configured");
+function getXAIClient(): OpenAI {
+  if (!xaiClient) {
+    if (!XAI_API_KEY) {
+      throw new Error("XAI_API_KEY not configured");
     }
-    openaiClient = new OpenAI({ apiKey: OPENAI_API_KEY });
+    // xAI API is OpenAI SDK compatible - just change base URL
+    xaiClient = new OpenAI({
+      apiKey: XAI_API_KEY,
+      baseURL: "https://api.x.ai/v1",
+    });
   }
-  return openaiClient;
+  return xaiClient;
 }
 
 // ============================================================================
@@ -105,17 +113,17 @@ export async function POST(request: NextRequest) {
     // =========================================================================
 
     const internalKeyHeader = request.headers.get("x-rag-internal-key");
-    const hasInternalKey = INTERNAL_API_KEY && internalKeyHeader === INTERNAL_API_KEY;
+    const hasInternalKey =
+      INTERNAL_API_KEY && internalKeyHeader === INTERNAL_API_KEY;
 
     // If no valid internal key, try user authentication
     if (!hasInternalKey) {
       const authError = await authMiddleware(request);
       if (authError) {
-        console.warn("[WebSearch] Unauthorized request - no valid internal key or user auth");
-        return NextResponse.json(
-          { error: "Unauthorized" },
-          { status: 401 }
+        console.warn(
+          "[WebSearch] Unauthorized request - no valid internal key or user auth"
         );
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
     }
 
@@ -134,29 +142,23 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
-    // Perform Web Search using OpenAI Responses API
+    // Perform Web Search using xAI Grok Responses API
     // =========================================================================
 
-    const client = getOpenAIClient();
+    const client = getXAIClient();
 
     // Build web_search tool configuration
-    // Using inline object to avoid type issues with OpenAI SDK versions
+    // xAI supports the same tool format as OpenAI
     const tools: OpenAI.Responses.Tool[] = [
       {
         type: "web_search" as const,
-        ...(userLocation?.country && {
-          user_location: {
-            type: "approximate" as const,
-            country: userLocation.country,
-            ...(userLocation.city && { city: userLocation.city }),
-            ...(userLocation.region && { region: userLocation.region }),
-          },
-        }),
+        // Note: xAI doesn't support user_location like OpenAI does
+        // but supports allowed_domains, excluded_domains, from_date, to_date
       },
     ];
 
     const response = await client.responses.create({
-      model: "gpt-5-mini",
+      model: "grok-4-1-fast-non-reasoning", // Grok 4 family required for server-side tools
       input: query,
       tools,
     });
@@ -183,14 +185,16 @@ export async function POST(request: NextRequest) {
       citations,
       raw_output: outputText,
     });
-
   } catch (error) {
     console.error("[WebSearch] Error:", error);
 
-    // Handle specific OpenAI errors
+    // Handle specific xAI/OpenAI errors
     if (error instanceof OpenAI.APIError) {
       return NextResponse.json(
-        { error: "Web search temporarily unavailable", result: "Unable to search the web at this time." },
+        {
+          error: "Web search temporarily unavailable",
+          result: "Unable to search the web at this time.",
+        },
         { status: 503 }
       );
     }
@@ -206,12 +210,12 @@ export async function POST(request: NextRequest) {
  * GET /api/websearch - Health check
  */
 export async function GET() {
-  const hasApiKey = !!OPENAI_API_KEY;
+  const hasApiKey = !!XAI_API_KEY;
   const hasInternalKey = !!INTERNAL_API_KEY;
 
   return NextResponse.json({
     status: hasApiKey ? "ready" : "not_configured",
-    openai: hasApiKey ? "configured" : "missing OPENAI_API_KEY",
+    xai: hasApiKey ? "configured" : "missing XAI_API_KEY",
     auth: hasInternalKey ? "configured" : "missing RAG_INTERNAL_KEY",
   });
 }

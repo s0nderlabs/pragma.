@@ -79,3 +79,7 @@ export { executeNFTList } from "./executeNFTList.js";
 
 // Session Key Funding
 export { fundSessionKeyViaUserOp } from "./sessionKeyFundingUserOp.js";
+
+// Sync Transaction Utilities (EIP-7966)
+export { createSyncTransport } from "./syncTransport.js";
+export { waitForReceiptSync, sendAndWaitSync } from "./syncReceipt.js";

@@ -43,6 +43,8 @@ import { SESSION_KEY_FUNDING_AMOUNT } from "./sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import { emitProgress } from "../progress/emitter.js";
 import { createNativeTransferDelegation } from "../delegation/transferDelegation.js";
+import { createSyncTransport } from "./syncTransport.js";
+import { waitForReceiptSync } from "./syncReceipt.js";
 import {
   DELEGATION_MANAGER_ADDRESS,
   NONCE_ENFORCER_ADDRESS,
@@ -172,6 +174,7 @@ export async function fundSessionKeyViaDelegation(
   // Step 5: Create session wallet client
   // Session key will sign the transaction and pay gas from its remaining balance
   // Uses authenticated transport passed from caller (e.g., /api/rpc proxy)
+  // Wrap transport with EIP-7966 sync support for faster confirmations
   const sessionWallet = createWalletClient({
     account: privateKeyToAccount(sessionKeyPrivateKey),
     chain: {
@@ -180,7 +183,7 @@ export async function fundSessionKeyViaDelegation(
       nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
       rpcUrls: { default: { http: [] }, public: { http: [] } }, // RPC URLs not needed (transport handles routing)
     },
-    transport, // Use authenticated transport from caller
+    transport: createSyncTransport(transport, { debug: true }), // Use authenticated transport from caller
   });
 
   // Step 6: Submit transaction via delegation redemption
@@ -196,11 +199,9 @@ export async function fundSessionKeyViaDelegation(
     }],
   );
 
-  // Step 7: Wait for confirmation
+  // Step 7: Wait for confirmation (EIP-7966 optimized)
   emitProgress("Waiting for Confirmation...");
-  const receipt = await publicClient.waitForTransactionReceipt({
-    hash: txHash,
-  });
+  const receipt = await waitForReceiptSync(publicClient, txHash);
 
   // Step 8: Verify success and get new balance
   if (receipt.status !== "success") {

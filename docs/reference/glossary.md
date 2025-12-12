@@ -1,44 +1,161 @@
----
-title: Glossary
----
-
 # Glossary
 
-- **HybridDelegator**  
-  MetaMask DTK smart account deployed via ERC‑4337. Holds balances, redeems delegations, and executes swaps.
+Key terms and definitions used in Pragma.
 
-- **Delegation / Session Key**  
-  Signed DTK blob granting limited authority to a session key. Stored in `~/.pragma/test-delegations/…` along with the session key secret. Session key revocation is handled through nonce bumps.
+## A
 
-- **Safe Mode**  
-  Pair-scoped delegation with 1 h TTL, 6-call limit, and 25 bps slippage clamp. Best for cautious workflows.
+### aprMON
+Liquid staking token received when staking MON through aPriori. Represents staked MON plus accumulated rewards.
 
-- **Normal Mode**  
-  Allowlist-based delegation with 24 h TTL, 12-call limit, and 50 bps slippage clamp. Suitable for power users.
+### aPriori
+Liquid staking protocol on Monad. Allows staking MON while maintaining liquidity through aprMON tokens.
 
-- **Monorail Pathfinder**  
-  Aggregator API used for routing and calldata generation. Requires `MONORAIL_APP_ID`.
+## B
 
-- **plan_hash**  
-  `keccak256` hash of chain, tokens, amounts, slippage, deadline, quote/previews IDs. Used to tie preview, execution, and receipt together.
+### Bundler
+Infrastructure that packages user operations into transactions. Pragma uses Pimlico as its bundler.
 
-- **Preview**  
-  Result of `eth_call` simulation that validates balances, caps, and min-out. A preview must exist before the swap is executed.
+## C
 
-- **Receipt**  
-  JSON + human summary stored on disk describing the plan, outcome, and relevant hashes. Helps reconcile actions with on-chain explorers.
+### Caveat
+A permission restriction on a delegation. Defines what actions a session key can perform (e.g., "can only call swap function").
 
-- **Quick Mode**  
-  Optional shortcut that auto-confirms previewed swaps when policy conditions permit. Toggle via REPL meta commands or chat settings.
+### Confirmation
+When a transaction is included in a block and considered final.
 
-- **HyperRPC / HyperSync**  
-  Envio services providing high-performance reads (`HyperRPC`) and event streaming (`HyperSync`). Both are optional but enabled by default.
+## D
 
-- **Pimlico**  
-  Bundler/paymaster provider used during onboarding to sponsor CREATE2 deployment. Regular swaps operate without the paymaster once the HybridDelegator is funded.
+### Delegation
+A cryptographic permission allowing one key (session key) to act on behalf of another (your wallet) within defined limits.
 
-- **Delegation Cap**  
-  Off-chain tracking of per-token/native allowances stored in the delegation artifact (`perTokenCapsWei`, `nativeTokenCapWei`). Enforced in simulation and decremented after successful swaps.
+### DEX
+Decentralized Exchange. Peer-to-peer trading without intermediaries.
 
-- **Nonce Bump**  
-  `DelegationManager.incrementNonce`. Invalidates every existing delegation for a delegator. Exposed via `pragma revoke`.
+### DEX Aggregator
+Service that searches multiple DEXs to find the best swap rate. Pragma uses Monorail.
+
+## E
+
+### EOA
+Externally Owned Account. A traditional wallet controlled by a private key.
+
+### Epoch
+Time period in staking. aPriori uses epochs (~12-18 hours) for unstaking withdrawals.
+
+### ERC-20
+Standard interface for fungible tokens on EVM chains.
+
+### ERC-4337
+Account abstraction standard enabling smart contract wallets with advanced features.
+
+## F
+
+### Floor Price
+Lowest listed price for an NFT in a collection.
+
+## G
+
+### Gas
+Fee paid for blockchain computation. Measured in MON on Monad.
+
+### Gasless
+Transactions where the user doesn't directly pay gas. Pragma's session keys handle gas.
+
+## H
+
+### HybridDelegator
+Pragma's smart account type. Supports both ERC-4337 (UserOps) and EIP-7702 (direct transactions).
+
+## L
+
+### Liquid Staking
+Staking that provides a tradeable token (aprMON) representing staked assets. Maintains liquidity while earning rewards.
+
+## M
+
+### MEV
+Maximal Extractable Value. Extra profit from transaction ordering. aPriori redistributes MEV as staking rewards.
+
+### MON
+Native token of Monad blockchain. Used for gas and as the primary trading currency.
+
+### Monad
+High-performance EVM-compatible blockchain. Pragma operates on Monad.
+
+### Monorail
+DEX aggregator on Monad used by Pragma for token swaps.
+
+## N
+
+### NFT
+Non-Fungible Token. Unique digital asset (art, collectibles, etc.).
+
+## O
+
+### OpenSea
+NFT marketplace. Pragma integrates via the Seaport protocol.
+
+## P
+
+### Protocol Fee
+Pragma's 1% fee on swaps, stakes, and NFT purchases. Funds development and treasury.
+
+## Q
+
+### Quick Mode
+Pragma setting that skips confirmation prompts. Executes immediately after quote.
+
+### Quote
+Price estimate for a trade. Shows expected output, fees, and rate.
+
+## R
+
+### Request ID
+Unique identifier for unstake requests. Needed to claim after epoch.
+
+## S
+
+### Seaport
+OpenSea's smart contract protocol for NFT trading.
+
+### Session Key
+Temporary key that executes transactions on your behalf. Holds small MON balance for gas.
+
+### Slippage
+Maximum acceptable difference between quoted and executed price. Default 5%.
+
+### Smart Account
+Wallet implemented as a smart contract. Enables delegations, session keys, and advanced features.
+
+### Staking
+Locking tokens to earn rewards. Pragma supports liquid staking via aPriori.
+
+## T
+
+### Token
+Digital asset on blockchain. Can be fungible (ERC-20) or non-fungible (NFT).
+
+### Transaction
+On-chain operation that changes state (transfer, swap, etc.).
+
+### Treasury
+Pragma's fund for protocol development, funded by protocol fees.
+
+## U
+
+### Unstake
+Withdraw staked tokens. In aPriori: Request → Wait epoch → Claim.
+
+### UserOp
+User Operation. ERC-4337 transaction format for smart accounts.
+
+## W
+
+### Web3Auth
+Authentication service for Pragma. Creates wallets from social logins (Google, Discord, etc.).
+
+### WMON
+Wrapped MON. ERC-20 version of native MON token.
+
+### Wrapping
+Converting native MON to WMON (or vice versa). Required for some DeFi operations.

@@ -32,6 +32,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import { createErrorFromCode } from "../../errors/index.js";
 import { MONAD_CHAIN } from "../config.js";
 import { emitProgress } from "../progress/emitter.js";
+import { createSyncTransport } from "../execution/syncTransport.js";
+import { waitForReceiptSync } from "../execution/syncReceipt.js";
 
 /** Minimum gas reserve to leave in session key (0.005 MON for withdrawal tx gas) */
 const MIN_GAS_RESERVE = parseEther("0.005");
@@ -47,6 +49,7 @@ export const withdrawSessionKeyBalanceTool = tool(
       const publicClient = config?.configurable?.publicClient as PublicClient;
       const sessionData = config?.configurable?.sessionData as any;
       const transport = config?.configurable?.transport as Transport;
+      let sessionWallet = config?.configurable?.sessionWallet;
 
       if (!userAddress || !publicClient || !sessionData) {
         throw createErrorFromCode("CONFIG_MISSING", {
@@ -160,12 +163,16 @@ Not enough MON left to pay for gas. Try withdrawing less or use "all" to withdra
         }
       }
 
-      // Create session wallet for withdrawal using transport from config
-      const sessionWallet = createWalletClient({
-        account: privateKeyToAccount(sessionData.sessionKeyPrivateKey),
-        chain: MONAD_CHAIN,
-        transport,
-      });
+      // Get or create session wallet for withdrawal
+      // Use pre-wrapped sessionWallet from config if available (has EIP-7966 + debug)
+      // Otherwise create one with EIP-7966 sync support for faster confirmations
+      if (!sessionWallet) {
+        sessionWallet = createWalletClient({
+          account: privateKeyToAccount(sessionData.sessionKeyPrivateKey),
+          chain: MONAD_CHAIN,
+          transport: createSyncTransport(transport, { debug: true }),
+        });
+      }
 
       // Generate tool signature for progress routing
       const toolSignature = `withdrawSessionKey:${Date.now()}`;
@@ -182,8 +189,8 @@ Not enough MON left to pay for gas. Try withdrawing less or use "all" to withdra
 
       emitProgress(`Waiting for Confirmation...`, "withdrawSessionKeyBalance", toolSignature);
 
-      // Wait for confirmation
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+      // Wait for confirmation (EIP-7966 optimized)
+      const receipt = await waitForReceiptSync(publicClient, txHash);
 
       // Get new balance
       const newBalance = await publicClient.getBalance({

@@ -37,6 +37,8 @@ import type { ExecutionResult, WrapQuoteData } from "./types.js";
 import { createEphemeralDelegation } from "../delegation/ephemeral.js";
 import { getWrapQuote, deleteWrapQuote } from "./quoteStore.js";
 import { checkSessionKeyBalance, fundSessionKey, SESSION_KEY_FUNDING_AMOUNT } from "./sessionKeyManager.js";
+import { createSyncTransport } from "./syncTransport.js";
+import { waitForReceiptSync } from "./syncReceipt.js";
 import {
   DELEGATION_MANAGER_ADDRESS,
   NONCE_ENFORCER_ADDRESS,
@@ -194,10 +196,11 @@ export async function executeWrap(params: ExecuteWrapParams): Promise<ExecutionR
   });
 
   // Step 8: Create session wallet client using transport from params
+  // Wrap transport with EIP-7966 sync support for faster confirmations
   const sessionWallet = createWalletClient({
     account: privateKeyToAccount(sessionKeyPrivateKey),
     chain: MONAD_CHAIN,
-    transport,
+    transport: createSyncTransport(transport),
   });
 
   emitProgress(`Executing wrap transaction...`, "wrap", toolSignature);
@@ -216,10 +219,8 @@ export async function executeWrap(params: ExecuteWrapParams): Promise<ExecutionR
 
   emitProgress(`Waiting for blockchain confirmation...`, "wrap", toolSignature);
 
-  // Step 10: Wait for confirmation
-  const receipt = await publicClient.waitForTransactionReceipt({
-    hash: txHash,
-  });
+  // Step 10: Wait for confirmation (EIP-7966 optimized)
+  const receipt = await waitForReceiptSync(publicClient, txHash);
 
   // Step 11: Clean up quote from store
   deleteWrapQuote(quoteId);

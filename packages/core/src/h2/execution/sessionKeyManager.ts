@@ -422,8 +422,13 @@ export async function fundSessionKey(
     }
 
     // Route based on session key balance:
-    // - < 0.1 MON (initial or low balance) → Use UserOp (bundler pays gas)
-    // - ≥ 0.1 MON (refill with sufficient gas) → Use delegation (session key pays gas)
+    // - < 0.02 MON (initial or low balance) → Use UserOp (bundler pays gas)
+    // - ≥ 0.02 MON (refill with sufficient gas) → Use delegation (session key pays gas)
+
+    // Debug: Log which funding path will be used
+    console.log(`[sessionKeyManager] Session key balance: ${formatEther(balanceBefore)} MON`);
+    console.log(`[sessionKeyManager] MIN_GAS_FOR_DELEGATION: ${formatEther(MIN_GAS_FOR_DELEGATION)} MON`);
+    console.log(`[sessionKeyManager] Using: ${balanceBefore < MIN_GAS_FOR_DELEGATION ? 'UserOp (bundler)' : 'Delegation (EIP-7966)'}`);
 
     if (balanceBefore < MIN_GAS_FOR_DELEGATION) {
       // INITIAL OR LOW-BALANCE FUNDING: Use UserOp approach (bundler pays gas)
@@ -456,6 +461,7 @@ export async function fundSessionKey(
     // Session key has ≥ 0.02 MON - attempt delegation pattern
     if (config.sessionKeyPrivateKey && config.ownerAddress) {
       try {
+        console.log(`[sessionKeyManager] Entering DELEGATION path (EIP-7966 enabled)`);
         emitProgress("Building Funding Delegation...");
         const result = await fundSessionKeyViaDelegation({
           smartAccountAddress: config.smartAccountAddress,

@@ -44,6 +44,8 @@ import {
 import { emitProgress } from "../progress/emitter.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import { getMonUsdPrice, formatMonWithUsd } from "../tools/helpers/monPrice.js";
+import { createSyncTransport } from "./syncTransport.js";
+import { waitForReceiptSync } from "./syncReceipt.js";
 import {
   MONAD_CHAIN_ID,
   MONAD_CHAIN,
@@ -380,12 +382,13 @@ export async function executeNFTList(params: ExecuteNFTListParams): Promise<NFTL
     });
 
     // Step 2e: Get or create session wallet
+    // Wrap transport with EIP-7966 sync support for faster confirmations
     let wallet = sessionWallet;
     if (!wallet) {
       wallet = createWalletClient({
         account: privateKeyToAccount(sessionKeyPrivateKey),
         chain: MONAD_CHAIN,
-        transport: transport!,
+        transport: createSyncTransport(transport!),
       });
     }
 
@@ -403,11 +406,8 @@ export async function executeNFTList(params: ExecuteNFTListParams): Promise<NFTL
       }],
     );
 
-    // Wait for transaction confirmation
-    await publicClient.waitForTransactionReceipt({
-      hash: approvalTxHash,
-      timeout: 60_000,
-    });
+    // Wait for transaction confirmation (EIP-7966 optimized)
+    await waitForReceiptSync(publicClient, approvalTxHash, { timeout: 60_000 });
 
     emitProgress(`Collection approved for trading!`, "executeNFTList", toolSignature);
   }
@@ -510,12 +510,13 @@ export async function executeNFTList(params: ExecuteNFTListParams): Promise<NFTL
   });
 
   // Get or create session wallet for validation
+  // Wrap transport with EIP-7966 sync support for faster confirmations
   let validateWallet = sessionWallet;
   if (!validateWallet) {
     validateWallet = createWalletClient({
       account: privateKeyToAccount(sessionKeyPrivateKey),
       chain: MONAD_CHAIN,
-      transport: transport!,
+      transport: createSyncTransport(transport!),
     });
   }
 
@@ -533,11 +534,8 @@ export async function executeNFTList(params: ExecuteNFTListParams): Promise<NFTL
     }],
   );
 
-  // Wait for validation transaction confirmation
-  await publicClient.waitForTransactionReceipt({
-    hash: validateTxHash,
-    timeout: 60_000,
-  });
+  // Wait for validation transaction confirmation (EIP-7966 optimized)
+  await waitForReceiptSync(publicClient, validateTxHash, { timeout: 60_000 });
 
   console.log(`[executeNFTList] Order validated on-chain! Tx: ${validateTxHash}`);
   emitProgress(`Order validated on-chain! Tx: ${validateTxHash}`, "executeNFTList", toolSignature);

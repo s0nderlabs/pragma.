@@ -35,6 +35,8 @@ import { createNFTTransferDelegation } from "../delegation/nftTransferDelegation
 import { getMinBalanceForOperation } from "./sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import { emitProgress } from "../progress/emitter.js";
+import { createSyncTransport } from "./syncTransport.js";
+import { waitForReceiptSync } from "./syncReceipt.js";
 import {
   DELEGATION_MANAGER_ADDRESS,
   NONCE_ENFORCER_ADDRESS,
@@ -216,12 +218,13 @@ export async function executeNFTTransfer(params: ExecuteNFTTransferParams): Prom
   });
 
   // Get or create session wallet
+  // Wrap transport with EIP-7966 sync support for faster confirmations
   let sessionWallet = params.sessionWallet;
   if (!sessionWallet) {
     sessionWallet = createWalletClient({
       account: privateKeyToAccount(sessionKeyPrivateKey),
       chain: MONAD_CHAIN,
-      transport,
+      transport: createSyncTransport(transport),
     });
   }
 
@@ -241,11 +244,8 @@ export async function executeNFTTransfer(params: ExecuteNFTTransferParams): Prom
 
   emitProgress(`Waiting for blockchain confirmation...`, "transferNFT", toolSignature);
 
-  // Wait for confirmation
-  const receipt = await publicClient.waitForTransactionReceipt({
-    hash: txHash,
-    timeout: 60_000,
-  });
+  // Wait for confirmation (EIP-7966 optimized)
+  const receipt = await waitForReceiptSync(publicClient, txHash, { timeout: 60_000 });
 
   // Return result (NFT transfers are FREE - no fee)
   return {

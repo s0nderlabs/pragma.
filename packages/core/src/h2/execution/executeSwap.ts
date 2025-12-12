@@ -53,6 +53,8 @@ import { getMinBalanceForOperation } from "./sessionKeyManager.js";
 import { patchMonorailMinOutput } from "../../monorail/calldataPatcher.js";
 import { createErrorFromCode } from "../../errors/index.js";
 import { emitProgress } from "../progress/emitter.js";
+import { createSyncTransport } from "./syncTransport.js";
+import { waitForReceiptSync } from "./syncReceipt.js";
 import {
   DELEGATION_MANAGER_ADDRESS,
   NONCE_ENFORCER_ADDRESS,
@@ -705,10 +707,11 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
       if (!sessionWallet) {
         // FALLBACK: Create temporary wallet using transport from params
         // WARNING: This creates nonce collisions in parallel execution
+        // Wrap transport with EIP-7966 sync support for faster confirmations
         sessionWallet = createWalletClient({
           account: privateKeyToAccount(sessionKeyPrivateKey),
           chain: MONAD_CHAIN,
-          transport: transport!,
+          transport: createSyncTransport(transport!),
         });
       }
 
@@ -753,12 +756,9 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
             emitProgress(`Waiting for blockchain confirmation...`, "executeSwap", toolSignature);
           }
 
-          // Wait for confirmation with timeout (60 seconds)
+          // Wait for confirmation with timeout (60 seconds) - EIP-7966 optimized
           // Prevents infinite waiting if transaction gets stuck
-          await publicClient.waitForTransactionReceipt({
-            hash: txHash,
-            timeout: 60_000,  // 60 second timeout
-          });
+          await waitForReceiptSync(publicClient, txHash, { timeout: 60_000 });
 
           debugLog(`${bundle.label} transaction confirmed`);
 
@@ -804,13 +804,10 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     throw new Error("No swap transaction was executed");
   }
 
-  // Step 9: Wait for final transaction confirmation (if not already done)
+  // Step 9: Wait for final transaction confirmation (if not already done) - EIP-7966 optimized
   let receipt;
   try {
-    receipt = await publicClient.waitForTransactionReceipt({
-      hash: finalTxHash,
-      timeout: 60_000,  // 60 second timeout
-    });
+    receipt = await waitForReceiptSync(publicClient, finalTxHash, { timeout: 60_000 });
 
     debugLog("Final transaction confirmed", {
       blockNumber: receipt.blockNumber.toString(),

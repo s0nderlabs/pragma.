@@ -25,6 +25,7 @@ import { createPublicClient, createWalletClient, custom, type Hex } from 'viem';
 import { privateKeyToAccount, nonceManager } from 'viem/accounts';
 import { monadDevnet } from '@/lib/chains';
 import { authenticatedFetch } from '@/lib/api/authenticatedFetch';
+import { createSyncTransport } from '@pragma/core';
 
 import { createBrowserAgent, validateBrowserEnvironment } from '@/lib/h2.5/createBrowserAgent';
 import { createDirectWeb3AuthBridge } from '@/lib/h2.5/directWeb3AuthBridge';
@@ -422,13 +423,16 @@ export function useH2_5Agent() {
         // nonceManager enables atomic nonce coordination for parallel transactions
         // This prevents tools (like executeSwap) from creating their own wallet
         // with hardcoded testnet.monad.xyz from @pragma/core/h2/config.ts
+        //
+        // CRITICAL: Wrap with createSyncTransport for EIP-7966 optimization
+        // This enables eth_sendRawTransactionSync for ~50% faster tx confirmations
         const sessionWallet = createWalletClient({
           account: privateKeyToAccount(
             sessionData.sessionKeyPrivateKey as Hex,
             { nonceManager }  // Enable atomic nonce management for parallel operations
           ),
           chain: monadDevnet,
-          transport: authenticatedTransport,  // Authenticated RPC proxy
+          transport: createSyncTransport(authenticatedTransport, { debug: true }),  // EIP-7966 + Authenticated RPC
         });
 
         // Create direct Web3Auth bridge (no network transport!)

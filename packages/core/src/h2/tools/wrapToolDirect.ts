@@ -33,6 +33,8 @@ import {
 import { createWrapDelegation } from "../delegation/wrapDelegation.js";
 import { getMinBalanceForOperation } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
+import { createSyncTransport } from "../execution/syncTransport.js";
+import { waitForReceiptSync } from "../execution/syncReceipt.js";
 import {
   WMON_ADDRESS,
   DELEGATION_MANAGER_ADDRESS,
@@ -171,11 +173,12 @@ export const wrapTool = tool(
       });
 
       // Get or create session wallet using transport from config
+      // Wrap transport with EIP-7966 sync support for faster confirmations
       if (!sessionWallet) {
         sessionWallet = createWalletClient({
           account: privateKeyToAccount(sessionData.sessionKeyPrivateKey),
           chain: MONAD_CHAIN,
-          transport: transport!,
+          transport: createSyncTransport(transport!),
         });
       }
 
@@ -195,8 +198,8 @@ export const wrapTool = tool(
 
       emitProgress(`Waiting for Confirmation...`, "wrap", toolSignature);
 
-      // Wait for confirmation
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+      // Wait for confirmation (EIP-7966 optimized)
+      const receipt = await waitForReceiptSync(publicClient, txHash);
 
       // Format message for LLM (clean, human-readable)
       const message = `Wrap executed successfully! 🎉

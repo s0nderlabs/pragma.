@@ -40,6 +40,8 @@ import {
 import { createUnstakeRequestDelegation } from "../delegation/unstakeRequestDelegation.js";
 import { getMinBalanceForOperation } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
+import { createSyncTransport } from "../execution/syncTransport.js";
+import { waitForReceiptSync } from "../execution/syncReceipt.js";
 import {
   APRIORI_ADDRESS,
   DELEGATION_MANAGER_ADDRESS,
@@ -185,11 +187,12 @@ export const unstakeRequestTool = tool(
       });
 
       // Get or create session wallet using transport from config
+      // Wrap transport with EIP-7966 sync support for faster confirmations
       if (!sessionWallet) {
         sessionWallet = createWalletClient({
           account: privateKeyToAccount(sessionData.sessionKeyPrivateKey),
           chain: MONAD_CHAIN,
-          transport: transport!,
+          transport: createSyncTransport(transport!),
         });
       }
 
@@ -209,8 +212,8 @@ export const unstakeRequestTool = tool(
 
       emitProgress(`Waiting for Blockchain Confirmation...`, "unstakeRequest", toolSignature);
 
-      // Wait for confirmation
-      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+      // Wait for confirmation (EIP-7966 optimized)
+      const receipt = await waitForReceiptSync(publicClient, txHash);
 
       // Parse logs to detect both request creation AND instant claim completion
       // Testnet (withdrawalDelay=0): Both RedeemRequest + Redeem events emitted

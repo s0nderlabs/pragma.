@@ -14,11 +14,14 @@ The fastest option. Click "Continue with Google" and authorize with your Google 
 2. Check your inbox for a verification code
 3. Enter the code to complete sign-in
 
-### Other Social Logins
-Depending on configuration, you may also see options for:
-- Apple
-- Discord
-- Twitter/X
+### Discord Sign-In
+Connect using your Discord account for a quick sign-in experience.
+
+### Twitter/X Sign-In
+Connect using your Twitter/X account.
+
+### Other Options
+Web3Auth supports many social login providers. The exact options available depend on the configuration.
 
 ## What Happens When You Connect
 
@@ -70,10 +73,10 @@ After connecting, you have three related addresses:
 - Tied to your Google/email account
 
 ### Session Key
-- Ephemeral (can be regenerated)
-- Holds a small amount of MON for gas
+- Ephemeral (regenerated on each session)
+- Holds a small amount of MON for gas (~0.5 MON)
 - Executes transactions on your behalf
-- Can be revoked anytime
+- Invalidated when you disconnect
 
 ## Viewing Your Wallet Info
 
@@ -114,11 +117,11 @@ To disconnect:
 
 ## Security Tips
 
-1. **Keep your login secure**: Your Google/email account controls your smart account
+1. **Keep your login secure**: Your Google/email/social account controls your smart account
 2. **Use a strong password**: If using email sign-in
-3. **Enable 2FA**: On your Google account if using Google sign-in
+3. **Enable 2FA**: On your social accounts for added security
 4. **Don't share session keys**: They can execute transactions on your behalf
-5. **Revoke if compromised**: If you suspect unauthorized access, revoke all delegations
+5. **Disconnect if concerned**: Disconnecting invalidates your current session key
 
 ## Troubleshooting Connection Issues
 

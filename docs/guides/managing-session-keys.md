@@ -1,19 +1,36 @@
-# Managing Session Keys
+# Understanding Session Keys
 
-Learn how to monitor, fund, and manage your session key for optimal gas handling.
+Learn how session keys work and how Pragma handles gas automatically.
 
 ## Prerequisites
 
 - [ ] Connected wallet
 - [ ] Basic understanding of [session keys](../concepts/session-keys.md)
 
-## Understanding Your Session Key
+## What is a Session Key?
 
 Your session key is a temporary address that:
 - Pays for transaction gas
 - Executes delegated actions
 - Is automatically funded from your smart account
-- Can be managed manually if needed
+- Is tied to your browser session
+
+## How Automatic Funding Works
+
+Pragma handles session key funding automatically. You don't need to do anything manually.
+
+### Initial Setup
+When you first connect, your session key is funded with ~0.5 MON from your smart account.
+
+### During Use
+When your session key balance drops below 0.1 MON and you initiate a transaction:
+1. Pragma detects the low balance
+2. Automatically funds the session key first
+3. Then executes your requested operation
+4. Refill amount: ~0.5 MON
+
+### No Manual Intervention Needed
+The system handles all funding automatically. Just ensure your smart account has MON.
 
 ## Checking Session Key Balance
 
@@ -43,7 +60,6 @@ Address: 0xabcd...1234
 Threshold: 0.1 MON
 
 Will auto-fund on next transaction.
-Or manually: "fund my session key"
 ```
 
 ### Detailed Info
@@ -53,128 +69,11 @@ Or manually: "fund my session key"
 What's my account info?
 ```
 
-Shows session key address along with other account details.
-
-## Automatic Funding
-
-Session keys auto-fund in two scenarios:
-
-### 1. Initial Setup
-When you first connect, your session key is funded with ~0.5 MON.
-
-### 2. Low Balance Trigger
-When balance drops below 0.1 MON and you initiate a transaction:
-- Pragma checks balance before execution
-- If low, funds first, then executes
-- Refill amount: ~0.5 MON
-
-## Manual Funding
-
-### Basic Fund
-
-**Type:**
-```
-Fund my session key
-```
-
-**Response:**
-```
-Session Key Funding:
-
-Current Balance: 0.05 MON
-Adding: 0.5 MON
-New Balance: ~0.55 MON
-
-Would you like to proceed?
-```
-
-**Type:**
-```
-yes
-```
-
-### Fund for Specific Operations
-
-If you're planning multiple operations:
-
-**Type:**
-```
-Fund my session key for 5 swaps
-```
-
-Pragma calculates the needed amount:
-- Swaps use ~0.14 MON each
-- 5 swaps = ~0.70 MON needed
-- Funds accordingly
-
-## Withdrawing Session Key Balance
-
-If you have excess MON in your session key:
-
-### Withdraw All
-
-**Type:**
-```
-Withdraw all session key balance
-```
-
-**Response:**
-```
-Session Key Withdrawal:
-
-Current Balance: 0.85 MON
-Gas Reserve: 0.005 MON
-Withdrawing: 0.845 MON
-To: Your smart account
-
-Would you like to proceed?
-```
-
-### Withdraw Specific Amount
-
-**Type:**
-```
-Withdraw 0.5 MON from session key
-```
-
-### Withdraw to Different Address
-
-**Type:**
-```
-Withdraw session key balance to 0x1234...
-```
-
-## Monitoring Gas Usage
-
-### Check After Operations
-
-After transactions, note the gas used:
-
-```
-Swap Complete!
-...
-Gas Used: 0.015 MON
-```
-
-### Estimate Before Operations
-
-**Type:**
-```
-Check if session key has enough for 3 swaps
-```
-
-**Response:**
-```
-Session Key Check:
-
-Current Balance: 0.45 MON
-Required for 3 swaps: ~0.42 MON
-Status: ✅ Sufficient
-
-You have enough for the planned operations.
-```
+Shows session key address along with smart account and owner info.
 
 ## Gas Costs Reference
+
+Different operations use different amounts of gas:
 
 | Operation | Typical Gas Cost |
 |-----------|-----------------|
@@ -193,7 +92,7 @@ You have enough for the planned operations.
 ### What Session Keys Can Do
 - Execute delegated transactions
 - Pay gas for those transactions
-- Access only their own MON balance
+- Access only their own MON balance (~0.5 MON)
 
 ### What Session Keys Cannot Do
 - Access your smart account directly
@@ -203,12 +102,10 @@ You have enough for the planned operations.
 ### If Compromised
 If you suspect your session key is compromised:
 
-1. **Risk is limited**: Only the session key balance (~0.5 MON)
-2. **Revoke it**:
-   ```
-   Revoke my session key
-   ```
-3. **Reconnect**: A new session key is generated
+1. **Risk is limited**: Only the session key balance (~0.5 MON max)
+2. **Delegations expire**: All delegations expire in 5 minutes
+3. **Disconnect**: Settings > Disconnect to invalidate the session key
+4. **Reconnect**: A new session key is generated automatically
 
 ## Troubleshooting
 
@@ -216,12 +113,7 @@ If you suspect your session key is compromised:
 
 **Cause:** Balance below 0.1 MON threshold
 
-**Solutions:**
-1. Let it auto-fund on next transaction
-2. Manually fund:
-   ```
-   Fund my session key
-   ```
+**Solution:** The system will auto-fund on your next transaction. Just ensure your smart account has MON.
 
 ### "Funding Failed"
 
@@ -232,74 +124,64 @@ If you suspect your session key is compromised:
 What's my MON balance?
 ```
 
-### "Withdrawal Failed"
-
-**Cause:** Not enough balance for withdrawal + gas
-
-**Solution:** Leave small amount for gas:
-```
-Withdraw 0.4 MON from session key
-```
+If your smart account MON is low, send more MON to your smart account address.
 
 ### "Session Key Not Found"
 
-**Cause:** Session may have expired or been revoked
+**Cause:** Session may have expired or browser data was cleared
 
 **Solution:** Disconnect and reconnect:
 1. Settings > Disconnect
 2. Connect again
-3. New session key generated
+3. New session key generated automatically
 
 ## Best Practices
 
-### Let Auto-Funding Work
-The automatic system handles most cases. Manual intervention rarely needed.
+### Trust the Automatic System
+The funding system handles everything. No manual intervention needed.
 
-### Don't Over-Fund
-~0.5 MON is enough for many transactions. No need to keep more.
+### Keep MON in Smart Account
+Ensure your smart account has MON for:
+- Operations you want to perform
+- Session key auto-refills
 
-### Withdraw Before Large Breaks
-If not using Pragma for a while:
-```
-Withdraw all session key balance
-```
-
-### Monitor Occasionally
-Check balance periodically:
+### Check Balance Occasionally
+If curious about gas usage:
 ```
 What's my session key balance?
 ```
 
-### Revoke If Concerned
-When in doubt:
-```
-Revoke my session key
-```
+### Disconnect If Concerned
+When in doubt about security:
+1. Go to Settings
+2. Click Disconnect
+3. Reconnect to get a fresh session key
 
-## Advanced: Two Funding Methods
+## Technical Details
 
-Pragma uses different methods based on balance:
+### Two Funding Methods
 
-### UserOp Funding (Balance < 0.02 MON)
+Pragma uses different methods based on current balance:
+
+**UserOp Funding (Balance < 0.02 MON)**
 - Uses bundler to fund
 - Session key doesn't pay gas
 - Used for initial funding
 
-### Delegation Funding (Balance >= 0.02 MON)
+**Delegation Funding (Balance >= 0.02 MON)**
 - Session key pays for its own refill
 - More gas efficient
 - Used for refills
 
-You don't need to manage this - it's automatic!
+You don't need to manage this - it's completely automatic!
 
 ## Summary
 
-| Task | Command |
-|------|---------|
+| Task | How |
+|------|-----|
 | Check balance | `What's my session key balance?` |
-| Manual fund | `Fund my session key` |
-| Fund for operations | `Fund my session key for 5 swaps` |
-| Withdraw all | `Withdraw all session key balance` |
-| Withdraw specific | `Withdraw 0.5 MON from session key` |
-| Check sufficiency | `Check if session key has enough for 3 swaps` |
-| Revoke | `Revoke my session key` |
+| Funding | Automatic - no action needed |
+| Security concern | Settings > Disconnect > Reconnect |
+| Learn more | `What's my account info?` |
+
+The key takeaway: **Session key management is automatic.** Just ensure your smart account has MON, and Pragma handles the rest.

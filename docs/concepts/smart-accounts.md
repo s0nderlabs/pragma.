@@ -55,8 +55,8 @@ Your session key can pay gas while executing on your smart account's behalf.
 
 ### 2. Better Security
 - No private key exposure for every transaction
-- Time-limited permissions reduce risk
-- Can revoke access without moving funds
+- Time-limited permissions reduce risk (5-minute expiry)
+- Each delegation is scoped to specific operations
 
 ### 3. Flexibility
 - Batch multiple operations
@@ -102,7 +102,7 @@ Send tokens to your **smart account address** (not the owner address):
 
 ## How Transactions Work
 
-1. **You request an action** ("Swap 1 MON to USDC")
+1. **You request an action** ("Swap 50 MON to USDC")
 2. **Pragma creates a delegation** (permission for session key)
 3. **You sign the delegation** (with your owner key)
 4. **Session key executes** (submits transaction on-chain)
@@ -144,7 +144,7 @@ Your HybridDelegator is deployed to a unique address based on your owner key.
 - Future: social recovery options
 
 ### Best Practices
-1. Use a secure Google/email account
+1. Use a secure Google/email/social account
 2. Enable 2FA on your login provider
-3. Don't share your session key
-4. Revoke delegations you don't recognize
+3. Don't share your session key information
+4. Disconnect if you notice suspicious activity

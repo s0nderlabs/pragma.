@@ -106,8 +106,14 @@ List my monad-punk #123 for 2 MON for 30 days
 ### What Happens
 1. Pragma approves the OpenSea conduit (if needed)
 2. Creates a Seaport listing order
-3. Signs and submits to OpenSea
-4. Your NFT is listed for sale
+3. Validates the order on-chain via Seaport
+4. Submits to OpenSea API
+
+### Important Note on Listings
+
+Due to smart account signature limitations, listings are **always valid on-chain** via Seaport's `validate()` function, but **may not immediately appear in the OpenSea UI**. The order is fillable directly on Seaport regardless.
+
+If your listing doesn't appear on OpenSea within a few minutes, the order is still active on-chain and can be filled by anyone who finds it.
 
 ### Default Duration
 - Default: 7 days

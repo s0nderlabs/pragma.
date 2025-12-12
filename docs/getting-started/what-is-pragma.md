@@ -14,13 +14,13 @@ Traditional DeFi is complicated:
 
 ### 1. You Express Your Intent
 Tell Pragma what you want in plain English:
-> "Swap half my MON to USDC"
+> "Swap 100 MON to USDC"
 
 ### 2. AI Understands and Plans
 Our AI agent interprets your request and plans the necessary blockchain actions:
 - Checks your MON balance
-- Gets the best swap rate from multiple DEXs
-- Calculates the optimal route
+- Gets quotes from Monorail and 0x aggregators
+- Picks the best rate automatically
 
 ### 3. Secure Execution
 Your transaction executes through a secure delegation system:
@@ -48,7 +48,7 @@ A temporary key that executes transactions on your behalf:
 
 ### AI Agent
 The brain of Pragma:
-- Powered by advanced language models
+- Built with LangChain for reliable tool execution
 - Understands DeFi concepts and protocols
 - Plans multi-step transactions
 - Provides real-time updates
@@ -71,15 +71,15 @@ Pragma is designed with security as a priority:
 2. **Time-Limited Delegations**: Each permission expires in 5 minutes
 3. **Minimal Permissions**: Only the exact operations you approve
 4. **Parameter Enforcement**: Blockchain-level validation of transaction details
-5. **Revocable Access**: You can revoke session keys at any time
+5. **Session Isolation**: Session key balance (~0.5 MON) is the maximum exposure
 
 ## Supported Actions
 
 | Category | Actions |
 |----------|---------|
-| **Trading** | Swap tokens via Monorail DEX aggregator |
+| **Trading** | Swap tokens via Monorail + 0x aggregators (best rate selected) |
 | **Staking** | Stake MON to earn rewards via aPriori |
-| **NFTs** | Browse, buy, sell, and transfer NFTs via OpenSea |
+| **NFTs** | Browse, buy, and transfer NFTs via OpenSea |
 | **Transfers** | Send any token to any address |
 | **Wrapping** | Convert MON to WMON and back |
 

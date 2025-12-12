@@ -59,13 +59,13 @@ To pay for gas (transaction fees). Auto-funds when balance is low.
 ~0.5 MON is typical. It auto-refills when below 0.1 MON.
 
 ### What if my session key is compromised?
-Maximum loss is the session key balance (~0.5 MON). Revoke immediately:
-```
-Revoke my session key
-```
+Maximum loss is the session key balance (~0.5 MON). Disconnect immediately:
+1. Go to Settings
+2. Click Disconnect
+3. Reconnect to generate a new session key
 
 ### How long do session keys last?
-Until you disconnect or revoke them. They don't expire automatically.
+Until you disconnect or clear browser data. They're tied to your browser session.
 
 ---
 
@@ -126,7 +126,12 @@ The lowest listed price for any NFT in a collection.
 1% of purchase price.
 
 ### Can I sell NFTs through Pragma?
-NFT selling is planned but not yet available.
+Yes! You can list NFTs for sale:
+```
+List my NFT #123 from 0x... for 50 MON
+```
+
+**Note:** Due to smart account signature limitations, listings are always valid on-chain via Seaport's `validate()` function, but may not immediately appear in the OpenSea UI.
 
 ---
 
@@ -197,5 +202,13 @@ MON is native (like ETH). WMON is the ERC-20 wrapped version. Some DeFi requires
 ### Quote expired
 - Request a new quote
 - Confirm within 5 minutes next time
+
+### Agent not calling tools
+If the agent explains what to do instead of doing it:
+1. **Refresh the page** - This resets context completely
+2. **Ask something simple first** - "What's my balance?" to re-ground it
+3. **Retry your original request**
+
+This can happen after many conversation exchanges.
 
 See [Troubleshooting](troubleshooting.md) for more solutions.

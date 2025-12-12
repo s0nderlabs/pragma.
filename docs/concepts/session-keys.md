@@ -9,7 +9,7 @@ A session key is a **temporary, ephemeral key** that:
 - Pays for transaction gas
 - Executes delegated transactions
 - Is separate from your main account
-- Can be revoked anytime
+- Is invalidated when you disconnect
 
 ## Why Session Keys?
 
@@ -39,7 +39,7 @@ Your Smart Account                     Session Key
 ## Funding
 
 ### Automatic Funding
-Session keys are automatically funded:
+Session keys are automatically funded when needed:
 
 | Trigger | Amount |
 |---------|--------|
@@ -47,15 +47,7 @@ Session keys are automatically funded:
 | Balance below 0.1 MON | Refill to ~0.5 MON |
 | Large operation | Additional based on estimate |
 
-### Manual Funding
-```
-Fund my session key
-```
-
-### Manual Withdrawal
-```
-Withdraw all session key balance
-```
+Funding happens automatically before each operation - you don't need to manage this manually.
 
 ## Gas Costs
 
@@ -93,7 +85,6 @@ Auto-refills when below 0.1 MON.
 ⚠️ Session Key Balance: 0.05 MON (LOW)
 
 Will auto-fund on next operation.
-Or manually: "fund my session key"
 ```
 
 ## Funding Methods
@@ -118,21 +109,17 @@ Session keys are isolated from your main account:
 - Cannot access undelegated funds
 - Cannot change account settings
 
-### Revocation
-Session keys can be revoked anytime:
-```
-Revoke my session key
-```
-
-### Regeneration
-After revocation, a new session key is created on next connection.
+### Session Lifecycle
+- Created when you connect
+- Valid for the duration of your session
+- Invalidated when you disconnect or clear browser data
 
 ### What If Compromised?
 If your session key is compromised:
 1. It can only use its own balance (~0.5 MON max)
 2. It can only execute valid delegations
 3. Delegations expire in 5 minutes
-4. Revoke to immediately disable
+4. **Disconnect to immediately invalidate** the session key
 
 ## Technical Details
 
@@ -155,10 +142,9 @@ const sessionAddress = privateKeyToAddress(sessionKey);
 ## Best Practices
 
 1. **Let it auto-fund**: The system handles funding automatically
-2. **Don't over-fund**: ~0.5 MON is enough for many operations
-3. **Monitor if curious**: Check balance occasionally
-4. **Withdraw if leaving**: Reclaim unused MON before disconnecting
-5. **Revoke if concerned**: When in doubt, revoke and reconnect
+2. **Don't worry about it**: ~0.5 MON is automatically maintained
+3. **Monitor if curious**: Check balance occasionally via "What's my session key balance?"
+4. **Disconnect if concerned**: When in doubt, disconnect to invalidate the session key
 
 ## Common Questions
 
@@ -172,7 +158,7 @@ It auto-refills from your smart account when below 0.1 MON.
 No, gas must be paid by the transaction sender (session key). This is how EVM works.
 
 ### "Is my session key MON lost?"
-No, you can withdraw it anytime with "withdraw all session key balance".
+No, the MON in your session key remains available. When you disconnect, any remaining balance is handled by the system.
 
 ### "What happens on logout?"
-The session key is invalidated, but the MON remains. It's reclaimed or transferred on logout.
+The session key is invalidated. A new session key is created when you reconnect.

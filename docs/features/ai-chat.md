@@ -4,7 +4,7 @@ Pragma's conversational interface understands natural language and executes bloc
 
 ## How It Works
 
-The AI chat interface is powered by advanced language models that:
+The AI chat interface is powered by LangChain that:
 
 1. **Understand your intent** - Parse natural language into blockchain actions
 2. **Plan execution** - Determine which tools to use and in what order
@@ -20,7 +20,7 @@ What's my balance?
 ```
 
 ```
-Swap 1 MON to USDC
+Swap 50 MON to USDC
 ```
 
 ```
@@ -29,7 +29,7 @@ Show my NFTs
 
 ### Complex Requests
 ```
-Swap half my MON to USDC and send 10 USDC to alice.nad
+Swap half my MON to USDC and send 100 USDC to 0x...
 ```
 
 ```
@@ -84,8 +84,8 @@ Executes:
 - Safer for large transactions
 
 ```
-Swap 100 MON to USDC
-> Quote ready: 100 MON → ~250 USDC
+Swap 500 MON to USDC
+> Quote ready: 500 MON → ~1250 USDC
 > Would you like to proceed?
 yes
 > Swap complete!
@@ -114,12 +114,12 @@ During execution, Pragma shows live progress:
 
 ```
 [Swap] Getting quote...
-[Swap] Quote received: 1 MON → 2.50 USDC
+[Swap] Quote received: 100 MON → 250 USDC
 [Swap] Waiting for confirmation...
 [Swap] Creating delegation...
 [Swap] Submitting transaction...
 [Swap] Waiting for receipt...
-[Swap] Complete! Received 2.48 USDC
+[Swap] Complete! Received 248 USDC
 ```
 
 ## What Pragma Can Do
@@ -128,9 +128,8 @@ During execution, Pragma shows live progress:
 - Swap tokens
 - Transfer tokens/NFTs
 - Stake/unstake MON
-- Buy/sell/list NFTs
+- Buy and list NFTs
 - Wrap/unwrap MON
-- Fund/withdraw session key
 
 ### Information
 - Check balances
@@ -158,7 +157,7 @@ During execution, Pragma shows live progress:
 ### Be Specific
 ```
 // Good
-Swap 1 MON to USDC
+Swap 50 MON to USDC
 
 // Less good
 Swap some tokens
@@ -167,10 +166,10 @@ Swap some tokens
 ### Use Exact Amounts
 ```
 // Good
-Send 10.5 USDC to alice.nad
+Send 100 USDC to 0x1234...
 
 // Less good
-Send about 10 USDC to alice
+Send about 100 USDC to someone
 ```
 
 ### Use Token Symbols
@@ -191,25 +190,58 @@ How much MON do I have?
 
 ## Session Behavior
 
-### Message History
-- Pragma remembers your conversation within a session
-- Context helps with follow-up questions
-- "Do that again" or "same but with 5 MON" works
+### Sliding Window Context
+Pragma uses a sliding window for conversation history to maintain accuracy:
+- Only the most recent exchange (your last message + agent response) is retained in full
+- This prevents the agent from hallucinating based on stale data
+- Conversations stay accurate even after many exchanges
 
 ### Session Limits
-- Very long conversations may be summarized
-- Important context is preserved
-- Start fresh if something seems off
+- Context is optimized for accuracy, not length
+- Important context from recent exchanges is preserved
+- Refresh the page to start a completely fresh session
+
+### If the Agent Seems Off
+If the agent doesn't call a tool when asked to perform something on-chain:
+1. **Refresh the page** - This resets the context completely
+2. **Or ask something simple first** - Like "What's my balance?" to re-ground the agent
+3. **Then retry your original request**
+
+This can happen when context becomes confused after many exchanges.
 
 ## Keyboard Shortcuts
 
+### Navigation
+| Shortcut | Action |
+|----------|--------|
+| `Alt + \` | Toggle sidebar |
+| `Alt + ←` | Previous tab |
+| `Alt + →` | Next tab |
+| `Alt + A` | Activity tab |
+| `Alt + B` | Balances tab |
+| `Alt + ,` | Settings tab |
+
+### Actions
+| Shortcut | Action |
+|----------|--------|
+| `Alt + C` | Copy wallet address |
+| `Alt + H` | Toggle balance visibility |
+| `Alt + T` | Toggle theme (dark/light) |
+| `Alt + M` | Toggle Quick Mode |
+
+### Chat
 | Shortcut | Action |
 |----------|--------|
 | `Alt + /` | Focus chat input |
-| `Alt + M` | Toggle Quick Mode |
-| `Alt + K` | Show all shortcuts |
 | `Enter` | Send message |
-| `Shift + Enter` | New line |
+
+### Help
+| Shortcut | Action |
+|----------|--------|
+| `Alt + K` | Show keyboard shortcuts panel |
+| `Esc` | Close shortcuts panel |
+
+**Tip:** Move mouse to the left edge of the screen to reveal the sidebar.
 
 ## Error Messages
 

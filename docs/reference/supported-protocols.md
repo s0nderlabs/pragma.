@@ -4,24 +4,45 @@ Pragma integrates with leading DeFi protocols on Monad.
 
 ## DEX Aggregation
 
+Pragma uses a **dual aggregator system** for optimal swap pricing, querying both Monorail and 0x in parallel and selecting the best rate.
+
 ### Monorail
 
 **Type:** DEX Aggregator
-**Used For:** Token swaps
+**Used For:** Token swaps (primary)
 
-Monorail aggregates liquidity from multiple DEXs to find the best swap rates.
+Monorail aggregates liquidity from multiple DEXs to find the best swap rates on Monad.
 
 **Features:**
-- Best price discovery across DEXs
+- Best price discovery across Monad DEXs
 - Optimized routing
 - MEV protection
 - Low slippage
+- Native Monad integration
 
-**How Pragma Uses It:**
+### 0x Protocol
+
+**Type:** DEX Aggregator
+**Used For:** Token swaps (fallback/comparison)
+
+0x provides cross-DEX liquidity aggregation with broad token support.
+
+**Features:**
+- Wide token coverage
+- Limit order support
+- Cross-chain compatibility
+- Reliable fallback
+
+### How Swap Routing Works
+
 ```
-Swap 1 MON to USDC
+Swap 50 MON to USDC
 ```
-Pragma fetches quotes from Monorail and executes the optimal route.
+
+1. Pragma queries **both** Monorail and 0x simultaneously
+2. Compares quotes for best rate
+3. Selects the winner (shown in quote as "Source")
+4. If one fails, the other provides automatic fallback
 
 ---
 
@@ -41,7 +62,7 @@ aPriori provides liquid staking for MON, allowing you to earn staking rewards wh
 
 **How Pragma Uses It:**
 ```
-Stake 5 MON
+Stake 100 MON
 ```
 Pragma stakes your MON and you receive aprMON.
 
@@ -87,7 +108,8 @@ Buy monad-punk #123
 
 | Protocol | Type | Fee |
 |----------|------|-----|
-| Monorail | DEX Aggregator | Via swap spread |
+| Monorail | DEX Aggregator (primary) | Via swap spread |
+| 0x | DEX Aggregator (secondary) | Via swap spread |
 | aPriori | Liquid Staking | 0.1% on unstake |
 | OpenSea | NFT Marketplace | Collection-dependent |
 
@@ -109,9 +131,8 @@ Pragma never holds your funds directly. All operations are executed through secu
 ## Future Integrations
 
 Planned protocol integrations:
-- Additional DEX aggregators
 - More liquid staking options
-- Native Monad NFT marketplaces
+- Native Monad NFT marketplaces (Poply)
 - Lending/borrowing protocols
 
 ---
@@ -125,6 +146,6 @@ What's the aPriori APR?
 
 Check swap rates:
 ```
-Swap 1 MON to USDC
+Swap 50 MON to USDC
 ```
-(View quote without confirming)
+(View quote without confirming - shows which aggregator has best rate)

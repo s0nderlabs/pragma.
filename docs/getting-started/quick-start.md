@@ -10,8 +10,10 @@ Visit the Pragma web app in your browser. You'll see a chat interface with a wel
 
 1. Click the **Connect** button in the sidebar
 2. Choose your sign-in method:
-   - **Google** - Fastest option, uses your Google account
-   - **Email** - Enter your email and verify with a code
+   - **Google** - Uses your Google account
+   - **Discord** - Uses your Discord account
+   - **Twitter/X** - Uses your Twitter account
+   - And other social options
 3. Wait for the connection to complete
 
 **What happens behind the scenes:**
@@ -38,7 +40,7 @@ To use Pragma, you need MON tokens in your smart account:
 3. Wait for the transaction to confirm
 4. Your balance will update automatically
 
-**Tip**: Start with a small amount (1-5 MON) while you're learning.
+**Tip**: Start with 50-100 MON while you're learning (1 MON is approximately $0.03).
 
 ## Step 5: Your First Chat
 
@@ -55,7 +57,7 @@ Pragma will respond with your current token holdings and USD values.
 Let's swap some MON to USDC:
 
 ```
-Swap 0.1 MON to USDC
+Swap 10 MON to USDC
 ```
 
 You'll see:

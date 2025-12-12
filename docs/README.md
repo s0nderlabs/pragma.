@@ -6,10 +6,10 @@ Pragma is a conversational interface that lets you interact with the Monad block
 
 ## What Can You Do?
 
-- **Swap tokens** - "Swap 1 MON to USDC"
-- **Stake MON** - "Stake 10 MON" to earn rewards via aPriori liquid staking
+- **Swap tokens** - "Swap 50 MON to USDC"
+- **Stake MON** - "Stake 100 MON" to earn rewards via aPriori liquid staking
 - **Trade NFTs** - "Show me trending NFT collections" or "Buy Monad Punk #123"
-- **Send tokens** - "Send 5 USDC to alice.nad"
+- **Send tokens** - "Send 20 MON to 0x..."
 - **Check balances** - "What's my balance?" or "Show all my tokens"
 
 ## Key Features
@@ -23,14 +23,14 @@ Your session key handles gas automatically. No need to manage gas tokens or appr
 ### Secure by Design
 - Your keys never leave your device
 - Each action uses a time-limited delegation (5 minutes)
-- You can revoke access at any time
+- Smart contracts enforce all permission limits
 
 ### Smart Account Powered
 Built on ERC-4337 smart accounts with the MetaMask Delegation Toolkit for maximum security and flexibility.
 
 ## Quick Start
 
-1. **Connect** - Sign in with Google or email via Web3Auth
+1. **Connect** - Sign in with Google, Discord, Twitter, or other social accounts via Web3Auth
 2. **Fund** - Your session key is automatically funded with MON for gas
 3. **Chat** - Tell Pragma what you want to do
 4. **Confirm** - Review and approve transactions (or enable Quick Mode)
@@ -39,7 +39,7 @@ Built on ERC-4337 smart accounts with the MetaMask Delegation Toolkit for maximu
 
 | Protocol | What It Does |
 |----------|--------------|
-| **Monorail** | DEX aggregator for best swap rates |
+| **Monorail + 0x** | DEX aggregators - Pragma compares both for best rates |
 | **aPriori** | Liquid staking (MON to aprMON) |
 | **OpenSea** | NFT marketplace on Monad |
 

@@ -5,7 +5,7 @@ This guide walks you through executing your first token swap on Pragma.
 ## Prerequisites
 
 - [ ] Connected wallet (see [Quick Start](../getting-started/quick-start.md))
-- [ ] At least 0.5 MON in your smart account
+- [ ] At least 100 MON in your smart account
 - [ ] Session key funded (happens automatically)
 
 ## Step 1: Check Your Balance
@@ -19,25 +19,25 @@ What's my MON balance?
 
 **Expected Response:**
 ```
-You have 5.0 MON (~$17.50)
+You have 500 MON (~$15)
 
 Address: 0x1234...5678
 ```
 
-Make sure you have at least 0.5 MON (0.1 for the swap + buffer for gas).
+Make sure you have enough MON for your swap plus buffer for the 1% fee.
 
 ## Step 2: Request a Swap
 
-Let's swap 0.1 MON to USDC.
+Let's swap 50 MON to USDC.
 
 **Type:**
 ```
-Swap 0.1 MON to USDC
+Swap 50 MON to USDC
 ```
 
 **What Happens:**
-1. Pragma fetches quotes from DEX aggregators
-2. Finds the best rate
+1. Pragma fetches quotes from multiple DEX aggregators (Monorail and 0x)
+2. Compares rates and finds the best price
 3. Shows you the quote
 
 ## Step 3: Review the Quote
@@ -47,11 +47,12 @@ You'll see something like:
 ```
 Swap Quote Ready:
 
-From: 0.1 MON (0.099 MON after 1% fee)
-To: ~0.25 USDC
-Protocol Fee: 0.001 MON (1%)
-Exchange Rate: 1 MON = 2.525 USDC
+From: 50 MON (49.5 MON after 1% fee)
+To: ~1.49 USDC
+Protocol Fee: 0.5 MON (1%)
+Exchange Rate: 1 MON = 0.03 USDC
 Slippage: 5.00% max
+Source: Monorail (best rate)
 Valid for: 5 minutes
 
 Would you like to proceed?
@@ -60,7 +61,8 @@ Would you like to proceed?
 **What to Check:**
 - **Amount**: Is this what you wanted to swap?
 - **Output**: Is the expected output reasonable?
-- **Fee**: 1% of input (0.001 MON)
+- **Fee**: 1% of input (0.5 MON)
+- **Source**: Which aggregator provided the best rate
 - **Rate**: Compare with market rate if you want
 
 ## Step 4: Confirm the Swap
@@ -101,9 +103,9 @@ After a few seconds:
 ```
 Swap Complete!
 
-Swapped: 0.099 MON
-Received: 0.248 USDC
-Gas Used: 0.012 MON
+Swapped: 49.5 MON
+Received: 1.48 USDC
+Gas Used: 0.14 MON
 Transaction: 0xabcd...1234
 Block: 12345678
 Status: Success
@@ -121,8 +123,8 @@ What's my balance?
 ```
 
 You should see:
-- ~0.1 MON less than before
-- ~0.25 USDC more than before (or new if you had none)
+- ~50 MON less than before
+- ~1.48 USDC more than before (or new if you had none)
 
 ## Congratulations!
 
@@ -164,7 +166,7 @@ What's my MON balance?
 ### "Quote Expired"
 The 5-minute window passed. Request a new quote:
 ```
-Swap 0.1 MON to USDC
+Swap 50 MON to USDC
 ```
 
 ### "Transaction Failed"

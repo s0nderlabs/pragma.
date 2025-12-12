@@ -6,17 +6,18 @@ Technical reference documentation for Pragma.
 
 | Reference | Description |
 |-----------|-------------|
-| [Supported Tokens](supported-tokens.md) | Full list of tradeable tokens |
-| [Supported Protocols](supported-protocols.md) | Integrated DeFi protocols |
+| [Supported Protocols](supported-protocols.md) | Integrated DeFi protocols (Monorail, 0x, aPriori, OpenSea) |
 | [Glossary](glossary.md) | Key terms and definitions |
 | [Security](security.md) | Security model and best practices |
 
-## Token Addresses
+## Token Information
 
-All tokens are on Monad Testnet. For current addresses, ask:
+Pragma supports all tokens available on Monorail and 0x aggregators. To see available tokens:
 ```
 What tokens can I swap?
 ```
+
+**Note:** Unverified tokens show a warning. Always verify token contracts before trading.
 
 ## Protocol Contracts
 

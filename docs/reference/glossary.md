@@ -32,7 +32,7 @@ A cryptographic permission allowing one key (session key) to act on behalf of an
 Decentralized Exchange. Peer-to-peer trading without intermediaries.
 
 ### DEX Aggregator
-Service that searches multiple DEXs to find the best swap rate. Pragma uses Monorail.
+Service that searches multiple DEXs to find the best swap rate. Pragma uses both Monorail and 0x for optimal pricing.
 
 ## E
 
@@ -64,7 +64,7 @@ Transactions where the user doesn't directly pay gas. Pragma's session keys hand
 ## H
 
 ### HybridDelegator
-Pragma's smart account type. Supports both ERC-4337 (UserOps) and EIP-7702 (direct transactions).
+Pragma's smart account type built on the MetaMask Delegation Toolkit (DTK). Uses ERC-4337 (Account Abstraction) for smart contract wallets with delegation capabilities.
 
 ## L
 
@@ -83,7 +83,7 @@ Native token of Monad blockchain. Used for gas and as the primary trading curren
 High-performance EVM-compatible blockchain. Pragma operates on Monad.
 
 ### Monorail
-DEX aggregator on Monad used by Pragma for token swaps.
+Primary DEX aggregator on Monad used by Pragma for token swaps. Pragma queries both Monorail and 0x for best pricing.
 
 ## N
 
@@ -96,6 +96,12 @@ Non-Fungible Token. Unique digital asset (art, collectibles, etc.).
 NFT marketplace. Pragma integrates via the Seaport protocol.
 
 ## P
+
+### 0x (Zero-Ex)
+DEX aggregator protocol. Pragma uses 0x alongside Monorail for optimal swap pricing.
+
+### Parallel Quoting
+Pragma's approach of fetching swap quotes from multiple aggregators simultaneously and selecting the best price.
 
 ### Protocol Fee
 Pragma's 1% fee on swaps, stakes, and NFT purchases. Funds development and treasury.

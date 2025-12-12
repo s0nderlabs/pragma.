@@ -40,7 +40,6 @@
 ## Reference
 
 * [Reference](reference/README.md)
-  * [Supported Tokens](reference/supported-tokens.md)
   * [Supported Protocols](reference/supported-protocols.md)
   * [Glossary](reference/glossary.md)
   * [Security](reference/security.md)

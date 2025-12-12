@@ -185,10 +185,7 @@ Check my unstake status
 ```
 
 ### "Session Key Low Balance"
-Your session key needs MON for gas:
-```
-Fund my session key
-```
+Your session key needs MON for gas. It will auto-refill when you attempt your next transaction if your smart account has MON.
 
 ## Best Practices
 

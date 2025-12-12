@@ -54,9 +54,7 @@ Solutions for common issues.
 **Common Causes & Solutions:**
 
 **Session Key Low Balance:**
-```
-Fund my session key
-```
+The system will auto-fund on your next transaction. Ensure your smart account has MON.
 
 **Quote Expired:**
 ```
@@ -182,12 +180,11 @@ Fund my session key
 - Transactions failing
 
 **Solutions:**
-1. **Manual fund:**
+1. **Wait for auto-fund** - Happens automatically on next transaction
+2. **Check smart account balance** - Need MON available for auto-refill:
    ```
-   Fund my session key
+   What's my MON balance?
    ```
-2. **Wait for auto-fund** - Happens on next transaction
-3. **Check smart account balance** - Need MON to fund session key
 
 ### Funding Failed
 
@@ -303,10 +300,42 @@ What's my account info?
 Shows account, session key, and balances.
 
 ### Refresh Session Key
-```
-Revoke my session key
-```
-Then perform any action - new session key created.
+Disconnect from Settings and reconnect - a new session key is created automatically.
+
+---
+
+## Agent Behavior Issues
+
+### Agent Explains Instead of Acting
+
+**Symptoms:**
+- Agent describes what should happen instead of executing
+- No tool calls made when you request an action
+- Agent says "you should..." instead of doing it
+
+**Cause:** Sliding window context can become confused after many exchanges.
+
+**Solutions:**
+1. **Refresh the page** - Best fix, resets context completely
+2. **Ask something simple first:**
+   ```
+   What's my balance?
+   ```
+   Then retry your original request
+3. **Be explicit:** "Execute a swap of 50 MON to USDC" instead of "can you swap..."
+
+### Agent Gives Wrong Information
+
+**Symptoms:**
+- Balance information is outdated
+- References operations that didn't happen
+
+**Solutions:**
+1. **Refresh the page** - Clears stale context
+2. **Ask for current data:**
+   ```
+   What's my balance right now?
+   ```
 
 ---
 
@@ -316,4 +345,5 @@ If none of these solutions work:
 1. Note the exact error message
 2. Check which operation failed
 3. Review the [FAQ](faq.md)
-4. Try again after a few minutes
+4. Refresh the page and try again
+5. If persistent, disconnect and reconnect your wallet

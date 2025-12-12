@@ -4,22 +4,24 @@ Swap any supported token for another with the best rates from multiple DEX aggre
 
 ## How It Works
 
-Pragma uses **Monorail**, a DEX aggregator on Monad, to find the best swap routes across multiple liquidity sources. When you request a swap:
+Pragma uses **both Monorail and 0x** DEX aggregators to find the best swap rates. When you request a swap:
 
-1. **Quote Phase**: Pragma fetches quotes from multiple sources
-2. **Review**: You see the expected output, exchange rate, and fees
-3. **Execution**: After confirmation, the swap executes on-chain
+1. **Quote Phase**: Pragma fetches quotes from both aggregators in parallel
+2. **Best Price Selection**: The aggregator with the better rate is automatically selected
+3. **Review**: You see the expected output, exchange rate, and fees
+4. **Execution**: After confirmation, the swap executes on-chain
+5. **Fallback**: If the primary aggregator fails during execution, Pragma automatically tries the other
 
 ## Basic Commands
 
 ### Simple Swap
 ```
-Swap 1 MON to USDC
+Swap 50 MON to USDC
 ```
 
 ### Swap with Specific Amount
 ```
-Swap 10.5 DAK to WMON
+Swap 100 MON to WMON
 ```
 
 ### Swap All
@@ -34,7 +36,7 @@ Swap half my USDC to MON
 
 ### Get Quote Only
 ```
-How much USDC can I get for 5 MON?
+How much USDC can I get for 50 MON?
 ```
 
 ## Understanding the Quote
@@ -44,10 +46,10 @@ When you request a swap, Pragma shows:
 ```
 Swap quote ready:
 
-- From: 1.0 MON (0.99 MON after 1% fee)
-- To: ~2.50 USDC
-- Protocol Fee: 0.01 MON (1%)
-- Exchange Rate: 1 MON = 2.525 USDC
+- From: 50.0 MON (49.5 MON after 1% fee)
+- To: ~124.5 USDC
+- Protocol Fee: 0.5 MON (1%)
+- Exchange Rate: 1 MON = 2.515 USDC
 - Slippage: 5.00% max
 - Valid for: 5 minutes
 
@@ -78,7 +80,7 @@ After reviewing the quote:
 Default slippage is 5%. You can adjust it:
 
 ```
-Swap 1 MON to USDC with 1% slippage
+Swap 50 MON to USDC with 1% slippage
 ```
 
 **Slippage limits:**
@@ -99,21 +101,37 @@ Swap 1 MON to USDC with 1% slippage
 | DEX Fees | Included | Built into the exchange rate |
 
 **Example:**
-- You swap 1 MON
-- Protocol fee: 0.01 MON
-- Amount swapped: 0.99 MON
-- Output: ~2.48 USDC (at 1 MON = 2.50 USDC rate)
+- You swap 100 MON
+- Protocol fee: 1 MON
+- Amount swapped: 99 MON
+- Output: ~248 USDC (at 1 MON = 2.50 USDC rate)
 
 ## Supported Tokens
 
-Pragma supports all verified tokens on Monad:
+Pragma can swap **any token** on Monad. The verified token list comes from Monorail:
 
 - **Native**: MON, WMON
 - **Stablecoins**: USDC, USDT
-- **LST**: aprMON (aPriori staked MON)
-- **Ecosystem**: DAK, YAKI, and more
+- **LST**: aprMON, shMON, sMON, gMON
+- **Ecosystem**: DAK, YAKI, CHOG, and more
 
-To see all supported tokens:
+### Unverified Token Warnings
+
+You can trade tokens not on the verified list, but Pragma will show a warning:
+
+```
+⚠️ WARNING: Token XYZ is NOT verified by Monorail.
+
+This token could be:
+- A scam or rug pull token
+- A honeypot (can buy but cannot sell)
+- A fee-on-transfer token
+- A malicious contract
+```
+
+Always verify contract addresses independently before trading unverified tokens.
+
+To see verified tokens:
 ```
 What tokens can I swap?
 ```
@@ -153,7 +171,7 @@ What's my USDC balance?
 ### "Quote Expired"
 Quotes are valid for 5 minutes. Request a new quote:
 ```
-Swap 1 MON to USDC
+Swap 50 MON to USDC
 ```
 
 ### "Slippage Too High"

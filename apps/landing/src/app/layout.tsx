@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Raleway, IBM_Plex_Mono, Cal_Sans } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "@/styles/globals.css";
 import { LenisProvider } from "@/components/ui/LenisProvider";
 
@@ -58,6 +60,8 @@ export default function RootLayout({
     <html lang="en" className={`${raleway.variable} ${ibmPlexMono.variable} ${calSans.variable}`}>
       <body className="antialiased">
         <LenisProvider>{children}</LenisProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

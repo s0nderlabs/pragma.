@@ -32,9 +32,11 @@
 
 import { createAgent } from "langchain";
 import { ChatOpenAI } from "@langchain/openai";
-import { h2ToolRegistry } from "@pragma/core";
+import { h2ToolRegistry, createLogger } from "@pragma/core";
 import { authenticatedFetch } from "@/lib/api/authenticatedFetch";
 import { wrapToolsForDeepSeek } from "./wrapToolsForDeepSeek";
+
+const logger = createLogger("[BrowserAgent]");
 
 /**
  * Browser agent configuration
@@ -163,9 +165,7 @@ export function createBrowserAgent(
   const useGrok = modelProvider === "grok";
 
   // Log model selection for debugging
-  if (typeof window !== "undefined") {
-    console.log(`[BrowserAgent] Using model provider: ${modelProvider}`);
-  }
+  logger.debug(`Using model provider: ${modelProvider}`);
 
   // Generate session-based conversation ID for reasoning_content state
   // This ID is generated ONCE per agent session and used for ALL requests

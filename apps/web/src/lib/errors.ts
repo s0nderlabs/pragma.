@@ -98,6 +98,36 @@ export const parseUserFriendlyError = (error: unknown): string => {
     return "Network provider is temporarily rate limited. Please wait a moment and try again.";
   }
 
+  // Handle AI provider rate limiting and errors (Kimi K2, DeepSeek, Grok, OpenAI)
+  if (
+    rawMessage.includes("Too Many Requests") ||
+    (rawMessage.includes("API error") && rawMessage.includes("429"))
+  ) {
+    return "AI service is temporarily busy. Please wait a moment and try again.";
+  }
+
+  // Strip LangChain troubleshooting URLs from error messages
+  if (rawMessage.includes("langchain.com") || rawMessage.includes("Troubleshooting URL")) {
+    return "An error occurred during processing. Please try again.";
+  }
+
+  // Hide internal API configuration errors from users
+  if (
+    rawMessage.includes("API key") ||
+    rawMessage.includes("not configured") ||
+    rawMessage.includes("MOONSHOT_API_KEY") ||
+    rawMessage.includes("DEEPSEEK_API_KEY") ||
+    rawMessage.includes("XAI_API_KEY") ||
+    rawMessage.includes("OPENAI_API_KEY")
+  ) {
+    return "Service temporarily unavailable. Please try again later.";
+  }
+
+  // Handle generic proxy/internal errors
+  if (rawMessage.includes("Internal proxy error")) {
+    return "Service temporarily unavailable. Please try again.";
+  }
+
   // Handle 502 Bad Gateway (Monorail quote service or API gateway down)
   if (rawMessage.includes("502") || rawMessage.toLowerCase().includes("bad gateway")) {
     return "Swap service is temporarily unavailable. Please try again in a few moments.";

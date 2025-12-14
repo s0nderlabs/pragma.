@@ -13,7 +13,11 @@
  */
 
 import { authMiddleware } from "@/lib/auth/authMiddleware";
+import { parseUserFriendlyError } from "@/lib/errors";
+import { createLogger } from "@pragma/core";
 import { kv } from "@vercel/kv";
+
+const logger = createLogger("[DeepSeek Proxy]");
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -128,7 +132,7 @@ export async function POST(request: Request) {
     ).length;
 
     // Log reasoning injection for debugging
-    console.log("[DeepSeek Proxy] Reasoning injection:", {
+    logger.debug("Reasoning injection:", {
       messageCount: body.messages.length,
       lastUserIdx,
       totalAssistants,
@@ -136,7 +140,7 @@ export async function POST(request: Request) {
     });
 
     // Log request details for debugging
-    console.log("[DeepSeek Proxy] Request:", {
+    logger.debug("Request:", {
       model: body.model,
       messageCount: body.messages?.length,
       stream: body.stream,
@@ -159,13 +163,14 @@ export async function POST(request: Request) {
       }
     );
 
-    console.log("[DeepSeek Proxy] Response status:", response.status);
+    logger.debug("Response status:", response.status);
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error("[DeepSeek Proxy] Error:", response.status, error);
+      const rawError = await response.text();
+      logger.error("API error:", response.status, rawError);
+      // Sanitize error for user-facing response
       return Response.json(
-        { error: `DeepSeek API error: ${response.statusText}`, details: error },
+        { error: parseUserFriendlyError(`DeepSeek API error: ${response.statusText}`) },
         { status: response.status }
       );
     }
@@ -194,8 +199,11 @@ export async function POST(request: Request) {
 
     return Response.json(data);
   } catch (error) {
-    console.error("[DeepSeek Proxy] Error:", error);
-    return Response.json({ error: "Internal proxy error" }, { status: 500 });
+    logger.error("Error:", error);
+    return Response.json(
+      { error: parseUserFriendlyError("Internal proxy error") },
+      { status: 500 }
+    );
   }
 }
 
@@ -257,13 +265,10 @@ async function streamWithReasoningExtraction(
               controller.enqueue(
                 encoder.encode(`data: ${JSON.stringify(usageEvent)}\n\n`)
               );
-              console.log("[DeepSeek Proxy] Token usage:", usageData);
+              logger.debug("Token usage:", usageData);
             }
 
-            console.log(
-              "[DeepSeek Proxy] Stream complete, total chunks:",
-              chunkCount
-            );
+            logger.debug("Stream complete, total chunks:", chunkCount);
             controller.enqueue(encoder.encode(line + "\n\n"));
             return;
           }
@@ -329,10 +334,7 @@ async function streamWithReasoningExtraction(
 
           // Log first few chunks for debugging
           if (chunkCount <= 3) {
-            console.log(
-              `[DeepSeek Proxy] Stream chunk ${chunkCount}:`,
-              lineBuffer.substring(0, 500)
-            );
+            logger.debug(`Stream chunk ${chunkCount}:`, lineBuffer.substring(0, 500));
           }
 
           // Split into lines and keep incomplete last line in buffer
@@ -358,7 +360,7 @@ async function streamWithReasoningExtraction(
 
         controller.close();
       } catch (error) {
-        console.error("[DeepSeek Proxy] Stream error:", error);
+        logger.error("Stream error:", error);
         controller.error(error);
       }
     },

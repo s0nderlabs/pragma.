@@ -19,7 +19,11 @@
  */
 
 import { authMiddleware } from "@/lib/auth/authMiddleware";
+import { parseUserFriendlyError } from "@/lib/errors";
+import { createLogger } from "@pragma/core";
 import { kv } from "@vercel/kv";
+
+const logger = createLogger("[Kimi K2 Proxy]");
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -148,14 +152,14 @@ export async function POST(request: Request) {
     ).length;
 
     // Log reasoning injection for debugging
-    console.log("[Kimi K2 Proxy] Reasoning injection:", {
+    logger.debug("Reasoning injection:", {
       originalCount: body.messages.length,
       filteredCount: filteredMessages.length,
       assistantCount,
     });
 
     // Log request details for debugging
-    console.log("[Kimi K2 Proxy] Request:", {
+    logger.debug("Request:", {
       model: body.model,
       messageCount: body.messages?.length,
       filteredCount: messagesWithReasoning.length,
@@ -179,13 +183,14 @@ export async function POST(request: Request) {
       }
     );
 
-    console.log("[Kimi K2 Proxy] Response status:", response.status);
+    logger.debug("Response status:", response.status);
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error("[Kimi K2 Proxy] Error:", response.status, error);
+      const rawError = await response.text();
+      logger.error("API error:", response.status, rawError);
+      // Sanitize error for user-facing response
       return Response.json(
-        { error: `Kimi K2 API error: ${response.statusText}`, details: error },
+        { error: parseUserFriendlyError(`Kimi K2 API error: ${response.statusText}`) },
         { status: response.status }
       );
     }
@@ -214,8 +219,11 @@ export async function POST(request: Request) {
 
     return Response.json(data);
   } catch (error) {
-    console.error("[Kimi K2 Proxy] Error:", error);
-    return Response.json({ error: "Internal proxy error" }, { status: 500 });
+    logger.error("Error:", error);
+    return Response.json(
+      { error: parseUserFriendlyError("Internal proxy error") },
+      { status: 500 }
+    );
   }
 }
 
@@ -267,7 +275,7 @@ async function streamWithReasoningExtraction(
             if (reasoningChunks.length > 0 && !reasoningStored) {
               storeReasoning(convId, newMessageIndex, reasoningChunks.join(""))
                 .catch((e) =>
-                  console.error("[Kimi K2 Proxy] Failed to store reasoning:", e)
+                  logger.error("Failed to store reasoning:", e)
                 );
               reasoningStored = true;
             }
@@ -281,13 +289,10 @@ async function streamWithReasoningExtraction(
               controller.enqueue(
                 encoder.encode(`data: ${JSON.stringify(usageEvent)}\n\n`)
               );
-              console.log("[Kimi K2 Proxy] Token usage:", usageData);
+              logger.debug("Token usage:", usageData);
             }
 
-            console.log(
-              "[Kimi K2 Proxy] Stream complete, total chunks:",
-              chunkCount
-            );
+            logger.debug("Stream complete, total chunks:", chunkCount);
             controller.enqueue(encoder.encode(line + "\n\n"));
             return;
           }
@@ -359,10 +364,7 @@ async function streamWithReasoningExtraction(
 
           // Log first few chunks for debugging
           if (chunkCount <= 3) {
-            console.log(
-              `[Kimi K2 Proxy] Stream chunk ${chunkCount}:`,
-              lineBuffer.substring(0, 500)
-            );
+            logger.debug(`Stream chunk ${chunkCount}:`, lineBuffer.substring(0, 500));
           }
 
           // Split into lines and keep incomplete last line in buffer
@@ -392,7 +394,7 @@ async function streamWithReasoningExtraction(
 
         controller.close();
       } catch (error) {
-        console.error("[Kimi K2 Proxy] Stream error:", error);
+        logger.error("Stream error:", error);
         controller.error(error);
       }
     },

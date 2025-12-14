@@ -11,6 +11,10 @@
  */
 
 import { authMiddleware } from "@/lib/auth/authMiddleware";
+import { parseUserFriendlyError } from "@/lib/errors";
+import { createLogger } from "@pragma/core";
+
+const logger = createLogger("[Grok Proxy]");
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,7 +38,7 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     // Log request details for debugging
-    console.log("[Grok Proxy] Request:", {
+    logger.debug("Request:", {
       model: body.model,
       messageCount: body.messages?.length,
       stream: body.stream,
@@ -50,13 +54,14 @@ export async function POST(request: Request) {
       body: JSON.stringify(body),
     });
 
-    console.log("[Grok Proxy] Response status:", response.status);
+    logger.debug("Response status:", response.status);
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error("[Grok Proxy] Error:", response.status, error);
+      const rawError = await response.text();
+      logger.error("API error:", response.status, rawError);
+      // Sanitize error for user-facing response
       return Response.json(
-        { error: `Grok API error: ${response.statusText}`, details: error },
+        { error: parseUserFriendlyError(`Grok API error: ${response.statusText}`) },
         { status: response.status }
       );
     }
@@ -77,7 +82,10 @@ export async function POST(request: Request) {
     const data = await response.json();
     return Response.json(data);
   } catch (error) {
-    console.error("[Grok Proxy] Error:", error);
-    return Response.json({ error: "Internal proxy error" }, { status: 500 });
+    logger.error("Error:", error);
+    return Response.json(
+      { error: parseUserFriendlyError("Internal proxy error") },
+      { status: 500 }
+    );
   }
 }

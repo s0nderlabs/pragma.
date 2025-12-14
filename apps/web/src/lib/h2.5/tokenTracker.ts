@@ -12,6 +12,10 @@
  * [TokenTracker] Turn 1: { input: 1234, output: 567, reasoning: 892, context: 6234/128000, messages: 2 }
  */
 
+import { createLogger } from "@pragma/core";
+
+const logger = createLogger("[TokenTracker]");
+
 // Base overhead calculated from actual source files:
 // - System prompt (systemPromptDeepSeek.ts): 11,217 chars = ~2,805 tokens
 // - Tool descriptions (36 tools): 4,557 chars = ~1,139 tokens
@@ -77,7 +81,7 @@ class TokenTrackerImpl {
     this.turns.push(metrics);
 
     // Console output for tracking
-    console.log(`[TokenTracker] Turn ${turn}:`, {
+    logger.debug(`Turn ${turn}:`, {
       input: inputTokens,
       output: outputTokens,
       reasoning: reasoningTokens,
@@ -87,7 +91,7 @@ class TokenTrackerImpl {
 
     // Warn if approaching context limit
     if (contextUtilization > 75) {
-      console.warn(`[TokenTracker] ⚠️ Context at ${contextUtilization.toFixed(1)}% - hallucination risk increases`);
+      logger.warn(`⚠️ Context at ${contextUtilization.toFixed(1)}% - hallucination risk increases`);
     }
 
     return metrics;
@@ -142,7 +146,7 @@ class TokenTrackerImpl {
    */
   reset(): void {
     this.turns = [];
-    console.log("[TokenTracker] Reset - starting new conversation tracking");
+    logger.debug("Reset - starting new conversation tracking");
   }
 
   /**
@@ -150,7 +154,7 @@ class TokenTrackerImpl {
    */
   printSummary(): void {
     const summary = this.getSummary();
-    console.log("[TokenTracker] Summary:", summary);
+    logger.debug("Summary:", summary);
   }
 }
 

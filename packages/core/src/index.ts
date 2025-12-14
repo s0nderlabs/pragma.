@@ -38,3 +38,6 @@ export * from "./h2/progress/emitter.js";
 
 // OpenSea NFT Exports
 export * from "./opensea/index.js";
+
+// Logger Utility
+export * from "./logger/index.js";

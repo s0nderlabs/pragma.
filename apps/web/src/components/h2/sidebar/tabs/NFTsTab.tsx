@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { ImageOff, RefreshCw, Loader2 } from 'lucide-react';
+import { ImageOff, RefreshCw, Loader2, Image } from 'lucide-react';
 import { useH2ChatStore } from '@/stores/useH2ChatStore';
 import { NFTCard } from '../../nft/NFTCard';
 import { authenticatedFetch } from '@/lib/api/authenticatedFetch';
@@ -97,7 +97,20 @@ export function NFTsTab() {
     );
   }
 
-  // Error state
+  // No wallet connected - show neutral empty state (not an error)
+  if (state.error === 'No wallet connected' && state.nfts.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center">
+        <div className="flex items-center justify-center mb-4">
+          <Image className="w-8 h-8 text-white/30" />
+        </div>
+        <p className="text-sm text-white/60 mb-1">No NFTs yet</p>
+        <p className="text-xs text-white/40">Your NFT collection will appear here</p>
+      </div>
+    );
+  }
+
+  // Error state (actual API errors)
   if (state.error && state.nfts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center">

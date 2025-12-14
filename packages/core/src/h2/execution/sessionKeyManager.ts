@@ -22,6 +22,9 @@ import { SessionKeyFundingError } from "./types.js";
 import { fundSessionKeyViaUserOp } from "./sessionKeyFundingUserOp.js";
 import { fundSessionKeyViaDelegation } from "./sessionKeyFundingDelegation.js";
 import { emitProgress } from "../progress/emitter.js";
+import { createLogger } from "../../logger/index.js";
+
+const logger = createLogger("[SessionKeyManager]");
 
 // ============================================================================
 // Constants
@@ -426,9 +429,9 @@ export async function fundSessionKey(
     // - ≥ 0.02 MON (refill with sufficient gas) → Use delegation (session key pays gas)
 
     // Debug: Log which funding path will be used
-    console.log(`[sessionKeyManager] Session key balance: ${formatEther(balanceBefore)} MON`);
-    console.log(`[sessionKeyManager] MIN_GAS_FOR_DELEGATION: ${formatEther(MIN_GAS_FOR_DELEGATION)} MON`);
-    console.log(`[sessionKeyManager] Using: ${balanceBefore < MIN_GAS_FOR_DELEGATION ? 'UserOp (bundler)' : 'Delegation (EIP-7966)'}`);
+    logger.debug(`Session key balance: ${formatEther(balanceBefore)} MON`);
+    logger.debug(`MIN_GAS_FOR_DELEGATION: ${formatEther(MIN_GAS_FOR_DELEGATION)} MON`);
+    logger.debug(`Using: ${balanceBefore < MIN_GAS_FOR_DELEGATION ? 'UserOp (bundler)' : 'Delegation (EIP-7966)'}`);
 
     if (balanceBefore < MIN_GAS_FOR_DELEGATION) {
       // INITIAL OR LOW-BALANCE FUNDING: Use UserOp approach (bundler pays gas)
@@ -461,7 +464,7 @@ export async function fundSessionKey(
     // Session key has ≥ 0.02 MON - attempt delegation pattern
     if (config.sessionKeyPrivateKey && config.ownerAddress) {
       try {
-        console.log(`[sessionKeyManager] Entering DELEGATION path (EIP-7966 enabled)`);
+        logger.debug("Entering DELEGATION path (EIP-7966 enabled)");
         emitProgress("Building Funding Delegation...");
         const result = await fundSessionKeyViaDelegation({
           smartAccountAddress: config.smartAccountAddress,
@@ -482,8 +485,8 @@ export async function fundSessionKey(
         };
       } catch (delegationError) {
         // Delegation failed (likely insufficient gas) - fall back to UserOp
-        console.warn(
-          `[sessionKeyManager] Delegation funding failed, falling back to UserOp: ${(delegationError as Error).message}`
+        logger.warn(
+          `Delegation funding failed, falling back to UserOp: ${(delegationError as Error).message}`
         );
 
         // Check if we have UserOp requirements for fallback

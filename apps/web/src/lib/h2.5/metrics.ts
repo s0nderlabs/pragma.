@@ -12,6 +12,10 @@
  * - T5: Agent completes
  */
 
+import { createLogger } from "@pragma/core";
+
+const logger = createLogger("[AgentMetrics]");
+
 export interface ToolExecution {
   name: string;
   signature?: string;
@@ -153,35 +157,31 @@ export function createMetricsCollector(): MetricsCollector {
       );
       const llmTime = total - toolTime;
 
-      console.log("\n═══════════════════════════════════════════════════════");
-      console.log("[AgentMetrics] Request Complete");
-      console.log("═══════════════════════════════════════════════════════");
-      console.log(`Total Time:          ${formatMs(total)}`);
-      console.log(
+      logger.debug("═══════════════════════════════════════════════════════");
+      logger.debug("Request Complete");
+      logger.debug("═══════════════════════════════════════════════════════");
+      logger.debug(`Total Time:          ${formatMs(total)}`);
+      logger.debug(
         `Time to First Token: ${ttft ? formatMs(ttft) : "N/A"} ${ttft ? `(${((ttft / total) * 100).toFixed(1)}%)` : ""}`
       );
-      console.log("");
-      console.log(
+      logger.debug(
         `LLM Processing:      ${formatMs(llmTime)} (${((llmTime / total) * 100).toFixed(1)}%)`
       );
-      console.log(
+      logger.debug(
         `Tool Execution:      ${formatMs(toolTime)} (${((toolTime / total) * 100).toFixed(1)}%)`
       );
 
       if (metrics.toolExecutions.length > 0) {
-        console.log("");
-        console.log("Tool Breakdown:");
+        logger.debug("Tool Breakdown:");
         metrics.toolExecutions.forEach((t, i) => {
           const prefix = i === metrics.toolExecutions.length - 1 ? "└─" : "├─";
           const pct = ((t.duration / total) * 100).toFixed(1);
           const sig = t.signature ? ` [${t.signature}]` : "";
-          console.log(
-            `  ${prefix} ${t.name}${sig}: ${formatMs(t.duration)} (${pct}%)`
-          );
+          logger.debug(`  ${prefix} ${t.name}${sig}: ${formatMs(t.duration)} (${pct}%)`);
         });
       }
 
-      console.log("═══════════════════════════════════════════════════════\n");
+      logger.debug("═══════════════════════════════════════════════════════");
     },
   };
 }

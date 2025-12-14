@@ -5,6 +5,10 @@ import { Web3Auth } from "@web3auth/modal";
 import { OpenloginAdapter } from "@web3auth/openlogin-adapter";
 import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider";
 import { createWalletClient, custom, getAddress, type Address, type Hex } from "viem";
+import { createLogger } from "@pragma/core";
+
+const logger = createLogger("[Web3Auth]");
+
 const CHAIN_NAMESPACES = {
   EIP155: "eip155" as const,
 };
@@ -133,7 +137,7 @@ const announceIdentity = async (walletClient: WalletWithAddress | null) => {
       delegator = handle.delegator;
       setOwnerDelegator(ownerAddress, delegator);
     } catch (deriveError) {
-      console.warn("Failed to derive HybridDelegator address", deriveError);
+      logger.warn("Failed to derive HybridDelegator address", deriveError);
     }
   }
 
@@ -240,8 +244,8 @@ const initializeWeb3Auth = async (): Promise<Web3Auth> => {
       }
 
       // Real error - log and throw
-      console.error("[Web3Auth] Authorization/Initialization failed:", error);
-      console.error("[Web3Auth] Please verify your Web3Auth configuration and network settings");
+      logger.error("Authorization/Initialization failed:", error);
+      logger.error("Please verify your Web3Auth configuration and network settings");
       throw error;
     }
   })().catch((error) => {
@@ -296,7 +300,7 @@ const ensureBootstrap = () => {
             useH2ChatStore.getState().setTokenReady(true);
           }
         } catch (tokenError) {
-          console.warn('[Web3Auth] Could not retrieve ID token from existing session:', tokenError);
+          logger.warn('Could not retrieve ID token from existing session:', tokenError);
         }
 
         setIdentitySnapshot({ status: "connected", wallet: walletClient, error: undefined });
@@ -306,7 +310,7 @@ const ensureBootstrap = () => {
           API_TIMEOUT_MS,
           "Timeout announcing identity"
         ).catch(err => {
-          console.warn("[Web3Auth] announceIdentity timed out:", err);
+          logger.warn("announceIdentity timed out:", err);
         });
       } else {
         setIdentitySnapshot({ status: "ready" });
@@ -408,10 +412,10 @@ const connectIdentity = async (): Promise<WalletWithAddress> => {
         setIdToken(userInfo.idToken);
         useH2ChatStore.getState().setTokenReady(true);
       } else {
-        console.warn('[Web3Auth] No ID token returned from getUserInfo');
+        logger.warn('No ID token returned from getUserInfo');
       }
     } catch (tokenError) {
-      console.error('[Web3Auth] Failed to retrieve ID token:', tokenError);
+      logger.error('Failed to retrieve ID token:', tokenError);
       // Continue without token - API calls will fail auth but connection succeeds
     }
 
@@ -423,7 +427,7 @@ const connectIdentity = async (): Promise<WalletWithAddress> => {
       API_TIMEOUT_MS,
       "Timeout announcing identity"
     ).catch(err => {
-      console.warn("[Web3Auth] announceIdentity timed out:", err);
+      logger.warn("announceIdentity timed out:", err);
     });
     return walletClient;
   } catch (error) {
@@ -441,7 +445,7 @@ const connectIdentity = async (): Promise<WalletWithAddress> => {
     }
 
     // Real error - set error state
-    console.error("[Web3Auth] Connection failed:", message);
+    logger.error("Connection failed:", message);
     setIdentitySnapshot({ status: "error", error: message });
     updateMockIdentityState("error", walletRef?.address ?? null);
     throw error;
@@ -455,7 +459,7 @@ const disconnectIdentity = async () => {
       // Explicitly clear Web3Auth cache to prevent auto-reconnection
       await web3authInstance.clearCache();
     } catch (error) {
-      console.warn("Web3Auth logout/clear cache failed", error);
+      logger.warn("Logout/clear cache failed", error);
     }
   }
 

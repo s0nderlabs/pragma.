@@ -20,13 +20,15 @@
  */
 
 import type { BaseMessage } from "@langchain/core/messages";
-import { PRAGMA_H2_SYSTEM_PROMPT, PRAGMA_H2_SYSTEM_PROMPT_DEEPSEEK, PRAGMA_H2_SYSTEM_PROMPT_GROK } from "@pragma/core";
+import { PRAGMA_H2_SYSTEM_PROMPT, PRAGMA_H2_SYSTEM_PROMPT_DEEPSEEK, PRAGMA_H2_SYSTEM_PROMPT_GROK, createLogger } from "@pragma/core";
 import type { AllowedToken } from "@pragma/core";
 import { onProgress, offProgress, type ProgressEvent } from "@pragma/core/h2/progress/emitter";
 import { authenticatedFetch } from "../api/authenticatedFetch";
 import { createMetricsCollector } from "./metrics";
 import { createBrowserAgent } from "./createBrowserAgent";
 import { tokenTracker } from "./tokenTracker";
+
+const logger = createLogger("[BrowserAgent]");
 
 /**
  * Determine if a message requires high reasoning effort
@@ -189,10 +191,10 @@ function applySlidingWindow(messages: MessageTuple[]): MessageTuple[] {
   const recentMessages = nonSystemMessages.slice(keepFromIndex);
 
   // Log kept messages for debugging
-  console.log(`[SlidingWindow] Keeping ${recentMessages.length} messages from turn ${userIndices.length - 1}:`);
+  logger.debug(`Sliding window keeping ${recentMessages.length} messages from turn ${userIndices.length - 1}`);
   recentMessages.forEach(([role, content], idx) => {
     const preview = content.length > 100 ? content.slice(0, 100) + '...' : content;
-    console.log(`  [${idx}] ${role}: ${preview.replace(/\n/g, ' ')}`);
+    logger.debug(`  [${idx}] ${role}: ${preview.replace(/\n/g, ' ')}`);
   });
 
   // Preserve system messages from original
@@ -414,13 +416,13 @@ export async function runBrowserAgent(
             // Handle tool errors
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             handleToolError(error: Error, runnable: any) {
-              console.error("[BrowserAgent] Tool error:", error);
+              logger.error("Tool error:", error);
               callbacks.onToolError?.(runnable.name, error.message);
             },
 
             // Handle agent errors
             handleChainError(error: Error) {
-              console.error("[BrowserAgent] Chain error:", error);
+              logger.error("Chain error:", error);
               callbacks.onError?.(error);
             },
           },
@@ -443,7 +445,7 @@ export async function runBrowserAgent(
       ? lastMessage.content
       : currentResponse;
   } catch (error) {
-    console.error("[BrowserAgent] Execution failed:", error);
+    logger.error("Execution failed:", error);
     callbacks.onError?.(
       error instanceof Error ? error : new Error(String(error))
     );
@@ -498,7 +500,7 @@ export async function streamBrowserAgent(
     // OpenAI gpt-5-mini uses reasoningEffort: "high" for complex queries, "medium" otherwise
     const isComplexQuery = shouldUseHighReasoning(userContent);
     const reasoningEffort = isComplexQuery ? "high" : "medium";
-    console.log(`[Agent] Complex query: ${isComplexQuery}, reasoning effort: ${reasoningEffort} for message: "${userContent.slice(0, 50)}..."`);
+    logger.debug(`Complex query: ${isComplexQuery}, reasoning effort: ${reasoningEffort} for message: "${userContent.slice(0, 50)}..."`);
 
     // Create agent (reasoningEffort only used by OpenAI, DeepSeek ignores it)
     const activeAgent = createBrowserAgent({ reasoningEffort });
@@ -840,7 +842,7 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
     const windowedMessages = applySlidingWindow(messages);
 
     // Log sliding window application
-    console.log(`[Agent] Sliding window:`, {
+    logger.debug("Sliding window:", {
       originalMessageCount: messages.length,
       windowedMessageCount: windowedMessages.length,
       trimmed: messages.length !== windowedMessages.length,
@@ -1040,7 +1042,7 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
     metrics.complete();
     metrics.logSummary();
 
-    console.error("[BrowserAgent] Streaming failed:", error);
+    logger.error("Streaming failed:", error);
     callbacks.onError?.(
       error instanceof Error ? error : new Error(String(error))
     );

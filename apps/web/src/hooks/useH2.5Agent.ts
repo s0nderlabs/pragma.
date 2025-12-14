@@ -25,7 +25,9 @@ import { createPublicClient, createWalletClient, custom, type Hex } from 'viem';
 import { privateKeyToAccount, nonceManager } from 'viem/accounts';
 import { monadDevnet } from '@/lib/chains';
 import { authenticatedFetch } from '@/lib/api/authenticatedFetch';
-import { createSyncTransport } from '@pragma/core';
+import { createSyncTransport, createLogger } from '@pragma/core';
+
+const logger = createLogger('[H2.5Agent]');
 
 import { createBrowserAgent, validateBrowserEnvironment } from '@/lib/h2.5/createBrowserAgent';
 import { createDirectWeb3AuthBridge } from '@/lib/h2.5/directWeb3AuthBridge';
@@ -290,7 +292,7 @@ export function useH2_5Agent() {
       setIsInitialized(true);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown initialization error';
-      console.error('[H2.5Agent] Initialization failed:', errorMessage);
+      logger.error('Initialization failed:', errorMessage);
       setInitError(errorMessage);
     }
   }, []);
@@ -331,7 +333,7 @@ export function useH2_5Agent() {
 
     // Fallback: Recreate if not in store (should rarely happen)
     // This handles edge cases like page refresh without full re-onboarding
-    console.warn('[H2.5Agent] No stored smartAccount found, recreating (may cause AA34 on funding)');
+    logger.warn('No stored smartAccount found, recreating (may cause AA34 on funding)');
 
     (async () => {
       try {
@@ -348,7 +350,7 @@ export function useH2_5Agent() {
         store.setSmartAccount(handle.smartAccount);
         store.setBundlerClient(handle.bundlerClient);
       } catch (error) {
-        console.error('[H2.5Agent] Failed to create smartAccount/bundlerClient:', error);
+        logger.error('Failed to create smartAccount/bundlerClient:', error);
         // Don't fail the whole app - session key funding will fall back to delegation pattern
         setSmartAccount(null);
         setBundlerClient(null);
@@ -743,7 +745,7 @@ export function useH2_5Agent() {
             flushReasoningBuffer();
             flushTokenBuffer();
 
-            console.error('[H2.5Agent] Execution error:', error);
+            logger.error('Execution error:', error);
             setStreamingMessage(null);
             setIsStreaming(false);
             hideProgress();
@@ -788,7 +790,7 @@ export function useH2_5Agent() {
           callbacks
         );
       } catch (error) {
-        console.error('[H2.5Agent] Message send failed:', error);
+        logger.error('Message send failed:', error);
         setIsStreaming(false);
         hideProgress();
 

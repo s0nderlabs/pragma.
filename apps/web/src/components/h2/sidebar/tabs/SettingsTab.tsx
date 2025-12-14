@@ -228,12 +228,12 @@ export function SettingsTab({ status, wallet, connect, disconnect }: SettingsTab
       >
         <div className="flex items-center justify-center gap-3 text-xs text-white/30">
           <a
-            href="https://pr4gma.xyz/terms"
+            href="https://docs.pr4gma.xyz"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-white/50 transition-colors flex items-center gap-1"
           >
-            Terms
+            Docs
             <ExternalLink className="w-3 h-3" />
           </a>
           <span>·</span>

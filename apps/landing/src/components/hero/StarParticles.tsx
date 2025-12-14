@@ -35,7 +35,8 @@ function seededRandom(seed: number): number {
 
 function generateParticles(): Particle[] {
   const result: Particle[] = [];
-  const starChars = ["✦", "✧", "✶", "✴", "✵", "*"];
+  // Add \uFE0E (text variation selector) to prevent emoji rendering on iOS
+  const starChars = ["✦\uFE0E", "✧\uFE0E", "✶\uFE0E", "✴\uFE0E", "✵\uFE0E", "*"];
 
   for (let i = 0; i < PARTICLE_COUNT; i++) {
     // Z depth: 0 = far away, 1 = close

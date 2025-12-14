@@ -24,6 +24,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Pragma",
   description: "Natural language interface for crypto",
+  icons: {
+    icon: "/pragma-logo.svg",
+  },
 };
 
 // Viewport configuration with safe area support for iOS notch/dynamic island

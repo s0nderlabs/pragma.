@@ -114,7 +114,7 @@ export function Hero() {
             href="https://app.pr4gma.xyz"
             target="_blank"
             rel="noopener noreferrer"
-            className="group inline-flex items-center gap-2 bg-[#E07A5F] text-white text-base px-8 py-3.5 rounded-full transition-all duration-300"
+            className="group inline-flex items-center gap-2 bg-[#E07A5F] text-white text-base px-8 py-3.5 rounded-full transition-all duration-300 font-display tracking-wider"
           >
             <span className="transition-transform duration-300 group-hover:-translate-x-1">
               Launch App

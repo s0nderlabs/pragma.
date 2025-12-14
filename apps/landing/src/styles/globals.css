@@ -1,0 +1,271 @@
+@import url('https://fonts.googleapis.com/css2?family=Cal+Sans&family=IBM+Plex+Mono:wght@400;500&family=Raleway:wght@300;400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* Colors - Editorial minimal palette */
+  --color-background: #FFFFFF;
+  --color-foreground: #000000;
+  --color-muted: #666666;
+  --color-muted-light: #999999;
+  --color-border: #E5E5E5;
+  --color-border-light: #F0F0F0;
+
+  /* Terracotta accent - used sparingly */
+  --color-terracotta: #E07A5F;
+  --color-terracotta-hover: #c66a52;
+  --color-terracotta-light: rgba(224, 122, 95, 0.1);
+
+  /* Typography */
+  --font-display: 'Cal Sans', sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+
+  /* Spacing */
+  --spacing-section: 120px;
+  --spacing-section-mobile: 80px;
+
+  /* Border Radius - 32px everywhere as per design */
+  --radius: 32px;
+  --radius-sm: 16px;
+  --radius-xs: 8px;
+
+  /* Shadows */
+  --shadow-float: 0 32px 64px -16px rgba(0, 0, 0, 0.15);
+  --shadow-subtle: 0 4px 24px -4px rgba(0, 0, 0, 0.08);
+
+  /* Animation */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-expo: cubic-bezier(0.87, 0, 0.13, 1);
+}
+
+/* Base styles */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-mono);
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Typography utilities */
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-serif {
+  font-family: var(--font-serif);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Inter weights */
+.font-light {
+  font-weight: 300;
+}
+
+.font-normal {
+  font-weight: 400;
+}
+
+.font-medium {
+  font-weight: 500;
+}
+
+.font-semibold {
+  font-weight: 600;
+}
+
+/* Selection */
+::selection {
+  background-color: var(--color-terracotta);
+  color: white;
+}
+
+/* Smooth scroll container for Lenis */
+html.lenis {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+/* Custom scrollbar - minimal */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted-light);
+}
+
+/* Container utility */
+.container-narrow {
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.container-wide {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+/* Button base styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 12px 28px;
+  transition: all 0.3s var(--ease-out-expo);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background-color: var(--color-terracotta);
+  color: white;
+  border: none;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-terracotta-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-subtle);
+}
+
+.btn-ghost {
+  background-color: transparent;
+  color: var(--color-foreground);
+  border: none;
+}
+
+.btn-ghost:hover {
+  color: var(--color-terracotta);
+}
+
+/* Link styles */
+.link-underline {
+  position: relative;
+  color: var(--color-foreground);
+  text-decoration: none;
+}
+
+.link-underline::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background-color: var(--color-terracotta);
+  transition: width 0.3s var(--ease-out-expo);
+}
+
+.link-underline:hover::after {
+  width: 100%;
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Text gradient utility */
+.text-gradient-terracotta {
+  background: linear-gradient(135deg, var(--color-terracotta) 0%, #d4622a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Backdrop blur utility for navbar */
+.backdrop-blur-nav {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Animation utilities */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse-soft {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes gather {
+  0% {
+    transform: translate(var(--tx), var(--ty)) scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translate(calc(var(--tx) * 0.3), calc(var(--ty) * 0.3)) scale(1.2);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) scale(1);
+    opacity: 0.3;
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 3s ease-in-out infinite;
+}
+
+/* Responsive typography scale */
+@media (max-width: 768px) {
+  .container-narrow,
+  .container-wide {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}

@@ -19,7 +19,9 @@ interface Particle {
   baseOpacity: number;
 }
 
-const PARTICLE_COUNT = 300;
+const PARTICLE_COUNT_DESKTOP = 300;
+const PARTICLE_COUNT_MOBILE = 120;
+const MOBILE_BREAKPOINT = 768;
 const SPEED = 0.1;
 const MOUSE_FACTOR = 1.2;
 const TERRACOTTA = "#E07A5F";
@@ -33,12 +35,12 @@ function seededRandom(seed: number): number {
   return x - Math.floor(x);
 }
 
-function generateParticles(): Particle[] {
+function generateParticles(count: number): Particle[] {
   const result: Particle[] = [];
   // Add \uFE0E (text variation selector) to prevent emoji rendering on iOS
   const starChars = ["✦\uFE0E", "✧\uFE0E", "✶\uFE0E", "✴\uFE0E", "✵\uFE0E", "*"];
 
-  for (let i = 0; i < PARTICLE_COUNT; i++) {
+  for (let i = 0; i < count; i++) {
     // Z depth: 0 = far away, 1 = close
     const z = seededRandom(i * 100 + 11);
 
@@ -83,13 +85,12 @@ function generateParticles(): Particle[] {
   return result;
 }
 
-const PARTICLES = generateParticles();
-
 export function StarParticles() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mouseRef = useRef({ x: 0, y: 0 });
   const targetMouseRef = useRef({ x: 0, y: 0 });
   const animationRef = useRef<number>(0);
+  const particlesRef = useRef<Particle[]>([]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -100,6 +101,7 @@ export function StarParticles() {
 
     let width = 0;
     let height = 0;
+    let lastIsMobile: boolean | null = null;
 
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -109,6 +111,14 @@ export function StarParticles() {
       canvas.width = width * dpr;
       canvas.height = height * dpr;
       ctx.scale(dpr, dpr);
+
+      // Regenerate particles if crossing breakpoint
+      const isMobile = window.innerWidth < MOBILE_BREAKPOINT;
+      if (lastIsMobile !== isMobile) {
+        const count = isMobile ? PARTICLE_COUNT_MOBILE : PARTICLE_COUNT_DESKTOP;
+        particlesRef.current = generateParticles(count);
+        lastIsMobile = isMobile;
+      }
     };
 
     resize();
@@ -143,9 +153,10 @@ export function StarParticles() {
       ctx.textBaseline = "middle";
 
       let currentFontSize = -1;
+      const particles = particlesRef.current;
 
-      for (let i = 0; i < PARTICLES.length; i++) {
-        const p = PARTICLES[i];
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
 
         // Depth factor: 0.3 (far) to 1.0 (close)
         const depthScale = 0.3 + p.z * 0.7;

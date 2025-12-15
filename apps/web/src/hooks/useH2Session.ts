@@ -133,6 +133,29 @@ export function useH2Session() {
   }, [status, sessionData, setSessionData]);
 
   /**
+   * Multi-tab sync: Listen for localStorage changes from other tabs.
+   * When session key is rotated in one tab, all other tabs update automatically.
+   */
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      // Only react to our session storage key
+      if (e.key !== SESSION_STORAGE_KEY) return;
+
+      // Parse the new value
+      const newValue = e.newValue ? JSON.parse(e.newValue) as H2SessionState : null;
+
+      // If session key changed, update state
+      // This handles rotation in another tab
+      if (newValue?.sessionKeyAddress !== sessionData?.sessionKeyAddress) {
+        setSessionData(newValue);
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [sessionData?.sessionKeyAddress, setSessionData]);
+
+  /**
    * Update session data
    */
   const updateSession = useCallback(

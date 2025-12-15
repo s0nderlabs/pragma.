@@ -141,65 +141,79 @@ export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInpu
       className={cn("px-4 pt-4 pb-8 flex justify-center", className)}
       style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 0px))' }}
     >
-      <div className="w-full max-w-4xl relative">
-        {/* Main input container */}
-        <div
-          className={cn(
-            "rounded-[32px] p-3 flex items-center gap-2 bg-white dark:bg-zinc-800 border transition-all duration-300",
-            quickMode
-              ? "border-terracotta/50"
-              : "border-gray-200 dark:border-zinc-700"
-          )}
-        >
-          {/* Quick Mode Toggle - Lightning icon for both states */}
-          <button
-            onClick={() => setQuickMode(!quickMode)}
-            title={quickMode ? "Quick Mode ON: Auto-execute enabled" : "Quick Mode OFF: Confirmation required"}
+      <div className="w-full max-w-4xl">
+        {/* Input container with beam wrapper */}
+        <div className="relative">
+          {/* Main input container */}
+          <div
             className={cn(
-              "flex-shrink-0 p-2 rounded-full transition-all duration-200",
+              "rounded-[32px] p-3 flex items-center gap-2 bg-white dark:bg-zinc-800 border transition-all duration-300",
               quickMode
-                ? "text-terracotta hover:bg-terracotta/10"
-                : "text-gray-400 dark:text-white/30 hover:bg-gray-100 dark:hover:bg-white/10"
+                ? "border-terracotta/50"
+                : "border-gray-200 dark:border-zinc-700"
             )}
-            aria-label={quickMode ? "Quick Mode enabled - click to disable" : "Quick Mode disabled - click to enable"}
           >
-            <Zap className={cn("w-4 h-4", quickMode && "fill-current")} />
-          </button>
+            {/* Quick Mode Toggle - Lightning icon for both states */}
+            <button
+              onClick={() => setQuickMode(!quickMode)}
+              title={quickMode ? "Quick Mode ON: Auto-execute enabled" : "Quick Mode OFF: Confirmation required"}
+              className={cn(
+                "flex-shrink-0 p-2 rounded-full transition-all duration-200",
+                quickMode
+                  ? "text-terracotta hover:bg-terracotta/10"
+                  : "text-gray-400 dark:text-white/30 hover:bg-gray-100 dark:hover:bg-white/10"
+              )}
+              aria-label={quickMode ? "Quick Mode enabled - click to disable" : "Quick Mode disabled - click to enable"}
+            >
+              <Zap className={cn("w-4 h-4", quickMode && "fill-current")} />
+            </button>
 
-          {/* Textarea */}
-          <textarea
-            id="chat-input"
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            disabled={tokensLoading}
-            rows={1}
-            className="flex-1 bg-transparent resize-none outline-none text-base h-6 max-h-[200px] leading-6 py-0 m-0 self-center placeholder:opacity-50 disabled:opacity-50"
-            style={{ overflow: 'hidden' }}
-          />
+            {/* Textarea */}
+            <textarea
+              id="chat-input"
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder}
+              disabled={tokensLoading}
+              rows={1}
+              className="flex-1 bg-transparent resize-none outline-none text-base h-6 max-h-[200px] leading-6 py-0 m-0 self-center placeholder:opacity-50 disabled:opacity-50"
+              style={{ overflow: 'hidden' }}
+            />
 
-          {/* Send Button - Icon only on mobile, text+hover arrow on desktop */}
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || isStreaming || tokensLoading}
-            className="group relative flex-shrink-0 flex items-center justify-center gap-1 p-2.5 lg:px-5 lg:py-2.5 rounded-full active:scale-[0.985] transition-all bg-black dark:bg-white text-white dark:text-black"
-            aria-label="Send message"
-          >
-            <span className="hidden lg:inline text-sm font-medium">Send</span>
-            <ArrowUpRight className="w-4 h-4 lg:w-0 lg:h-5 lg:overflow-hidden lg:opacity-0 lg:group-hover:w-5 lg:group-hover:opacity-100 group-active:-rotate-45 transition-all duration-200" />
-          </button>
+            {/* Send Button - Icon only on mobile, text+hover arrow on desktop */}
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || isStreaming || tokensLoading}
+              className="group relative flex-shrink-0 flex items-center justify-center gap-1 p-2.5 lg:px-5 lg:py-2.5 rounded-full active:scale-[0.985] transition-all bg-black dark:bg-white text-white dark:text-black"
+              aria-label="Send message"
+            >
+              <span className="hidden lg:inline text-sm font-medium">Send</span>
+              <ArrowUpRight className="w-4 h-4 lg:w-0 lg:h-5 lg:overflow-hidden lg:opacity-0 lg:group-hover:w-5 lg:group-hover:opacity-100 group-active:-rotate-45 transition-all duration-200" />
+            </button>
+          </div>
+
+          {/* Rotating beam overlay - only when Quick Mode ON */}
+          {/* Uses negative z-index so input container acts as natural "inner cover" */}
+          {quickMode && (
+            <motion.div
+              style={{ backgroundImage: beamGradient }}
+              className="pointer-events-none absolute -inset-[1px] -z-10 rounded-[33px]"
+            />
+          )}
         </div>
 
-        {/* Rotating beam overlay - only when Quick Mode ON */}
-        {/* Uses negative z-index so input container acts as natural "inner cover" */}
-        {quickMode && (
-          <motion.div
-            style={{ backgroundImage: beamGradient }}
-            className="pointer-events-none absolute -inset-[1px] -z-10 rounded-[33px]"
-          />
-        )}
+        {/* Beta disclaimer - fade in when messages exist, always in DOM to prevent layout shift */}
+        <p
+          className={cn(
+            "text-[10px] sm:text-xs text-center text-gray-400 dark:text-white/40 mt-2 transition-opacity duration-300",
+            messages.length > 0 ? "opacity-100" : "opacity-0"
+          )}
+        >
+          <span className="sm:hidden">Pragma may make mistakes. Always DYOR.</span>
+          <span className="hidden sm:inline">Pragma is in beta and may make mistakes. Always DYOR and verify independently.</span>
+        </p>
       </div>
     </div>
   )

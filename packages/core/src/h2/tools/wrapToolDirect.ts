@@ -245,7 +245,7 @@ Your MON has been wrapped into WMON!`;
   },
   {
     name: "wrap",
-    description: "Wrap MON → WMON. FREE (gas only). Executes immediately. Call search_tool_docs('wrap') for detailed usage.",
+    description: "Wrap MON → WMON (1:1 exchange). FREE (no protocol fee, gas only). WMON is ERC20 version of native MON, required by some protocols. Normal mode: confirm with user first. Quick mode: execute without asking. IMPORTANT: For 'all', 'half', 'max', call getBalance first.",
     schema: z.object({
       amount: z.string().describe("Amount of MON to wrap (decimal string like '0.5')"),
     }),

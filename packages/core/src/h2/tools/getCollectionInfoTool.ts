@@ -86,56 +86,51 @@ interface ListingsResponse {
 }
 
 /**
- * Count active listings and get floor price by paginating through the listings endpoint.
- * OpenSea V2 API does NOT provide total_listings in stats, so we must paginate.
+ * Get floor price from first listing page only (fast).
  * Listings are sorted by price (lowest first), so the first listing is the floor.
+ *
+ * NOTE: We only fetch 1 page to avoid N+1 API call performance issues.
+ * For large collections, paginating through all listings caused 5+ minute delays.
+ * Use OpenSea stats for listing count instead (slightly stale but fast).
  */
-async function countActiveListings(
+async function getFloorPriceFromListings(
   fetchFn: typeof fetch,
   origin: string,
-  slug: string,
-  maxPages: number = 5 // Cap at 5 pages (1000 listings max)
-): Promise<{ count: number; hasMore: boolean; floorPrice?: string; floorCurrency?: string }> {
-  let totalCount = 0;
-  let nextCursor: string | undefined;
-  let page = 0;
-  let floorPrice: string | undefined;
-  let floorCurrency: string | undefined;
-
-  do {
+  slug: string
+): Promise<{ floorPrice?: string; floorCurrency?: string; hasListings: boolean }> {
+  try {
     const params = new URLSearchParams({
       collection: slug,
-      limit: "200", // Max per page per OpenSea docs
+      limit: "1", // Only need first listing for floor price
     });
-    if (nextCursor) params.set("next", nextCursor);
 
     const response = await fetchFn(`${origin}/api/opensea/listings?${params.toString()}`);
-    if (!response.ok) break;
+    if (!response.ok) {
+      return { hasListings: false };
+    }
 
     const data = await response.json() as ListingsResponse;
     const listings = data.listings || [];
-    totalCount += listings.length;
 
-    // Get floor price from first listing (sorted by price ascending)
-    if (!floorPrice && listings.length > 0) {
-      const firstListing = listings[0];
-      const priceWei = BigInt(firstListing.price.current.value);
-      const decimals = firstListing.price.current.decimals;
-      floorPrice = formatUnits(priceWei, decimals);
-      floorCurrency = firstListing.price.current.currency;
+    if (listings.length === 0) {
+      return { hasListings: false };
     }
 
-    nextCursor = data.next;
-    page++;
-  } while (nextCursor && page < maxPages);
+    // Get floor price from first listing (sorted by price ascending)
+    const firstListing = listings[0];
+    const priceWei = BigInt(firstListing.price.current.value);
+    const decimals = firstListing.price.current.decimals;
+    const floorPrice = formatUnits(priceWei, decimals);
+    const floorCurrency = firstListing.price.current.currency;
 
-  return { count: totalCount, hasMore: !!nextCursor, floorPrice, floorCurrency };
+    return { floorPrice, floorCurrency, hasListings: true };
+  } catch {
+    return { hasListings: false };
+  }
 }
 
 function formatCollectionOutput(
   data: CollectionResponse,
-  activeListings: number,
-  hasMore: boolean,
   floorPrice?: string,
   floorCurrency?: string,
   monUsdPrice?: number
@@ -178,15 +173,10 @@ function formatCollectionOutput(
 
   if (stats) {
     lines.push(`  • Total Supply: ${stats.total_supply?.toLocaleString() || "Unknown"}`);
-  }
-
-  // Show REAL listing count from pagination (not stale stats)
-  const listingDisplay = hasMore
-    ? `${activeListings.toLocaleString()}+`  // More than we counted
-    : activeListings.toLocaleString();
-  lines.push(`  • Active Listings: ${listingDisplay}`);
-
-  if (stats) {
+    // Use OpenSea stats for listing count (fast, slightly stale but acceptable)
+    if (stats.total_listings !== undefined) {
+      lines.push(`  • Active Listings: ${stats.total_listings.toLocaleString()}`);
+    }
     lines.push(`  • Owners: ${stats.total_owners?.toLocaleString() || "Unknown"}`);
     if (stats.average_price) {
       lines.push(`  • Avg Price: ${stats.average_price} ${stats.floor_price_symbol || "MON"}`);
@@ -259,18 +249,13 @@ export const getCollectionInfoTool = tool(
 
       const data = await response.json() as CollectionResponse;
 
-      // Fetch MON/USD price for USD conversion (async, cached)
-      const monUsdPrice = await getMonUsdPrice(fetchFn, origin);
+      // Fetch MON/USD price and floor price in parallel (fast)
+      const [monUsdPrice, floorData] = await Promise.all([
+        getMonUsdPrice(fetchFn, origin),
+        getFloorPriceFromListings(fetchFn, origin, data.collection.slug),
+      ]);
 
-      // Count active listings and get floor price (OpenSea stats are stale/incomplete)
-      emitProgress("Counting active listings...", "getCollectionInfo", toolSignature);
-      const { count: activeListings, hasMore, floorPrice, floorCurrency } = await countActiveListings(
-        fetchFn,
-        origin,
-        data.collection.slug
-      );
-
-      return formatCollectionOutput(data, activeListings, hasMore, floorPrice, floorCurrency, monUsdPrice);
+      return formatCollectionOutput(data, floorData.floorPrice, floorData.floorCurrency, monUsdPrice);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("[getCollectionInfoTool] Error:", errorMessage);
@@ -279,7 +264,7 @@ export const getCollectionInfoTool = tool(
   },
   {
     name: "getCollectionInfo",
-    description: "Get NFT collection details including floor price, supply, and listings. Accepts collection slug or contract address.",
+    description: "Get collection stats: name, description, floor price, total supply, active listings, contract address. Accepts slug or contract address. Use for 'tell me about [collection]', 'what is [collection]'.",
     schema: getCollectionInfoSchema,
   }
 );

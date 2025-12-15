@@ -522,7 +522,7 @@ This quote is ready to execute. Would you like me to proceed with the swap?`;
   },
   {
     name: "getSwapQuote",
-    description: "Get best swap quote from multiple DEX aggregators. Returns quote ID for executeSwap. Automatically selects best price with fallback support.",
+    description: "Get best swap quote from Monorail/0x DEX aggregators. Returns quoteId for executeSwap. Auto-resolves symbols via 4-tier fallback: verified→balances→search→address. 1% protocol fee on input amount. Default slippage 5%, max 15% (capped automatically). Quote valid 5 min. IMPORTANT: For 'all', 'half', 'max', or percentage amounts, call getBalance first to get exact number.",
     schema: z.object({
       fromToken: z.string().describe("Token to swap from (symbol like 'MON' or address like '0x...')"),
       toToken: z.string().describe("Token to swap to (symbol like 'USDC' or address like '0x...')"),

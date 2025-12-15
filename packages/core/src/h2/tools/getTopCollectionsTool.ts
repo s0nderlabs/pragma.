@@ -100,7 +100,7 @@ const getTopCollectionsSchema = z.object({
     .enum(["volume", "market_cap"])
     .optional()
     .describe("Sort by 'volume' (24h trading volume, default) or 'market_cap'"),
-  limit: z.number().optional().describe("Max collections to return. Default: 5, max: 10"),
+  limit: z.number().optional().describe("Max collections to return. Default: 5, max: 20"),
 });
 
 // ============================================================================
@@ -220,7 +220,7 @@ export const getTopCollectionsTool = tool(
   },
   {
     name: "getTopCollections",
-    description: "List top Monad NFT collections by volume/floor price, or search by name.",
+    description: "Get trending/top NFT collections on Monad with floor prices and 24h volume. Optional: search by name, sort by volume/market_cap. Use for 'popular collections', 'trending NFTs', 'find [collection]'.",
     schema: getTopCollectionsSchema,
   }
 );

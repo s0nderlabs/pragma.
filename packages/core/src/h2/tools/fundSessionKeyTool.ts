@@ -126,7 +126,7 @@ You can proceed with swaps, transfers, and other operations.
   },
   {
     name: "fundSessionKey",
-    description: "Fund session key with MON for gas. Call when checkSessionKeyBalance reports needsFunding=true. Call search_tool_docs('fundSessionKey') for detailed usage.",
+    description: "Fund session key with MON from smart account for gas. Pass estimatedOperations count. Formula: (N × gas per op) + 0.20 MON buffer. Use when checkSessionKeyBalance shows needsFunding.",
     schema: z.object({
       operationType: z.enum(["swap", "transfer", "wrap", "unwrap", "stake", "unstake", "unstakeClaim"]).optional().describe(
         "Type of operation to fund for. IMPORTANT: Always specify this for accurate gas calculation! " +

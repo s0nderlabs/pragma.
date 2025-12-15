@@ -186,7 +186,7 @@ export const getNFTDetailsTool = tool(
   },
   {
     name: "getNFTDetails",
-    description: "Get traits and rarity for specific NFTs. Returns detailed attributes for up to 10 NFTs.",
+    description: "Get detailed info for specific NFT(s): name, traits, rarity rank. Use contract address + tokenId array (max 10). For 'tell me about NFT #123', 'what are the traits of...'.",
     schema: getNFTDetailsSchema,
   }
 );

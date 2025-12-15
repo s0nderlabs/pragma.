@@ -151,8 +151,7 @@ export const searchProtocolDocsTool = tool(
   },
   {
     name: "search_protocol_docs",
-    description:
-      "Search protocol documentation for factual information about Pragma, aPriori, Monorail, or Monad. Use for FAQ answers, protocol explanations, and current features. Do NOT use for executing transactions or checking balances.",
+    description: "Search Pragma and protocol documentation. Use for 'how does Pragma work', 'what is aPriori', 'explain delegations'. For real-time data, use web_search instead.",
     schema: searchProtocolDocsSchema,
   }
 );

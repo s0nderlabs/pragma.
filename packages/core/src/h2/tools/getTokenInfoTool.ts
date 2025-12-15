@@ -482,7 +482,7 @@ Token "${trimmed}" was not found in the verified token list.
   },
   {
     name: "getTokenInfo",
-    description: "Get token details (address, decimals, verification status). Lookup by symbol or address. Call search_tool_docs('getTokenInfo') for detailed usage.",
+    description: "Get token info by symbol or address: symbol, name, decimals, verification status. Use for 'what token is 0x...', 'is [address] verified'. Shows security badge and warnings for unverified tokens.",
     schema: getTokenInfoSchema,
   }
 );

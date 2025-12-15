@@ -101,17 +101,18 @@ export async function GET(request: Request) {
     }
 
     // Fetch any NFT from the contract to get the collection slug
-    const nftEndpoint = `/chain/${OPENSEA_CHAIN}/contract/${checksummedAddress}/nfts/1`;
-    const nftData = await fetchOpenSea<{ nft: { collection: string } }>(nftEndpoint, apiKey);
+    // Use /nfts?limit=1 instead of /nfts/1 to get ANY token (not specifically token ID 1)
+    const nftEndpoint = `/chain/${OPENSEA_CHAIN}/contract/${checksummedAddress}/nfts?limit=1`;
+    const nftData = await fetchOpenSea<{ nfts: Array<{ collection: string }> }>(nftEndpoint, apiKey);
 
-    if (!nftData?.nft?.collection) {
+    if (!nftData?.nfts?.[0]?.collection) {
       return NextResponse.json(
         { error: "Collection not found for this contract" },
         { status: 404 }
       );
     }
 
-    collectionSlug = nftData.nft.collection;
+    collectionSlug = nftData.nfts[0].collection;
   }
 
   if (!collectionSlug) {

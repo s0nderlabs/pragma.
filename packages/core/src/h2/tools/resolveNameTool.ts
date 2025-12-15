@@ -134,8 +134,7 @@ This name may not be registered or configured on the name service.`;
   },
   {
     name: "resolveName",
-    description:
-      "Resolve NAD (.nad) or ENS (.eth) names to addresses, or reverse lookup address to name. Use when user asks 'what is the address of X.nad/X.eth?' or 'who owns 0x...?'",
+    description: "Resolve NAD (.nad) or ENS (.eth) names to addresses, or reverse lookup address to name. Use for 'what is [name] address', 'who owns 0x...'. LOOKUP only - transfer tool handles names automatically.",
     schema: resolveNameSchema,
   }
 );

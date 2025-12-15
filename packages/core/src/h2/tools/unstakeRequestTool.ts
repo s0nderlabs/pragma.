@@ -344,7 +344,7 @@ Your withdrawal request is queued and will be claimable after the current stakin
   },
   {
     name: "unstakeRequest",
-    description: "Request unstake aprMON → MON. FREE (gas only). Testnet: instant. Mainnet: 12-18h wait. Call search_tool_docs('unstakeRequest') for detailed usage.",
+    description: "Request unstake aprMON → MON via aPriori. FREE (gas only). Testnet: instant MON return. Mainnet: 12-18 hour wait period, then call unstakeClaim with returned requestId. Returns requestId to track status.",
     schema: z.object({
       amount: z.string().describe("Amount of aprMON to unstake (decimal string like '0.5')"),
     }),

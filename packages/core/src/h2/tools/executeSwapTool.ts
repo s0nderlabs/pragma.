@@ -181,7 +181,7 @@ Your ${quote.toTokenSymbol} balance has been updated.`;
   },
   {
     name: "executeSwap",
-    description: "Execute swap with quote ID from getSwapQuote. Reuse exact quote ID from previous message. Call search_tool_docs('executeSwap') for detailed usage.",
+    description: "Execute swap using quoteId from getSwapQuote. Pass exact quoteId from previous response - never construct manually. Quote expires after 5 min. Normal mode: wait for user 'yes' confirmation. Quick mode: execute immediately after showing quote.",
     schema: z.object({
       quoteId: z.string().describe("Quote ID from getSwapQuote tool"),
       fromToken: z.string().optional().describe("Source token symbol (e.g., 'MON') - pass this from the quote output for progress tracking"),

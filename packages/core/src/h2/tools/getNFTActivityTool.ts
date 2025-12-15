@@ -313,8 +313,7 @@ export const getNFTActivityTool = tool(
   },
   {
     name: "getNFTActivity",
-    description:
-      "Get NFT activity history (sales, transfers, listings). Query by NFT, collection, or account.",
+    description: "Get recent activity: sales, transfers, listings with prices and timestamps. Query modes: 'nft' (contract+tokenId), 'collection' (slug), 'account' (address). For 'recent sales', 'NFT history'.",
     schema: getNFTActivitySchema,
   }
 );

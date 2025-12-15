@@ -233,7 +233,7 @@ ${recipient ? `MON sent to ${recipientAddress}` : "MON returned to your smart ac
   },
   {
     name: "withdrawSessionKeyBalance",
-    description: "Withdraw MON from session key. Direct EOA transfer. Use 'all' for max amount. Call search_tool_docs('withdrawSessionKeyBalance') for detailed usage.",
+    description: "Withdraw MON from session key to smart account. Pass 'all' for max amount or specific decimal string. Use for 'withdraw session key balance', 'reclaim gas funds'.",
     schema: z.object({
       amount: z
         .string()

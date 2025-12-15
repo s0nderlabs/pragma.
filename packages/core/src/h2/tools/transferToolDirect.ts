@@ -424,7 +424,7 @@ The transfer has been confirmed on-chain!`;
   },
   {
     name: "transfer",
-    description: "Transfer tokens or MON to address. FREE (gas only). Executes immediately. Supports both verified tokens (by symbol) and unverified tokens (by contract address). Call search_tool_docs('transfer') for detailed usage.",
+    description: "Send tokens or MON to address. FREE (no protocol fee, gas only). Supports symbols (USDC), addresses (0x...), NAD names (.nad), and ENS names (.eth) - all auto-resolved. Normal mode: confirm with user first. Quick mode: execute without asking. IMPORTANT: For 'all', 'half', 'max', or percentage amounts, call getBalance first to get exact number.",
     schema: z.object({
       token: z.string().describe("Token symbol (e.g., 'USDC', 'MON') or contract address (0x...) for unverified tokens"),
       amount: z.string().describe("Amount to transfer (decimal string like '100')"),

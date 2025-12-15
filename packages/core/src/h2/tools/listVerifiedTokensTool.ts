@@ -132,7 +132,7 @@ export const listVerifiedTokensTool = tool(
   },
   {
     name: "listVerifiedTokens",
-    description: "List verified Monad tokens by category. Use for 'what tokens can I swap'. Call search_tool_docs('listVerifiedTokens') for detailed usage.",
+    description: "List all verified tokens on Monad with symbols, names, addresses, decimals, categories. Use for 'what tokens are available', 'supported tokens', 'what can I swap'.",
     schema: z.object({}),
   }
 );

@@ -212,7 +212,7 @@ Your NFT is now listed for sale on OpenSea. Buyers can purchase it directly at t
   },
   {
     name: "listNFT",
-    description: "List an NFT for sale on OpenSea. Creates a Seaport listing at the specified price.",
+    description: "List NFT for sale on OpenSea via Seaport. Price in MON. Optional duration in days (default 7). NOTE: Lists on-chain only - may not appear in OpenSea UI (known limitation). Use for 'list NFT for [price]', 'sell my NFT'. Normal mode: confirm with user first. Quick mode: execute without asking.",
     schema: listNFTSchema,
   }
 );

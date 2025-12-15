@@ -304,7 +304,7 @@ Source: Monorail API (cached)`;
   },
   {
     name: "getAllBalances",
-    description: "Get complete portfolio with all token balances and USD values. Use for 'show my balances'. For single token use getBalance. Call search_tool_docs('getAllBalances') for detailed usage.",
+    description: "Get complete portfolio with all token balances and USD values. Shows total portfolio value. Use for 'show my balances', 'portfolio', 'what do I have'. For single token balance, use getBalance instead.",
     schema: z.object({}),
   }
 );

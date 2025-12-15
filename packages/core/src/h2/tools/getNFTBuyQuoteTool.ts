@@ -141,7 +141,7 @@ This quote expires in 5 minutes. To purchase, use the executeNFTBuy tool with th
   },
   {
     name: "getNFTBuyQuote",
-    description: "Get buy quote for an NFT. Returns price and quote ID for executeNFTBuy.",
+    description: "Get buy quote for specific NFT. Returns quoteId for executeNFTBuy. 1% Pragma fee on purchase price. Use collection slug + tokenId from browse results. Quote valid 5 min.",
     schema: getNFTBuyQuoteSchema,
   }
 );

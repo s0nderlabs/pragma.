@@ -98,7 +98,7 @@ export const vibetradingTool = tool(
   },
   {
     name: "claimVibetrading",
-    description: "Claim 5 MON airdrop. ONLY call when user types EXACTLY '/vibetrading'. Do NOT call for questions about vibetrading. Call search_tool_docs('claimVibetrading') for detailed usage.",
+    description: "Claim 5 MON beta tester airdrop. ONLY call when user types EXACTLY '/vibetrading' command. Do NOT call for questions like 'what is vibetrading?' - those should be answered from context or webSearch. One-time claim per user.",
     schema: vibetradingSchema,
   }
 );

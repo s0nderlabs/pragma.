@@ -302,7 +302,7 @@ Your MON has been returned from staking. ${isBatch ? `${requestIdArray.length} r
   },
   {
     name: "unstakeClaim",
-    description: "Claim MON from unstake requests. FREE (gas only). Pass request IDs from unstakeRequest. Call search_tool_docs('unstakeClaim') for detailed usage.",
+    description: "Claim MON from completed unstake request. FREE (gas only). Pass requestId from unstakeRequest. Check status with checkUnstakeStatus first to verify request is claimable. Returns claimed MON amount.",
     schema: z.object({
       requestIds: z.string().describe("Comma-separated request IDs to claim (e.g., '123' or '1,2,3')"),
     }),

@@ -203,7 +203,7 @@ The NFT has been transferred to your wallet. It may take a few minutes to appear
   },
   {
     name: "executeNFTBuy",
-    description: "Execute NFT purchase with quote ID from getNFTBuyQuote. Reuse exact quote ID. Charges 1% protocol fee.",
+    description: "Execute NFT purchase using quoteId from getNFTBuyQuote. Pass exact quoteId - never construct manually. Quote expires after 5 min. Normal mode: wait for user 'yes'. Quick mode: execute immediately.",
     schema: executeNFTBuySchema,
   }
 );

@@ -95,7 +95,7 @@ Your session key is working securely for you! 🔒`;
   },
   {
     name: "getSessionKeyPrivateKey",
-    description: "Get session key info for export. ONLY call when user explicitly asks for private key. Call search_tool_docs('getSessionKeyPrivateKey') for detailed usage.",
+    description: "Export session key private key. SECURITY: Only call when user explicitly requests. Session key only holds ~1 MON for gas, cannot access smart account tokens.",
     schema: z.object({}),
   }
 );

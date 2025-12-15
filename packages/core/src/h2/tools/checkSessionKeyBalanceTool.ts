@@ -109,7 +109,7 @@ Session Key Address: ${sessionKeyAddress}`;
   },
   {
     name: "checkSessionKeyBalance",
-    description: "Check if session key needs funding for gas. FREE (read-only). Call AFTER user confirms, BEFORE execution. Call search_tool_docs('checkSessionKeyBalance') for detailed usage.",
+    description: "Check if session key has enough MON for gas. Pass estimatedOperations count for batch operations. Returns current balance, required amount, needsFunding boolean. Use before batch operations.",
     schema: z.object({
       operationType: z.enum(["swap", "transfer", "wrap", "unwrap", "stake", "unstake", "unstakeClaim"]).optional().describe(
         "Type of operation to check balance for. IMPORTANT: Always specify this for accurate gas calculation! " +

@@ -250,7 +250,7 @@ Your WMON has been unwrapped back to MON!`;
   },
   {
     name: "unwrap",
-    description: "Unwrap WMON → MON. FREE (gas only). Executes immediately. Call search_tool_docs('unwrap') for detailed usage.",
+    description: "Unwrap WMON → MON (1:1 exchange). FREE (no protocol fee, gas only). Converts ERC20 WMON back to native MON. Normal mode: confirm with user first. Quick mode: execute without asking. IMPORTANT: For 'all', 'half', 'max', call getBalance first.",
     schema: z.object({
       amount: z.string().describe("Amount of WMON to unwrap (decimal string like '1.0')"),
     }),

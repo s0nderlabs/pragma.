@@ -306,7 +306,7 @@ The NFT has been transferred. It may take a few minutes to appear in the recipie
   },
   {
     name: "transferNFT",
-    description: "Transfer an NFT to another address. Supports NAD/ENS names. FREE (no protocol fee).",
+    description: "Send NFT to address. FREE (no protocol fee, gas only). Supports 0x addresses, .nad names, .eth names (auto-resolved). Use contract address + tokenId + recipient. ERC721 and ERC1155 supported. Normal mode: confirm with user first. Quick mode: execute without asking.",
     schema: transferNFTSchema,
   }
 );

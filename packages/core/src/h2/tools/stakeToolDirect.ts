@@ -348,7 +348,7 @@ Your MON is now earning staking rewards through aPriori. aprMON appreciates in v
   },
   {
     name: "stake",
-    description: "Stake MON → aprMON via aPriori. 1% fee. Executes immediately. Call search_tool_docs('stake') for detailed usage.",
+    description: "Stake MON → aprMON via aPriori liquid staking. 1% protocol fee on input (stake 1 MON = 0.99 MON staked). aprMON appreciates over time as staking rewards accrue. Normal mode: confirm with user first. Quick mode: execute without asking. IMPORTANT: For 'all', 'half', 'max', or percentage amounts, call getBalance first to get exact number.",
     schema: z.object({
       amount: z.string().describe("Amount of MON to stake (decimal string like '1.0')"),
     }),

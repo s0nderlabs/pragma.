@@ -354,7 +354,7 @@ export const getBalanceTool = tool(
   },
   {
     name: "getBalance",
-    description: "Get balance for specific token. Use 'all' for portfolio. Call BEFORE swaps when user says 'all/half/max'. Call search_tool_docs('getBalance') for detailed usage.",
+    description: "Get balance for specific token with USD value. Returns address in [brackets] for tool reference. CRITICAL: Call this FIRST before any swap/stake/wrap/transfer when user says 'all', 'half', 'max', 'quarter', or any percentage amount. Use 'all' for full portfolio view.",
     schema: getBalanceSchema,
   }
 );

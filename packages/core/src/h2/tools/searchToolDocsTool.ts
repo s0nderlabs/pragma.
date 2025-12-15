@@ -354,9 +354,9 @@ Just as vibe coding lets developers build software by describing what they want,
 - Results include source URLs for verification`,
 
   // RAG Tools (self-documentation)
-  search_tool_docs: `**search_tool_docs** - Get detailed documentation for any Pragma tool
+  search_tool_docs: `**search_tool_docs** - Get detailed documentation for complex tool scenarios
 
-**Use when:** You need usage instructions, parameters, or examples for a specific tool
+**Use when:** You're genuinely confused about edge cases, error recovery, or multi-step workflows
 
 **Parameters:**
 - toolName: Name of the tool (e.g., 'getSwapQuote', 'stake', 'transfer')
@@ -367,10 +367,7 @@ Just as vibe coding lets developers build software by describing what they want,
 - Example workflows
 - Important notes and warnings
 
-**Examples:**
-- Need swap help? → search_tool_docs('getSwapQuote')
-- Need staking help? → search_tool_docs('stake')
-- Need transfer help? → search_tool_docs('transfer')`,
+**NOTE:** Most tools are self-documented in their schema description. Only use this for deep-dive scenarios.`,
 
   search_protocol_docs: `**search_protocol_docs** - Get Pragma architecture and protocol documentation
 
@@ -389,6 +386,181 @@ Just as vibe coding lets developers build software by describing what they want,
 - "How are delegations signed?" → search_protocol_docs('signing')
 
 **IMPORTANT:** Use this for Pragma-specific documentation, not real-time data (use web_search for that)`,
+
+  // NFT Tools
+  getMyNFTs: `**getMyNFTs** - Get NFTs owned by user
+
+**Use when:** User asks "show my NFTs", "what NFTs do I have?"
+
+**Parameters:**
+- collection: (optional) OpenSea collection slug to filter
+- limit: (optional) Max NFTs to fetch (default 20, max 50)
+
+**Returns:**
+- Visual gallery grouped by collection
+- Floor prices for each collection
+- Contract addresses and token IDs
+
+**Example:** "show my NFTs" or "show my monad-punks"`,
+
+  browseCollection: `**browseCollection** - Browse NFTs for sale in a collection
+
+**Use when:** User wants to see NFTs available for purchase
+
+**Parameters:**
+- collection: OpenSea collection slug (e.g., 'monad-punks')
+- limit: (optional) Max NFTs to return (default 12, max 50)
+- maxPrice: (optional) Max price filter in MON
+
+**Returns:**
+- Gallery of listed NFTs with prices
+- Sorted by price (cheapest first)
+- Token IDs for use with getNFTBuyQuote
+
+**IMPORTANT:** Remember the collection slug for subsequent getNFTBuyQuote calls.
+
+**Example:** "browse monad-punks" or "show monad-punks under 5 MON"`,
+
+  getCollectionInfo: `**getCollectionInfo** - Get NFT collection details
+
+**Use when:** User asks about a specific collection
+
+**Parameters:**
+- collection: Collection slug OR contract address
+
+**Returns:**
+- Name, description
+- Floor price (real-time from listings)
+- Total supply, active listings, owners
+- Contract address
+- Social links
+
+**Example:** "tell me about monad-punks" or "what is the floor for skrumpeys"`,
+
+  getNFTDetails: `**getNFTDetails** - Get traits and rarity for specific NFTs
+
+**Use when:** User wants detailed info about specific NFT(s)
+
+**Parameters:**
+- contract: NFT contract address
+- tokenIds: Array of token IDs (max 10)
+
+**Returns:**
+- Name, image
+- Rarity rank
+- All traits with values
+
+**Example:** "what are the traits of monad-punk #42"`,
+
+  getNFTActivity: `**getNFTActivity** - Get NFT activity history
+
+**Use when:** User asks about sales, transfers, or listings
+
+**Parameters:**
+- mode: 'nft' (contract+tokenId), 'collection' (slug), or 'account' (address)
+- contract/tokenId: Required for mode='nft'
+- collection: Required for mode='collection'
+- account: For mode='account' (defaults to user's address)
+- eventTypes: (optional) Filter by event types
+- limit: (optional) Max events (default 20, max 50)
+
+**Returns:**
+- Sales with prices and parties
+- Transfers with from/to
+- Listings and offers
+
+**Example:** "recent sales for monad-punks" or "my NFT activity"`,
+
+  getTopCollections: `**getTopCollections** - Get trending NFT collections
+
+**Use when:** User asks about popular/top collections or searches for one
+
+**Parameters:**
+- search: (optional) Search for collection by name
+- sortBy: (optional) 'volume' (default) or 'market_cap'
+- limit: (optional) Max collections (default 5, max 10)
+
+**Returns:**
+- Collection names and slugs
+- Floor prices and 24h volume
+- Verification status
+
+**Example:** "top NFT collections" or "find monad punks"`,
+
+  getNFTBuyQuote: `**getNFTBuyQuote** - Get quote to buy an NFT
+
+**Use when:** User wants to buy a specific NFT
+
+**Parameters:**
+- collection: OpenSea collection slug
+- tokenId: Token ID to buy
+
+**Returns:**
+- NFT name and details
+- Price with USD equivalent
+- Quote ID for executeNFTBuy
+
+**IMPORTANT:**
+- 1% Pragma fee on purchase price
+- Quote expires in 5 minutes
+- Use exact quoteId for executeNFTBuy
+
+**Example:** "buy monad-punk #42" → get quote first, then execute`,
+
+  executeNFTBuy: `**executeNFTBuy** - Execute NFT purchase
+
+**Use when:** User confirms quote from getNFTBuyQuote
+
+**Parameters:**
+- quoteId: Quote ID from getNFTBuyQuote (exact match)
+
+**Workflow:**
+1. getNFTBuyQuote → show quote to user
+2. User confirms
+3. executeNFTBuy with quoteId
+
+**IMPORTANT:**
+- Quote expires after 5 minutes
+- Never construct quoteId manually
+- Mode behavior: Normal waits for 'yes', Quick executes immediately`,
+
+  transferNFT: `**transferNFT** - Send NFT to another address
+
+**Use when:** User wants to send an NFT
+
+**Parameters:**
+- contract: NFT contract address
+- tokenId: Token ID to transfer
+- recipient: Address, .nad name, or .eth name
+- amount: (optional) For ERC1155 only
+
+**Features:**
+- FREE (no protocol fee, gas only)
+- Auto-resolves NAD/ENS names
+- Supports ERC721 and ERC1155
+
+**Example:** "send my monad-punk #42 to alice.nad"`,
+
+  listNFT: `**listNFT** - List NFT for sale on OpenSea
+
+**Use when:** User wants to sell an NFT
+
+**Parameters:**
+- contract: NFT contract address
+- tokenId: Token ID to list
+- price: Listing price in MON
+- duration: (optional) Days (default 7, max 365)
+
+**Features:**
+- Creates Seaport listing
+- Auto-approves conduit via delegation if needed
+- Validates on-chain for direct fillability
+
+**Returns:**
+- Order hash
+- OpenSea listing URL
+
+**Example:** "list my monad-punk #42 for 10 MON"`,
 };
 
 // ============================================================================
@@ -433,14 +605,18 @@ export const searchToolDocsTool = tool(
       return toolDocs[matchingKey];
     }
 
-    // List available tools if not found
+    // List available tools if not found - updated fallback for new architecture
     const availableTools = Object.keys(toolDocs).join(", ");
-    return `Tool "${toolName}" not found.\n\n**Available tools:** ${availableTools}`;
+    return `Tool "${toolName}" not found in deep-dive docs.
+
+**Note:** Tool schemas are now self-contained. searchToolDocs is for edge cases only.
+If you need basic usage info, the tool's schema description should be sufficient.
+
+**Available deep-dive docs:** ${availableTools}`;
   },
   {
     name: "search_tool_docs",
-    description:
-      "Get detailed documentation for a specific Pragma tool. Use when you need usage instructions, parameters, or examples for a tool like getSwapQuote, stake, transfer, etc.",
+    description: "Get deep-dive documentation for complex tool scenarios. Use ONLY when genuinely confused about edge cases, error recovery, or multi-step workflows. Most tools are self-documented in schema.",
     schema: searchToolDocsSchema,
   }
 );

@@ -319,7 +319,7 @@ ${JSON.stringify(enrichedGalleryData)}`;
   },
   {
     name: "getMyNFTs",
-    description: "Get NFTs owned by user from OpenSea. Returns visual gallery. Use for 'show my NFTs'.",
+    description: "Get NFTs owned by user. Returns visual gallery grouped by collection with floor prices. Optional: filter by collection slug. Use for 'show my NFTs', 'what NFTs do I have'.",
     schema: getMyNFTsSchema,
   }
 );

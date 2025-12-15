@@ -132,7 +132,7 @@ ${JSON.stringify(galleryData)}`;
   },
   {
     name: "browseCollection",
-    description: "Browse NFT listings in a collection. Returns visual gallery. Use for 'show me [collection] NFTs'.",
+    description: "Browse NFTs listed for sale in a collection. Returns gallery with prices sorted by price_asc (cheapest first). REMEMBER the collection slug for subsequent getNFTBuyQuote calls. Use for 'browse [collection]', 'show [collection] NFTs for sale'.",
     schema: browseCollectionSchema,
   }
 );

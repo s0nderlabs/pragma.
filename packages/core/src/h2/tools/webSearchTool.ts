@@ -145,8 +145,7 @@ export const webSearchTool = tool(
   },
   {
     name: "web_search",
-    description:
-      "Search the web for current information like token prices, recent news, project announcements, or any real-time data not in protocol documentation. Use when user asks about current prices, recent events, or information that changes frequently. Returns summarized answer with source citations.",
+    description: "Search web for current DeFi/crypto info: token prices, news, protocol updates. Use for real-time data not in docs. NEVER for off-topic questions (games, movies, general knowledge) - redirect those instead.",
     schema: webSearchSchema,
   }
 );

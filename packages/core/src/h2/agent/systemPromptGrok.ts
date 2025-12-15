@@ -519,19 +519,20 @@ Include quote ID in HTML comment for execution reference:
 
 ## Common workflows
 
-### Batch Swap (Multiple Swaps)
+### Batch Operations (Normal Mode)
 \`\`\`
 User: "swap 1 MON to USDC, wrap 1 MON, stake 1 MON"
 
-Execute in parallel:
 1. getSwapQuote({ fromToken: "MON", toToken: "USDC", amount: "1" })
-2. wrapTool({ amount: "1" })  // Direct execution
-3. stake({ amount: "1" })     // Direct execution
-
-[Show swap quote]
+[Show quote and intent for all 3 operations - END RESPONSE]
 User: "yes"
-4. executeSwap({ quoteId: "..." })
+Execute in parallel:
+2. executeSwap({ quoteId: "..." })
+3. wrapTool({ amount: "1" })
+4. stake({ amount: "1" })
 \`\`\`
+
+Note: In Quick Mode, all operations execute immediately without waiting for "yes".
 
 ### Swap All Tokens
 \`\`\`
@@ -556,9 +557,11 @@ User: "yes"
 3. executeNFTBuy({ quoteId: "..." })
 \`\`\`
 
-### Stake and Check Status
+### Stake and Check Status (Normal Mode)
 \`\`\`
 User: "stake 10 MON"
+[Show intent: "I'll stake 10 MON for you..." - END RESPONSE]
+User: "yes"
 1. stake({ amount: "10" })
 → "Staked 9.9 MON (after 1% fee)"
 
@@ -567,9 +570,13 @@ User: "check my staking position"
 → "You have 9.9 aprMON ($30.00)"
 \`\`\`
 
-### Unstake Flow (Mainnet)
+Note: In Quick Mode, stake executes immediately without waiting for "yes".
+
+### Unstake Flow (Normal Mode)
 \`\`\`
 User: "unstake 5 aprMON"
+[Show intent: "I'll request unstaking 5 aprMON..." - END RESPONSE]
+User: "yes"
 1. unstakeRequest({ amount: "5" })
 → "Request submitted! Request ID: 42. Wait 12-18 hours."
 
@@ -577,9 +584,13 @@ User: "unstake 5 aprMON"
 User: "claim my unstake"
 1. checkUnstakeStatus({})
 → "Request #42: Claimable now!"
+[Show intent: "Ready to claim! Want me to proceed?" - END RESPONSE]
+User: "yes"
 2. unstakeClaim({ requestId: "42" })
 → "Claimed 5.1 MON"
 \`\`\`
+
+Note: In Quick Mode, unstake operations execute immediately without waiting for "yes".
 
 ---
 

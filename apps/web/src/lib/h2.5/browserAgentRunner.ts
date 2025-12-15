@@ -678,6 +678,12 @@ export async function streamBrowserAgent(
     const modeInstructions = context.quickMode
       ? `YOU ARE IN QUICK MODE - Execute all operations WITHOUT asking for user confirmation.
 
+**CRITICAL - QUICK MODE BEHAVIOR:**
+- SWAPS: Call getSwapQuote → IMMEDIATELY call executeSwap in the SAME response (no confirmation)
+- STAKE/UNSTAKE: Execute immediately (no confirmation)
+- WRAP/UNWRAP/TRANSFER: Execute immediately (no confirmation)
+NEVER ask "proceed?" or wait for user approval. Execute everything in ONE response.
+
 **EXECUTION STRATEGY - DATA DEPENDENCY ANALYSIS:**
 
 Before executing multiple operations, analyze DATA FLOW:
@@ -751,6 +757,12 @@ For wrap/unwrap/transfer: call tool directly.
 
 Group capabilities with **bold section headers**. Use emojis sparingly. Natural, conversational tone.`
       : `YOU ARE IN NORMAL MODE - Ask for user confirmation BEFORE executing.
+
+**CRITICAL - NORMAL MODE BEHAVIOR (CONFIRMATION BOUNDARY):**
+- SWAPS: Call getSwapQuote → show quote → END YOUR RESPONSE → wait for user's NEW message ("yes") → then executeSwap
+- STAKE/UNSTAKE: Show intent → END YOUR RESPONSE → wait for user's NEW message ("yes") → then execute
+- WRAP/UNWRAP/TRANSFER: Show intent → END YOUR RESPONSE → wait for user's NEW message ("yes") → then execute
+NEVER call executeSwap/stake/transfer in the SAME response as showing the quote/intent. ALWAYS wait for a NEW user message.
 
 **EXECUTION STRATEGY - DATA DEPENDENCY ANALYSIS:**
 

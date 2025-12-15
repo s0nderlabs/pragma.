@@ -153,7 +153,7 @@ export function MessageList() {
       {!isAtBottom && (
         <button
           onClick={scrollToBottom}
-          className="absolute bottom-28 left-1/2 -translate-x-1/2 z-50 flex items-center justify-center w-8 h-8 rounded-full bg-neutral-800 border border-neutral-700 text-neutral-400 hover:text-white hover:bg-neutral-700 transition-all shadow-lg"
+          className="absolute bottom-36 left-1/2 -translate-x-1/2 z-50 flex items-center justify-center w-8 h-8 rounded-full bg-neutral-800 border border-neutral-700 text-neutral-400 hover:text-white hover:bg-neutral-700 transition-all shadow-lg"
           aria-label="Scroll to bottom"
         >
           <ChevronDown className="w-4 h-4" />

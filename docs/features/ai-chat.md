@@ -33,7 +33,7 @@ Swap half my MON to USDC and send 100 USDC to 0x...
 ```
 
 ```
-Show me the cheapest NFT in monad-punks and buy it
+Show me the cheapest NFT in skrumpeys and buy it
 ```
 
 ```

@@ -19,7 +19,7 @@ import { getMonUsdPrice, formatMonWithUsd } from "./helpers/monPrice.js";
 const browseCollectionSchema = z.object({
   collection: z
     .string()
-    .describe("OpenSea collection slug. Examples: 'monad-punks', 'monad-apes'"),
+    .describe("OpenSea collection slug. Examples: 'skrumpeys', 'molandaks'"),
   limit: z
     .number()
     .optional()

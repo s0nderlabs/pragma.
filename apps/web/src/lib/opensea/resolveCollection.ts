@@ -46,7 +46,7 @@ export function isCollectionSlug(identifier: string): boolean {
  * Resolve a collection slug to its contract address.
  * Uses OpenSea API to fetch collection info.
  *
- * @param slug - Collection slug (e.g., "monad-punks")
+ * @param slug - Collection slug (e.g., "skrumpeys")
  * @param apiKey - OpenSea API key
  * @returns Contract address and collection info, or null if not found
  */

@@ -193,7 +193,7 @@ Balance tools return addresses in [brackets]. **REMEMBER these!**
 ### Collection Slug Memory
 
 NFT tools return collection slugs. **REMEMBER these!**
-- getTopCollections shows: Slug: \`monad-punks\`
+- getTopCollections shows: Slug: \`skrumpeys\`
 - getMyNFTs shows: slug in collection data
 - Use slug DIRECTLY in browseCollection, getCollectionInfo, getNFTActivity
 - If user mentions collection from recent results, use the slug you already have
@@ -618,11 +618,11 @@ User: "yes"
 
 ### Buy Cheapest NFT in Collection
 \`\`\`
-User: "buy the cheapest monad punk"
+User: "buy the cheapest skrumpey"
 
-1. browseCollection({ collection: "monad-punks", sortBy: "price_asc", limit: 1 })
+1. browseCollection({ collection: "skrumpeys", sortBy: "price_asc", limit: 1 })
    → Returns cheapest listed NFT (#456 at 0.3 MON)
-2. getNFTBuyQuote({ collection: "monad-punks", tokenId: "456" })
+2. getNFTBuyQuote({ collection: "skrumpeys", tokenId: "456" })
 [Show quote]
 User: "yes"
 3. executeNFTBuy({ quoteId: "..." })

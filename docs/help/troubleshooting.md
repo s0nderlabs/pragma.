@@ -256,7 +256,7 @@ The system will auto-fund on your next transaction. Ensure your smart account ha
    ```
    Search for [collection name]
    ```
-2. **Use slug, not name** - "monad-punks" not "Monad Punks"
+2. **Use slug, not name** - "skrumpeys" not "Skrumpeys"
 3. **Verify collection exists** - May not be on OpenSea
 
 ### NFT Not Listed

@@ -21,7 +21,7 @@ What are the top NFT collections?
 ```
 Top Monad NFT Collections (by 24h Volume):
 
-1. Monad Punks (monad-punks) ✓
+1. Skrumpeys (skrumpeys) ✓
    Floor: 0.45 MON (~$1.58) | 24h Vol: ~1.2K MON
 
 2. Skrumpeys (skrumpeys) ✓
@@ -33,22 +33,22 @@ Top Monad NFT Collections (by 24h Volume):
 
 ## Step 2: Browse a Collection
 
-Let's look at monad-punks. Notice we use the **slug** (monad-punks), not the display name.
+Let's look at skrumpeys. Notice we use the **slug** (skrumpeys), not the display name.
 
 **Type:**
 ```
-Browse monad-punks
+Browse skrumpeys
 ```
 
 **Response:**
 ```
-Found 15 listings in "monad-punks":
+Found 15 listings in "skrumpeys":
 
-1. Monad Punk #123 - 0.5 MON (~$1.75)
-2. Monad Punk #456 - 0.55 MON (~$1.93)
-3. Monad Punk #789 - 0.6 MON (~$2.10)
-4. Monad Punk #101 - 0.65 MON (~$2.28)
-5. Monad Punk #202 - 0.7 MON (~$2.45)
+1. Skrumpey #123 - 0.5 MON (~$1.75)
+2. Skrumpey #456 - 0.55 MON (~$1.93)
+3. Skrumpey #789 - 0.6 MON (~$2.10)
+4. Skrumpey #101 - 0.65 MON (~$2.28)
+5. Skrumpey #202 - 0.7 MON (~$2.45)
 ...and 10 more
 
 Floor Price: 0.45 MON
@@ -60,7 +60,7 @@ Want only affordable options?
 
 **Type:**
 ```
-Browse monad-punks under 0.6 MON
+Browse skrumpeys under 0.6 MON
 ```
 
 This shows only listings at or below 0.6 MON.
@@ -71,12 +71,12 @@ Want to see traits before buying?
 
 **Type:**
 ```
-Show traits for monad-punk #123
+Show traits for skrumpey #123
 ```
 
 **Response:**
 ```
-Monad Punk #123
+Skrumpey #123
 
 Traits:
 - Background: Blue
@@ -94,15 +94,15 @@ Found one you like? Let's get a quote.
 
 **Type:**
 ```
-Buy monad-punk #123
+Buy skrumpey #123
 ```
 
 **Response:**
 ```
 NFT Buy Quote:
 
-NFT: Monad Punk #123
-Collection: monad-punks
+NFT: Skrumpey #123
+Collection: skrumpeys
 Token ID: 123
 Price: 0.5 MON (~$1.75)
 Protocol Fee: 0.005 MON (1%)
@@ -146,8 +146,8 @@ yes
 ```
 NFT Purchase Complete!
 
-NFT: Monad Punk #123
-Collection: monad-punks
+NFT: Skrumpey #123
+Collection: skrumpeys
 Price: 0.5 MON (~$1.75)
 Transaction: 0xabcd...
 Block: 12345
@@ -175,7 +175,7 @@ You now own an NFT on Monad!
 
 **Type:**
 ```
-Buy the cheapest monad-punk
+Buy the cheapest skrumpey
 ```
 
 Pragma finds and quotes the floor-price NFT.
@@ -186,7 +186,7 @@ If you know the exact token:
 
 **Type:**
 ```
-Buy #456 from monad-punks
+Buy #456 from skrumpeys
 ```
 
 ## Tips
@@ -202,7 +202,7 @@ For PFP collections, rare traits = higher value. Check before buying.
 ### Compare Prices
 Look at recent sales, not just listings:
 ```
-Show activity for monad-punks
+Show activity for skrumpeys
 ```
 
 ### Start with Floor
@@ -216,7 +216,7 @@ Large purchases during high activity cost more gas.
 ### "NFT Not Listed"
 The NFT isn't for sale. Try browsing:
 ```
-Browse monad-punks
+Browse skrumpeys
 ```
 
 ### "Insufficient Balance"
@@ -228,13 +228,13 @@ What's my MON balance?
 ### "Quote Expired"
 Request a new quote:
 ```
-Buy monad-punk #123
+Buy skrumpey #123
 ```
 
 ### "Collection Not Found"
 Check the exact slug:
 ```
-Search for monad punks
+Search for skrumpeys
 ```
 
 ### "Transaction Failed"
@@ -245,10 +245,10 @@ The NFT may have been bought by someone else. Try a different one.
 | Step | Command |
 |------|---------|
 | Discover | `What are the top NFT collections?` |
-| Browse | `Browse monad-punks` |
-| Filter | `Browse monad-punks under 1 MON` |
-| Details | `Show traits for monad-punk #123` |
-| Buy | `Buy monad-punk #123` |
+| Browse | `Browse skrumpeys` |
+| Filter | `Browse skrumpeys under 1 MON` |
+| Details | `Show traits for skrumpey #123` |
+| Buy | `Buy skrumpey #123` |
 | Confirm | `yes` |
 | Verify | `Show my NFTs` |
 

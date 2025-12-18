@@ -15,7 +15,7 @@ Show me trending NFTs on Monad
 
 ### Search for a Collection
 ```
-Search for monad punks collection
+Search for skrumpeys collection
 ```
 
 ```
@@ -24,7 +24,7 @@ Find skrumpeys NFT
 
 ### Browse a Specific Collection
 ```
-Show me monad-punks NFTs
+Show me skrumpeys NFTs
 ```
 
 ```
@@ -33,7 +33,7 @@ Browse monad-apes under 1 MON
 
 ### Get Collection Info
 ```
-Info on monad-punks
+Info on skrumpeys
 ```
 
 ```
@@ -49,12 +49,12 @@ Show my NFTs
 
 ### Filter by Collection
 ```
-Show my monad-punks NFTs
+Show my skrumpeys NFTs
 ```
 
 ### Get NFT Details
 ```
-Show traits for monad-punk #123
+Show traits for skrumpey #123
 ```
 
 ```
@@ -66,20 +66,20 @@ What's the rarity of #456?
 ### Step 1: Find an NFT
 Browse or search for the NFT you want:
 ```
-Browse monad-punks
+Browse skrumpeys
 ```
 
 ### Step 2: Get a Quote
 ```
-Buy monad-punk #123
+Buy skrumpey #123
 ```
 
 Pragma shows:
 ```
 NFT Buy Quote:
 
-- NFT: Monad Punk #123
-- Collection: monad-punks
+- NFT: Skrumpey #123
+- Collection: skrumpeys
 - Price: 0.5 MON (~$1.75)
 - Protocol Fee: 0.005 MON (1%)
 - Total Cost: 0.505 MON
@@ -100,7 +100,7 @@ List my NFT #123 from 0x6919... for 0.5 MON
 
 Or with duration:
 ```
-List my monad-punk #123 for 2 MON for 30 days
+List my skrumpey #123 for 2 MON for 30 days
 ```
 
 ### What Happens
@@ -131,7 +131,7 @@ Send NFT #123 from 0x6919... to 0x1234...
 
 ### Send to a NAD Name
 ```
-Transfer my monad-punk #123 to alice.nad
+Transfer my skrumpey #123 to alice.nad
 ```
 
 ### ERC1155 (Multiple Copies)
@@ -143,7 +143,7 @@ Send 5 copies of NFT #42 from 0x... to alice.nad
 
 ### Collection Activity
 ```
-Show activity for monad-punks
+Show activity for skrumpeys
 ```
 
 ### Your NFT Activity
@@ -153,7 +153,7 @@ Show my NFT activity
 
 ### Specific NFT History
 ```
-Show activity for #123 from monad-punks
+Show activity for #123 from skrumpeys
 ```
 
 Activity includes:
@@ -175,11 +175,11 @@ Activity includes:
 
 When browsing, you'll see:
 ```
-Found 15 listings in "monad-punks":
+Found 15 listings in "skrumpeys":
 
-1. Monad Punk #123 - 0.5 MON (~$1.75)
-2. Monad Punk #456 - 0.6 MON (~$2.10)
-3. Monad Punk #789 - 0.65 MON (~$2.28)
+1. Skrumpey #123 - 0.5 MON (~$1.75)
+2. Skrumpey #456 - 0.6 MON (~$2.10)
+3. Skrumpey #789 - 0.65 MON (~$2.28)
 ...
 
 Floor Price: 0.45 MON (~$1.58)
@@ -190,7 +190,7 @@ Active Listings: 523
 
 Get detailed stats:
 ```
-Info on monad-punks
+Info on skrumpeys
 ```
 
 Shows:
@@ -211,16 +211,16 @@ With Quick Mode enabled:
 
 ### Swap and Buy
 ```
-Swap 1 MON to WMON and buy monad-punk #123
+Swap 1 MON to WMON and buy skrumpey #123
 ```
 
 ### Buy Multiple (Sequential)
 ```
-Buy monad-punk #123
+Buy skrumpey #123
 ```
 Then:
 ```
-Buy monad-punk #456
+Buy skrumpey #456
 ```
 
 ## Common Issues
@@ -228,13 +228,13 @@ Buy monad-punk #456
 ### "NFT Not Found"
 The token ID may not exist or the collection slug is wrong:
 ```
-Search for monad punks collection
+Search for skrumpeys collection
 ```
 
 ### "NFT Not Listed"
 The NFT isn't currently for sale. Try:
 ```
-Browse monad-punks
+Browse skrumpeys
 ```
 
 ### "Insufficient Balance"

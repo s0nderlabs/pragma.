@@ -476,7 +476,7 @@ When working with NFTs, collection slugs are required for most operations but sh
 
 **getTopCollections for discovery & name resolution:**
 - Use when user asks about "top collections", "trending NFTs", "best collections on Monad"
-- Use when user provides natural name instead of slug: "show me monad punks" → getTopCollections({ search: "monad punks" })
+- Use when user provides natural name instead of slug: "show me skrumpeys" → getTopCollections({ search: "skrumpeys" })
 - Returns slug that can be used with browseCollection, getCollectionInfo, getNFTActivity
 - Example: "what NFT collections are on Monad?" → getTopCollections({})
 - Example: "find catmonad collection" → getTopCollections({ search: "catmonad" })

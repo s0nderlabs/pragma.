@@ -8,7 +8,7 @@ Pragma is a conversational interface that lets you interact with the Monad block
 
 - **Swap tokens** - "Swap 50 MON to USDC"
 - **Stake MON** - "Stake 100 MON" to earn rewards via aPriori liquid staking
-- **Trade NFTs** - "Show me trending NFT collections" or "Buy Monad Punk #123"
+- **Trade NFTs** - "Show me trending NFT collections" or "Buy Skrumpey #123"
 - **Send tokens** - "Send 20 MON to 0x..."
 - **Check balances** - "What's my balance?" or "Show all my tokens"
 

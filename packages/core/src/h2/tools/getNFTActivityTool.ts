@@ -86,7 +86,7 @@ const getNFTActivitySchema = z.object({
   collection: z
     .string()
     .optional()
-    .describe("Collection slug. Required for mode='collection'. Example: 'monad-punks'"),
+    .describe("Collection slug. Required for mode='collection'. Example: 'molandaks'"),
   account: z
     .string()
     .optional()

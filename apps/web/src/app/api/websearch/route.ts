@@ -122,6 +122,9 @@ interface GeminiSearchResult {
 /**
  * Perform web search using Gemini's Google Search grounding
  * Uses native Gemini API (not OpenAI-compatible) for grounding support
+ *
+ * Model: gemini-3-flash-preview (Gemini 3 Flash)
+ * Tool: googleSearch (camelCase for Gemini 3, was google_search for 2.0)
  */
 async function searchWithGemini(query: string): Promise<GeminiSearchResult> {
   if (!GEMINI_API_KEY) {
@@ -129,13 +132,16 @@ async function searchWithGemini(query: string): Promise<GeminiSearchResult> {
   }
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": GEMINI_API_KEY,
+      },
       body: JSON.stringify({
         contents: [{ parts: [{ text: query }] }],
-        tools: [{ google_search: {} }],
+        tools: [{ googleSearch: {} }],
       }),
     }
   );

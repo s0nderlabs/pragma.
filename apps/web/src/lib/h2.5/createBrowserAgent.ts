@@ -14,6 +14,7 @@
  * - NEXT_PUBLIC_MODEL_PROVIDER=deepseek (default): DeepSeek V3.2 Reasoner
  * - NEXT_PUBLIC_MODEL_PROVIDER=kimi: Kimi K2 Thinking (Moonshot AI)
  * - NEXT_PUBLIC_MODEL_PROVIDER=grok: Grok 4.1 Fast Reasoning (xAI)
+ * - NEXT_PUBLIC_MODEL_PROVIDER=gemini: Gemini 3 Flash (Google)
  * - NEXT_PUBLIC_MODEL_PROVIDER=openai: OpenAI gpt-5-mini
  *
  * Architecture:
@@ -158,11 +159,12 @@ export function createBrowserAgent(
   }
 
   // Determine model provider from environment variable
-  // Options: 'deepseek' (default), 'kimi', 'grok', 'openai'
+  // Options: 'deepseek' (default), 'kimi', 'grok', 'gemini', 'openai'
   const modelProvider = process.env.NEXT_PUBLIC_MODEL_PROVIDER || "deepseek";
   const useDeepSeek = modelProvider === "deepseek";
   const useKimi = modelProvider === "kimi";
   const useGrok = modelProvider === "grok";
+  const useGemini = modelProvider === "gemini";
 
   // Log model selection for debugging
   logger.debug(`Using model provider: ${modelProvider}`);
@@ -232,6 +234,28 @@ export function createBrowserAgent(
           fetch: authenticatedFetch as typeof fetch,
         },
       }
+    : useGemini
+    ? {
+        // Gemini 3 Flash configuration (Google)
+        // 1M context, $0.50/1M input tokens, $3/1M output
+        // NOTE: Thinking bubble NOT available through OpenAI compat (SDK-only feature)
+        // Internal thinking still happens, just not exposed to UI
+        model: "gemini-3-flash-preview",
+        apiKey: config.apiKey || "proxy-not-used",
+        streaming: config.streaming ?? true,
+        timeout: config.timeout || 120000, // 120s for reasoning
+        maxRetries: 2,
+        configuration: {
+          baseURL:
+            typeof window !== "undefined"
+              ? `${window.location.origin}/api/gemini/v1`
+              : "http://localhost:3000/api/gemini/v1",
+          fetch: authenticatedFetch as typeof fetch,
+          defaultHeaders: {
+            "x-conversation-id": conversationId,
+          },
+        },
+      }
     : {
         // OpenAI gpt-5-mini configuration (Responses API)
         model: config.model || "gpt-5-mini",
@@ -261,10 +285,10 @@ export function createBrowserAgent(
   // Use custom tools if provided, otherwise use full registry
   let tools = config.tools || [...h2ToolRegistry];
 
-  // For reasoning models (DeepSeek, Kimi): wrap tools with reminder text
+  // For reasoning models (DeepSeek, Kimi, Gemini): wrap tools with reminder text
   // This reinforces critical behaviors (text output + thinking summary)
   // Note: Grok has best-in-class tool calling and doesn't need wrapping
-  if (useDeepSeek || useKimi) {
+  if (useDeepSeek || useKimi || useGemini) {
     tools = wrapToolsForDeepSeek(tools);
   }
 

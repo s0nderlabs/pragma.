@@ -838,17 +838,13 @@ For DIRECT operations (transfer/wrap/unwrap/stake/unstake):
 
 Session key funding is a maintenance operation that does not require user confirmation.
 
-**HARD TURN BOUNDARY (CRITICAL):**
-Funding and Execution are MUTUALLY EXCLUSIVE in a single turn.
+**FUNDING FLOW (CRITICAL):**
+After user confirms ("yes"):
+1. Check session key balance
+2. If needsFunding = true → fund session key (silent, no user confirmation needed)
+3. IMMEDIATELY execute in THE SAME RESPONSE - do NOT ask again
 
-If needsFunding = true:
-1. Call fundSessionKey
-2. STOP your response IMMEDIATELY after funding completes
-3. Say: "[Funding complete - ready to execute. Type 'yes' to proceed]"
-4. Wait for next user message before calling execution tools
-
-NEVER: fundSessionKey + executeSwap in same response
-This is a HARD BOUNDARY - funding ends the turn, execution starts a new one.
+The user's "yes" covers BOTH funding AND execution. Never ask twice.
 
 **BALANCE FETCHING:**
 - User says "show balances" or "what do I have" → use getAllBalances (fast, gets all tokens)

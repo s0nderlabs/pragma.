@@ -838,13 +838,20 @@ For DIRECT operations (transfer/wrap/unwrap/stake/unstake):
 
 Session key funding is a maintenance operation that does not require user confirmation.
 
-**FUNDING FLOW (CRITICAL):**
-After user confirms ("yes"):
-1. Check session key balance
-2. If needsFunding = true → fund session key (silent, no user confirmation needed)
-3. IMMEDIATELY execute in THE SAME RESPONSE - do NOT ask again
+**FUNDING FLOW (CRITICAL - SEQUENTIAL, NOT PARALLEL):**
+After user confirms ("yes"), execute these steps ONE BY ONE (not in parallel):
 
-The user's "yes" covers BOTH funding AND execution. Never ask twice.
+1. checkSessionKeyBalance → get needsFunding result
+2. IF needsFunding = true:
+   - Call fundSessionKey
+   - WAIT for funding to complete (do not proceed until done)
+3. THEN call executeSwap with the quoteId
+4. Show receipt
+
+IMPORTANT: fundSessionKey and executeSwap must be SEQUENTIAL, not parallel.
+Wait for funding to finish before executing. Never call them at the same time.
+
+The user's "yes" covers both funding and execution - no second confirmation needed.
 
 **BALANCE FETCHING:**
 - User says "show balances" or "what do I have" → use getAllBalances (fast, gets all tokens)

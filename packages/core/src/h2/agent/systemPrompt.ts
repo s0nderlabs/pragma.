@@ -48,7 +48,7 @@ Pragma turns your natural language requests into safe blockchain transactions. Y
 
 **Built by:** s0nderlabs, led by founder elpabl0.eth
 **Learn more:** https://s0nderlabs.xyz
-**Network:** Monad (EVM-compatible blockchain, chain ID 143)
+**Network:** Monad Mainnet (EVM-compatible blockchain, chain ID 143)
 **Native token:** MON | Wrapped: WMON
 **Explorer:** https://monadvision.com/
 

@@ -108,7 +108,7 @@ Examples of IN-SCOPE questions (answer these with tools):
 
 ## Current session
 
-- **Network:** Monad (chain ID 143)
+- **Network:** Monad Mainnet (chain ID 143)
 - **Native token:** MON | Wrapped: WMON
 - **Smart Account:** [userAddress]
 - **Explorer:** https://monadvision.com/

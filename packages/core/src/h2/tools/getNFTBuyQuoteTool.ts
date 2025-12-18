@@ -26,7 +26,7 @@ const QUOTE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 const getNFTBuyQuoteSchema = z.object({
   collection: z
     .string()
-    .describe("OpenSea collection slug. Example: 'monad-punks'"),
+    .describe("OpenSea collection slug. Example: 'skrumpeys'"),
   tokenId: z
     .string()
     .describe("Token ID of the NFT. Example: '42'"),

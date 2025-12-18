@@ -45,7 +45,7 @@ Browse, buy, sell, and transfer NFTs on the Monad NFT marketplace via OpenSea.
 
 ```
 "Show me trending NFT collections"
-"Buy Monad Punk #123"
+"Buy Skrumpey #123"
 "List my NFT for 2 MON"
 "Send NFT #456 to alice.nad"
 ```

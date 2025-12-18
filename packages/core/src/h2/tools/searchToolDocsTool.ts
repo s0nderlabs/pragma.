@@ -401,14 +401,14 @@ Just as vibe coding lets developers build software by describing what they want,
 - Floor prices for each collection
 - Contract addresses and token IDs
 
-**Example:** "show my NFTs" or "show my monad-punks"`,
+**Example:** "show my NFTs" or "show my skrumpeys"`,
 
   browseCollection: `**browseCollection** - Browse NFTs for sale in a collection
 
 **Use when:** User wants to see NFTs available for purchase
 
 **Parameters:**
-- collection: OpenSea collection slug (e.g., 'monad-punks')
+- collection: OpenSea collection slug (e.g., 'skrumpeys')
 - limit: (optional) Max NFTs to return (default 12, max 50)
 - maxPrice: (optional) Max price filter in MON
 
@@ -419,7 +419,7 @@ Just as vibe coding lets developers build software by describing what they want,
 
 **IMPORTANT:** Remember the collection slug for subsequent getNFTBuyQuote calls.
 
-**Example:** "browse monad-punks" or "show monad-punks under 5 MON"`,
+**Example:** "browse skrumpeys" or "show skrumpeys under 5 MON"`,
 
   getCollectionInfo: `**getCollectionInfo** - Get NFT collection details
 
@@ -435,7 +435,7 @@ Just as vibe coding lets developers build software by describing what they want,
 - Contract address
 - Social links
 
-**Example:** "tell me about monad-punks" or "what is the floor for skrumpeys"`,
+**Example:** "tell me about molandaks" or "what is the floor for skrumpeys"`,
 
   getNFTDetails: `**getNFTDetails** - Get traits and rarity for specific NFTs
 
@@ -450,7 +450,7 @@ Just as vibe coding lets developers build software by describing what they want,
 - Rarity rank
 - All traits with values
 
-**Example:** "what are the traits of monad-punk #42"`,
+**Example:** "what are the traits of skrumpey #42"`,
 
   getNFTActivity: `**getNFTActivity** - Get NFT activity history
 
@@ -469,7 +469,7 @@ Just as vibe coding lets developers build software by describing what they want,
 - Transfers with from/to
 - Listings and offers
 
-**Example:** "recent sales for monad-punks" or "my NFT activity"`,
+**Example:** "recent sales for skrumpeys" or "my NFT activity"`,
 
   getTopCollections: `**getTopCollections** - Get trending NFT collections
 
@@ -485,7 +485,7 @@ Just as vibe coding lets developers build software by describing what they want,
 - Floor prices and 24h volume
 - Verification status
 
-**Example:** "top NFT collections" or "find monad punks"`,
+**Example:** "top NFT collections" or "find skrumpeys"`,
 
   getNFTBuyQuote: `**getNFTBuyQuote** - Get quote to buy an NFT
 
@@ -505,7 +505,7 @@ Just as vibe coding lets developers build software by describing what they want,
 - Quote expires in 5 minutes
 - Use exact quoteId for executeNFTBuy
 
-**Example:** "buy monad-punk #42" → get quote first, then execute`,
+**Example:** "buy skrumpey #42" → get quote first, then execute`,
 
   executeNFTBuy: `**executeNFTBuy** - Execute NFT purchase
 
@@ -539,7 +539,7 @@ Just as vibe coding lets developers build software by describing what they want,
 - Auto-resolves NAD/ENS names
 - Supports ERC721 and ERC1155
 
-**Example:** "send my monad-punk #42 to alice.nad"`,
+**Example:** "send my skrumpey #42 to alice.nad"`,
 
   listNFT: `**listNFT** - List NFT for sale on OpenSea
 
@@ -560,7 +560,7 @@ Just as vibe coding lets developers build software by describing what they want,
 - Order hash
 - OpenSea listing URL
 
-**Example:** "list my monad-punk #42 for 10 MON"`,
+**Example:** "list my skrumpey #42 for 10 MON"`,
 };
 
 // ============================================================================

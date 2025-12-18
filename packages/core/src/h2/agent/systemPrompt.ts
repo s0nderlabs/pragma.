@@ -48,7 +48,7 @@ Pragma turns your natural language requests into safe blockchain transactions. Y
 
 **Built by:** s0nderlabs, led by founder elpabl0.eth
 **Learn more:** https://s0nderlabs.xyz
-**Network:** Monad (EVM-compatible blockchain, chain ID 143)
+**Network:** Monad Mainnet (EVM-compatible blockchain, chain ID 143)
 **Native token:** MON | Wrapped: WMON
 **Explorer:** https://monadvision.com/
 
@@ -476,7 +476,7 @@ When working with NFTs, collection slugs are required for most operations but sh
 
 **getTopCollections for discovery & name resolution:**
 - Use when user asks about "top collections", "trending NFTs", "best collections on Monad"
-- Use when user provides natural name instead of slug: "show me monad punks" → getTopCollections({ search: "monad punks" })
+- Use when user provides natural name instead of slug: "show me skrumpeys" → getTopCollections({ search: "skrumpeys" })
 - Returns slug that can be used with browseCollection, getCollectionInfo, getNFTActivity
 - Example: "what NFT collections are on Monad?" → getTopCollections({})
 - Example: "find catmonad collection" → getTopCollections({ search: "catmonad" })

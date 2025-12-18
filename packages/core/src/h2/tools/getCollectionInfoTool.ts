@@ -50,7 +50,7 @@ const getCollectionInfoSchema = z.object({
     .string()
     .describe(
       "Collection slug OR contract address. " +
-      "Examples: 'monad-punks', '0x6919f8b7e312d5d7c374e679de8c728e474e1557'"
+      "Examples: 'molandaks', '0x6919f8b7e312d5d7c374e679de8c728e474e1557'"
     ),
 });
 

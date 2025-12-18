@@ -94,8 +94,8 @@ OpenSea provides NFT listings via the Seaport protocol.
 
 **How Pragma Uses It:**
 ```
-Browse monad-punks
-Buy monad-punk #123
+Browse skrumpeys
+Buy skrumpey #123
 ```
 
 **Fees:**

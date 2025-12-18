@@ -30,6 +30,7 @@ export * from "./h2/agent/pragmaH2Agent.js";
 export * from "./h2/agent/systemPrompt.js";
 export * from "./h2/agent/systemPromptDeepSeek.js";
 export * from "./h2/agent/systemPromptGrok.js";
+export * from "./h2/agent/systemPromptGemini.js";
 export * from "./h2/tools/index.js";
 export * from "./h2/delegation/index.js";
 export * from "./h2/execution/index.js";

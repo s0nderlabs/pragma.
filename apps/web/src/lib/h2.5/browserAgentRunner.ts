@@ -20,7 +20,7 @@
  */
 
 import type { BaseMessage } from "@langchain/core/messages";
-import { PRAGMA_H2_SYSTEM_PROMPT, PRAGMA_H2_SYSTEM_PROMPT_DEEPSEEK, PRAGMA_H2_SYSTEM_PROMPT_GROK, createLogger } from "@pragma/core";
+import { PRAGMA_H2_SYSTEM_PROMPT, PRAGMA_H2_SYSTEM_PROMPT_DEEPSEEK, PRAGMA_H2_SYSTEM_PROMPT_GROK, PRAGMA_H2_SYSTEM_PROMPT_GEMINI, createLogger } from "@pragma/core";
 import type { AllowedToken } from "@pragma/core";
 import { onProgress, offProgress, type ProgressEvent } from "@pragma/core/h2/progress/emitter";
 import { authenticatedFetch } from "../api/authenticatedFetch";
@@ -748,6 +748,15 @@ For DIRECT operations (transfer/wrap/unwrap/stake/unstake):
 
 Session key funding is a maintenance operation that does not require user confirmation.
 
+**FUNDING + EXECUTION IN SAME TURN (CRITICAL):**
+In Quick Mode, after fundSessionKey completes, CONTINUE executing in the same response:
+1. fundSessionKey → wait for completion
+2. IMMEDIATELY proceed to execution tools (no stopping, no waiting)
+3. Complete ALL operations in one response
+
+Do NOT say "[next turn will execute]" - there is no next turn in Quick Mode.
+Execute everything NOW.
+
 **BALANCE FETCHING:**
 - User says "show balances" or "what do I have" → use getAllBalances (fast, gets all tokens)
 - User says "what's my USDC" → use getBalance(USDC) (precise, single token)
@@ -829,6 +838,18 @@ For DIRECT operations (transfer/wrap/unwrap/stake/unstake):
 
 Session key funding is a maintenance operation that does not require user confirmation.
 
+**HARD TURN BOUNDARY (CRITICAL):**
+Funding and Execution are MUTUALLY EXCLUSIVE in a single turn.
+
+If needsFunding = true:
+1. Call fundSessionKey
+2. STOP your response IMMEDIATELY after funding completes
+3. Say: "[Funding complete - ready to execute. Type 'yes' to proceed]"
+4. Wait for next user message before calling execution tools
+
+NEVER: fundSessionKey + executeSwap in same response
+This is a HARD BOUNDARY - funding ends the turn, execution starts a new one.
+
 **BALANCE FETCHING:**
 - User says "show balances" or "what do I have" → use getAllBalances (fast, gets all tokens)
 - User says "what's my USDC" → use getBalance(USDC) (precise, single token)
@@ -839,10 +860,12 @@ For wrap/unwrap/transfer: ask first, then execute.
 Group capabilities with **bold section headers**. Use emojis sparingly. Natural, conversational tone.`;
 
     // Select prompt based on model provider
+    // - Gemini: Dedicated prompt with 5 improvements from founder's audit
     // - DeepSeek/Kimi/Grok: Comprehensive prompt with full tool docs (no compression)
     // - OpenAI (GPT-5-mini): Base prompt (designed for GPT's natural behavior)
     const modelProvider = process.env.NEXT_PUBLIC_MODEL_PROVIDER || 'deepseek';
     const basePrompt =
+      modelProvider === 'gemini' ? PRAGMA_H2_SYSTEM_PROMPT_GEMINI :
       ['deepseek', 'kimi', 'grok'].includes(modelProvider) ? PRAGMA_H2_SYSTEM_PROMPT_GROK :
       PRAGMA_H2_SYSTEM_PROMPT;
 
@@ -851,7 +874,10 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
     // =========================================================================
     // Apply sliding window BEFORE sending to agent to prevent context pollution.
     // Old assistant responses contain stale data that causes hallucinations.
-    const windowedMessages = applySlidingWindow(messages);
+    // Exception: Gemini has 1M context and we're testing if it can handle full history.
+    const windowedMessages = modelProvider === "gemini"
+      ? messages  // Gemini: keep full history (1M context test)
+      : applySlidingWindow(messages);
 
     // Log sliding window application
     logger.debug("Sliding window:", {

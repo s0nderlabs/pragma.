@@ -95,7 +95,7 @@ const getTopCollectionsSchema = z.object({
   search: z
     .string()
     .optional()
-    .describe("Search for a collection by name. Example: 'monad punks', 'skrumpeys'"),
+    .describe("Search for a collection by name. Example: 'skrumpeys', 'molandaks'"),
   sortBy: z
     .enum(["volume", "market_cap"])
     .optional()

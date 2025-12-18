@@ -1,17 +1,18 @@
 /**
- * Web Search API Route - xAI Grok Native Web Search
+ * Web Search API Route - Multi-Provider Web Search
  *
- * Server-side endpoint for web searches using xAI's Grok web_search tool.
- * Called by webSearchTool during H2 agent execution.
+ * Server-side endpoint for web searches. Supports multiple providers:
+ * - Grok (xAI): Uses native web_search tool via Responses API
+ * - Gemini (Google): Uses Google Search grounding via native Gemini API
  *
- * Why Grok? DeepSeek, Kimi, and other LLMs don't have native web search.
- * Grok's Responses API provides real-time web search with citations.
+ * Provider Selection:
+ * - Checks NEXT_PUBLIC_MODEL_PROVIDER env var
+ * - If "gemini" → uses Gemini with Google Search grounding
+ * - Otherwise → uses Grok (default, most reliable)
  *
  * Security: Accepts EITHER:
  * 1. Internal API key (x-rag-internal-key header) - for server-to-server calls
  * 2. Authenticated user (JWT + wallet signature) - for browser-side agent calls
- *
- * Uses the same auth pattern as /api/rag for consistency.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -27,6 +28,12 @@ const INTERNAL_API_KEY = process.env.RAG_INTERNAL_KEY;
 
 // xAI API key for Grok web search
 const XAI_API_KEY = process.env.XAI_API_KEY;
+
+// Gemini API key for Google Search grounding
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+
+// Model provider selection
+const MODEL_PROVIDER = process.env.NEXT_PUBLIC_MODEL_PROVIDER || "deepseek";
 
 // ============================================================================
 // Types
@@ -103,6 +110,121 @@ function getXAIClient(): OpenAI {
 }
 
 // ============================================================================
+// Gemini Search with Google Search Grounding
+// ============================================================================
+
+interface GeminiSearchResult {
+  result: string;
+  citations: Citation[];
+  raw_output: string;
+}
+
+/**
+ * Perform web search using Gemini's Google Search grounding
+ * Uses native Gemini API (not OpenAI-compatible) for grounding support
+ *
+ * Model: gemini-3-flash-preview (Gemini 3 Flash)
+ * Tool: googleSearch (camelCase for Gemini 3, was google_search for 2.0)
+ */
+async function searchWithGemini(query: string): Promise<GeminiSearchResult> {
+  if (!GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY not configured");
+  }
+
+  const response = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": GEMINI_API_KEY,
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: query }] }],
+        tools: [{ googleSearch: {} }],
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("[WebSearch] Gemini error:", error);
+    throw new Error(`Gemini API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  // Extract text from Gemini response
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  let outputText = "";
+  const citations: Citation[] = [];
+
+  for (const part of parts) {
+    if (part.text) {
+      outputText += part.text;
+    }
+  }
+
+  // Extract grounding metadata for citations
+  const groundingMetadata = data.candidates?.[0]?.groundingMetadata;
+  if (groundingMetadata?.groundingChunks) {
+    for (const chunk of groundingMetadata.groundingChunks) {
+      if (chunk.web?.uri) {
+        citations.push({
+          url: chunk.web.uri,
+          title: chunk.web.title || "",
+          startIndex: 0,
+          endIndex: 0,
+        });
+      }
+    }
+  }
+
+  // Format response with citations
+  let result = outputText || "No results found.";
+  if (citations.length > 0) {
+    const sourcesList = citations
+      .slice(0, 5)
+      .map((c) => `- [${c.title || "Source"}](${c.url})`)
+      .join("\n");
+    result = `${outputText}\n\n**Sources:**\n${sourcesList}`;
+  }
+
+  return { result, citations, raw_output: outputText };
+}
+
+/**
+ * Perform web search using xAI Grok
+ */
+async function searchWithGrok(query: string): Promise<GeminiSearchResult> {
+  const client = getXAIClient();
+
+  const tools: OpenAI.Responses.Tool[] = [
+    { type: "web_search" as const },
+  ];
+
+  const response = await client.responses.create({
+    model: "grok-4-1-fast-non-reasoning",
+    input: query,
+    tools,
+  });
+
+  const outputText = response.output_text || "No results found.";
+  const citations = extractCitations(response);
+
+  let result = outputText;
+  if (citations.length > 0) {
+    const sourcesList = citations
+      .slice(0, 5)
+      .map((c) => `- [${c.title || "Source"}](${c.url})`)
+      .join("\n");
+    result = `${outputText}\n\n**Sources:**\n${sourcesList}`;
+  }
+
+  return { result, citations, raw_output: outputText };
+}
+
+// ============================================================================
 // Route Handler
 // ============================================================================
 
@@ -142,49 +264,22 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
-    // Perform Web Search using xAI Grok Responses API
+    // Perform Web Search - Provider Selection
     // =========================================================================
 
-    const client = getXAIClient();
+    console.log(`[WebSearch] Using provider: ${MODEL_PROVIDER}`);
 
-    // Build web_search tool configuration
-    // xAI supports the same tool format as OpenAI
-    const tools: OpenAI.Responses.Tool[] = [
-      {
-        type: "web_search" as const,
-        // Note: xAI doesn't support user_location like OpenAI does
-        // but supports allowed_domains, excluded_domains, from_date, to_date
-      },
-    ];
+    let searchResult: GeminiSearchResult;
 
-    const response = await client.responses.create({
-      model: "grok-4-1-fast-non-reasoning", // Grok 4 family required for server-side tools
-      input: query,
-      tools,
-    });
-
-    // =========================================================================
-    // Process Response
-    // =========================================================================
-
-    const outputText = response.output_text || "No results found.";
-    const citations = extractCitations(response);
-
-    // Format response with citations
-    let result = outputText;
-    if (citations.length > 0) {
-      const sourcesList = citations
-        .slice(0, 5) // Limit to 5 sources
-        .map((c) => `- [${c.title || "Source"}](${c.url})`)
-        .join("\n");
-      result = `${outputText}\n\n**Sources:**\n${sourcesList}`;
+    if (MODEL_PROVIDER === "gemini") {
+      // Use Gemini with Google Search grounding
+      searchResult = await searchWithGemini(query);
+    } else {
+      // Default to Grok (most reliable)
+      searchResult = await searchWithGrok(query);
     }
 
-    return NextResponse.json({
-      result,
-      citations,
-      raw_output: outputText,
-    });
+    return NextResponse.json(searchResult);
   } catch (error) {
     console.error("[WebSearch] Error:", error);
 
@@ -210,12 +305,20 @@ export async function POST(request: NextRequest) {
  * GET /api/websearch - Health check
  */
 export async function GET() {
-  const hasApiKey = !!XAI_API_KEY;
+  const hasXaiKey = !!XAI_API_KEY;
+  const hasGeminiKey = !!GEMINI_API_KEY;
   const hasInternalKey = !!INTERNAL_API_KEY;
 
+  const activeProvider = MODEL_PROVIDER === "gemini" ? "gemini" : "grok";
+  const isReady = activeProvider === "gemini" ? hasGeminiKey : hasXaiKey;
+
   return NextResponse.json({
-    status: hasApiKey ? "ready" : "not_configured",
-    xai: hasApiKey ? "configured" : "missing XAI_API_KEY",
+    status: isReady ? "ready" : "not_configured",
+    active_provider: activeProvider,
+    providers: {
+      grok: hasXaiKey ? "configured" : "missing XAI_API_KEY",
+      gemini: hasGeminiKey ? "configured" : "missing GEMINI_API_KEY",
+    },
     auth: hasInternalKey ? "configured" : "missing RAG_INTERNAL_KEY",
   });
 }

@@ -12,7 +12,7 @@ Pragma lets you interact with DeFi using natural language. Swap tokens, stake MO
 |---------|---------|
 | **Swap Tokens** | "Swap 1 MON to USDC" |
 | **Stake MON** | "Stake 5 MON" |
-| **Trade NFTs** | "Buy the cheapest monad-punk" |
+| **Trade NFTs** | "Buy the cheapest skrumpey" |
 | **Transfer** | "Send 0.5 MON to 0x..." |
 | **Check Balances** | "What's my balance?" |
 

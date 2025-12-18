@@ -146,7 +146,7 @@ Yes, any token in your balance can be transferred.
 ### What about NFT transfers?
 You can transfer NFTs you own:
 ```
-Transfer my monad-punk #123 to 0x...
+Transfer my skrumpey #123 to 0x...
 ```
 
 ---

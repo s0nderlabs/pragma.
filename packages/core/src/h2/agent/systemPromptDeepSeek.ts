@@ -215,7 +215,7 @@ Balance tools return addresses in [brackets]. REMEMBER these!
 
 **COLLECTION SLUG MEMORY:**
 NFT tools return collection slugs. REMEMBER these!
-- getTopCollections shows: Slug: \`monad-punks\`
+- getTopCollections shows: Slug: \`skrumpeys\`
 - getMyNFTs shows: slug in collection data
 - Use slug DIRECTLY in browseCollection, getCollectionInfo, getNFTActivity
 - If user mentions collection from recent results, use the slug you already have
@@ -348,7 +348,7 @@ getNFTActivity:
 getTopCollections:
 - Discovery & name resolution for UNKNOWN collections
 - ONLY use search if collection was NOT shown in recent context
-- If you just showed "Monad Punks" with slug \`monad-punks\`, use that slug directly!
+- If you just showed "Skrumpeys" with slug \`skrumpeys\`, use that slug directly!
 
 getTokenInfo for NFT contracts:
 - Detects ERC721/ERC1155 via ERC165

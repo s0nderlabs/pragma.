@@ -47,3 +47,9 @@ playwright-report/
 YC/
 .vercel
 .env*.local
+
+# Presentations (personal notes)
+presentations/
+
+# Monad Momentum (grant application drafts)
+monad-momentum/

@@ -58,6 +58,14 @@ export async function POST(request: Request) {
   url.searchParams.set("taker", getAddress(body.sender));
   url.searchParams.set("slippagePercentage", slippageDecimal.toString());
 
+  // Affiliate fee configuration (1% fee taken from sellToken)
+  const treasuryAddress = process.env.PRAGMA_TREASURY_ADDRESS;
+  if (treasuryAddress) {
+    url.searchParams.set("swapFeeBps", "100"); // 1% = 100 bps
+    url.searchParams.set("swapFeeRecipient", getAddress(treasuryAddress));
+    url.searchParams.set("swapFeeToken", getAddress(body.fromToken)); // Take fee from sellToken
+  }
+
   try {
     const response = await fetch(url.toString(), {
       method: "GET",

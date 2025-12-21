@@ -378,7 +378,7 @@ export async function fundSessionKey(
     }
 
     // Get current balance before funding
-    emitProgress("Checking Session Key Balance...");
+    emitProgress("Checking Session Key Balance...", "fundSessionKey", "fundSessionKey");
     const balanceBefore = await publicClient.getBalance({
       address: getAddress(config.sessionKeyAddress),
     });
@@ -442,7 +442,7 @@ export async function fundSessionKey(
         );
       }
 
-      emitProgress("Building Funding Transaction...");
+      emitProgress("Building Funding Transaction...", "fundSessionKey", "fundSessionKey");
       const result = await fundSessionKeyViaUserOp({
         smartAccountAddress: config.smartAccountAddress,
         sessionKeyAddress: config.sessionKeyAddress,
@@ -465,7 +465,7 @@ export async function fundSessionKey(
     if (config.sessionKeyPrivateKey && config.ownerAddress) {
       try {
         logger.debug("Entering DELEGATION path (EIP-7966 enabled)");
-        emitProgress("Building Funding Delegation...");
+        emitProgress("Building Funding Delegation...", "fundSessionKey", "fundSessionKey");
         const result = await fundSessionKeyViaDelegation({
           smartAccountAddress: config.smartAccountAddress,
           sessionKeyAddress: config.sessionKeyAddress,
@@ -491,7 +491,7 @@ export async function fundSessionKey(
 
         // Check if we have UserOp requirements for fallback
         if (config.smartAccount && config.bundlerClient) {
-          emitProgress("Delegation failed, using UserOp fallback...");
+          emitProgress("Delegation failed, using UserOp fallback...", "fundSessionKey", "fundSessionKey");
           const userOpResult = await fundSessionKeyViaUserOp({
             smartAccountAddress: config.smartAccountAddress,
             sessionKeyAddress: config.sessionKeyAddress,
@@ -521,7 +521,7 @@ export async function fundSessionKey(
       );
     }
 
-    emitProgress("Building Funding Transaction...");
+    emitProgress("Building Funding Transaction...", "fundSessionKey", "fundSessionKey");
     const userOpResult = await fundSessionKeyViaUserOp({
       smartAccountAddress: config.smartAccountAddress,
       sessionKeyAddress: config.sessionKeyAddress,

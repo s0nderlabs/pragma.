@@ -124,7 +124,7 @@ export const listNFTTool = tool(
       }
       const durationSeconds = durationDays * 24 * 60 * 60;
 
-      emitProgress(`Creating listing for NFT #${tokenId}...`, "listNFT");
+      emitProgress(`Creating listing for NFT #${tokenId}...`, "listNFT", "listNFT", `List NFT #${tokenId}`);
 
       // Execute listing (with auto-approval via delegation if needed)
       const result = await executeNFTList({

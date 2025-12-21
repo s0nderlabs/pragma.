@@ -170,7 +170,7 @@ export async function fundSessionKeyViaUserOp(
   userOp.signature = signature;
 
   // Step 7: Submit UserOp to bundler (smart account pays gas)
-  emitProgress("Executing Funding Transaction...");
+  emitProgress("Executing Funding Transaction...", "fundSessionKey", "fundSessionKey");
   const { userOpHash, transactionHash } = await submitUserOp(
     bundlerClient,
     userOp,
@@ -178,7 +178,7 @@ export async function fundSessionKeyViaUserOp(
   );
 
   // Step 8: Wait for transaction confirmation if we have tx hash
-  emitProgress("Waiting for Confirmation...");
+  emitProgress("Waiting for Confirmation...", "fundSessionKey", "fundSessionKey");
   if (transactionHash) {
     const receipt = await publicClient.waitForTransactionReceipt({ hash: transactionHash });
 

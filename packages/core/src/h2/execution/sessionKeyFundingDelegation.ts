@@ -187,7 +187,7 @@ export async function fundSessionKeyViaDelegation(
   });
 
   // Step 6: Submit transaction via delegation redemption
-  emitProgress("Executing Funding Transaction...");
+  emitProgress("Executing Funding Transaction...", "fundSessionKey", "fundSessionKey");
   const txHash = await redeemDelegations(
     sessionWallet,
     publicClient,
@@ -200,7 +200,7 @@ export async function fundSessionKeyViaDelegation(
   );
 
   // Step 7: Wait for confirmation (EIP-7966 optimized)
-  emitProgress("Waiting for Confirmation...");
+  emitProgress("Waiting for Confirmation...", "fundSessionKey", "fundSessionKey");
   const receipt = await waitForReceiptSync(publicClient, txHash);
 
   // Step 8: Verify success and get new balance

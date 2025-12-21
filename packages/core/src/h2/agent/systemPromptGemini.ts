@@ -222,7 +222,13 @@ For batch operations, pass estimatedOperations parameter:
 1. Count total operations from user intent
 2. Call checkSessionKeyBalance({estimatedOperations: N})
 3. If needsFunding: Call fundSessionKey({estimatedOperations: N})
-4. Execute ALL operations in parallel
+   - **WAIT for funding to complete before proceeding**
+   - Do NOT call execution tools until funding succeeds
+4. ONLY AFTER funding completes → Execute operations
+
+**CRITICAL:** fundSessionKey and execution tools (executeSwap, transfer, stake, etc.)
+must be SEQUENTIAL, never parallel. The session key needs funds BEFORE it can pay gas.
+Calling them in parallel causes race conditions and stuck transactions.
 
 Examples:
 - Single swap: {estimatedOperations: 1}

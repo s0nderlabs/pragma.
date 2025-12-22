@@ -9,6 +9,10 @@ const config: Config = {
   darkMode: "class",
   theme: {
     extend: {
+      fontFamily: {
+        'cal': ['Cal Sans', 'Cabinet Grotesk', 'sans-serif'],
+        'raleway': ['Raleway', 'sans-serif'],
+      },
       colors: {
         terracotta: {
           DEFAULT: '#D4622A',

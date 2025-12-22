@@ -9,6 +9,7 @@ import {
   getDeleGatorEnvironment,
 } from "@metamask/delegation-toolkit";
 import { authenticatedFetch } from "../api/authenticatedFetch";
+import { trackDeployment } from "./trackDeployment";
 
 import {
   createMonadPublicClient,
@@ -406,12 +407,26 @@ export const ensureHybridDelegatorDeployed = async (
     );
     const finalized = await finalizeFromReceipt(userOpHash, receipt as { receipt?: { transactionHash?: string } });
     if (finalized) {
+      // Track successful deployment (fire-and-forget)
+      trackDeployment({
+        txHash: finalized.transactionHash || userOpHash,
+        eoaAddress: handle.owner,
+        smartAccount: handle.delegator,
+        factoryAddress: factoryArgs.factory as Hex,
+      }).catch(() => {});
       return finalized;
     }
 
     const secondaryReceipt = await fetchUserOperationReceipt(userOpHash);
     const secondaryFinalized = await finalizeFromReceipt(userOpHash, secondaryReceipt);
     if (secondaryFinalized) {
+      // Track successful deployment (fire-and-forget)
+      trackDeployment({
+        txHash: secondaryFinalized.transactionHash || userOpHash,
+        eoaAddress: handle.owner,
+        smartAccount: handle.delegator,
+        factoryAddress: factoryArgs.factory as Hex,
+      }).catch(() => {});
       return secondaryFinalized;
     }
 
@@ -421,10 +436,24 @@ export const ensureHybridDelegatorDeployed = async (
     if (userOpHash) {
       const fetched = await finalizeFromReceipt(userOpHash, await fetchUserOperationReceipt(userOpHash));
       if (fetched) {
+        // Track successful deployment (fire-and-forget)
+        trackDeployment({
+          txHash: fetched.transactionHash || userOpHash,
+          eoaAddress: handle.owner,
+          smartAccount: handle.delegator,
+          factoryAddress: factoryArgs.factory as Hex,
+        }).catch(() => {});
         return fetched;
       }
     }
     if (deployedAfterFailure && userOpHash) {
+      // Track successful deployment even without tx hash (fire-and-forget)
+      trackDeployment({
+        txHash: userOpHash,
+        eoaAddress: handle.owner,
+        smartAccount: handle.delegator,
+        factoryAddress: factoryArgs.factory as Hex,
+      }).catch(() => {});
       return { userOpHash, transactionHash: undefined };
     }
 
@@ -445,10 +474,24 @@ export const ensureHybridDelegatorDeployed = async (
         owner: handle.owner,
         delegator: handle.delegator,
       });
+      // Track successful fallback deployment (fire-and-forget)
+      trackDeployment({
+        txHash: fallback.transactionHash,
+        eoaAddress: handle.owner,
+        smartAccount: handle.delegator,
+        factoryAddress: factory,
+      }).catch(() => {});
       return { userOpHash: null, transactionHash: fallback.transactionHash };
     } catch (fallbackError) {
       const deployedViaBundler = await isSmartAccountDeployed(handle).catch(() => false);
       if (deployedViaBundler) {
+        // Track successful deployment via bundler (fire-and-forget)
+        trackDeployment({
+          txHash: userOpHash ?? ("0x" as Hex),
+          eoaAddress: handle.owner,
+          smartAccount: handle.delegator,
+          factoryAddress: factory,
+        }).catch(() => {});
         return { userOpHash: userOpHash ?? null, transactionHash: undefined };
       }
       throw fallbackError;

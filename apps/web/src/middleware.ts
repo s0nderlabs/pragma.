@@ -24,6 +24,7 @@ const ALLOWED_ORIGINS =
         "https://dev.pr4gma.xyz", // Development Live
         "https://www.pr4gma.xyz",
         "https://legacy.pr4gma.xyz", // Legacy H1 subdomain
+        "https://admin.pr4gma.xyz", // Admin subdomain
       ]
     : [
         "http://localhost:3000", // Development
@@ -144,6 +145,50 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = `/legacy${pathname === "/" ? "" : pathname}`;
     return NextResponse.rewrite(url);
+  }
+
+  // === SUBDOMAIN ROUTING FOR ADMIN ===
+  // admin.pr4gma.xyz → /admin/*
+  const isAdminSubdomain = hostname.startsWith("admin.");
+
+  if (isAdminSubdomain) {
+    // Rewrite admin.pr4gma.xyz/users → /admin/users
+    if (!pathname.startsWith("/admin") && !pathname.startsWith("/api/admin")) {
+      const url = request.nextUrl.clone();
+      url.pathname = pathname === "/" ? "/admin" : `/admin${pathname}`;
+      return NextResponse.rewrite(url);
+    }
+    // For /api/admin/* routes, let them pass through as-is
+  }
+
+  // === REDIRECT /admin ON MAIN DOMAIN TO SUBDOMAIN ===
+  // pr4gma.xyz/admin → admin.pr4gma.xyz (optional - for cleaner URLs)
+  if (!isAdminSubdomain && pathname.startsWith("/admin") && process.env.NODE_ENV === "production") {
+    // Extract the path after /admin
+    const adminPath = pathname.replace(/^\/admin/, "") || "/";
+    const redirectUrl = new URL(`https://admin.pr4gma.xyz${adminPath}`);
+    // Preserve query params
+    redirectUrl.search = request.nextUrl.search;
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  // ============================================================================
+  // ADMIN ROUTE PROTECTION
+  // ============================================================================
+
+  // Protect admin routes (except login page and auth API)
+  if (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) {
+    const token = request.cookies.get("admin_token")?.value;
+
+    if (!token) {
+      // Redirect to login if no token
+      const loginUrl = new URL("/admin/login", request.url);
+      loginUrl.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // Note: Full JWT verification happens in the route handlers
+    // Middleware just checks for token existence (edge runtime limitations)
   }
 
   // Only apply API middleware to API routes

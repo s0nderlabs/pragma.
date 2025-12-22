@@ -73,7 +73,7 @@ export function AdminShell({ children, title, description, onSyncComplete }: Adm
   }, [lastSync]);
 
   useEffect(() => {
-    const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
+    const POLL_INTERVAL = 60 * 1000; // 1 minute
 
     const pollForUpdates = async () => {
       try {

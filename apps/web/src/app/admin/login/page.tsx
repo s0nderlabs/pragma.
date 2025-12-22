@@ -9,11 +9,10 @@
  */
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function AdminLoginPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get("redirect") || "/admin";
 
@@ -42,8 +41,9 @@ export default function AdminLoginPage() {
         return;
       }
 
-      // Redirect to admin dashboard
-      router.push(redirectPath);
+      // Force full page reload to ensure cookie is properly registered
+      // router.push() can cause stale cookie state with client-side navigation
+      window.location.href = redirectPath;
     } catch {
       setError("An error occurred. Please try again.");
     } finally {
@@ -107,8 +107,9 @@ export default function AdminLoginPage() {
         return;
       }
 
-      // Redirect to admin dashboard
-      router.push(redirectPath);
+      // Force full page reload to ensure cookie is properly registered
+      // router.push() can cause stale cookie state with client-side navigation
+      window.location.href = redirectPath;
     } catch (err: unknown) {
       if (err instanceof Error) {
         if (err.message.includes("User rejected")) {

@@ -7,7 +7,7 @@
  */
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 
 interface NavItem {
@@ -46,11 +46,12 @@ const navItems: NavItem[] = [
 
 export function AdminSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
 
   const handleLogout = async () => {
     await fetch("/api/admin/auth", { method: "DELETE" });
-    router.push("/admin/login");
+    // Force full page reload to ensure cookie is properly cleared
+    // router.push() can cause stale cookie state with client-side navigation
+    window.location.href = "/admin/login";
   };
 
   return (

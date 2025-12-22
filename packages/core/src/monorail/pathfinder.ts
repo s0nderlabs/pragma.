@@ -191,13 +191,6 @@ export const fetchMonorailQuote = async (
   const deadline = params.deadline ?? 300; // Default: 5 minutes
   url.searchParams.set("deadline", `${deadline}`);
 
-  console.log("[Monorail Pathfinder] Requesting quote:", {
-    url: url.toString(),
-    from: params.fromToken,
-    to: params.toToken,
-    amount: params.amountDecimal,
-  });
-
   const response = await getFetchFn(config)(url.toString(), { headers: HEADERS });
 
   if (!response.ok) {
@@ -208,20 +201,11 @@ export const fetchMonorailQuote = async (
     } catch {
       details = await response.text();
     }
-    console.error("[Monorail Pathfinder] Quote failed:", {
-      status: response.status,
-      statusText: response.statusText,
-      details,
-      from: params.fromToken,
-      to: params.toToken,
-    });
     throw new PathfinderError(
       `Monorail quote request failed (${response.status} ${response.statusText}): ${details}`.trim(),
       response.status,
     );
   }
-
-  console.log("[Monorail Pathfinder] Quote succeeded");
 
   const body = (await response.json()) as RawQuoteResponse;
   if (!body.transaction?.data || !body.quote_id) {

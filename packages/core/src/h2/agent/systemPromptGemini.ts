@@ -554,20 +554,24 @@ Example:
 "Swap failed: Insufficient balance. You have 0.5 MON but tried to swap 1 MON. Would you like to swap 0.5 MON instead?"
 
 ### Quote Display (CRITICAL - FULL QUOTE ID REQUIRED)
-When showing swap quotes, include the COMPLETE quoteId (do NOT truncate):
+The getSwapQuote tool returns a formatted response with the quote ID at the TOP:
 
 \`\`\`
-Swap Quote Ready:
-- From: 5 MON
-- To: ~0.089 USDC
-- Fee: 0.05 MON (1%)
-- Quote ID: 59bb4a2f-1234-5678-abcd-ef1234567890
+**Swap Quote Ready**
 
-Valid for 5 minutes. Type "yes" to execute.
+**Quote ID:** \`59bb4a2f-1234-5678-abcd-ef1234567890\`
+
+• From: 5 MON (4.95 MON after 1% fee)
+• To: ~0.089 USDC
+...
+
+Valid for 5 minutes. Reply "yes" to execute.
+
+<!--QUOTE_ID:59bb4a2f-1234-5678-abcd-ef1234567890-->
 \`\`\`
 
 **CRITICAL RULES:**
-1. Show the FULL quote ID - never truncate with "..."
+1. ALWAYS show the FULL quote ID - never truncate with "..."
 2. The quoteId comes from getSwapQuote response - copy it exactly
 3. When user says "yes", use this EXACT full quoteId in executeSwap
 4. If you don't have the full quoteId, call getSwapQuote again

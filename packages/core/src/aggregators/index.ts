@@ -144,22 +144,8 @@ export function getAggregatorAddress(name: AggregatorName): Address {
 
 /**
  * Log a summary of multi-aggregator quote results
+ * Note: Logging disabled in production. Enable via DEBUG env var if needed.
  */
-export function logQuoteSummary(result: MultiAggregatorQuoteResult): void {
-  console.log(`[MultiAggregator] Fetched ${result.quotes.length} quotes in ${result.fetchDurationMs}ms`);
-
-  if (result.quotes.length > 0) {
-    console.log("[MultiAggregator] Quote ranking:");
-    for (let i = 0; i < result.quotes.length; i++) {
-      const quote = result.quotes[i];
-      console.log(`  ${i + 1}. ${quote.aggregator}: ${quote.rawOutput.toString()} (via ${quote.routeInfo ?? "unknown"})`);
-    }
-  }
-
-  if (result.failedAggregators.length > 0) {
-    console.log("[MultiAggregator] Failed aggregators:");
-    for (const failed of result.failedAggregators) {
-      console.log(`  - ${failed.name}: ${failed.error}`);
-    }
-  }
+export function logQuoteSummary(_result: MultiAggregatorQuoteResult): void {
+  // No-op in production - logs were causing noise in user console
 }

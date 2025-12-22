@@ -497,20 +497,22 @@ export const getSwapQuoteTool = tool(
         : '';
 
       // Return conversational quote (aggregator selection is automatic/hidden from user)
-      return `${slippageCappedWarning}Swap quote ready:
+      // Quote ID at TOP with bold formatting for reliable LLM extraction
+      return `${slippageCappedWarning}**Swap Quote Ready**
+
+**Quote ID:** \`${quoteId}\`
 
 • From: ${amount} ${fromToken} (${netSwapFormatted} ${fromToken} after 1% fee)
 • To: ~${finalOutputFormatted} ${isUnverified ? '⚠️ ' : ''}${toToken}
 • Protocol Fee: ${protocolFeeFormatted} ${fromToken} (1%)
 • Route: ${bestQuote.routeInfo || "Best available"}
 • Gas Estimate: ${bestQuote.gasEstimate ? formatUnits(bestQuote.gasEstimate * 50_000_000_000n, 18) : "~0.01"} MON
-• Slippage allowed: ${(validatedSlippageBps / 100).toFixed(2)}% (${validatedSlippageBps} bps)
-• Sources checked: ${rankedQuotes.length + failedAggregators.length} DEX aggregators
+• Slippage: ${(validatedSlippageBps / 100).toFixed(2)}%
+• Sources: ${rankedQuotes.length + failedAggregators.length} DEX aggregators
 
-Quote ID: ${quoteId}
-Valid for: 5 minutes${unverifiedWarning}
+Valid for 5 minutes. Reply "yes" to execute.${unverifiedWarning}
 
-This quote is ready to execute. Would you like me to proceed with the swap?`;
+<!--QUOTE_ID:${quoteId}-->`;
     } catch (error) {
       const err = error as Error;
 

@@ -442,46 +442,57 @@ async function queryNFTPurchaseEvents(
   }
 
   const topic0 = keccak256(toBytes(ORDER_FULFILLED_SIGNATURE));
-
-  const response = await fetch(HYPERSYNC_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${ENVIO_TOKEN}`,
-    },
-    body: JSON.stringify({
-      from_block: fromBlock,
-      to_block: toBlock,
-      logs: [
-        {
-          // Don't filter by address - catch all Seaport versions (1.5, 1.6, etc.)
-          topics: [[topic0]],
-        },
-      ],
-      field_selection: {
-        log: ["transaction_hash"],
-      },
-      include_all_blocks: false,
-    }),
-  });
-
-  if (!response.ok) {
-    console.warn(`[Indexer] NFT purchase events query failed: ${response.status}`);
-    return new Set();
-  }
-
-  const result: HypersyncResponse = await response.json();
-
   const nftTxHashes = new Set<string>();
-  for (const dataItem of result.data) {
-    if (dataItem.logs) {
-      for (const log of dataItem.logs) {
-        nftTxHashes.add(log.transaction_hash.toLowerCase());
+
+  // HyperSync returns partial results for large block ranges
+  // Chunk into smaller ranges (50k blocks) to ensure complete results
+  const CHUNK_SIZE = 50000;
+  const totalBlocks = toBlock - fromBlock;
+  const numChunks = Math.ceil(totalBlocks / CHUNK_SIZE);
+
+  for (let i = 0; i < numChunks; i++) {
+    const chunkFrom = fromBlock + i * CHUNK_SIZE;
+    const chunkTo = Math.min(chunkFrom + CHUNK_SIZE - 1, toBlock);
+
+    const response = await fetch(HYPERSYNC_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${ENVIO_TOKEN}`,
+      },
+      body: JSON.stringify({
+        from_block: chunkFrom,
+        to_block: chunkTo,
+        logs: [
+          {
+            // Don't filter by address - catch all Seaport versions (1.5, 1.6, etc.)
+            topics: [[topic0]],
+          },
+        ],
+        field_selection: {
+          log: ["transaction_hash"],
+        },
+        include_all_blocks: false,
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn(`[Indexer] NFT purchase events query failed for chunk ${i + 1}/${numChunks}: ${response.status}`);
+      continue;
+    }
+
+    const result: HypersyncResponse = await response.json();
+
+    for (const dataItem of result.data) {
+      if (dataItem.logs) {
+        for (const log of dataItem.logs) {
+          nftTxHashes.add(log.transaction_hash.toLowerCase());
+        }
       }
     }
   }
 
-  console.log(`[Indexer] Found ${nftTxHashes.size} NFT purchase transactions`);
+  console.log(`[Indexer] Found ${nftTxHashes.size} NFT purchase transactions (${numChunks} chunks)`);
   return nftTxHashes;
 }
 
@@ -783,11 +794,14 @@ export async function runIndexer(options: {
     const topic0 = keccak256(toBytes(VALIDATED_PAYMENT_SIGNATURE));
 
     // Query Pragma events from HyperSync + event detection for classification
-    const [pragmaResult, stakeTxHashes, nftTxHashes, monorailTxHashes] = await Promise.all([
+    // Also query 0x fee data for integrator fee tracking
+    const [pragmaResult, stakeTxHashes, nftTxHashes, monorailTxHashes, zeroXTransfers, zeroXApiTrades] = await Promise.all([
       queryHypersync(fromBlock, toBlock, topic0),
       queryStakeEvents(fromBlock, toBlock),
       queryNFTPurchaseEvents(fromBlock, toBlock), // Seaport OrderFulfilled events
       queryMonorailTradeEvents(fromBlock, toBlock), // Monorail AggregatedTrade events
+      query0xTransfers(fromBlock, toBlock), // 0x ERC20 affiliate fee Transfer events
+      query0xTradeAnalytics(), // 0x API for native MON fees (paginated, no block filter)
     ]);
 
     const totalEvents = pragmaResult.logs.length;
@@ -805,7 +819,13 @@ export async function runIndexer(options: {
       };
     }
 
-    console.log(`[Indexer] Found ${pragmaResult.logs.length} ValidatedPayment events, ${stakeTxHashes.size} stake txs, ${nftTxHashes.size} NFT txs, ${monorailTxHashes.size} Monorail txs`);
+    // Filter 0x API trades to only those within our block range
+    const zeroXApiTradesInRange = zeroXApiTrades.filter(t => {
+      const blockNum = parseInt(t.blockNumber);
+      return blockNum >= fromBlock && blockNum <= toBlock;
+    });
+
+    console.log(`[Indexer] Found ${pragmaResult.logs.length} ValidatedPayment, ${zeroXTransfers.logs.length} 0x ERC20 transfers, ${zeroXApiTradesInRange.length} 0x API trades, ${stakeTxHashes.size} stake, ${nftTxHashes.size} NFT, ${monorailTxHashes.size} Monorail`);
 
     // Build block timestamp map from Pragma events
     const blockTimestamps = new Map<number, number>();
@@ -865,10 +885,108 @@ export async function runIndexer(options: {
       });
     }
 
+    // =========================================================================
+    // Process 0x Integrator Fee Records
+    // =========================================================================
+
+    // Build tx_hash → {delegator, action_type} map from pragma payments for 0x fee lookups
+    const pragmaRecordByTxHash = new Map<string, { delegator: string; action_type: string }>();
+    for (const p of payments) {
+      pragmaRecordByTxHash.set(p.tx_hash.toLowerCase(), {
+        delegator: p.delegator,
+        action_type: p.action_type,
+      });
+    }
+
+    // Add block timestamps from 0x transfers
+    for (const block of zeroXTransfers.blocks) {
+      if (!blockTimestamps.has(block.number)) {
+        blockTimestamps.set(block.number, block.timestamp);
+      }
+    }
+
+    // Process 0x ERC20 fee Transfer events
+    let zeroXErc20Count = 0;
+    for (const log of zeroXTransfers.logs) {
+      const timestamp = blockTimestamps.get(log.block_number) || Math.floor(Date.now() / 1000);
+      const transfer = decodeTransferLog(log, timestamp);
+      if (!transfer) continue;
+
+      // Get pragma record info (delegator + action_type) from same tx
+      const pragmaRecord = pragmaRecordByTxHash.get(transfer.txHash.toLowerCase());
+      if (!pragmaRecord) {
+        console.warn(`[Indexer] No pragma record for 0x transfer: ${transfer.txHash}`);
+        continue;
+      }
+
+      // Get token price for USD value
+      const tokenPrice = await getTokenPrice(transfer.token);
+      const decimals = tokenPrice?.decimals ?? 18;
+      const amountFloat = Number(transfer.amount) / Math.pow(10, decimals);
+      const priceUsd = tokenPrice?.priceUsd || 0;
+      const feeUsd = amountFloat * priceUsd;
+
+      payments.push({
+        tx_hash: transfer.txHash,
+        block_number: transfer.blockNumber,
+        log_index: transfer.logIndex, // Use actual log_index from Transfer event
+        delegator: pragmaRecord.delegator,
+        token: transfer.token.toLowerCase(),
+        amount_wei: transfer.amount.toString(),
+        is_native: false,
+        timestamp: transfer.timestamp.toISOString(),
+        token_price_usd: priceUsd > 0 ? priceUsd : null,
+        fee_usd: feeUsd > 0 ? feeUsd : null,
+        volume_usd: null, // Don't count volume (already counted in pragma record)
+        source: "0x",
+        action_type: pragmaRecord.action_type as PaymentRecord["action_type"], // Match pragma record's action_type
+      });
+      zeroXErc20Count++;
+    }
+
+    // Process 0x Native MON fee trades (from API)
+    const NATIVE_TOKEN = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    let zeroXNativeCount = 0;
+    for (const trade of zeroXApiTradesInRange) {
+      // Only process native MON fees (ERC20 fees are handled via HyperSync above)
+      const feeToken = trade.fees?.integratorFee?.token?.toLowerCase();
+      if (feeToken !== NATIVE_TOKEN) continue;
+
+      // Get pragma record info (delegator + action_type) from same tx
+      const pragmaRecord = pragmaRecordByTxHash.get(trade.transactionHash.toLowerCase());
+      if (!pragmaRecord) {
+        console.warn(`[Indexer] No pragma record for 0x native trade: ${trade.transactionHash}`);
+        continue;
+      }
+
+      const feeUsd = parseFloat(trade.fees.integratorFee?.amountUsd || "0");
+
+      payments.push({
+        tx_hash: trade.transactionHash,
+        block_number: parseInt(trade.blockNumber),
+        log_index: -1, // Special marker for native fees (no on-chain event)
+        delegator: pragmaRecord.delegator,
+        token: NATIVE_TOKEN,
+        amount_wei: trade.fees.integratorFee?.amount || "0",
+        is_native: true,
+        timestamp: new Date(trade.timestamp * 1000).toISOString(),
+        token_price_usd: null,
+        fee_usd: feeUsd > 0 ? feeUsd : null,
+        volume_usd: null, // Don't count volume (already counted in pragma record)
+        source: "0x",
+        action_type: pragmaRecord.action_type as PaymentRecord["action_type"], // Match pragma record's action_type
+      });
+      zeroXNativeCount++;
+    }
+
+    if (zeroXErc20Count > 0 || zeroXNativeCount > 0) {
+      console.log(`[Indexer] Added ${zeroXErc20Count} 0x ERC20 fee records, ${zeroXNativeCount} 0x native fee records`);
+    }
+
     // Insert to database
     const inserted = await insertPayments(supabase, payments);
 
-    console.log(`[Indexer] Indexed ${inserted} payments from ${pragmaResult.logs.length} ValidatedPayment events`);
+    console.log(`[Indexer] Indexed ${inserted} payments (${pragmaResult.logs.length} pragma + ${zeroXErc20Count} 0x ERC20 + ${zeroXNativeCount} 0x native)`);
 
     // Log sync operation for accurate timestamp tracking
     await logSyncOperation(supabase, inserted, fromBlock, toBlock);

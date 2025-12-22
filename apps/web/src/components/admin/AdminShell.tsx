@@ -7,7 +7,7 @@
  * Includes sync status indicator and manual sync button.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { RefreshCw, Check, AlertCircle, Sun, Moon } from "lucide-react";
 import { useThemeStore } from "@/stores/useThemeStore";
@@ -64,6 +64,36 @@ export function AdminShell({ children, title, description, onSyncComplete }: Adm
   useEffect(() => {
     fetchSyncStatus();
   }, [fetchSyncStatus]);
+
+  // Poll for sync updates every 5 minutes (matches cron interval)
+  const lastSyncRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    lastSyncRef.current = lastSync;
+  }, [lastSync]);
+
+  useEffect(() => {
+    const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+    const pollForUpdates = async () => {
+      try {
+        const res = await fetch("/api/admin/index-payments");
+        if (res.ok) {
+          const data = await res.json();
+          // If lastSync changed, new data was indexed by cron
+          if (data.lastSync && data.lastSync !== lastSyncRef.current) {
+            setLastSync(data.lastSync);
+            onSyncComplete?.();
+          }
+        }
+      } catch (error) {
+        console.error("Poll failed:", error);
+      }
+    };
+
+    const interval = setInterval(pollForUpdates, POLL_INTERVAL);
+    return () => clearInterval(interval);
+  }, [onSyncComplete]);
 
   // Trigger manual sync
   const handleSync = async () => {

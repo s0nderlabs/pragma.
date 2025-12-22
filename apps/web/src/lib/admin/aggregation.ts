@@ -437,7 +437,10 @@ export async function runAggregation(options: AggregationOptions = {}): Promise<
     if (full) {
       startDate = new Date(0); // From beginning
     } else {
+      // Calculate start date and truncate to start of day (midnight UTC)
+      // This ensures we aggregate FULL days, not partial days
       startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
+      startDate.setUTCHours(0, 0, 0, 0);
     }
 
     // Run all aggregations

@@ -151,12 +151,18 @@ export async function middleware(request: NextRequest) {
   // admin.pr4gma.xyz → /admin/*
   const isAdminSubdomain = hostname.startsWith("admin.");
 
+  // Track if we need to rewrite the URL after auth check
+  let adminRewriteUrl: URL | null = null;
+  let effectivePathname = pathname;
+
   if (isAdminSubdomain) {
     // Rewrite admin.pr4gma.xyz/users → /admin/users
     if (!pathname.startsWith("/admin") && !pathname.startsWith("/api/admin")) {
       const url = request.nextUrl.clone();
       url.pathname = pathname === "/" ? "/admin" : `/admin${pathname}`;
-      return NextResponse.rewrite(url);
+      // Don't return immediately - store for after auth check
+      adminRewriteUrl = url;
+      effectivePathname = url.pathname;
     }
     // For /api/admin/* routes, let them pass through as-is
   }
@@ -177,18 +183,24 @@ export async function middleware(request: NextRequest) {
   // ============================================================================
 
   // Protect admin routes (except login page and auth API)
-  if (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) {
+  // Use effectivePathname to check rewritten paths from admin subdomain
+  if (effectivePathname.startsWith("/admin") && !effectivePathname.startsWith("/admin/login")) {
     const token = request.cookies.get("admin_token")?.value;
 
     if (!token) {
       // Redirect to login if no token
       const loginUrl = new URL("/admin/login", request.url);
-      loginUrl.searchParams.set("redirect", pathname);
+      loginUrl.searchParams.set("redirect", effectivePathname);
       return NextResponse.redirect(loginUrl);
     }
 
     // Note: Full JWT verification happens in the route handlers
     // Middleware just checks for token existence (edge runtime limitations)
+  }
+
+  // Return the admin subdomain rewrite if we stored one (after auth check passed)
+  if (adminRewriteUrl) {
+    return NextResponse.rewrite(adminRewriteUrl);
   }
 
   // Only apply API middleware to API routes

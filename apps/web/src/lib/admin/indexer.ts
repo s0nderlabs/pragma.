@@ -66,6 +66,21 @@ interface TokenPrice {
 const priceCache = new Map<string, TokenPrice>();
 const PRICE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// Hardcoded decimals for known tokens (fallback when API fails)
+// This ensures stablecoins don't get calculated with wrong decimals
+const KNOWN_TOKEN_DECIMALS: Record<string, number> = {
+  // Native/wrapped
+  "0x0000000000000000000000000000000000000000": 18, // Native MON
+  "0x3bd359c1119da7da1d913d1c4d2b7c461115433a": 18, // WMON
+  // Stablecoins (6 decimals)
+  "0xe7cd86e13ac4309349f30b3435a9d337750fc82d": 6,  // USDT0
+  "0x00000000efe302beaa2b3e6e1b18d08d69a9012a": 6,  // AUSD
+  "0xf817257fed379853cde0fa4f97ab987181b1e5ea": 6,  // USDC
+  "0x0f0bdebf0f83cd1ee3974779bcb7315f9808c714": 6,  // USDC (alternate)
+  // Other known tokens
+  "0xee8c0e9f1bffb4eb878d8f15f368a02a35481242": 18, // WETH
+};
+
 async function getTokenPrice(tokenAddress: string): Promise<TokenPrice | null> {
   const normalized = tokenAddress.toLowerCase();
   const cached = priceCache.get(normalized);
@@ -858,8 +873,9 @@ export async function runIndexer(options: {
       // Get token price (includes decimals)
       const tokenPrice = await getTokenPrice(event.token);
 
-      // Calculate USD values
-      const decimals = tokenPrice?.decimals ?? 18;
+      // Calculate USD values - use known decimals fallback for stablecoins
+      const tokenLower = event.token.toLowerCase();
+      const decimals = tokenPrice?.decimals ?? KNOWN_TOKEN_DECIMALS[tokenLower] ?? 18;
       const amountFloat = Number(event.actualAmount) / Math.pow(10, decimals);
       const priceUsd = tokenPrice?.priceUsd || 0;
       const feeUsd = amountFloat * priceUsd;
@@ -919,9 +935,10 @@ export async function runIndexer(options: {
         continue;
       }
 
-      // Get token price for USD value
+      // Get token price for USD value - use known decimals fallback for stablecoins
       const tokenPrice = await getTokenPrice(transfer.token);
-      const decimals = tokenPrice?.decimals ?? 18;
+      const transferTokenLower = transfer.token.toLowerCase();
+      const decimals = tokenPrice?.decimals ?? KNOWN_TOKEN_DECIMALS[transferTokenLower] ?? 18;
       const amountFloat = Number(transfer.amount) / Math.pow(10, decimals);
       const priceUsd = tokenPrice?.priceUsd || 0;
       const feeUsd = amountFloat * priceUsd;

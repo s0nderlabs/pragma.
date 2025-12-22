@@ -237,6 +237,7 @@ export interface PaymentsListParams {
   delegator?: string;
   startDate?: Date;
   endDate?: Date;
+  source?: "pragma" | "0x"; // Filter by source (default: pragma for activity feeds)
 }
 
 export interface PaymentsListResult {
@@ -248,11 +249,12 @@ export interface PaymentsListResult {
 
 export async function getPayments(params: PaymentsListParams = {}): Promise<PaymentsListResult> {
   const supabase = getSupabaseClient();
-  const { page = 1, limit = 50, delegator, startDate, endDate } = params;
+  const { page = 1, limit = 50, delegator, startDate, endDate, source = "pragma" } = params;
 
   let query = supabase
     .from("validated_payments")
     .select("*", { count: "exact" })
+    .eq("source", source) // Filter by source (default: pragma to show records with volume)
     .order("timestamp", { ascending: false });
 
   if (delegator) {

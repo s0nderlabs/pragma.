@@ -146,6 +146,25 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(url);
   }
 
+  // ============================================================================
+  // ADMIN ROUTE PROTECTION
+  // ============================================================================
+
+  // Protect admin routes (except login page and auth API)
+  if (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) {
+    const token = request.cookies.get("admin_token")?.value;
+
+    if (!token) {
+      // Redirect to login if no token
+      const loginUrl = new URL("/admin/login", request.url);
+      loginUrl.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // Note: Full JWT verification happens in the route handlers
+    // Middleware just checks for token existence (edge runtime limitations)
+  }
+
   // Only apply API middleware to API routes
   if (!pathname.startsWith("/api/")) {
     return NextResponse.next();

@@ -204,8 +204,13 @@ export async function middleware(request: NextRequest) {
   const referer = request.headers.get("referer");
 
   // Check origin for non-GET requests
+  // Exception: /api/admin/index-payments allows API key auth (for cron services)
+  const hasApiKey = request.headers.get("x-api-key");
+  const isIndexPayments = pathname === "/api/admin/index-payments";
+
   if (request.method !== "GET" && request.method !== "HEAD") {
-    if (!isOriginAllowed(origin)) {
+    // Skip origin check for index-payments with API key (cron services)
+    if (!(isIndexPayments && hasApiKey) && !isOriginAllowed(origin)) {
       console.warn(
         `[Middleware] Blocked request from unauthorized origin: ${origin}`
       );

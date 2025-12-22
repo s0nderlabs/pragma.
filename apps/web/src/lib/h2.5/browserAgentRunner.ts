@@ -20,7 +20,7 @@
  */
 
 import type { BaseMessage } from "@langchain/core/messages";
-import { PRAGMA_H2_SYSTEM_PROMPT, PRAGMA_H2_SYSTEM_PROMPT_DEEPSEEK, PRAGMA_H2_SYSTEM_PROMPT_GROK, PRAGMA_H2_SYSTEM_PROMPT_GEMINI, createLogger } from "@pragma/core";
+import { PRAGMA_SYSTEM_PROMPT, createLogger } from "@pragma/core";
 import type { AllowedToken } from "@pragma/core";
 import { onProgress, offProgress, type ProgressEvent } from "@pragma/core/h2/progress/emitter";
 import { authenticatedFetch } from "../api/authenticatedFetch";
@@ -530,12 +530,19 @@ export async function streamBrowserAgent(
       }
 
       // Handle nested input structure from LangChain
-      // Input may be wrapped as { input: '{"fromToken":"MON",...}' }
-      if (inputObj.input && typeof inputObj.input === 'string') {
-        try {
-          inputObj = JSON.parse(inputObj.input);
-        } catch {
-          // Keep original if parsing fails
+      // Input may be wrapped as { input: '{"fromToken":"MON",...}' } (string)
+      // OR as { input: { fromToken: "MON", ... } } (object)
+      // LangChain streamEvents v2 doesn't guarantee consistent format
+      if (inputObj.input) {
+        if (typeof inputObj.input === 'string') {
+          try {
+            inputObj = JSON.parse(inputObj.input);
+          } catch {
+            // Keep original if parsing fails
+          }
+        } else if (typeof inputObj.input === 'object' && inputObj.input !== null) {
+          // LangChain sometimes passes object wrapper instead of string
+          inputObj = inputObj.input as Record<string, unknown>;
         }
       }
 
@@ -749,13 +756,17 @@ For DIRECT operations (transfer/wrap/unwrap/stake/unstake):
 Session key funding is a maintenance operation that does not require user confirmation.
 
 **FUNDING + EXECUTION IN SAME TURN (CRITICAL):**
-In Quick Mode, after fundSessionKey completes, CONTINUE executing in the same response:
-1. fundSessionKey → wait for completion
-2. IMMEDIATELY proceed to execution tools (no stopping, no waiting)
-3. Complete ALL operations in one response
+In Quick Mode, funding and execution happen in ONE response, but MUST be SEQUENTIAL:
 
-Do NOT say "[next turn will execute]" - there is no next turn in Quick Mode.
-Execute everything NOW.
+1. Call fundSessionKey FIRST → wait for completion message
+2. ONLY AFTER you see fundSessionKey result → call execution tools
+3. NEVER call fundSessionKey and executeSwap/transfer/stake in the same tool call batch
+
+✅ CORRECT: [fundSessionKey] → wait for result → [executeSwap, executeSwap]
+❌ WRONG: [fundSessionKey, executeSwap, executeSwap] (parallel = race condition)
+
+Quick Mode means "no user confirmation needed" - it does NOT mean you can parallelize funding and execution.
+Funding and execution tools MUST NEVER run in parallel. Session key needs funds BEFORE it can pay gas.
 
 **BALANCE FETCHING:**
 - User says "show balances" or "what do I have" → use getAllBalances (fast, gets all tokens)
@@ -862,15 +873,9 @@ For wrap/unwrap/transfer: ask first, then execute.
 
 Group capabilities with **bold section headers**. Use emojis sparingly. Natural, conversational tone.`;
 
-    // Select prompt based on model provider
-    // - Gemini: Dedicated prompt with 5 improvements from founder's audit
-    // - DeepSeek/Kimi/Grok: Comprehensive prompt with full tool docs (no compression)
-    // - OpenAI (GPT-5-mini): Base prompt (designed for GPT's natural behavior)
+    // Unified system prompt for all LLM providers
     const modelProvider = process.env.NEXT_PUBLIC_MODEL_PROVIDER || 'deepseek';
-    const basePrompt =
-      modelProvider === 'gemini' ? PRAGMA_H2_SYSTEM_PROMPT_GEMINI :
-      ['deepseek', 'kimi', 'grok'].includes(modelProvider) ? PRAGMA_H2_SYSTEM_PROMPT_GROK :
-      PRAGMA_H2_SYSTEM_PROMPT;
+    const basePrompt = PRAGMA_SYSTEM_PROMPT;
 
     // =========================================================================
     // Sliding Window (Anti-Hallucination)

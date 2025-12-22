@@ -141,13 +141,24 @@ export function useH2_5Agent() {
         payload = signature.split(':')[1];
       }
 
+      // Helper to format token identifiers (truncate addresses for readability)
+      const formatToken = (token: string): string => {
+        // If it looks like an address (starts with 0X after uppercase), truncate it
+        // Full symbol resolution will come from progress update
+        if (token.startsWith('0X') && token.length > 10) {
+          return `${token.slice(0, 6)}...`;
+        }
+        return token;
+      };
+
       switch (toolName) {
         case 'getSwapQuote':
         case 'executeSwap': {
-          // Payload format: "FROM-TO" (e.g., "MON-DAK")
+          // Payload format: "FROM-TO" (e.g., "MON-DAK" or "0X97401D...-MON")
           const parts = payload.split('-');
           if (parts.length === 2) {
-            const [from, to] = parts;
+            const from = formatToken(parts[0]);
+            const to = formatToken(parts[1]);
             return toolName === 'getSwapQuote'
               ? `Swap ${from} → ${to}`
               : `Executing ${from} → ${to}`;

@@ -138,8 +138,8 @@ export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInpu
 
   return (
     <div
-      className={cn("px-4 pt-4 pb-8 flex justify-center", className)}
-      style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 0px))' }}
+      className={cn("px-4 pt-4 pb-4 flex justify-center", className)}
+      style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}
     >
       <div className="w-full max-w-4xl">
         {/* Input container with beam wrapper */}

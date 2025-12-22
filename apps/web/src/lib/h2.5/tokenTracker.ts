@@ -17,11 +17,11 @@ import { createLogger } from "@pragma/core";
 const logger = createLogger("[TokenTracker]");
 
 // Base overhead calculated from actual source files:
-// - System prompt (systemPromptDeepSeek.ts): 11,217 chars = ~2,805 tokens
+// - System prompt (pragmaSystemPrompt.ts): 24,688 chars = ~6,172 tokens
 // - Tool descriptions (36 tools): 4,557 chars = ~1,139 tokens
 // - Tool schemas (parameters): 4,212 chars = ~1,053 tokens
-// Total: ~5,000 tokens base overhead
-const BASE_OVERHEAD_TOKENS = 5000;
+// Total: ~8,500 tokens base overhead
+const BASE_OVERHEAD_TOKENS = 8500;
 
 // DeepSeek Reasoner context limit
 const CONTEXT_LIMIT = 128000;

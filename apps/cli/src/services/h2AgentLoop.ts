@@ -18,7 +18,7 @@ import { privateKeyToAccount, nonceManager } from "viem/accounts";
 // This is safe - LangGraph properly cleans up listeners after each operation completes
 setMaxListeners(50); // Support up to ~20 batch operations safely
 
-import { createPragmaH2Agent, PRAGMA_H2_SYSTEM_PROMPT, onProgress, offProgress, type ProgressEvent } from "@pragma/core";
+import { createPragmaH2Agent, PRAGMA_SYSTEM_PROMPT, onProgress, offProgress, type ProgressEvent } from "@pragma/core";
 import { loadAllowedTokens } from "./monorailTokens.js";
 import { logoutH2Session, type SessionState } from "./sessionStore.js";
 import type { Web3AuthBridge } from "./web3authServer.js";
@@ -356,7 +356,7 @@ Session key funding is a maintenance operation that does not require user confir
 For swaps: call getSwapQuote, show quote, wait for approval ('yes', 'execute', 'proceed'), then executeSwap.
 For wrap/unwrap/transfer: ask first, then execute.`;
 
-  const systemPrompt = PRAGMA_H2_SYSTEM_PROMPT
+  const systemPrompt = PRAGMA_SYSTEM_PROMPT
     .replace(/\[userAddress from context\]/g, userAddress)
     .replace(/\[userAddress\]/g, userAddress)
     .replace(/\[EXECUTION_MODE\]/g, modeInstructions);
@@ -528,7 +528,7 @@ Session key funding is a maintenance operation that does not require user confir
 For swaps: call getSwapQuote, show quote, wait for approval ('yes', 'execute', 'proceed'), then executeSwap.
 For wrap/unwrap/transfer: ask first, then execute.`;
 
-      const updatedSystemPrompt = PRAGMA_H2_SYSTEM_PROMPT
+      const updatedSystemPrompt = PRAGMA_SYSTEM_PROMPT
         .replace(/\[userAddress from context\]/g, userAddress)
         .replace(/\[userAddress\]/g, userAddress)
         .replace(/\[EXECUTION_MODE\]/g, modeInstructions);

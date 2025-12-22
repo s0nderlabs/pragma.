@@ -8,7 +8,7 @@ import { createAgent } from "langchain";
 import { ChatOpenAI } from "@langchain/openai";
 
 import { h2ToolRegistry } from "../tools/index.js";
-import { PRAGMA_H2_SYSTEM_PROMPT } from "./systemPrompt.js";
+import { PRAGMA_SYSTEM_PROMPT } from "./pragmaSystemPrompt.js";
 import { createErrorFromCode } from "../../errors/index.js";
 
 // ============================================================================

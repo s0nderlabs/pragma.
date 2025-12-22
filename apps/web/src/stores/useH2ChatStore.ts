@@ -687,39 +687,72 @@ export const useH2ChatStore = create<H2ChatState>()(
             });
 
             // PASS 2: If no exact match, fall back to toolName match
-            // This handles cases where tool signature (Date.now()) differs from UI signature (input-based)
+            // BUT ONLY if there's exactly ONE running tool with this name
+            // AND that tool has been running long enough (not a parallel batch forming)
+            // For parallel execution, skip to buffering to avoid stealing steps
             if (!foundTool) {
-              messages = messages.map((msg) => {
-                if (foundTool) return msg; // Only update first matching tool
+              // Count running tools with this toolName and find the single running tool's timestamp
+              let runningCount = 0;
+              let singleRunningTimestamp: number | undefined;
+              const PARALLEL_BATCH_WINDOW_MS = 2000; // 2 second window for parallel batch detection
+
+              for (const msg of state.messages) {
                 if (msg.role === "tool") {
                   const toolMsg = msg as ToolMessage;
-
-                  // Check parent children by toolName
                   if (toolMsg.isParent && toolMsg.children) {
-                    let childUpdated = false;
-                    const updatedChildren = toolMsg.children.map((child) => {
-                      if (!childUpdated && child.toolName === toolName && child.status === "running") {
-                        childUpdated = true;
-                        return addStepToTool(child);
+                    for (const child of toolMsg.children) {
+                      if (child.toolName === toolName && child.status === "running") {
+                        runningCount++;
+                        singleRunningTimestamp = child.timestamp;
                       }
-                      return child;
-                    });
-
-                    if (childUpdated) {
-                      return {
-                        ...toolMsg,
-                        children: updatedChildren,
-                      };
                     }
-                  }
-
-                  // Standalone tool matching by toolName (first running tool wins)
-                  if (toolMsg.toolName === toolName && toolMsg.status === "running") {
-                    return addStepToTool(toolMsg);
+                  } else if (toolMsg.toolName === toolName && toolMsg.status === "running" && !toolMsg.isParent) {
+                    runningCount++;
+                    singleRunningTimestamp = toolMsg.timestamp;
                   }
                 }
-                return msg;
-              });
+              }
+
+              // Only use PASS 2 fallback if:
+              // 1. Exactly ONE tool is running, AND
+              // 2. That tool has been running for a while (not a fresh parallel batch)
+              // If tool started recently, more parallel tools might be coming - skip to buffering
+              const timeSinceStart = singleRunningTimestamp ? Date.now() - singleRunningTimestamp : Infinity;
+              const isSafeForPass2 = runningCount === 1 && timeSinceStart > PARALLEL_BATCH_WINDOW_MS;
+
+              if (isSafeForPass2) {
+                messages = messages.map((msg) => {
+                  if (foundTool) return msg; // Only update first matching tool
+                  if (msg.role === "tool") {
+                    const toolMsg = msg as ToolMessage;
+
+                    // Check parent children by toolName
+                    if (toolMsg.isParent && toolMsg.children) {
+                      let childUpdated = false;
+                      const updatedChildren = toolMsg.children.map((child) => {
+                        if (!childUpdated && child.toolName === toolName && child.status === "running") {
+                          childUpdated = true;
+                          return addStepToTool(child);
+                        }
+                        return child;
+                      });
+
+                      if (childUpdated) {
+                        return {
+                          ...toolMsg,
+                          children: updatedChildren,
+                        };
+                      }
+                    }
+
+                    // Standalone tool matching by toolName (first running tool wins)
+                    if (toolMsg.toolName === toolName && toolMsg.status === "running") {
+                      return addStepToTool(toolMsg);
+                    }
+                  }
+                  return msg;
+                });
+              }
             }
 
             // If still no tool found, buffer the step for later

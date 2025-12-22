@@ -25,13 +25,14 @@ import { custom, type Transport } from "viem";
 export function createSyncTransport(
   baseTransport: Transport,
   options?: {
-    /** Timeout in milliseconds for sync transaction (default: 2000ms per EIP-7966) */
+    /** Timeout in milliseconds for sync transaction (default: 5000ms) */
     timeout?: number;
     /** Whether to log debug info (default: false, or true if DEBUG_EIP7966 env var is set) */
     debug?: boolean;
   }
 ): Transport {
-  const timeout = options?.timeout ?? 2000;
+  // Default 5000ms - enough for complex delegation txs on Monad (~1s blocks)
+  const timeout = options?.timeout ?? 5000;
   // Enable debug via option or environment variable
   const debug =
     options?.debug ??
@@ -88,17 +89,23 @@ export function createSyncTransport(
             error?.message?.includes("not supported") ||
             error?.message?.includes("unknown method");
 
-          if (isUnsupportedMethod) {
+          // Detect timeout errors - EIP-7966 may timeout but tx was likely submitted
+          const isTimeout =
+            error?.message?.includes("timeout") ||
+            error?.message?.includes("not available within");
+
+          if (isUnsupportedMethod || isTimeout) {
             if (debug) {
+              const reason = isTimeout ? "timeout" : "not supported";
               console.log(
-                "[syncTransport] ⚠️ eth_sendRawTransactionSync not supported, falling back to standard method"
+                `[syncTransport] ⚠️ EIP-7966 ${reason}, falling back to standard method`
               );
             }
             // Fallback to standard eth_sendRawTransaction
             return transport.request({ method, params });
           }
 
-          // For other errors (like timeout, nonce issues), propagate them
+          // For other errors (nonce issues, etc.), propagate them
           if (debug) {
             console.log(
               `[syncTransport] ❌ EIP-7966 ERROR: ${error?.message || "unknown"}`

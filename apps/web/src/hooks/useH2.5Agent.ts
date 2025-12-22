@@ -434,7 +434,7 @@ export function useH2_5Agent() {
             { nonceManager }  // Enable atomic nonce management for parallel operations
           ),
           chain: monadDevnet,
-          transport: createSyncTransport(authenticatedTransport, { debug: true }),  // EIP-7966 + Authenticated RPC
+          transport: createSyncTransport(authenticatedTransport),  // EIP-7966 + Authenticated RPC
         });
 
         // Create direct Web3Auth bridge (no network transport!)

@@ -183,7 +183,7 @@ export async function fundSessionKeyViaDelegation(
       nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
       rpcUrls: { default: { http: [] }, public: { http: [] } }, // RPC URLs not needed (transport handles routing)
     },
-    transport: createSyncTransport(transport, { debug: true }), // Use authenticated transport from caller
+    transport: createSyncTransport(transport), // Use authenticated transport from caller
   });
 
   // Step 6: Submit transaction via delegation redemption

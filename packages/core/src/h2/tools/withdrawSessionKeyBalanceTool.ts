@@ -170,7 +170,7 @@ Not enough MON left to pay for gas. Try withdrawing less or use "all" to withdra
         sessionWallet = createWalletClient({
           account: privateKeyToAccount(sessionData.sessionKeyPrivateKey),
           chain: MONAD_CHAIN,
-          transport: createSyncTransport(transport, { debug: true }),
+          transport: createSyncTransport(transport),
         });
       }
 

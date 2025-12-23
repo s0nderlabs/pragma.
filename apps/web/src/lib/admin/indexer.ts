@@ -31,8 +31,12 @@ const TRANSFER_SIGNATURE = "Transfer(address,address,uint256)";
 const DEPOSIT_SIGNATURE = "Deposit(address,address,uint256,uint256)"; // aPriori stake event
 // Seaport OrderFulfilled - for NFT purchase detection (both Seaport 1.5 and 1.6)
 const ORDER_FULFILLED_SIGNATURE = "OrderFulfilled(bytes32,address,address,address,(uint8,address,uint256,uint256)[],(uint8,address,uint256,uint256,address)[])";
-// Monorail AggregatedTrade - for detecting Monorail swaps vs 0x swaps
-const AGGREGATED_TRADE_SIGNATURE = "AggregatedTrade(address,address,address,uint256,uint256)";
+// Monorail Aggregated event - for detecting Monorail swaps and tracking integrator fees
+// Full signature with referrer fee info: sender, tokenIn, tokenOut (indexed) + amountIn, amountOut, protocolFee, referrerFee, referrer, quote (data)
+const AGGREGATED_SIGNATURE = "Aggregated(address,address,address,uint256,uint256,uint256,uint256,uint64,uint64)";
+
+// Pragma's Monorail referrer source ID - used to identify our integrator fees
+const PRAGMA_REFERRER_ID = 4101175973046541n;
 
 // ============================================================================
 // Supabase Client
@@ -512,19 +516,19 @@ async function queryNFTPurchaseEvents(
 }
 
 /**
- * Query HyperSync for Monorail AggregatedTrade events to detect Monorail swaps.
- * Returns Set of tx hashes that used Monorail router.
- * Swaps WITHOUT this event are classified as 0x swaps.
+ * Query HyperSync for Monorail Aggregated events.
+ * Returns full event data for integrator fee tracking AND a Set of tx hashes.
+ * The Aggregated event contains exact fee in referrerFee field.
  */
 async function queryMonorailTradeEvents(
   fromBlock: number,
   toBlock: number
-): Promise<Set<string>> {
+): Promise<{ logs: HypersyncLog[]; blocks: HypersyncBlock[]; txHashes: Set<string> }> {
   if (!ENVIO_TOKEN) {
-    return new Set();
+    return { logs: [], blocks: [], txHashes: new Set() };
   }
 
-  const topic0 = keccak256(toBytes(AGGREGATED_TRADE_SIGNATURE));
+  const topic0 = keccak256(toBytes(AGGREGATED_SIGNATURE));
 
   const response = await fetch(HYPERSYNC_URL, {
     method: "POST",
@@ -542,7 +546,8 @@ async function queryMonorailTradeEvents(
         },
       ],
       field_selection: {
-        log: ["transaction_hash"],
+        log: ["block_number", "transaction_hash", "log_index", "topic0", "topic1", "topic2", "topic3", "data"],
+        block: ["number", "timestamp"],
       },
       include_all_blocks: false,
     }),
@@ -550,22 +555,29 @@ async function queryMonorailTradeEvents(
 
   if (!response.ok) {
     console.warn(`[Indexer] Monorail trade events query failed: ${response.status}`);
-    return new Set();
+    return { logs: [], blocks: [], txHashes: new Set() };
   }
 
   const result: HypersyncResponse = await response.json();
 
-  const monorailTxHashes = new Set<string>();
+  const logs: HypersyncLog[] = [];
+  const blocks: HypersyncBlock[] = [];
+  const txHashes = new Set<string>();
+
   for (const dataItem of result.data) {
     if (dataItem.logs) {
       for (const log of dataItem.logs) {
-        monorailTxHashes.add(log.transaction_hash.toLowerCase());
+        logs.push(log);
+        txHashes.add(log.transaction_hash.toLowerCase());
       }
+    }
+    if (dataItem.blocks) {
+      blocks.push(...dataItem.blocks);
     }
   }
 
-  console.log(`[Indexer] Found ${monorailTxHashes.size} Monorail swap transactions`);
-  return monorailTxHashes;
+  console.log(`[Indexer] Found ${txHashes.size} Monorail swap transactions (${logs.length} events)`);
+  return { logs, blocks, txHashes };
 }
 
 // ============================================================================
@@ -681,6 +693,79 @@ function decodeTransferLog(log: HypersyncLog, blockTimestamp: number): TransferE
     };
   } catch (error) {
     console.error(`[Indexer] Error decoding Transfer log:`, error);
+    return null;
+  }
+}
+
+/**
+ * Decoded Monorail Aggregated event - contains exact integrator fee in referrerFee field
+ */
+interface MonorailAggregatedEvent {
+  txHash: string;
+  blockNumber: number;
+  logIndex: number;
+  timestamp: Date;
+  sender: string;        // topic1 - user's smart account address
+  tokenIn: string;       // topic2 - input token
+  tokenOut: string;      // topic3 - output token (fee is paid in this token)
+  amountIn: bigint;      // data[0]
+  amountOut: bigint;     // data[1]
+  protocolFee: bigint;   // data[2] - Monorail's 10%
+  referrerFee: bigint;   // data[3] - OUR EXACT 90% FEE!
+  referrer: bigint;      // data[4] - should be PRAGMA_REFERRER_ID (4101175973046541)
+  quote: bigint;         // data[5]
+}
+
+/**
+ * Decode Monorail Aggregated event log
+ * The fee is EXACT in the referrerFee field - no calculation needed!
+ */
+function decodeAggregatedLog(log: HypersyncLog, blockTimestamp: number): MonorailAggregatedEvent | null {
+  try {
+    if (!log.topic1 || !log.topic2 || !log.topic3) {
+      console.warn(`[Indexer] Missing required topics for Aggregated event`);
+      return null;
+    }
+
+    // Decode indexed params from topics
+    const sender = "0x" + log.topic1.slice(26);
+    const tokenIn = "0x" + log.topic2.slice(26);
+    const tokenOut = "0x" + log.topic3.slice(26);
+
+    // Decode non-indexed params from data
+    // 6 values packed: amountIn(uint256), amountOut(uint256), protocolFee(uint256), referrerFee(uint256), referrer(uint64), quote(uint64)
+    const dataWithoutPrefix = log.data.startsWith("0x") ? log.data.slice(2) : log.data;
+
+    // Each uint256 is 64 hex chars (32 bytes), uint64 is also padded to 64 hex chars
+    if (dataWithoutPrefix.length < 384) { // 6 * 64 = 384 chars minimum
+      console.warn(`[Indexer] Aggregated event data too short: ${dataWithoutPrefix.length} chars`);
+      return null;
+    }
+
+    const amountIn = BigInt("0x" + dataWithoutPrefix.slice(0, 64));
+    const amountOut = BigInt("0x" + dataWithoutPrefix.slice(64, 128));
+    const protocolFee = BigInt("0x" + dataWithoutPrefix.slice(128, 192));
+    const referrerFee = BigInt("0x" + dataWithoutPrefix.slice(192, 256));
+    const referrer = BigInt("0x" + dataWithoutPrefix.slice(256, 320));
+    const quote = BigInt("0x" + dataWithoutPrefix.slice(320, 384));
+
+    return {
+      txHash: log.transaction_hash,
+      blockNumber: log.block_number,
+      logIndex: log.log_index,
+      timestamp: new Date(blockTimestamp * 1000),
+      sender: sender.toLowerCase(),
+      tokenIn: tokenIn.toLowerCase(),
+      tokenOut: tokenOut.toLowerCase(),
+      amountIn,
+      amountOut,
+      protocolFee,
+      referrerFee,
+      referrer,
+      quote,
+    };
+  } catch (error) {
+    console.error(`[Indexer] Error decoding Aggregated log:`, error);
     return null;
   }
 }
@@ -809,15 +894,18 @@ export async function runIndexer(options: {
     const topic0 = keccak256(toBytes(VALIDATED_PAYMENT_SIGNATURE));
 
     // Query Pragma events from HyperSync + event detection for classification
-    // Also query 0x fee data for integrator fee tracking
-    const [pragmaResult, stakeTxHashes, nftTxHashes, monorailTxHashes, zeroXTransfers, zeroXApiTrades] = await Promise.all([
+    // Also query 0x and Monorail fee data for integrator fee tracking
+    const [pragmaResult, stakeTxHashes, nftTxHashes, monorailResult, zeroXTransfers, zeroXApiTrades] = await Promise.all([
       queryHypersync(fromBlock, toBlock, topic0),
       queryStakeEvents(fromBlock, toBlock),
       queryNFTPurchaseEvents(fromBlock, toBlock), // Seaport OrderFulfilled events
-      queryMonorailTradeEvents(fromBlock, toBlock), // Monorail AggregatedTrade events
+      queryMonorailTradeEvents(fromBlock, toBlock), // Monorail Aggregated events (full data for fee tracking)
       query0xTransfers(fromBlock, toBlock), // 0x ERC20 affiliate fee Transfer events
       query0xTradeAnalytics(), // 0x API for native MON fees (paginated, no block filter)
     ]);
+
+    // Extract tx hashes for action type detection
+    const monorailTxHashes = monorailResult.txHashes;
 
     const totalEvents = pragmaResult.logs.length;
 
@@ -840,7 +928,7 @@ export async function runIndexer(options: {
       return blockNum >= fromBlock && blockNum <= toBlock;
     });
 
-    console.log(`[Indexer] Found ${pragmaResult.logs.length} ValidatedPayment, ${zeroXTransfers.logs.length} 0x ERC20 transfers, ${zeroXApiTradesInRange.length} 0x API trades, ${stakeTxHashes.size} stake, ${nftTxHashes.size} NFT, ${monorailTxHashes.size} Monorail`);
+    console.log(`[Indexer] Found ${pragmaResult.logs.length} ValidatedPayment, ${zeroXTransfers.logs.length} 0x ERC20 transfers, ${zeroXApiTradesInRange.length} 0x API trades, ${monorailResult.logs.length} Monorail Aggregated, ${stakeTxHashes.size} stake, ${nftTxHashes.size} NFT, ${monorailTxHashes.size} Monorail txs`);
 
     // Build block timestamp map from Pragma events
     const blockTimestamps = new Map<number, number>();
@@ -916,6 +1004,13 @@ export async function runIndexer(options: {
 
     // Add block timestamps from 0x transfers
     for (const block of zeroXTransfers.blocks) {
+      if (!blockTimestamps.has(block.number)) {
+        blockTimestamps.set(block.number, block.timestamp);
+      }
+    }
+
+    // Add block timestamps from Monorail events
+    for (const block of monorailResult.blocks) {
       if (!blockTimestamps.has(block.number)) {
         blockTimestamps.set(block.number, block.timestamp);
       }
@@ -1000,10 +1095,64 @@ export async function runIndexer(options: {
       console.log(`[Indexer] Added ${zeroXErc20Count} 0x ERC20 fee records, ${zeroXNativeCount} 0x native fee records`);
     }
 
+    // =========================================================================
+    // Process Monorail Integrator Fee Records
+    // =========================================================================
+    // Fee is EXACT in referrerFeeAmount field - no calculation needed!
+    // Filter by referrer == PRAGMA_REFERRER_ID to only track our fees
+    // IMPORTANT: volume_usd = null to avoid double counting (volume is in pragma record)
+
+    let monorailFeeCount = 0;
+    for (const log of monorailResult.logs) {
+      const timestamp = blockTimestamps.get(log.block_number) || Math.floor(Date.now() / 1000);
+      const event = decodeAggregatedLog(log, timestamp);
+      if (!event) continue;
+
+      // Only track events with our referrer ID
+      if (event.referrer !== PRAGMA_REFERRER_ID) {
+        continue;
+      }
+
+      // Get pragma record info (delegator + action_type) from same tx
+      // If no pragma record exists, use sender from Aggregated event as delegator
+      const pragmaRecord = pragmaRecordByTxHash.get(event.txHash.toLowerCase());
+      const delegator = pragmaRecord?.delegator || event.sender;
+      const actionType = pragmaRecord?.action_type || "swap";
+
+      // Get token price for USD value - fee is in tokenOut
+      const tokenPrice = await getTokenPrice(event.tokenOut);
+      const tokenLower = event.tokenOut.toLowerCase();
+      const decimals = tokenPrice?.decimals ?? KNOWN_TOKEN_DECIMALS[tokenLower] ?? 18;
+      const feeAmount = Number(event.referrerFee) / Math.pow(10, decimals);
+      const priceUsd = tokenPrice?.priceUsd || 0;
+      const feeUsd = feeAmount * priceUsd;
+
+      payments.push({
+        tx_hash: event.txHash,
+        block_number: event.blockNumber,
+        log_index: event.logIndex, // Use actual log_index from Aggregated event
+        delegator: delegator,
+        token: event.tokenOut, // Fee is paid in output token
+        amount_wei: event.referrerFee.toString(),
+        is_native: false, // Monorail fees are always in ERC20 tokens
+        timestamp: event.timestamp.toISOString(),
+        token_price_usd: priceUsd > 0 ? priceUsd : null,
+        fee_usd: feeUsd > 0 ? feeUsd : null,
+        volume_usd: null, // CRITICAL: Don't count volume (already counted in pragma record)
+        source: "monorail",
+        action_type: actionType as PaymentRecord["action_type"],
+      });
+      monorailFeeCount++;
+    }
+
+    if (monorailFeeCount > 0) {
+      console.log(`[Indexer] Added ${monorailFeeCount} Monorail integrator fee records`);
+    }
+
     // Insert to database
     const inserted = await insertPayments(supabase, payments);
 
-    console.log(`[Indexer] Indexed ${inserted} payments (${pragmaResult.logs.length} pragma + ${zeroXErc20Count} 0x ERC20 + ${zeroXNativeCount} 0x native)`);
+    console.log(`[Indexer] Indexed ${inserted} payments (${pragmaResult.logs.length} pragma + ${zeroXErc20Count} 0x ERC20 + ${zeroXNativeCount} 0x native + ${monorailFeeCount} monorail)`);
 
     // Log sync operation for accurate timestamp tracking
     await logSyncOperation(supabase, inserted, fromBlock, toBlock);

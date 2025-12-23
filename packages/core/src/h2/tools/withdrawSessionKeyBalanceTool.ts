@@ -216,7 +216,7 @@ Not enough MON left to pay for gas. Try withdrawing less or use "all" to withdra
 • Withdrawn: ${formatEther(withdrawalAmount)} MON
 • To: ${recipientAddress}${recipient ? "" : " (your smart account)"}
 • Session Key Balance: ${formatEther(newBalance)} MON remaining
-• Transaction: ${txHash}
+• Transaction: [View on Explorer](https://monadvision.com/tx/${txHash})
 • Block: ${receipt.blockNumber}
 • Gas Used: ${receipt.gasUsed}
 

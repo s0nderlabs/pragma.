@@ -263,7 +263,7 @@ export const unstakeClaimTool = tool(
 • Request ID${isBatch ? "s" : ""}: ${requestIds}
 • Claimed: ${claimedAmountFormatted} MON
 • aPriori Fee: ${aprioriFeeFormatted} MON (0.1%)
-• Tx Hash: ${txHash}
+• Transaction: [View on Explorer](https://monadvision.com/tx/${txHash})
 • Block: ${receipt.blockNumber}
 • Gas Used: ${receipt.gasUsed} units
 

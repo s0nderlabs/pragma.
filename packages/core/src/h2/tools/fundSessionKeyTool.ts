@@ -110,7 +110,7 @@ Session key already has enough balance for operations.`;
 
 ✅ Funded: ${fundedAmountFormatted} MON
 New Balance: ${newBalanceFormatted} MON
-Transaction: ${result.txHash}
+Transaction: [View on Explorer](https://monadvision.com/tx/${result.txHash})
 Method: ${fundingMethod === 'userOp' ? 'UserOp' : 'Delegation'}
 
 Session key is now funded and ready for operations.

@@ -207,7 +207,7 @@ export const wrapTool = tool(
 📊 Receipt:
 • Wrapped: ${amountFormatted} MON
 • Received: ${amountFormatted} WMON
-• Tx Hash: ${txHash}
+• Transaction: [View on Explorer](https://monadvision.com/tx/${txHash})
 • Block: ${receipt.blockNumber}
 • Gas Used: ${receipt.gasUsed} units
 

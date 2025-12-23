@@ -66,7 +66,7 @@ export const executeWrapTool = tool(
 📊 Receipt:
 • Wrapped: ${quote.amount} MON
 • Received: ${result.actualOutputFormatted} WMON
-• Tx Hash: ${result.txHash}
+• Transaction: [View on Explorer](https://monadvision.com/tx/${result.txHash})
 • Block: ${result.blockNumber}
 • Status: ${result.status}
 

@@ -250,7 +250,7 @@ export const transferNFTTool = tool(
 ${!isERC721 ? `**Amount:** ${amount}\n` : ""}**Recipient:** ${recipientDisplay}
 **Status:** ${result.status}
 **Block:** ${result.blockNumber.toString()}
-**Tx Hash:** ${result.txHash}
+**Transaction:** [View on Explorer](https://monadvision.com/tx/${result.txHash})
 
 The NFT has been transferred. It may take a few minutes to appear in the recipient's wallet.`;
 

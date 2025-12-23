@@ -205,7 +205,7 @@ export async function fundSessionKeyViaDelegation(
 
   // Step 8: Verify success and get new balance
   if (receipt.status !== "success") {
-    throw new Error(`Session key refill transaction failed: ${txHash}`);
+    throw new Error(`Session key refill transaction failed (status=${receipt.status}): ${txHash}`);
   }
 
   // Wait for RPC state propagation (prevent stale balance reads)

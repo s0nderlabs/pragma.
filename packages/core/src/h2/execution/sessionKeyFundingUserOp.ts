@@ -28,6 +28,7 @@ import {
 } from "./userOpUtils.js";
 import { SESSION_KEY_FUNDING_AMOUNT } from "./sessionKeyManager.js";
 import { emitProgress } from "../progress/emitter.js";
+import { waitForReceiptSync } from "./syncReceipt.js";
 
 // ============================================================================
 // Constants
@@ -177,15 +178,15 @@ export async function fundSessionKeyViaUserOp(
     entryPoint,
   );
 
-  // Step 8: Wait for transaction confirmation if we have tx hash
+  // Step 8: Wait for transaction confirmation if we have tx hash (EIP-7966 optimized)
   emitProgress("Waiting for Confirmation...", "fundSessionKey", "fundSessionKey");
   if (transactionHash) {
-    const receipt = await publicClient.waitForTransactionReceipt({ hash: transactionHash });
+    const receipt = await waitForReceiptSync(publicClient, transactionHash, { timeout: 60_000 });
 
     // Verify transaction succeeded (not reverted)
     if (receipt.status !== "success") {
       throw new Error(
-        `Session key funding transaction failed (reverted onchain). ` +
+        `Session key funding transaction failed (status=${receipt.status}). ` +
         `TxHash: ${transactionHash}. Check block explorer for revert reason.`
       );
     }

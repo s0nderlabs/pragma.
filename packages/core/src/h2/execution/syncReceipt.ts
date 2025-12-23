@@ -8,6 +8,7 @@
  */
 
 import type { Hex, PublicClient, TransactionReceipt } from "viem";
+import { getReceipt } from "./receiptCache.js";
 
 /**
  * Waits for a transaction receipt with configurable timeout.
@@ -27,8 +28,16 @@ export async function waitForReceiptSync(
   options?: {
     /** Timeout in milliseconds (default: 60000ms) */
     timeout?: number;
+    /** Enable debug logging (default: false) */
+    debug?: boolean;
   }
 ): Promise<TransactionReceipt> {
+  // Check cache first (populated by syncTransport from EIP-7966)
+  const cached = getReceipt(hash);
+  if (cached) {
+    return cached;
+  }
+
   const timeout = options?.timeout ?? 60_000;
 
   return await client.waitForTransactionReceipt({

@@ -561,6 +561,51 @@ Just as vibe coding lets developers build software by describing what they want,
 - OpenSea listing URL
 
 **Example:** "list my skrumpey #42 for 10 MON"`,
+
+  // On-chain Activity Tools
+  getOnchainActivity: `**getOnchainActivity** - View on-chain transaction history
+
+**Use when:** User asks "show my activity", "transaction history", "what did I do", "recent transactions"
+
+**Parameters:**
+- timeRange: Time period to fetch (e.g., "2 days", "6 hours", "1 week")
+- page: (optional) Page number for pagination (default 1)
+
+**Returns:**
+- Paginated table: Time | Type | In | Out | Tx Hash | Gas
+- Types: swap, stake, unstake, transfer, wrap, unwrap
+- Full tx hashes (never truncated)
+- "Page X of Y — say 'page 2' for more"
+
+**Examples:**
+- "show my activity" → getOnchainActivity({ timeRange: "7 days" })
+- "what did I do today" → getOnchainActivity({ timeRange: "24 hours" })
+- "page 2" → getOnchainActivity({ timeRange: "7 days", page: 2 })
+
+**IMPORTANT:** User can copy tx hash from table to use with explainTransaction.`,
+
+  explainTransaction: `**explainTransaction** - Explain any transaction in detail
+
+**Use when:** User asks "explain this tx", "what happened in 0x...", "tell me about this transaction"
+
+**Parameters:**
+- txHash: Full 66-character transaction hash (0x + 64 hex chars)
+
+**Returns:**
+- Transaction type (swap, stake, transfer, wrap, etc.)
+- Summary of what happened
+- Token movements: in/out with USD values
+- Protocol used (Monorail, aPriori, etc.)
+- Swap route if applicable
+- Pragma fee, gas cost
+- Block, timestamp, status
+- Explorer link
+
+**Examples:**
+- "explain 0x1234..." → explainTransaction({ txHash: "0x1234..." })
+- "what happened in this tx" → explainTransaction({ txHash: "..." })
+
+**IMPORTANT:** Requires FULL 66-char hash. If user provides truncated hash, ask for full one.`,
 };
 
 // ============================================================================

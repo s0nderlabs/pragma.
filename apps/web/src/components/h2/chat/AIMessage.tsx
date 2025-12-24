@@ -7,6 +7,7 @@ import { useStreamingMessage } from '@/hooks/useStreamingMessage'
 import { MarkdownRenderer } from './MarkdownRenderer'
 import { ThinkingBubble } from './ThinkingBubble'
 import { NFTGallery } from '../nft/NFTGallery'
+import { ActivityTable, type ActivityTableData } from '../activity'
 import type { NFTGalleryData, NFTDisplayData } from '@pragma/core'
 import { useAgentContext } from '@/contexts/H2AgentContext'
 
@@ -47,6 +48,38 @@ function parseNFTGallery(content: string): { text: string; gallery: NFTGalleryDa
 }
 
 /**
+ * Parse activity table data from message content
+ * Format: __activity_table__\n{JSON}
+ */
+function parseActivityTable(content: string): { text: string; activityData: ActivityTableData | null } {
+  const marker = '__activity_table__'
+  const markerIndex = content.indexOf(marker)
+
+  if (markerIndex === -1) {
+    return { text: content, activityData: null }
+  }
+
+  // Get text before marker
+  const textBefore = content.slice(0, markerIndex).trim()
+
+  // Get JSON after marker
+  const afterMarker = content.slice(markerIndex + marker.length).trim()
+
+  try {
+    // Find the JSON object (starts with { and ends with })
+    const jsonMatch = afterMarker.match(/^\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const activityData = JSON.parse(jsonMatch[0]) as ActivityTableData
+      return { text: textBefore, activityData }
+    }
+  } catch {
+    // JSON parse failed, return text only
+  }
+
+  return { text: content.replace(marker, '').trim(), activityData: null }
+}
+
+/**
  * AIMessage Component (H2 Enabled)
  *
  * AI messages with rich markdown support, syntax highlighting, and streaming.
@@ -73,22 +106,59 @@ export function AIMessage({ message }: AIMessageProps) {
     await sendMessage(`Buy ${nftName} from ${collection} for ${price}`)
   }, [sendMessage, isStreaming])
 
-  // Parse content for special components (NFT gallery, etc.)
-  // Check rawToolOutput first for gallery (has preserved markers from tool output)
-  // LLM rewrites tool output, losing markers like __nft_gallery__
+  // Handle activity explain button click - sends explain request to agent
+  const handleExplainClick = useCallback(async (txHash: string) => {
+    if (isStreaming) return // Don't interrupt ongoing operations
+    await sendMessage(`explain tx ${txHash}`)
+  }, [sendMessage, isStreaming])
+
+  // Parse content for special components (NFT gallery, activity table, etc.)
+  // Check rawToolOutput first for markers (has preserved markers from tool output)
+  // LLM rewrites tool output, losing markers like __nft_gallery__ and __activity_table__
   // We preserve raw output in message.rawToolOutput for component detection
-  const { text, gallery } = useMemo(() => {
+  const { text, gallery, activityData } = useMemo(() => {
+    let finalText = displayedContent
+    let galleryData: NFTGalleryData | null = null
+    let activity: ActivityTableData | null = null
+
     // Try to extract gallery from rawToolOutput first (preserved markers)
     if (message.rawToolOutput) {
       const { gallery: galleryFromRaw } = parseNFTGallery(message.rawToolOutput)
       if (galleryFromRaw) {
+        galleryData = galleryFromRaw
         // Strip marker from displayedContent in case LLM echoed tool output verbatim
-        const { text: cleanedText } = parseNFTGallery(displayedContent)
-        return { text: cleanedText, gallery: galleryFromRaw }
+        const { text: cleanedText } = parseNFTGallery(finalText)
+        finalText = cleanedText
+      }
+
+      // Try to extract activity table from rawToolOutput
+      const { activityData: activityFromRaw } = parseActivityTable(message.rawToolOutput)
+      if (activityFromRaw) {
+        activity = activityFromRaw
+        // Strip marker from displayedContent in case LLM echoed tool output verbatim
+        const { text: cleanedText } = parseActivityTable(finalText)
+        finalText = cleanedText
       }
     }
-    // Fall back to parsing displayedContent
-    return parseNFTGallery(displayedContent)
+
+    // Fall back to parsing displayedContent if not found in rawToolOutput
+    if (!galleryData) {
+      const { text: textAfterGallery, gallery: galleryFromContent } = parseNFTGallery(finalText)
+      if (galleryFromContent) {
+        galleryData = galleryFromContent
+        finalText = textAfterGallery
+      }
+    }
+
+    if (!activity) {
+      const { text: textAfterActivity, activityData: activityFromContent } = parseActivityTable(finalText)
+      if (activityFromContent) {
+        activity = activityFromContent
+        finalText = textAfterActivity
+      }
+    }
+
+    return { text: finalText, gallery: galleryData, activityData: activity }
   }, [displayedContent, message.rawToolOutput, message.id])
 
   // Determine if reasoning is still streaming (has reasoning but no content yet)
@@ -123,6 +193,13 @@ export function AIMessage({ message }: AIMessageProps) {
         {gallery && (
           <div className="mt-4">
             <NFTGallery data={gallery} onBuyClick={handleBuyClick} />
+          </div>
+        )}
+
+        {/* Render Activity Table if present */}
+        {activityData && (
+          <div className="mt-4">
+            <ActivityTable data={activityData} onExplainClick={handleExplainClick} />
           </div>
         )}
 

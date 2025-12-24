@@ -599,6 +599,21 @@ export async function streamBrowserAgent(
           }
           break;
 
+        // Activity tools - use input params for matching
+        case 'getOnchainActivity':
+          // For activity: use toolName:timeRange to match tool's emitted signature
+          // IMPORTANT: Apply same default as Zod schema (7 days) for consistent signatures
+          // When AI doesn't pass timeRange, Zod applies default, so we must too
+          const timeRange = inputObj.timeRange || '7 days';
+          return `${toolName}:${timeRange}`;
+
+        case 'explainTransaction':
+          // For tx explanation: use truncated txHash to match tool's emitted signature
+          if (inputObj.txHash) {
+            return `${toolName}:${String(inputObj.txHash).slice(0, 18)}`;
+          }
+          return toolName;
+
         // NFT tools - use contract:tokenIds for matching
         case 'getNFTDetails':
           // For NFT details: use contract:tokenIds hash
@@ -915,6 +930,14 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
     // Mark LLM start
     metrics.markLLMStart();
 
+    // Subscribe to global progress events from tools BEFORE starting stream
+    // CRITICAL: Must register before stream starts to catch first progress event
+    // Tools call emitProgress() which we bridge to callbacks.onProgress
+    progressHandler = (event: ProgressEvent) => {
+      callbacks.onProgress?.(event.message, event.toolName, event.signature, event.description);
+    };
+    onProgress(progressHandler);
+
     // Stream events from agent (with dynamic reasoning effort)
     const stream = activeAgent.streamEvents(
       {
@@ -940,13 +963,6 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
         },
       }
     );
-
-    // Subscribe to global progress events from tools
-    // Tools call emitProgress() which we bridge to callbacks.onProgress
-    progressHandler = (event: ProgressEvent) => {
-      callbacks.onProgress?.(event.message, event.toolName, event.signature, event.description);
-    };
-    onProgress(progressHandler);
 
     // Process events
     for await (const event of stream) {

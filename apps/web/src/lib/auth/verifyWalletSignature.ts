@@ -125,6 +125,44 @@ export async function verifyWalletSignature(
 }
 
 /**
+ * Normalize URL to ensure consistent encoding between client and server
+ *
+ * This prevents signature mismatches due to URL encoding differences:
+ * - %20 vs + for spaces (browsers/servers handle these differently)
+ * - Different percent-encoding of special characters
+ * - Case differences in percent-encoded sequences
+ *
+ * The key issue: Client sends %20, but server's request.url shows + for spaces.
+ * We normalize by decoding all params and re-encoding with encodeURIComponent.
+ *
+ * @param url - URL to normalize
+ * @returns Normalized URL string
+ */
+function normalizeUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+
+    // Re-encode query params consistently
+    // URLSearchParams decodes + and %20 to space, then we re-encode with %20
+    const params = new URLSearchParams(urlObj.search);
+    const normalizedParams = new URLSearchParams();
+
+    for (const [key, value] of params) {
+      // params.entries() already decodes values
+      // Setting them re-encodes consistently
+      normalizedParams.set(key, value);
+    }
+
+    // Rebuild URL with normalized params
+    urlObj.search = normalizedParams.toString();
+    return urlObj.href;
+  } catch {
+    // If URL parsing fails (shouldn't happen with absolute URLs), use as-is
+    return url;
+  }
+}
+
+/**
  * Create a message to be signed by the wallet
  *
  * @param url - Request URL
@@ -137,9 +175,12 @@ export function createSignatureMessage(
   timestamp: string,
   nonce?: string
 ): string {
+  // Normalize URL for consistent signing/verification
+  const normalizedUrl = normalizeUrl(url);
+
   const parts = [
     'Pragma API Request',
-    `URL: ${url}`,
+    `URL: ${normalizedUrl}`,
     `Timestamp: ${timestamp}`,
   ];
 

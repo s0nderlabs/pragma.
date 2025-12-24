@@ -692,8 +692,8 @@ export function useH2_5Agent() {
               outputStr = outputObj.content || outputObj.text || outputObj.output || JSON.stringify(output);
             }
 
-            // Check for rich content markers
-            if (outputStr && outputStr.includes('__nft_gallery__')) {
+            // Check for rich content markers (__nft_gallery__ for NFTs, __activity_table__ for on-chain activity)
+            if (outputStr && (outputStr.includes('__nft_gallery__') || outputStr.includes('__activity_table__'))) {
               pendingRawOutputRef.current = outputStr;
             }
 

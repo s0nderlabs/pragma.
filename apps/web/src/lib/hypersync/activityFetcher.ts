@@ -919,9 +919,12 @@ async function getTransactionInput(txHash: string): Promise<string | undefined> 
 }
 
 /**
- * Batch RPC calls - execute multiple JSON-RPC requests in a single HTTP request
- * Reduces HTTP overhead when fetching data for multiple transactions
+ * Batch RPC calls - execute multiple JSON-RPC requests in chunked HTTP requests
+ * Chunks requests to avoid RPC provider limits (response size, timeout)
+ * Runs chunks in parallel for performance (Ankr limit: 1k req/s)
  */
+const BATCH_CHUNK_SIZE = 50; // Safe limit to avoid response truncation
+
 async function batchRpcCalls(
   requests: Array<{ method: string; params: unknown[] }>
 ): Promise<unknown[]> {
@@ -929,35 +932,50 @@ async function batchRpcCalls(
     return requests.map(() => null);
   }
 
-  try {
-    const batchBody = requests.map((req, i) => ({
-      jsonrpc: "2.0",
-      method: req.method,
-      params: req.params,
-      id: i + 1,
-    }));
-
-    const response = await fetch(RPC_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(batchBody),
-    });
-
-    const results = await response.json();
-
-    // Handle both array response (batch) and single response
-    if (!Array.isArray(results)) {
-      return [results.result];
-    }
-
-    // Sort by ID and extract results
-    return results
-      .sort((a: { id: number }, b: { id: number }) => a.id - b.id)
-      .map((r: { result: unknown }) => r.result);
-  } catch (error) {
-    console.error("[ActivityFetcher] Batch RPC error:", error);
-    return requests.map(() => null);
+  // Chunk requests to avoid RPC provider limits
+  const chunks: Array<Array<{ method: string; params: unknown[] }>> = [];
+  for (let i = 0; i < requests.length; i += BATCH_CHUNK_SIZE) {
+    chunks.push(requests.slice(i, i + BATCH_CHUNK_SIZE));
   }
+
+  // Process all chunks in parallel
+  const chunkResults = await Promise.all(
+    chunks.map(async (chunk) => {
+      try {
+        const batchBody = chunk.map((req, i) => ({
+          jsonrpc: "2.0",
+          method: req.method,
+          params: req.params,
+          id: i + 1,
+        }));
+
+        const response = await fetch(RPC_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(batchBody),
+        });
+
+        const results = await response.json();
+
+        // Handle both array response (batch) and single response
+        if (!Array.isArray(results)) {
+          return [results.result];
+        }
+
+        // Sort by ID and extract results
+        return results
+          .sort((a: { id: number }, b: { id: number }) => a.id - b.id)
+          .map((r: { result: unknown }) => r.result);
+      } catch (error) {
+        console.error("[ActivityFetcher] Batch RPC chunk error:", error);
+        // Fill this chunk with nulls so we don't lose position
+        return chunk.map(() => null);
+      }
+    })
+  );
+
+  // Flatten all chunk results into single array
+  return chunkResults.flat();
 }
 
 /**
@@ -1755,6 +1773,81 @@ async function classifyPragmaTransaction(
             },
           };
         }
+      }
+    }
+
+    // 5.5. Swap - Native MON input via 0x (WMON Deposit + ERC20 transfer TO user)
+    // When user swaps native MON, 0x wraps it internally:
+    // - WMON_DEPOSIT event (user's MON wrapped by 0x)
+    // - ERC20 Transfer TO user (output token)
+    // This case: transfersFromUser.length === 0 (user sent native MON, not ERC20)
+    //            transfersToUser.length >= 1 (user received ERC20 token)
+    //            WMON_DEPOSIT event present (MON was wrapped internally)
+    if (
+      transfersFromUser.length === 0 &&
+      transfersToUser.length >= 1 &&
+      hasEvent(TOPICS.WMON_DEPOSIT, CONTRACTS.WMON)
+    ) {
+      // Calculate MON input from WMON Deposit events
+      let monInputAmount = 0n;
+      for (const l of logs) {
+        if (
+          l.topic0?.toLowerCase() === TOPICS.WMON_DEPOSIT.toLowerCase() &&
+          l.address.toLowerCase() === CONTRACTS.WMON &&
+          l.data &&
+          l.data.length >= 66
+        ) {
+          monInputAmount += BigInt(l.data);
+        }
+      }
+
+      if (monInputAmount > 0n) {
+        const monInputFormatted = formatUnits(monInputAmount, 18);
+        const monInfo = await getTokenInfo(CONTRACTS.WMON);
+
+        // Get output token from transfers TO user
+        const tokenOutTransfer = transfersToUser[0];
+        const tokenOutAddr = tokenOutTransfer.address.toLowerCase();
+        const tokenOutInfo = await getTokenInfo(tokenOutAddr);
+
+        // Sum all amounts of output token received by user
+        let tokenOutAmount = 0n;
+        for (const t of transfersToUser.filter(
+          (t) => t.address.toLowerCase() === tokenOutAddr
+        )) {
+          const amt = BigInt(t.data && t.data.length > 2 ? t.data : "0x0");
+          tokenOutAmount += amt;
+        }
+        const tokenOutFormatted = formatUnits(
+          tokenOutAmount,
+          tokenOutInfo.decimals
+        );
+
+        return {
+          type: "swap",
+          typeDescription: "Token Swap",
+          protocol: "0x",
+          tokenIn: {
+            address: "0x0000000000000000000000000000000000000000",
+            symbol: "MON",
+            amount: monInputAmount.toString(),
+            amountFormatted: monInputFormatted,
+            valueUsd:
+              monInfo.priceUsd > 0
+                ? (parseFloat(monInputFormatted) * monInfo.priceUsd).toFixed(2)
+                : undefined,
+          },
+          tokenOut: {
+            address: tokenOutAddr,
+            symbol: tokenOutInfo.symbol,
+            amount: tokenOutAmount.toString(),
+            amountFormatted: tokenOutFormatted,
+            valueUsd:
+              tokenOutInfo.priceUsd > 0
+                ? (parseFloat(tokenOutFormatted) * tokenOutInfo.priceUsd).toFixed(2)
+                : undefined,
+          },
+        };
       }
     }
   }

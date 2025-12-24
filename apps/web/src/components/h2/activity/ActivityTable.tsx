@@ -1,8 +1,70 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Activity, Copy, Check, ExternalLink, Sparkles } from 'lucide-react';
+
+// ============================================================================
+// Portal Tooltip Component (renders outside overflow containers)
+// ============================================================================
+
+function PortalTooltip({
+  children,
+  text,
+  className = ''
+}: {
+  children: React.ReactNode;
+  text: string;
+  className?: string;
+}) {
+  const [isVisible, setIsVisible] = useState(false);
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseEnter = useCallback(() => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.bottom + 8,
+      });
+      setIsVisible(true);
+    }
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setIsVisible(false);
+    setPosition(null);
+  }, []);
+
+  return (
+    <>
+      <div
+        ref={triggerRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className={className}
+      >
+        {children}
+      </div>
+      {isVisible && position && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed z-[9999] px-2.5 py-1 rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs font-medium whitespace-nowrap shadow-lg pointer-events-none"
+          style={{
+            left: position.x,
+            top: position.y,
+            transform: 'translateX(-50%)',
+          }}
+        >
+          {text}
+          <span className="absolute left-1/2 -translate-x-1/2 -top-1 w-2 h-2 bg-gray-900 dark:bg-white rotate-45" />
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
 
 // ============================================================================
 // Types
@@ -73,7 +135,7 @@ function formatActivityType(type: string): string {
     unstake_claim: 'Unstake Claim',
     transfer: 'Transfer',
     transfer_in: 'Received',
-    transfer_out: 'Sent',
+    transfer_out: 'Send',
     wrap: 'Wrap',
     unwrap: 'Unwrap',
     nft_purchase: 'NFT Buy',
@@ -384,19 +446,18 @@ export function ActivityTable({
                         <ExternalLink className="w-3 h-3 text-gray-400 dark:text-white/30" />
                       </a>
 
-                      {/* Explain button - always visible with tooltip on hover */}
+                      {/* Explain button with portal tooltip */}
                       {onExplainClick && (
-                        <motion.button
-                          onClick={() => onExplainClick(activity.txHash)}
-                          className="group relative flex-shrink-0 p-1.5 rounded-full active:scale-[0.95] transition-all bg-terracotta/10 dark:bg-terracotta/5 text-terracotta hover:bg-terracotta/20 dark:hover:bg-terracotta/10"
-                          title="Explain this transaction"
-                        >
-                          <Sparkles className="w-3 h-3" />
-                          {/* Tooltip that appears on hover - positioned absolutely */}
-                          <span className="absolute left-1/2 -translate-x-1/2 -top-8 px-2 py-1 rounded-md bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 shadow-lg">
-                            Explain
-                          </span>
-                        </motion.button>
+                        <PortalTooltip text="Explain this tx">
+                          <motion.button
+                            onClick={() => onExplainClick(activity.txHash)}
+                            whileHover={{ scale: 1.1, rotate: 15 }}
+                            whileTap={{ scale: 0.9 }}
+                            className="p-1 text-terracotta transition-colors hover:text-terracotta/80"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                          </motion.button>
+                        </PortalTooltip>
                       )}
                     </div>
                   </td>

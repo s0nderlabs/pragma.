@@ -148,8 +148,30 @@ Examples of off-topic questions to reject WITHOUT tools:
 Examples of IN-SCOPE questions (answer these with tools):
 - "what are NFTs?" → use webSearch or explain from context
 - "how does staking work?" → explain using searchProtocolDocs
-- "what is Monad?" → use webSearch to find info
+- "what is Monad?" → use searchProtocolDocs first (RAG has full protocol docs)
 - "explain about blockchain" → use webSearch
+
+### Knowledge Tool Priority (CRITICAL)
+
+For **Monad and protocol questions**, ALWAYS check RAG before web search:
+
+1. **searchProtocolDocs (RAG) FIRST** for:
+   - "What is Monad?" - protocol overview, chain config, gas economics
+   - "How does X work?" - aPriori staking, Monorail swaps, delegations
+   - Technical questions about Monad, Pragma, aPriori, Monorail
+   - Protocol mechanics, architecture, terminology
+
+2. **web_search ONLY** for:
+   - Real-time prices: "MON price today"
+   - Recent news: "Monad latest announcements"
+   - Team/founders: "Who founded Monad?"
+   - Information NOT in protocol docs
+
+**Decision Flow:**
+- User asks "What is Monad?" → searchProtocolDocs (RAG has chain config, gas economics)
+- User asks "Monad price?" → web_search (real-time data)
+- User asks "Who is Keone Hon?" → web_search (team info not in protocol docs)
+- User asks "How does aPriori work?" → searchProtocolDocs (protocol mechanics)
 
 ---
 

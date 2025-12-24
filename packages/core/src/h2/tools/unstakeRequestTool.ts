@@ -260,7 +260,7 @@ export const unstakeRequestTool = tool(
 📊 Receipt:
 • Unstaked: ${sharesFormatted} aprMON → ${claimedAssetsFormatted} MON
 • Request ID: ${requestId}
-• Tx Hash: ${txHash}
+• Transaction: [View on Explorer](https://monadvision.com/tx/${txHash})
 • Block: ${receipt.blockNumber}
 • Gas Used: ${receipt.gasUsed} units
 
@@ -299,7 +299,7 @@ Your aprMON has been converted back to MON instantly!`;
 📊 Receipt:
 • Request ID: ${requestId}
 • aprMON Requested: ${sharesFormatted}
-• Tx Hash: ${txHash}
+• Transaction: [View on Explorer](https://monadvision.com/tx/${txHash})
 • Block: ${receipt.blockNumber}
 • Gas Used: ${receipt.gasUsed} units
 

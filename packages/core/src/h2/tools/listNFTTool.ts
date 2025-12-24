@@ -158,10 +158,10 @@ export const listNFTTool = tool(
       // Build transaction info
       const txInfo: string[] = [];
       if (result.approvalTxHash) {
-        txInfo.push(`**Approval Tx:** \`${result.approvalTxHash}\``);
+        txInfo.push(`**Approval:** [View on Explorer](https://monadvision.com/tx/${result.approvalTxHash})`);
       }
       if (result.validateTxHash) {
-        txInfo.push(`**Validation Tx:** \`${result.validateTxHash}\``);
+        txInfo.push(`**Validation:** [View on Explorer](https://monadvision.com/tx/${result.validateTxHash})`);
       }
       const txInfoStr = txInfo.length > 0 ? "\n" + txInfo.join("\n") : "";
 

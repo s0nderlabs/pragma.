@@ -169,18 +169,22 @@ function formatTimestamp(ts: number): string {
 
 function formatEvent(event: AssetEvent, monUsdPrice?: number): string {
   const time = formatTimestamp(event.event_timestamp);
+  // Add explorer link with full tx hash if available
+  const txLine = event.transaction
+    ? `\n   [View on MonadVision ↗](https://monadvision.com/tx/${event.transaction})`
+    : '';
 
   // Sale event
   if ("seller" in event && "buyer" in event) {
     const nftName = event.nft?.name || `#${event.nft?.identifier}`;
     const price = formatPrice(event.payment, monUsdPrice);
-    return `**Sale** ${time}\n   ${nftName} sold for ${price}\n   ${formatAddress(event.seller)} -> ${formatAddress(event.buyer)}`;
+    return `**Sale** ${time}\n   ${nftName} sold for ${price}\n   ${formatAddress(event.seller)} -> ${formatAddress(event.buyer)}${txLine}`;
   }
 
   // Transfer event
   if ("from_address" in event && "to_address" in event) {
     const nftName = event.nft?.name || `#${event.nft?.identifier}`;
-    return `**Transfer** ${time}\n   ${nftName}\n   ${formatAddress(event.from_address)} -> ${formatAddress(event.to_address)}`;
+    return `**Transfer** ${time}\n   ${nftName}\n   ${formatAddress(event.from_address)} -> ${formatAddress(event.to_address)}${txLine}`;
   }
 
   // Order event (listing/offer/cancel) - this is the last case
@@ -189,7 +193,7 @@ function formatEvent(event: AssetEvent, monUsdPrice?: number): string {
   const typeName = type.charAt(0).toUpperCase() + type.slice(1);
   const price = formatPrice(orderEvent.payment, monUsdPrice);
   const nftName = orderEvent.asset?.name || `#${orderEvent.asset?.identifier || "?"}`;
-  return `**${typeName}** ${time}\n   ${nftName}${price ? ` for ${price}` : ""}\n   by ${formatAddress(orderEvent.maker)}`;
+  return `**${typeName}** ${time}\n   ${nftName}${price ? ` for ${price}` : ""}\n   by ${formatAddress(orderEvent.maker)}${txLine}`;
 }
 
 // ============================================================================

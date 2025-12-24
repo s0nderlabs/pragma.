@@ -110,7 +110,7 @@ export const executeSwapTool = tool(
 • Gas Used: ${gasUsedFormatted} MON
 • Status: ${result.status}
 • Block: ${result.blockNumber.toString()}
-• Tx Hash: ${result.txHash}
+• Transaction: [View on Explorer](https://monadvision.com/tx/${result.txHash})
 
 Your ${quote.toTokenSymbol} balance has been updated.`;
 

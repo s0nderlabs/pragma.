@@ -678,7 +678,7 @@ export function useH2_5Agent() {
             justCompletedToolRef.current = true;
 
             // Capture raw tool output if it contains rich content markers
-            // LLM rewrites tool output, losing markers like __nft_gallery__
+            // LLM may rewrite tool output, and markdown strips __underscores__ as bold formatting
             // We preserve the raw output for UI component detection in AIMessage
 
             // Extract string output - handle both string and object formats
@@ -692,8 +692,8 @@ export function useH2_5Agent() {
               outputStr = outputObj.content || outputObj.text || outputObj.output || JSON.stringify(output);
             }
 
-            // Check for rich content markers
-            if (outputStr && outputStr.includes('__nft_gallery__')) {
+            // Check for rich content markers (HTML comments to avoid markdown stripping)
+            if (outputStr && (outputStr.includes('<!--NFT_GALLERY-->') || outputStr.includes('<!--ACTIVITY_TABLE-->'))) {
               pendingRawOutputRef.current = outputStr;
             }
 

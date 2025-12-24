@@ -718,6 +718,7 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
       // Step 8: Execute all delegations sequentially
       // Each delegation is independent and executes one blockchain action
       let finalTxHash: Hex = "0x" as Hex;
+      let finalReceipt: Awaited<ReturnType<typeof waitForReceiptSync>> | undefined;
 
       // Progress: Building delegations complete
       emitProgress(`Building swap delegation with ${(quote.slippageBps / 100).toFixed(1)}% slippage protection...`, "executeSwap", toolSignature);
@@ -758,13 +759,15 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
 
           // Wait for confirmation with timeout (60 seconds) - EIP-7966 optimized
           // Prevents infinite waiting if transaction gets stuck
-          await waitForReceiptSync(publicClient, txHash, { timeout: 60_000 });
+          // Capture receipt directly - no need to call again later (receipt is cached by EIP-7966)
+          const bundleReceipt = await waitForReceiptSync(publicClient, txHash, { timeout: 60_000 });
 
           debugLog(`${bundle.label} transaction confirmed`);
 
-          // Track the final transaction (swap) for the receipt
+          // Track the final transaction (swap) and its receipt
           if (bundle.label === "swap") {
             finalTxHash = txHash;
+            finalReceipt = bundleReceipt;  // Save receipt, don't fetch again
           }
     } catch (error: any) {
       debugLog(`${bundle.label} FAILED`, {
@@ -804,29 +807,28 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
     throw new Error("No swap transaction was executed");
   }
 
-  // Step 9: Wait for final transaction confirmation (if not already done) - EIP-7966 optimized
-  let receipt;
-  try {
-    receipt = await waitForReceiptSync(publicClient, finalTxHash, { timeout: 60_000 });
+  // Step 9: Use receipt from Step 8 (already captured during delegation execution)
+  // This eliminates redundant RPC call - receipt was cached by EIP-7966
+  let receipt = finalReceipt;
 
-    debugLog("Final transaction confirmed", {
-      blockNumber: receipt.blockNumber.toString(),
-      gasUsed: receipt.gasUsed.toString(),
-      status: receipt.status,
-    });
-  } catch (error: any) {
-    debugLog("Final confirmation FAILED", { error: error.message });
+  // Fallback: If receipt wasn't captured (shouldn't happen), fetch it
+  if (!receipt) {
+    debugLog("Receipt not captured in loop, fetching from cache/RPC");
+    try {
+      receipt = await waitForReceiptSync(publicClient, finalTxHash, { timeout: 60_000 });
+    } catch (error: any) {
+      debugLog("Final confirmation FAILED", { error: error.message });
 
-    if (isRpcInfrastructureError(error)) {
-      throw new Error(
-        `⚠️  RPC Endpoint Issue: Transaction confirmation failed.\n\n` +
-        `This is a network infrastructure problem, not a bug.\n\n` +
-        `What happened:\n` +
-        `• Your swap transaction was submitted (hash: ${finalTxHash})\n` +
-        `• The RPC provider failed to return confirmation\n` +
-        `• This is often due to RPC sync issues or rate limiting\n\n` +
-        `Your tokens are SAFE. Possible outcomes:\n` +
-        `• Transaction is pending confirmation (check status manually)\n` +
+      if (isRpcInfrastructureError(error)) {
+        throw new Error(
+          `⚠️  RPC Endpoint Issue: Transaction confirmation failed.\n\n` +
+          `This is a network infrastructure problem, not a bug.\n\n` +
+          `What happened:\n` +
+          `• Your swap transaction was submitted (hash: ${finalTxHash})\n` +
+          `• The RPC provider failed to return confirmation\n` +
+          `• This is often due to RPC sync issues or rate limiting\n\n` +
+          `Your tokens are SAFE. Possible outcomes:\n` +
+          `• Transaction is pending confirmation (check status manually)\n` +
         `• Transaction completed but RPC didn't report it\n\n` +
         `Recommended actions:\n` +
         `1. Check transaction on block explorer\n` +
@@ -834,10 +836,19 @@ export async function executeSwap(params: ExecuteSwapParams): Promise<ExecutionR
         `3. Try different RPC endpoint if problem persists\n\n` +
         `Technical details: ${error.message}`
       );
-    }
+      }
 
-    throw error;
+      throw error;
+    }
+  } else {
+    debugLog("Using receipt captured during delegation execution (EIP-7966 optimized)");
   }
+
+  debugLog("Final transaction confirmed", {
+    blockNumber: receipt.blockNumber.toString(),
+    gasUsed: receipt.gasUsed.toString(),
+    status: receipt.status,
+  });
 
   // Step 10: Calculate actual output using event parsing (safe for parallel swaps)
   // CRITICAL: Cannot use balance difference for parallel swaps due to race conditions

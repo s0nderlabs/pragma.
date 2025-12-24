@@ -308,7 +308,7 @@ export const stakeTool = tool(
 • Pragma Fee: ${feeAmountFormatted} MON (1%)
 • Staked: ${netStakeAmountFormatted} MON → aprMON
 • aprMON Balance: ${aprMonBalanceFormatted}
-• Tx Hash: ${txHash}
+• Transaction: [View on Explorer](https://monadvision.com/tx/${txHash})
 • Block: ${receipt.blockNumber}
 • Gas Used: ${receipt.gasUsed} units
 

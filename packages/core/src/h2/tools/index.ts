@@ -48,6 +48,10 @@ import { searchToolDocsTool } from "./searchToolDocsTool.js";
 // Web Search Tools
 import { webSearchTool } from "./webSearchTool.js";
 
+// On-chain Activity Tools (HyperSync)
+import { getOnchainActivityTool } from "./getOnchainActivityTool.js";
+import { explainTransactionTool } from "./explainTransactionTool.js";
+
 // NFT Tools (OpenSea)
 import { getMyNFTsTool } from "./getMyNFTsTool.js";
 import { browseCollectionTool } from "./browseCollectionTool.js";
@@ -128,6 +132,10 @@ export const h2ToolRegistry = [
   // Web search tools
   webSearchTool,
 
+  // On-chain activity tools (HyperSync)
+  getOnchainActivityTool,
+  explainTransactionTool,
+
   // NFT tools (OpenSea)
   getMyNFTsTool,
   browseCollectionTool,
@@ -190,6 +198,10 @@ export {
 
   // Web search tools
   webSearchTool,
+
+  // On-chain activity tools (HyperSync)
+  getOnchainActivityTool,
+  explainTransactionTool,
 
   // NFT tools (OpenSea)
   getMyNFTsTool,

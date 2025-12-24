@@ -7,7 +7,58 @@
  * @see https://eips.ethereum.org/EIPS/eip-7966
  */
 
-import { custom, type Transport } from "viem";
+import { custom, type Transport, type TransactionReceipt } from "viem";
+import { cacheReceipt } from "./receiptCache.js";
+
+/**
+ * Normalize raw EIP-7966 receipt to viem format
+ *
+ * EIP-7966 returns raw RPC format (hex strings, numeric status),
+ * but viem expects normalized format (bigints, "success"/"reverted").
+ */
+function normalizeReceipt(raw: Record<string, unknown>): TransactionReceipt {
+  // Normalize status: "0x1" or 1 → "success", "0x0" or 0 → "reverted"
+  const rawStatus = raw.status;
+  let status: "success" | "reverted";
+  if (rawStatus === "0x1" || rawStatus === 1 || rawStatus === 1n || rawStatus === "success") {
+    status = "success";
+  } else {
+    status = "reverted";
+  }
+
+  // Helper to convert hex string to bigint
+  const toBigInt = (val: unknown): bigint => {
+    if (typeof val === "bigint") return val;
+    if (typeof val === "number") return BigInt(val);
+    if (typeof val === "string") return BigInt(val);
+    return 0n;
+  };
+
+  // Helper to convert hex string to number
+  const toNumber = (val: unknown): number => {
+    if (typeof val === "number") return val;
+    if (typeof val === "bigint") return Number(val);
+    if (typeof val === "string") return parseInt(val, 16);
+    return 0;
+  };
+
+  return {
+    blockHash: raw.blockHash as `0x${string}`,
+    blockNumber: toBigInt(raw.blockNumber),
+    contractAddress: raw.contractAddress as `0x${string}` | null,
+    cumulativeGasUsed: toBigInt(raw.cumulativeGasUsed),
+    effectiveGasPrice: toBigInt(raw.effectiveGasPrice),
+    from: raw.from as `0x${string}`,
+    gasUsed: toBigInt(raw.gasUsed),
+    logs: (raw.logs as unknown[]) || [],
+    logsBloom: raw.logsBloom as `0x${string}`,
+    status,
+    to: raw.to as `0x${string}` | null,
+    transactionHash: raw.transactionHash as `0x${string}`,
+    transactionIndex: toNumber(raw.transactionIndex),
+    type: raw.type as "legacy" | "eip2930" | "eip1559" | "eip4844" | "eip7702",
+  } as TransactionReceipt;
+}
 
 /**
  * Creates a transport wrapper that intercepts eth_sendRawTransaction calls
@@ -63,12 +114,11 @@ export function createSyncTransport(
             result !== null &&
             "transactionHash" in result
           ) {
-            if (debug) {
-              console.log(
-                `[syncTransport] ✅ EIP-7966 SUCCESS - got receipt in ${elapsed}ms (hash: ${(result as { transactionHash: string }).transactionHash.slice(0, 10)}...)`
-              );
-            }
-            return (result as { transactionHash: string }).transactionHash;
+            // Normalize raw RPC receipt to viem format before caching
+            const rawReceipt = result as Record<string, unknown>;
+            const normalizedReceipt = normalizeReceipt(rawReceipt);
+            cacheReceipt(normalizedReceipt.transactionHash, normalizedReceipt);
+            return normalizedReceipt.transactionHash;
           }
 
           if (debug) {

@@ -83,3 +83,13 @@ export { fundSessionKeyViaUserOp } from "./sessionKeyFundingUserOp.js";
 // Sync Transaction Utilities (EIP-7966)
 export { createSyncTransport } from "./syncTransport.js";
 export { waitForReceiptSync, sendAndWaitSync } from "./syncReceipt.js";
+
+// Receipt Cache (for testing and debugging)
+export {
+  cacheReceipt,
+  getReceipt,
+  getAndRemoveReceipt,  // @deprecated - use getReceipt
+  hasReceipt,
+  getCacheStats,
+  clearCache,
+} from "./receiptCache.js";

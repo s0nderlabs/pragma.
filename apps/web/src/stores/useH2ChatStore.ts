@@ -95,6 +95,8 @@ function getReadableParentDescription(toolName: string, count: number): string {
     unstakeRequest: 'Requesting Unstakes',
     wrap: 'Wrapping MON',
     unwrap: 'Unwrapping WMON',
+    // Analysis tools
+    explainTransaction: 'Analyzing Transactions',
     // Search tools (for parallel queries)
     web_search: 'Searching the Web',
     search_protocol_docs: 'Searching Protocol Docs',

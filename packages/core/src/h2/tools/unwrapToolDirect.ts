@@ -212,7 +212,7 @@ export const unwrapTool = tool(
 📊 Receipt:
 • Unwrapped: ${amountFormatted} WMON
 • Received: ${amountFormatted} MON
-• Tx Hash: ${txHash}
+• Transaction: [View on Explorer](https://monadvision.com/tx/${txHash})
 • Block: ${receipt.blockNumber}
 • Gas Used: ${receipt.gasUsed} units
 

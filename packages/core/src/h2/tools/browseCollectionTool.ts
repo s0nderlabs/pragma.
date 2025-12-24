@@ -120,10 +120,8 @@ export const browseCollectionTool = tool(
         mode: "browse",
       };
 
-      return `${textOutput}
-
-__nft_gallery__
-${JSON.stringify(galleryData)}`;
+      // Use HTML comment marker to prevent markdown from stripping underscores
+      return `${textOutput}\n\n<!--NFT_GALLERY-->\n${JSON.stringify(galleryData)}`;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("[browseCollectionTool] Error:", errorMessage);

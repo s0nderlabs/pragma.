@@ -307,10 +307,8 @@ export const getMyNFTsTool = tool(
 
       // Return text for LLM + structured data marker for UI
       // Agent can use collections array to find slug for follow-up operations
-      return `${textOutput}
-
-__nft_gallery__
-${JSON.stringify(enrichedGalleryData)}`;
+      // Use HTML comment marker to prevent markdown from stripping underscores
+      return `${textOutput}\n\n<!--NFT_GALLERY-->\n${JSON.stringify(enrichedGalleryData)}`;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("[getMyNFTsTool] Error:", errorMessage);

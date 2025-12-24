@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import type { ChatMessage } from '@/lib/h2/types'
 import { useStreamingMessage } from '@/hooks/useStreamingMessage'
@@ -16,11 +16,110 @@ interface AIMessageProps {
 }
 
 /**
+ * Unicode star spinner frames (same as ThinkingBubble)
+ */
+const SPINNER_FRAMES = ['✦', '✧', '✶', '✷', '✸', '✹', '✺', '✻']
+
+/**
+ * TableLoader Component
+ *
+ * Shows a loading indicator while activity table or NFT gallery data is being fetched.
+ * Matches ThinkingBubble design with spinner and shimmer effect.
+ */
+function TableLoader({ type }: { type: 'activity' | 'gallery' }) {
+  const [frameIndex, setFrameIndex] = useState(0)
+
+  // Animate spinner
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFrameIndex((prev) => (prev + 1) % SPINNER_FRAMES.length)
+    }, 100)
+    return () => clearInterval(interval)
+  }, [])
+
+  const label = type === 'activity' ? 'Loading activity...' : 'Loading gallery...'
+
+  return (
+    <div className="mb-3">
+      <div className="flex items-center gap-2 text-sm">
+        {/* Animated spinner */}
+        <span className="text-2xl font-mono flex-shrink-0 text-[#E07A5F]">
+          {SPINNER_FRAMES[frameIndex]}
+        </span>
+
+        {/* Label with shimmer effect */}
+        <span className="shimmer-text truncate text-sm font-medium" style={{ opacity: 0.9 }}>
+          {label}
+        </span>
+      </div>
+
+      {/* Shimmer animation styles */}
+      <style jsx>{`
+        @keyframes shimmer {
+          0% {
+            background-position: -200% 0;
+          }
+          100% {
+            background-position: 200% 0;
+          }
+        }
+        .shimmer-text {
+          background: linear-gradient(
+            90deg,
+            #E07A5F 0%,
+            #f5b7a8 50%,
+            #E07A5F 100%
+          );
+          background-size: 200% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: shimmer 2s linear infinite;
+        }
+      `}</style>
+    </div>
+  )
+}
+
+/**
+ * Strip JSON-like content from streaming output
+ * Used to hide raw JSON that models like Gemini echo during streaming
+ * This is defensive - we strip JSON patterns regardless of markers
+ *
+ * Strategy: Look for JSON-like patterns specific to our tool outputs and strip
+ * from the start of the JSON to the end of the string. This handles both
+ * complete JSON and partial JSON (during streaming).
+ */
+function stripJsonContent(content: string): string {
+  // Pattern 1: Activity table JSON (has "activities" array)
+  // Match from first `{"activities"` or `{ "activities"` to end of string
+  const activityMatch = content.match(/\{\s*"activities"\s*:/)
+  if (activityMatch && activityMatch.index !== undefined) {
+    return content.slice(0, activityMatch.index).trim()
+  }
+
+  // Pattern 2: NFT gallery JSON (has "__type": "nft_gallery" or "nfts" + "totalCount")
+  const galleryMatch = content.match(/\{\s*"__type"\s*:\s*"nft_gallery"/)
+  if (galleryMatch && galleryMatch.index !== undefined) {
+    return content.slice(0, galleryMatch.index).trim()
+  }
+
+  // Pattern 3: NFT gallery alternative structure (nfts array with totalCount)
+  const nftMatch = content.match(/\{\s*"title"\s*:.*"nfts"\s*:/)
+  if (nftMatch && nftMatch.index !== undefined) {
+    return content.slice(0, nftMatch.index).trim()
+  }
+
+  return content.trim()
+}
+
+/**
  * Parse NFT gallery data from message content
- * Format: __nft_gallery__\n{JSON}
+ * Format: <!--NFT_GALLERY-->\n{JSON}
+ * Uses HTML comment marker to prevent markdown from stripping underscores
  */
 function parseNFTGallery(content: string): { text: string; gallery: NFTGalleryData | null } {
-  const marker = '__nft_gallery__'
+  const marker = '<!--NFT_GALLERY-->'
   const markerIndex = content.indexOf(marker)
 
   if (markerIndex === -1) {
@@ -44,15 +143,16 @@ function parseNFTGallery(content: string): { text: string; gallery: NFTGalleryDa
     // JSON parse failed, return text only
   }
 
-  return { text: content.replace(marker, '').trim(), gallery: null }
+  return { text: textBefore, gallery: null }
 }
 
 /**
  * Parse activity table data from message content
- * Format: __activity_table__\n{JSON}
+ * Format: <!--ACTIVITY_TABLE-->\n{JSON}
+ * Uses HTML comment marker to prevent markdown from stripping underscores
  */
 function parseActivityTable(content: string): { text: string; activityData: ActivityTableData | null } {
-  const marker = '__activity_table__'
+  const marker = '<!--ACTIVITY_TABLE-->'
   const markerIndex = content.indexOf(marker)
 
   if (markerIndex === -1) {
@@ -76,7 +176,7 @@ function parseActivityTable(content: string): { text: string; activityData: Acti
     // JSON parse failed, return text only
   }
 
-  return { text: content.replace(marker, '').trim(), activityData: null }
+  return { text: textBefore, activityData: null }
 }
 
 /**
@@ -114,35 +214,67 @@ export function AIMessage({ message }: AIMessageProps) {
 
   // Parse content for special components (NFT gallery, activity table, etc.)
   // Check rawToolOutput first for markers (has preserved markers from tool output)
-  // LLM rewrites tool output, losing markers like __nft_gallery__ and __activity_table__
+  // LLM rewrites tool output, losing markers like <!--NFT_GALLERY--> and <!--ACTIVITY_TABLE-->
   // We preserve raw output in message.rawToolOutput for component detection
-  const { text, gallery, activityData } = useMemo(() => {
+  //
+  // DEFENSIVE JSON STRIPPING:
+  // Some models (like Gemini) echo the JSON in response tokens WITHOUT the marker.
+  // This causes raw JSON to appear during streaming before rawToolOutput is attached.
+  // Solution: Strip JSON-like patterns from displayedContent when we detect them.
+  const { text, gallery, activityData, loadingActivity, loadingGallery } = useMemo(() => {
     let finalText = displayedContent
     let galleryData: NFTGalleryData | null = null
     let activity: ActivityTableData | null = null
+    let isLoadingActivity = false
+    let isLoadingGallery = false
 
-    // Try to extract gallery from rawToolOutput first (preserved markers)
+    // FIRST: Check rawToolOutput for markers (authoritative source)
     if (message.rawToolOutput) {
-      const { gallery: galleryFromRaw } = parseNFTGallery(message.rawToolOutput)
-      if (galleryFromRaw) {
-        galleryData = galleryFromRaw
-        // Strip marker from displayedContent in case LLM echoed tool output verbatim
-        const { text: cleanedText } = parseNFTGallery(finalText)
-        finalText = cleanedText
+      // Parse activity from rawToolOutput
+      if (message.rawToolOutput.includes('<!--ACTIVITY_TABLE-->')) {
+        const { activityData: activityFromRaw } = parseActivityTable(message.rawToolOutput)
+        if (activityFromRaw) {
+          activity = activityFromRaw
+          // Strip ALL JSON-like content from displayedContent
+          // Model may echo JSON without marker, so we can't rely on marker parsing
+          finalText = stripJsonContent(finalText)
+        }
       }
 
-      // Try to extract activity table from rawToolOutput
-      const { activityData: activityFromRaw } = parseActivityTable(message.rawToolOutput)
-      if (activityFromRaw) {
-        activity = activityFromRaw
-        // Strip marker from displayedContent in case LLM echoed tool output verbatim
-        const { text: cleanedText } = parseActivityTable(finalText)
-        finalText = cleanedText
+      // Parse gallery from rawToolOutput
+      if (message.rawToolOutput.includes('<!--NFT_GALLERY-->')) {
+        const { gallery: galleryFromRaw } = parseNFTGallery(message.rawToolOutput)
+        if (galleryFromRaw) {
+          galleryData = galleryFromRaw
+          // Strip ALL JSON-like content from displayedContent
+          finalText = stripJsonContent(finalText)
+        }
       }
     }
 
-    // Fall back to parsing displayedContent if not found in rawToolOutput
-    if (!galleryData) {
+    // SECOND: During streaming, defensively strip JSON patterns
+    // even if rawToolOutput isn't attached yet (timing issue)
+    if (message.isStreaming && !activity && !galleryData) {
+      // Check for JSON-like patterns that match our tool output structure
+      const hasActivityJson = /\{[\s\S]*?"activities"[\s\S]*?\[/.test(finalText)
+      const hasGalleryJson = /\{[\s\S]*?"nfts"[\s\S]*?\[/.test(finalText)
+
+      if (hasActivityJson) {
+        // Strip the JSON, show loader until rawToolOutput arrives
+        finalText = stripJsonContent(finalText)
+        isLoadingActivity = true
+      }
+
+      if (hasGalleryJson) {
+        // Strip the JSON, show loader until rawToolOutput arrives
+        finalText = stripJsonContent(finalText)
+        isLoadingGallery = true
+      }
+    }
+
+    // THIRD: Fall back to parsing displayedContent if not streaming
+    // and not found in rawToolOutput (for non-streaming scenarios)
+    if (!galleryData && !message.isStreaming) {
       const { text: textAfterGallery, gallery: galleryFromContent } = parseNFTGallery(finalText)
       if (galleryFromContent) {
         galleryData = galleryFromContent
@@ -150,7 +282,7 @@ export function AIMessage({ message }: AIMessageProps) {
       }
     }
 
-    if (!activity) {
+    if (!activity && !message.isStreaming) {
       const { text: textAfterActivity, activityData: activityFromContent } = parseActivityTable(finalText)
       if (activityFromContent) {
         activity = activityFromContent
@@ -158,8 +290,14 @@ export function AIMessage({ message }: AIMessageProps) {
       }
     }
 
-    return { text: finalText, gallery: galleryData, activityData: activity }
-  }, [displayedContent, message.rawToolOutput, message.id])
+    return {
+      text: finalText,
+      gallery: galleryData,
+      activityData: activity,
+      loadingActivity: isLoadingActivity,
+      loadingGallery: isLoadingGallery,
+    }
+  }, [displayedContent, message.rawToolOutput, message.id, message.isStreaming])
 
   // Determine if reasoning is still streaming (has reasoning but no content yet)
   const isReasoningStreaming = !!(message.isStreaming && message.reasoningContent && !displayedContent)
@@ -189,10 +327,24 @@ export function AIMessage({ message }: AIMessageProps) {
         {/* Render text content with streaming animation */}
         {text && <MarkdownRenderer content={text} isAnimating={message.isStreaming ?? false} />}
 
+        {/* Show loader while NFT Gallery is being fetched */}
+        {loadingGallery && !gallery && (
+          <div className="mt-4">
+            <TableLoader type="gallery" />
+          </div>
+        )}
+
         {/* Render NFT Gallery if present */}
         {gallery && (
           <div className="mt-4">
             <NFTGallery data={gallery} onBuyClick={handleBuyClick} />
+          </div>
+        )}
+
+        {/* Show loader while Activity Table is being fetched */}
+        {loadingActivity && !activityData && (
+          <div className="mt-4">
+            <TableLoader type="activity" />
           </div>
         )}
 

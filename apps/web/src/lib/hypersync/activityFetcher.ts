@@ -293,15 +293,38 @@ interface TokenPrice {
 const priceCache = new Map<string, TokenPrice>();
 const PRICE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// Track pending requests to deduplicate concurrent calls
+const pendingRequests = new Map<string, Promise<TokenInfo>>();
+
 async function getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
   const normalized = tokenAddress.toLowerCase();
 
-  // Check cache
+  // Check cache first
   const cached = priceCache.get(normalized);
   if (cached && Date.now() - cached.fetchedAt < PRICE_CACHE_TTL) {
     return cached;
   }
 
+  // Check if there's already a pending request for this token (dedup concurrent calls)
+  const pending = pendingRequests.get(normalized);
+  if (pending) {
+    return pending;
+  }
+
+  // Create and track the request
+  const requestPromise = fetchTokenInfo(normalized);
+  pendingRequests.set(normalized, requestPromise);
+
+  try {
+    const result = await requestPromise;
+    return result;
+  } finally {
+    // Clean up pending request
+    pendingRequests.delete(normalized);
+  }
+}
+
+async function fetchTokenInfo(normalized: string): Promise<TokenInfo> {
   try {
     // Native token (MON) - use WMON address for price
     const queryAddress =
@@ -340,6 +363,35 @@ async function getTokenInfo(tokenAddress: string): Promise<TokenInfo> {
       priceUsd: 0,
     };
   }
+}
+
+/**
+ * Extract unique token addresses from transaction logs for pre-fetching
+ */
+function extractTokenAddresses(logs: HypersyncLog[]): Set<string> {
+  const addresses = new Set<string>();
+
+  for (const log of logs) {
+    // ERC20 transfers have the token address in log.address
+    if (log.topic0?.toLowerCase() === TOPICS.TRANSFER.toLowerCase()) {
+      addresses.add(log.address.toLowerCase());
+    }
+  }
+
+  // Add commonly needed tokens to pre-warm
+  addresses.add(CONTRACTS.WMON);
+  addresses.add("0xb5a30b0fdc5ea94a52fdc42e3e9760cb8449fb37"); // aprMON
+
+  return addresses;
+}
+
+/**
+ * Pre-fetch token info in parallel to warm the cache
+ * This prevents redundant API calls during parallel tx processing
+ */
+async function prefetchTokenInfo(addresses: Set<string>): Promise<void> {
+  if (addresses.size === 0) return;
+  await Promise.all([...addresses].map((addr) => getTokenInfo(addr)));
 }
 
 // ============================================================================
@@ -864,6 +916,103 @@ async function getTransactionInput(txHash: string): Promise<string | undefined> 
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Batch RPC calls - execute multiple JSON-RPC requests in a single HTTP request
+ * Reduces HTTP overhead when fetching data for multiple transactions
+ */
+async function batchRpcCalls(
+  requests: Array<{ method: string; params: unknown[] }>
+): Promise<unknown[]> {
+  if (!RPC_URL || requests.length === 0) {
+    return requests.map(() => null);
+  }
+
+  try {
+    const batchBody = requests.map((req, i) => ({
+      jsonrpc: "2.0",
+      method: req.method,
+      params: req.params,
+      id: i + 1,
+    }));
+
+    const response = await fetch(RPC_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(batchBody),
+    });
+
+    const results = await response.json();
+
+    // Handle both array response (batch) and single response
+    if (!Array.isArray(results)) {
+      return [results.result];
+    }
+
+    // Sort by ID and extract results
+    return results
+      .sort((a: { id: number }, b: { id: number }) => a.id - b.id)
+      .map((r: { result: unknown }) => r.result);
+  } catch (error) {
+    console.error("[ActivityFetcher] Batch RPC error:", error);
+    return requests.map(() => null);
+  }
+}
+
+/**
+ * Batch fetch transaction data (receipts + inputs) for multiple transactions
+ * Returns a map of txHash -> { logs, input }
+ */
+async function batchFetchTransactionData(
+  txHashes: string[]
+): Promise<Map<string, { logs: HypersyncLog[]; input: string | undefined }>> {
+  const dataMap = new Map<string, { logs: HypersyncLog[]; input: string | undefined }>();
+
+  if (txHashes.length === 0) {
+    return dataMap;
+  }
+
+  // Build batch requests: receipt + tx for each hash
+  const requests = txHashes.flatMap((hash) => [
+    { method: "eth_getTransactionReceipt", params: [hash] },
+    { method: "eth_getTransactionByHash", params: [hash] },
+  ]);
+
+  const results = await batchRpcCalls(requests);
+
+  // Parse results in pairs (receipt, tx)
+  for (let i = 0; i < txHashes.length; i++) {
+    const receipt = results[i * 2] as { logs?: Array<{
+      blockNumber: string;
+      transactionHash: string;
+      logIndex: string;
+      topics: string[];
+      data: string;
+      address: string;
+    }> } | null;
+    const tx = results[i * 2 + 1] as { input?: string } | null;
+
+    // Parse logs from receipt
+    const logs: HypersyncLog[] = receipt?.logs?.map((log) => ({
+      block_number: parseInt(log.blockNumber, 16),
+      transaction_hash: log.transactionHash,
+      log_index: parseInt(log.logIndex, 16),
+      topic0: log.topics[0] || "",
+      topic1: log.topics[1],
+      topic2: log.topics[2],
+      topic3: log.topics[3],
+      data: log.data,
+      address: log.address.toLowerCase(),
+    })) || [];
+
+    dataMap.set(txHashes[i], {
+      logs,
+      input: tx?.input,
+    });
+  }
+
+  return dataMap;
 }
 
 /**
@@ -1944,6 +2093,15 @@ async function classifyPragmaTransaction(
 // ============================================================================
 
 /**
+ * Performance logging helper
+ */
+const logTiming = (label: string, startTime: number): number => {
+  const elapsed = Date.now() - startTime;
+  console.log(`[ActivityFetcher] ${label} - ${elapsed}ms`);
+  return elapsed;
+};
+
+/**
  * Fetch on-chain activity for an address (smart account or EOA)
  */
 export async function fetchActivity(
@@ -1952,25 +2110,35 @@ export async function fetchActivity(
   page: number = 1,
   pageSize: number = 20
 ): Promise<ActivityResponse> {
-  // Detect address type
+  const totalStart = Date.now();
+  const shortAddr = `${address.slice(0, 6)}...${address.slice(-4)}`;
+  console.log(`[ActivityFetcher] ========================================`);
+  console.log(`[ActivityFetcher] Starting fetch for ${shortAddr}, timeRange: ${timeRange}`);
+
+  // Step 1: Detect address type
+  const step1Start = Date.now();
   const addressType = await detectAddressType(address);
+  logTiming(`Address type detection (${addressType})`, step1Start);
 
-  // Get current block height
+  // Step 2: Get current block height
+  const step2Start = Date.now();
   const currentBlock = await getCurrentBlock();
+  logTiming(`Get current block (${currentBlock})`, step2Start);
 
-  // Parse time range to block range
+  // Step 3: Parse time range to block range
   const { fromBlock, toBlock } = parseTimeRange(timeRange, currentBlock);
+  console.log(`[ActivityFetcher] Block range: ${fromBlock} -> ${toBlock} (${toBlock - fromBlock} blocks)`);
 
   const activities: ActivityItem[] = [];
 
   if (addressType === "smart_account") {
-    // Query BOTH:
-    // 1. RedeemedDelegation events (outgoing Pragma transactions)
-    // 2. Incoming Transfer events (tokens received from any source)
+    // Step 4: HyperSync queries (parallel)
+    const step4Start = Date.now();
     const [pragmaResult, incomingResult] = await Promise.all([
       queryRedeemedDelegationEvents(address, fromBlock, toBlock),
       queryIncomingTransfers(address, fromBlock, toBlock),
     ]);
+    logTiming(`HyperSync queries (pragma: ${pragmaResult.logs.length}, incoming: ${incomingResult.logs.length} logs)`, step4Start);
 
     // Build block timestamp map from both queries
     const blockMap = new Map<number, number>();
@@ -1981,44 +2149,8 @@ export async function fetchActivity(
       blockMap.set(block.number, block.timestamp);
     }
 
-    // Process Pragma transactions (RedeemedDelegation events)
+    // Step 5: Collect all tx hashes and batch fetch RPC data
     const pragmaTxHashes = [...new Set(pragmaResult.logs.map((l) => l.transaction_hash))];
-
-    for (const txHash of pragmaTxHashes) {
-      const logEntry = pragmaResult.logs.find((l) => l.transaction_hash === txHash);
-      if (!logEntry) continue;
-
-      const blockNumber = logEntry.block_number;
-      let timestamp = blockMap.get(blockNumber);
-      if (!timestamp) {
-        timestamp = await getBlockTimestamp(blockNumber);
-      }
-
-      const [txLogs, txInput] = await Promise.all([
-        queryTransactionLogs(txHash),
-        getTransactionInput(txHash),
-      ]);
-
-      const classification = await classifyPragmaTransaction(txLogs, address, txInput);
-
-      activities.push({
-        txHash,
-        blockNumber,
-        timestamp,
-        type: classification.type,
-        typeDescription: classification.typeDescription,
-        tokenIn: classification.tokenIn,
-        tokenOut: classification.tokenOut,
-        protocol: classification.protocol,
-        counterparty: classification.counterparty,
-        from: classification.from,
-        to: classification.to,
-        isPragma: true,
-      });
-    }
-
-    // Process incoming transfers (tokens received)
-    // Skip txs already processed from Pragma events
     const processedTxHashes = new Set(pragmaTxHashes);
     const incomingTxHashes = [...new Set(
       incomingResult.logs
@@ -2026,45 +2158,109 @@ export async function fetchActivity(
         .filter((h) => !processedTxHashes.has(h))
     )];
 
-    for (const txHash of incomingTxHashes) {
-      const logEntry = incomingResult.logs.find((l) => l.transaction_hash === txHash);
-      if (!logEntry) continue;
+    // Batch fetch all transaction data in a single RPC call
+    const allTxHashes = [...pragmaTxHashes, ...incomingTxHashes];
+    const step5Start = Date.now();
+    console.log(`[ActivityFetcher] Batch fetching RPC data for ${allTxHashes.length} transactions...`);
+    const txDataMap = await batchFetchTransactionData(allTxHashes);
+    logTiming(`Batch RPC fetch (${allTxHashes.length} txs)`, step5Start);
 
-      const blockNumber = logEntry.block_number;
-      let timestamp = blockMap.get(blockNumber);
-      if (!timestamp) {
-        timestamp = await getBlockTimestamp(blockNumber);
-      }
+    // Step 5b: Pre-fetch token info to warm cache before parallel processing
+    const allLogs = [...txDataMap.values()].flatMap((v) => v.logs);
+    const tokenAddresses = extractTokenAddresses(allLogs);
+    const step5bStart = Date.now();
+    console.log(`[ActivityFetcher] Pre-fetching ${tokenAddresses.size} unique tokens...`);
+    await prefetchTokenInfo(tokenAddresses);
+    logTiming(`Token prefetch (${tokenAddresses.size} tokens)`, step5bStart);
 
-      const [txLogs, txInput] = await Promise.all([
-        queryTransactionLogs(txHash),
-        getTransactionInput(txHash),
-      ]);
+    // Step 6: Process Pragma transactions IN PARALLEL (using cached data)
+    const step6Start = Date.now();
+    console.log(`[ActivityFetcher] Processing ${pragmaTxHashes.length} Pragma transactions in parallel...`);
 
-      const classification = await classifyPragmaTransaction(txLogs, address, txInput);
+    const pragmaActivities = await Promise.all(
+      pragmaTxHashes.map(async (txHash) => {
+        const logEntry = pragmaResult.logs.find((l) => l.transaction_hash === txHash);
+        if (!logEntry) return null;
 
-      activities.push({
-        txHash,
-        blockNumber,
-        timestamp,
-        type: classification.type,
-        typeDescription: classification.typeDescription,
-        tokenIn: classification.tokenIn,
-        tokenOut: classification.tokenOut,
-        protocol: classification.protocol,
-        counterparty: classification.counterparty,
-        from: classification.from,
-        to: classification.to,
-        isPragma: false, // Incoming transfers are not Pragma txs
-      });
-    }
+        const blockNumber = logEntry.block_number;
+        const timestamp = blockMap.get(blockNumber) || await getBlockTimestamp(blockNumber);
+
+        // Use batch-fetched data instead of individual RPC calls
+        const txData = txDataMap.get(txHash);
+        const txLogs = txData?.logs || [];
+        const txInput = txData?.input;
+
+        const classification = await classifyPragmaTransaction(txLogs, address, txInput);
+
+        return {
+          txHash,
+          blockNumber,
+          timestamp,
+          type: classification.type,
+          typeDescription: classification.typeDescription,
+          tokenIn: classification.tokenIn,
+          tokenOut: classification.tokenOut,
+          protocol: classification.protocol,
+          counterparty: classification.counterparty,
+          from: classification.from,
+          to: classification.to,
+          isPragma: true,
+        };
+      })
+    );
+
+    // Filter out nulls and add to activities
+    activities.push(...pragmaActivities.filter((a): a is NonNullable<typeof a> => a !== null));
+    logTiming(`Pragma tx processing (${pragmaTxHashes.length} txs, parallel)`, step6Start);
+
+    // Step 7: Process incoming transfers IN PARALLEL (using cached data)
+    const step7Start = Date.now();
+    console.log(`[ActivityFetcher] Processing ${incomingTxHashes.length} incoming transactions in parallel...`);
+
+    const incomingActivities = await Promise.all(
+      incomingTxHashes.map(async (txHash) => {
+        const logEntry = incomingResult.logs.find((l) => l.transaction_hash === txHash);
+        if (!logEntry) return null;
+
+        const blockNumber = logEntry.block_number;
+        const timestamp = blockMap.get(blockNumber) || await getBlockTimestamp(blockNumber);
+
+        // Use batch-fetched data instead of individual RPC calls
+        const txData = txDataMap.get(txHash);
+        const txLogs = txData?.logs || [];
+        const txInput = txData?.input;
+
+        const classification = await classifyPragmaTransaction(txLogs, address, txInput);
+
+        return {
+          txHash,
+          blockNumber,
+          timestamp,
+          type: classification.type,
+          typeDescription: classification.typeDescription,
+          tokenIn: classification.tokenIn,
+          tokenOut: classification.tokenOut,
+          protocol: classification.protocol,
+          counterparty: classification.counterparty,
+          from: classification.from,
+          to: classification.to,
+          isPragma: false, // Incoming transfers are not Pragma txs
+        };
+      })
+    );
+
+    // Filter out nulls and add to activities
+    activities.push(...incomingActivities.filter((a): a is NonNullable<typeof a> => a !== null));
+    logTiming(`Incoming tx processing (${incomingTxHashes.length} txs, parallel)`, step7Start);
   } else {
-    // Query transactions for EOAs
+    // EOA branch - Query transactions
+    const step4Start = Date.now();
     const { transactions, blocks } = await queryEOATransactions(
       address,
       fromBlock,
       toBlock
     );
+    logTiming(`EOA query (${transactions.length} txs)`, step4Start);
 
     // Build block timestamp map
     const blockMap = new Map<number, number>();
@@ -2072,57 +2268,83 @@ export async function fetchActivity(
       blockMap.set(block.number, block.timestamp);
     }
 
-    // Process each transaction
-    for (const tx of transactions) {
-      const blockNumber = tx.block_number;
-      let timestamp = blockMap.get(blockNumber);
-      if (!timestamp) {
-        timestamp = await getBlockTimestamp(blockNumber);
-      }
+    // Batch fetch all transaction data in a single RPC call
+    const txHashes = transactions.map((tx) => tx.hash);
+    const step5Start = Date.now();
+    console.log(`[ActivityFetcher] Batch fetching RPC data for ${txHashes.length} EOA transactions...`);
+    const txDataMap = await batchFetchTransactionData(txHashes);
+    logTiming(`Batch RPC fetch (${txHashes.length} txs)`, step5Start);
 
-      // Get all logs for this transaction and the transaction input
-      const [txLogs, txInput] = await Promise.all([
-        queryTransactionLogs(tx.hash),
-        getTransactionInput(tx.hash),
-      ]);
+    // Pre-fetch token info to warm cache before parallel processing
+    const allLogs = [...txDataMap.values()].flatMap((v) => v.logs);
+    const tokenAddresses = extractTokenAddresses(allLogs);
+    const step5bStart = Date.now();
+    console.log(`[ActivityFetcher] Pre-fetching ${tokenAddresses.size} unique tokens...`);
+    await prefetchTokenInfo(tokenAddresses);
+    logTiming(`Token prefetch (${tokenAddresses.size} tokens)`, step5bStart);
 
-      // Classify based on logs
-      const classification = await classifyPragmaTransaction(
-        txLogs,
-        address,
-        txInput
-      );
+    // Process each transaction IN PARALLEL (using cached data)
+    const step6Start = Date.now();
+    console.log(`[ActivityFetcher] Processing ${transactions.length} EOA transactions in parallel...`);
 
-      activities.push({
-        txHash: tx.hash,
-        blockNumber,
-        timestamp,
-        type: classification.type,
-        typeDescription: classification.typeDescription,
-        tokenIn: classification.tokenIn,
-        tokenOut: classification.tokenOut,
-        protocol: classification.protocol,
-        counterparty: classification.counterparty,
-        from: classification.from,
-        to: classification.to,
-        isPragma: false,
-      });
-    }
+    const eoaActivities = await Promise.all(
+      transactions.map(async (tx) => {
+        const blockNumber = tx.block_number;
+        const timestamp = blockMap.get(blockNumber) || await getBlockTimestamp(blockNumber);
+
+        // Use batch-fetched data instead of individual RPC calls
+        const txData = txDataMap.get(tx.hash);
+        const txLogs = txData?.logs || [];
+        const txInput = txData?.input;
+
+        // Classify based on logs
+        const classification = await classifyPragmaTransaction(
+          txLogs,
+          address,
+          txInput
+        );
+
+        return {
+          txHash: tx.hash,
+          blockNumber,
+          timestamp,
+          type: classification.type,
+          typeDescription: classification.typeDescription,
+          tokenIn: classification.tokenIn,
+          tokenOut: classification.tokenOut,
+          protocol: classification.protocol,
+          counterparty: classification.counterparty,
+          from: classification.from,
+          to: classification.to,
+          isPragma: false,
+        };
+      })
+    );
+
+    activities.push(...eoaActivities);
+    logTiming(`EOA tx processing (${transactions.length} txs, parallel)`, step6Start);
   }
 
-  // Sort by timestamp descending (most recent first)
+  // Step 8: Sort and deduplicate
+  const step8Start = Date.now();
   activities.sort((a, b) => b.timestamp - a.timestamp);
 
-  // Deduplicate by txHash
   const seen = new Set<string>();
   const uniqueActivities = activities.filter((a) => {
     if (seen.has(a.txHash)) return false;
     seen.add(a.txHash);
     return true;
   });
+  logTiming(`Sort & dedupe (${activities.length} -> ${uniqueActivities.length})`, step8Start);
 
   // Return ALL activities - UI table handles its own pagination
   const totalCount = uniqueActivities.length;
+
+  // Final summary
+  const totalElapsed = Date.now() - totalStart;
+  console.log(`[ActivityFetcher] ========================================`);
+  console.log(`[ActivityFetcher] TOTAL: ${uniqueActivities.length} activities in ${totalElapsed}ms`);
+  console.log(`[ActivityFetcher] ========================================`);
 
   return {
     activities: uniqueActivities, // Return ALL, not paginated

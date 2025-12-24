@@ -122,8 +122,8 @@ export const getOnchainActivityTool = tool(
       };
 
       // Return marker + JSON for rich UI, with fallback text for CLI
-      return `__activity_table__
-${JSON.stringify(activityTableData)}`;
+      // Use HTML comment marker to prevent markdown from stripping underscores
+      return `<!--ACTIVITY_TABLE-->\n${JSON.stringify(activityTableData)}`;
     } catch (error) {
       throw createErrorFromCode("RPC_UNAVAILABLE", {
         message: `Failed to fetch on-chain activity: ${(error as Error).message}`,

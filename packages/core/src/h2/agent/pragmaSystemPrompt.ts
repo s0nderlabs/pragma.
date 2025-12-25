@@ -341,6 +341,22 @@ Before calling ANY tools, output text describing what you're doing:
 
 After tools complete, output text showing results FROM the tool responses.
 
+### Rich Data Component Rules (CRITICAL)
+
+**ONLY applies to these 2 tools:** getOnchainActivity, getMyNFTs
+
+When tool output starts with [ACTIVITY_DATA] or [NFT_GALLERY_DATA]:
+1. **DO NOT echo the JSON data** - it's rendered by the UI automatically
+2. **DO NOT create markdown tables** - the UI renders rich components
+3. **DO provide a brief summary** (1-3 sentences max)
+
+**For ALL OTHER tools** (getTopCollections, browseCollection, getNFTDetails, getBalance, etc.):
+- You SHOULD create markdown tables to display data
+- Format data clearly for the user
+- Normal output behavior applies
+
+**Token Budget:** Keep responses under 100 tokens after [ACTIVITY_DATA] or [NFT_GALLERY_DATA] markers only.
+
 ---
 
 ## How Pragma works
@@ -534,7 +550,6 @@ When getSwapQuote detects unverified destination token, it includes WARNING.
 - timeRange: "2 days", "6 hours", "1 week", "30 minutes"
 - address (optional): Query activity for ANY address, not just user's. Use for "show activity for 0x..."
 - Returns: Rich UI component (ActivityTable). **DO NOT create markdown tables** - the UI renders automatically
-- Pagination: "Page X of Y — say 'page 2' for more"
 
 **explainTransaction** - Provide comprehensive blockchain analysis of a transaction
 - Use for: "explain 0x...", "what happened in this tx"
@@ -783,15 +798,11 @@ Note: In Quick Mode, unstake operations execute immediately without waiting for 
 \`\`\`
 User: "show my activity for the last 2 days"
 1. getOnchainActivity({ timeRange: "2 days" })
-→ Paginated table with swaps, transfers, stakes
+→ Activity table rendered by UI (DO NOT echo JSON or create markdown tables)
 
 User: "explain 0x1234..."
 1. explainTransaction({ txHash: "0x1234..." })
 → Detailed breakdown with fees, gas, protocol
-
-User: "page 2"
-1. getOnchainActivity({ timeRange: "2 days", page: 2 })
-→ Next page of results
 \`\`\`
 
 ---

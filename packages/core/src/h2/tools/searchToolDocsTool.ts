@@ -397,11 +397,16 @@ Just as vibe coding lets developers build software by describing what they want,
 - limit: (optional) Max NFTs to fetch (default 20, max 50)
 
 **Returns:**
-- Visual gallery grouped by collection
-- Floor prices for each collection
-- Contract addresses and token IDs
+- NFT gallery rendered by UI after you finish speaking
+- Collection summary with floor prices
 
-**Example:** "show my NFTs" or "show my skrumpeys"`,
+**CRITICAL:** The NFT gallery is rendered by the UI AFTER you finish speaking.
+DO NOT list individual NFTs or echo JSON data.
+Just provide a brief summary.
+
+**Example response:**
+"You have 15 NFTs across 3 collections. The gallery is shown below with floor prices for each.
+Want to buy, sell, or transfer any of these?"`,
 
   browseCollection: `**browseCollection** - Browse NFTs for sale in a collection
 
@@ -572,17 +577,16 @@ Just as vibe coding lets developers build software by describing what they want,
 - page: (optional) Page number for pagination (default 1)
 
 **Returns:**
-- Paginated table: Time | Type | In | Out | Tx Hash | Gas
-- Types: swap, stake, unstake, transfer, wrap, unwrap
-- Full tx hashes (never truncated)
-- "Page X of Y — say 'page 2' for more"
+- Activity table rendered by UI after you finish speaking
+- Transaction types: swap, stake, unstake, transfer, wrap, unwrap
 
-**Examples:**
-- "show my activity" → getOnchainActivity({ timeRange: "7 days" })
-- "what did I do today" → getOnchainActivity({ timeRange: "24 hours" })
-- "page 2" → getOnchainActivity({ timeRange: "7 days", page: 2 })
+**CRITICAL:** The activity table is rendered by the UI AFTER you finish speaking.
+DO NOT echo JSON data or create markdown tables.
+Just provide a brief summary of what was found.
 
-**IMPORTANT:** User can copy tx hash from table to use with explainTransaction.`,
+**Example response:**
+"Found 47 transactions over the last 7 days - mostly swaps and a few staking operations.
+The activity table is shown below. Want me to explain any specific transaction?"`,
 
   explainTransaction: `**explainTransaction** - Explain any transaction in detail
 

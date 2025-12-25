@@ -297,7 +297,7 @@ export const getMyNFTsTool = tool(
         nextCursor
       );
 
-      const { text: textOutput, collections } = formatNFTListAsText(nfts, checksummedAddress, floorPrices, monUsdPrice);
+      const { collections } = formatNFTListAsText(nfts, checksummedAddress, floorPrices, monUsdPrice);
 
       // Include collections metadata in gallery data for agent context
       const enrichedGalleryData = {
@@ -305,10 +305,23 @@ export const getMyNFTsTool = tool(
         collections, // Array of { name, slug, contract, count }
       };
 
-      // Return text for LLM + structured data marker for UI
-      // Agent can use collections array to find slug for follow-up operations
-      // Use HTML comment marker to prevent markdown from stripping underscores
-      return `${textOutput}\n\n<!--NFT_GALLERY-->\n${JSON.stringify(enrichedGalleryData)}`;
+      // Build compact summary for LLM (prevents LLM from echoing full JSON)
+      const collectionSummary = collections
+        .map((c) => `${c.name} (${c.count})`)
+        .join(", ");
+
+      // Return summary for LLM + marker + JSON for UI
+      // The LLM should NOT echo the JSON - the UI renders the gallery after streaming ends
+      return `[NFT_GALLERY_DATA]
+Found ${nfts.length} NFTs across ${collections.length} collections.
+Collections: ${collectionSummary || "none"}
+
+IMPORTANT: The NFT gallery will be rendered by the UI after you finish speaking.
+DO NOT list individual NFTs or reproduce the JSON data.
+Provide a brief, conversational summary.
+
+<!--NFT_GALLERY-->
+${JSON.stringify(enrichedGalleryData)}`;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("[getMyNFTsTool] Error:", errorMessage);

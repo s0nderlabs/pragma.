@@ -6,7 +6,7 @@
  */
 
 import { create } from "zustand";
-import { devtools, persist } from "zustand/middleware";
+import { devtools, persist, createJSONStorage } from "zustand/middleware";
 import type {
   ChatMessage,
   ProgressState,
@@ -1082,6 +1082,17 @@ export const useH2ChatStore = create<H2ChatState>()(
       }),
       {
         name: "h2-chat-storage",
+        storage: createJSONStorage(() => {
+          if (typeof window === "undefined") {
+            // Return a no-op storage for SSR to prevent hydration errors
+            return {
+              getItem: () => null,
+              setItem: () => {},
+              removeItem: () => {},
+            };
+          }
+          return localStorage;
+        }),
         partialize: (state) => ({
           // Only persist these fields
           quickMode: state.quickMode,

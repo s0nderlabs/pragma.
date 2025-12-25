@@ -121,9 +121,28 @@ export const getOnchainActivityTool = tool(
         address: checksummedAddress,
       };
 
-      // Return marker + JSON for rich UI, with fallback text for CLI
-      // Use HTML comment marker to prevent markdown from stripping underscores
-      return `<!--ACTIVITY_TABLE-->\n${JSON.stringify(activityTableData)}`;
+      // Build summary stats for LLM context (prevents LLM from echoing full JSON)
+      const typeCounts: Record<string, number> = {};
+      for (const activity of data.activities) {
+        typeCounts[activity.type] = (typeCounts[activity.type] || 0) + 1;
+      }
+      const typeBreakdown = Object.entries(typeCounts)
+        .map(([type, count]) => `${count} ${type}`)
+        .join(", ");
+
+      // Return summary for LLM + marker + JSON for UI
+      // The LLM should NOT echo the JSON - the UI renders the table after streaming ends
+      return `[ACTIVITY_DATA]
+Found ${data.totalCount} transactions from the last ${timeRange}.
+Types: ${typeBreakdown || "none"}
+Page ${data.page} of ${data.totalPages}
+
+IMPORTANT: The activity table will be rendered by the UI after you finish speaking.
+DO NOT reproduce the transaction data or create markdown tables.
+Provide a brief, conversational summary of what you observed.
+
+<!--ACTIVITY_TABLE-->
+${JSON.stringify(activityTableData)}`;
     } catch (error) {
       throw createErrorFromCode("RPC_UNAVAILABLE", {
         message: `Failed to fetch on-chain activity: ${(error as Error).message}`,

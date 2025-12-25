@@ -82,7 +82,7 @@ function TableLoader({ type }: { type: 'activity' | 'gallery' }) {
 }
 
 /**
- * Strip JSON-like content from streaming output
+ * Strip JSON-like content and marker prefixes from streaming output
  * Used to hide raw JSON that models like Gemini echo during streaming
  * This is defensive - we strip JSON patterns regardless of markers
  *
@@ -91,26 +91,33 @@ function TableLoader({ type }: { type: 'activity' | 'gallery' }) {
  * complete JSON and partial JSON (during streaming).
  */
 function stripJsonContent(content: string): string {
+  let result = content
+
+  // Pattern 0: Strip marker prefixes that LLM may echo
+  // These markers should never appear in the final output
+  result = result.replace(/\[NFT_GALLERY_DATA\]/g, '')
+  result = result.replace(/\[ACTIVITY_DATA\]/g, '')
+
   // Pattern 1: Activity table JSON (has "activities" array)
   // Match from first `{"activities"` or `{ "activities"` to end of string
-  const activityMatch = content.match(/\{\s*"activities"\s*:/)
+  const activityMatch = result.match(/\{\s*"activities"\s*:/)
   if (activityMatch && activityMatch.index !== undefined) {
-    return content.slice(0, activityMatch.index).trim()
+    return result.slice(0, activityMatch.index).trim()
   }
 
   // Pattern 2: NFT gallery JSON (has "__type": "nft_gallery" or "nfts" + "totalCount")
-  const galleryMatch = content.match(/\{\s*"__type"\s*:\s*"nft_gallery"/)
+  const galleryMatch = result.match(/\{\s*"__type"\s*:\s*"nft_gallery"/)
   if (galleryMatch && galleryMatch.index !== undefined) {
-    return content.slice(0, galleryMatch.index).trim()
+    return result.slice(0, galleryMatch.index).trim()
   }
 
   // Pattern 3: NFT gallery alternative structure (nfts array with totalCount)
-  const nftMatch = content.match(/\{\s*"title"\s*:.*"nfts"\s*:/)
+  const nftMatch = result.match(/\{\s*"title"\s*:.*"nfts"\s*:/)
   if (nftMatch && nftMatch.index !== undefined) {
-    return content.slice(0, nftMatch.index).trim()
+    return result.slice(0, nftMatch.index).trim()
   }
 
-  return content.trim()
+  return result.trim()
 }
 
 /**

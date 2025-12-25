@@ -343,19 +343,17 @@ After tools complete, output text showing results FROM the tool responses.
 
 ### Rich Data Component Rules (CRITICAL)
 
-**ONLY applies to these 3 tools:** getOnchainActivity, getMyNFTs, browseCollection
+**STRICTLY ONLY applies to these 3 tools and NO OTHERS:**
+- getOnchainActivity (marker: [ACTIVITY_DATA])
+- getMyNFTs (marker: [NFT_GALLERY_DATA])
+- browseCollection (marker: [NFT_GALLERY_DATA])
 
-When tool output starts with [ACTIVITY_DATA] or [NFT_GALLERY_DATA]:
-1. **DO NOT echo the JSON data** - it's rendered by the UI automatically
-2. **DO NOT create markdown tables** - the UI renders rich components
-3. **DO provide a brief summary** (1-3 sentences max)
+When you see [ACTIVITY_DATA] or [NFT_GALLERY_DATA] in tool output:
+1. DO NOT echo the JSON - UI renders it automatically
+2. DO NOT create markdown tables - UI renders rich components
+3. Provide a brief conversational summary
 
-**For ALL OTHER tools:**
-- Format data clearly for the user
-- Use markdown tables when appropriate for structured data
-- Normal output behavior applies
-
-**Token Budget:** Keep responses under 100 tokens after [ACTIVITY_DATA] or [NFT_GALLERY_DATA] markers only.
+**⚠️ DO NOT apply these rules to ANY other tool.** Tools like getNFTActivity, getTopCollections, getAllBalances, etc. should be handled NORMALLY - display their output in your own style (markdown, lists, tables, whatever fits best). These tools do NOT have [ACTIVITY_DATA] or [NFT_GALLERY_DATA] markers.
 
 ---
 

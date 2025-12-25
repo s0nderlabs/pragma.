@@ -104,12 +104,6 @@ export const browseCollectionTool = tool(
         };
       });
 
-      // Build text output with USD prices
-      const textOutput = `Found ${listings.length} listings in "${collection}":\n\n${displayNfts
-        .slice(0, 5)
-        .map((d, i) => `${i + 1}. ${d.nft.name || `#${d.nft.identifier}`} - ${d.formattedPrice}`)
-        .join("\n")}${listings.length > 5 ? `\n...and ${listings.length - 5} more` : ""}`;
-
       // Build gallery data for UI
       const galleryData: NFTGalleryData = {
         __type: "nft_gallery",
@@ -120,8 +114,28 @@ export const browseCollectionTool = tool(
         mode: "browse",
       };
 
-      // Use HTML comment marker to prevent markdown from stripping underscores
-      return `${textOutput}\n\n<!--NFT_GALLERY-->\n${JSON.stringify(galleryData)}`;
+      // Build compact summary for LLM (prevents LLM from echoing full JSON)
+      const collectionSummary = displayNfts.slice(0, 3)
+        .map(d => `${d.nft.name || `#${d.nft.identifier}`} - ${d.formattedPrice}`)
+        .join(", ");
+
+      const priceRange = displayNfts.length > 0
+        ? `Price range: ${displayNfts[0]?.formattedPrice || "N/A"} - ${displayNfts[displayNfts.length - 1]?.formattedPrice || "N/A"}`
+        : "";
+
+      // Return summary for LLM + marker + JSON for UI
+      // The LLM should NOT echo the JSON - the UI renders the gallery after streaming ends
+      return `[NFT_GALLERY_DATA]
+Found ${listings.length} NFTs for sale in "${collection}".
+${priceRange}
+${collectionSummary}${listings.length > 3 ? ` ...and ${listings.length - 3} more` : ""}
+
+IMPORTANT: The NFT gallery will be rendered by the UI after you finish speaking.
+DO NOT list individual NFTs or reproduce the JSON data.
+Provide a brief, conversational summary.
+
+<!--NFT_GALLERY-->
+${JSON.stringify(galleryData)}`;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("[browseCollectionTool] Error:", errorMessage);

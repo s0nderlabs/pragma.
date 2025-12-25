@@ -418,13 +418,18 @@ Want to buy, sell, or transfer any of these?"`,
 - maxPrice: (optional) Max price filter in MON
 
 **Returns:**
-- Gallery of listed NFTs with prices
+- NFT gallery rendered by UI after you finish speaking
 - Sorted by price (cheapest first)
-- Token IDs for use with getNFTBuyQuote
+
+**CRITICAL:** The NFT gallery is rendered by the UI AFTER you finish speaking.
+DO NOT list individual NFTs or echo JSON data.
+Just provide a brief summary.
 
 **IMPORTANT:** Remember the collection slug for subsequent getNFTBuyQuote calls.
 
-**Example:** "browse skrumpeys" or "show skrumpeys under 5 MON"`,
+**Example response:**
+"Found 12 NFTs for sale in skrumpeys, starting at 2.5 MON. The gallery is shown below.
+Want to buy any of these?"`,
 
   getCollectionInfo: `**getCollectionInfo** - Get NFT collection details
 

@@ -55,7 +55,7 @@ export function NFTCard({
       transition={{ duration: 0.2 }}
       onClick={onClick}
       className={`
-        relative group rounded-2xl overflow-hidden
+        relative group/nft rounded-2xl overflow-hidden
         bg-gray-100 dark:bg-white/[0.03]
         border border-gray-200 dark:border-white/[0.06]
         hover:border-gray-300 dark:hover:border-white/[0.12]
@@ -81,7 +81,7 @@ export function NFTCard({
         )}
 
         {/* Hover overlay with OpenSea link */}
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/nft:opacity-100 transition-opacity duration-200 flex items-center justify-center">
           <a
             href={nft.opensea_url}
             target="_blank"
@@ -132,7 +132,7 @@ export function NFTCard({
 
       {/* Compact mode: show name on hover */}
       {compact && (
-        <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover/nft:opacity-100 transition-opacity">
           <p className="text-xs text-white truncate">{truncateName(displayName, 15)}</p>
         </div>
       )}

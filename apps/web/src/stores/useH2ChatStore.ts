@@ -154,6 +154,20 @@ export interface H2ChatState {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   bundlerClient: any | null;
 
+  // Defensive UX - Stop/Retry
+  stoppedMessageIds: Set<string>;
+  stoppedWithInFlightTxIds: Set<string>; // Messages that were stopped while tx in-flight
+  earlyStopUserMessageId: string | null; // User message ID when stopped before assistant responds
+  isAutoRetrying: boolean;
+  exhaustedRetryMessageId: string | null; // Track specific message that exhausted retries
+  lastUserMessageContent: string | null;
+
+  // Negative feedback context injection
+  negativeFeedbackContext: string | null;
+
+  // In-flight transaction tracking (for stop button disclaimer)
+  hasInFlightTransaction: boolean;
+
   // Actions
   addMessage: (message: Omit<ChatMessage, "id" | "timestamp">) => void;
   updateMessageContent: (id: string, content: string) => void;
@@ -213,6 +227,24 @@ export interface H2ChatState {
   setSmartAccount: (account: any | null) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setBundlerClient: (client: any | null) => void;
+
+  // Defensive UX actions
+  markMessageAsStopped: (messageId: string) => void;
+  markMessageAsStoppedWithInFlightTx: (messageId: string) => void;
+  setEarlyStopUserMessageId: (messageId: string | null) => void;
+  setIsAutoRetrying: (value: boolean) => void;
+  setExhaustedRetryMessageId: (messageId: string | null) => void;
+  setLastUserMessageContent: (content: string | null) => void;
+  resetRetryState: () => void;
+  deleteMessage: (messageId: string) => void;
+  deleteMessagesAfterLastUser: () => void;
+  deleteMessagesFromIndex: (index: number) => void;
+
+  // Negative feedback context actions
+  setNegativeFeedbackContext: (context: string | null) => void;
+
+  // In-flight transaction actions
+  setHasInFlightTransaction: (value: boolean) => void;
 }
 
 // ============================================================================
@@ -260,6 +292,20 @@ export const useH2ChatStore = create<H2ChatState>()(
         // Smart Account initial state (runtime, NOT persisted)
         smartAccount: null,
         bundlerClient: null,
+
+        // Defensive UX initial state
+        stoppedMessageIds: new Set(),
+        stoppedWithInFlightTxIds: new Set(),
+        earlyStopUserMessageId: null,
+        isAutoRetrying: false,
+        exhaustedRetryMessageId: null,
+        lastUserMessageContent: null,
+
+        // Negative feedback context initial state
+        negativeFeedbackContext: null,
+
+        // In-flight transaction initial state
+        hasInFlightTransaction: false,
 
         // Message actions
         addMessage: (message) => {
@@ -1079,6 +1125,92 @@ export const useH2ChatStore = create<H2ChatState>()(
         setBundlerClient: (client) => {
           set({ bundlerClient: client });
         },
+
+        // Defensive UX actions
+        markMessageAsStopped: (messageId) => {
+          set((state) => ({
+            stoppedMessageIds: new Set([...state.stoppedMessageIds, messageId]),
+          }));
+        },
+
+        markMessageAsStoppedWithInFlightTx: (messageId) => {
+          set((state) => ({
+            stoppedWithInFlightTxIds: new Set([...state.stoppedWithInFlightTxIds, messageId]),
+          }));
+        },
+
+        setEarlyStopUserMessageId: (messageId) => {
+          set({ earlyStopUserMessageId: messageId });
+        },
+
+        setIsAutoRetrying: (value) => {
+          set({ isAutoRetrying: value });
+        },
+
+        setExhaustedRetryMessageId: (messageId) => {
+          set({ exhaustedRetryMessageId: messageId });
+        },
+
+        setLastUserMessageContent: (content) => {
+          set({ lastUserMessageContent: content });
+        },
+
+        resetRetryState: () => {
+          set({
+            isAutoRetrying: false,
+            exhaustedRetryMessageId: null,
+          });
+        },
+
+        deleteMessage: (messageId) => {
+          set((state) => ({
+            messages: state.messages.filter((msg) => msg.id !== messageId),
+            // Clear streaming ID if deleting the streaming message
+            streamingMessageId: state.streamingMessageId === messageId ? null : state.streamingMessageId,
+          }));
+        },
+
+        deleteMessagesAfterLastUser: () => {
+          set((state) => {
+            // Find index of last user message
+            let lastUserIndex = -1;
+            for (let i = state.messages.length - 1; i >= 0; i--) {
+              if (state.messages[i].role === 'user') {
+                lastUserIndex = i;
+                break;
+              }
+            }
+
+            // No user messages found, return unchanged
+            if (lastUserIndex === -1) return state;
+
+            // Keep messages up to and including last user message
+            // This deletes all tool messages and assistant messages after the last user message
+            return {
+              messages: state.messages.slice(0, lastUserIndex + 1),
+              streamingMessageId: null,
+            };
+          });
+        },
+
+        deleteMessagesFromIndex: (index) => {
+          // Delete all messages from the given index onwards (inclusive)
+          // Used for "Branch/Revert" retry: delete this turn + all subsequent turns
+          set((state) => ({
+            messages: state.messages.slice(0, index),
+            streamingMessageId: null,
+          }));
+        },
+
+        // Negative feedback context action
+        setNegativeFeedbackContext: (context) => {
+          set({ negativeFeedbackContext: context });
+        },
+
+        // In-flight transaction action
+        setHasInFlightTransaction: (value) => {
+          set({ hasInFlightTransaction: value });
+        },
       }),
       {
         name: "h2-chat-storage",
@@ -1158,3 +1290,21 @@ export const selectActiveToolCount = (state: H2ChatState) =>
  */
 export const selectHasActiveTools = (state: H2ChatState) =>
   Array.from(state.activeTools.values()).some((tool) => tool.status === "running");
+
+/**
+ * Check if a message was stopped
+ */
+export const selectIsMessageStopped = (state: H2ChatState, messageId: string) =>
+  state.stoppedMessageIds.has(messageId);
+
+/**
+ * Check if a message was stopped while a transaction was in-flight
+ */
+export const selectWasStoppedWithInFlightTx = (state: H2ChatState, messageId: string) =>
+  state.stoppedWithInFlightTxIds.has(messageId);
+
+/**
+ * Get last user message content (for retry)
+ */
+export const selectLastUserMessage = (state: H2ChatState) =>
+  [...state.messages].reverse().find((msg) => msg.role === "user");

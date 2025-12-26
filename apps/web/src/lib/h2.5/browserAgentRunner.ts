@@ -263,6 +263,17 @@ export interface BrowserAgentCallbacks {
    * Called when agent loop fails
    */
   onError?: (error: Error) => void;
+
+  /**
+   * Soft abort check callback
+   * Called at the start of each event loop iteration to check if we should abort.
+   * Used for hallucination handling to avoid calling abort() from within callbacks
+   * which triggers LangChain's zone.js error path and causes HMR issues.
+   *
+   * This is different from signal.aborted (user stop button) which is checked separately.
+   * @returns false to continue, 'hallucination' for retry, 'exhausted' when retries depleted
+   */
+  shouldAbort?: () => false | 'hallucination' | 'exhausted';
 }
 
 /**
@@ -468,12 +479,32 @@ export async function runBrowserAgent(
  * Note: This uses LangChain's streamEvents() which is similar to server-side
  * streaming but runs locally in the browser without network transport.
  */
+/**
+ * Options for streamBrowserAgent
+ */
+export interface StreamBrowserAgentOptions {
+  /** AbortSignal for cancelling the stream (e.g., user clicks stop button) */
+  signal?: AbortSignal;
+}
+
+/**
+ * Result from streamBrowserAgent
+ * Uses result type instead of throwing errors to avoid HMR triggers in dev mode
+ */
+export interface StreamBrowserAgentResult {
+  /** Final AI response content */
+  content: string;
+  /** Abort reason if stream was aborted (no error thrown to avoid HMR) */
+  abortReason?: 'user' | 'hallucination' | 'exhausted';
+}
+
 export async function streamBrowserAgent(
   agent: any, // eslint-disable-line @typescript-eslint/no-explicit-any
   messages: MessageTuple[],
   context: BrowserAgentContext,
-  callbacks: BrowserAgentCallbacks = {}
-): Promise<string> {
+  callbacks: BrowserAgentCallbacks = {},
+  options?: StreamBrowserAgentOptions
+): Promise<StreamBrowserAgentResult> {
   // Progress handler - declared here for catch block access
   let progressHandler: ((event: ProgressEvent) => void) | undefined;
 
@@ -939,6 +970,8 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
     onProgress(progressHandler);
 
     // Stream events from agent (with dynamic reasoning effort)
+    // IMPORTANT: Pass abort signal to LangChain so it cancels underlying operations immediately
+    // Without this, abort only works between events, not during tool execution (RPC calls, etc.)
     const stream = activeAgent.streamEvents(
       {
         messages: formattedMessages,
@@ -946,6 +979,7 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
       {
         version: "v2", // Use streamEvents v2 API
         recursionLimit: 60, // Support large batch operations (same as CLI)
+        signal: options?.signal, // Pass abort signal for immediate cancellation
         configurable: {
           userAddress: context.userAddress,
           sessionData: context.sessionData,
@@ -964,8 +998,26 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
       }
     );
 
+    // Track if we need to exit early
+    let earlyExitReason: 'user' | 'hallucination' | 'exhausted' | null = null;
+
     // Process events
     for await (const event of stream) {
+      // Check abort signal at start of each iteration (stop button)
+      if (options?.signal?.aborted) {
+        logger.info("Stream aborted by user");
+        earlyExitReason = 'user';
+        break; // Use break instead of return to avoid zone.js cleanup issues
+      }
+
+      // Check soft abort (hallucination handling)
+      const softAbortReason = callbacks.shouldAbort?.();
+      if (softAbortReason) {
+        logger.info(`Stream soft-aborted (${softAbortReason})`);
+        earlyExitReason = softAbortReason;
+        break; // Use break instead of return to avoid zone.js cleanup issues
+      }
+
       if (event.event === "on_chat_model_stream") {
         // LLM token streaming
         const chunk = event.data?.chunk;
@@ -1071,6 +1123,16 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
       }
     }
 
+    // Handle early exit (user abort or hallucination)
+    // Cleanup and return with reason AFTER loop completes naturally
+    // This avoids zone.js error handling that triggers HMR in dev mode
+    if (earlyExitReason) {
+      offProgress(progressHandler);
+      metrics.complete();
+      metrics.logSummary();
+      return { content: currentResponse, abortReason: earlyExitReason };
+    }
+
     // Cleanup progress subscription
     offProgress(progressHandler);
 
@@ -1093,7 +1155,7 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
 
     callbacks.onComplete?.();
 
-    return currentResponse;
+    return { content: currentResponse };
   } catch (error) {
     // Cleanup progress subscription on error
     if (progressHandler) {

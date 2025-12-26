@@ -217,8 +217,9 @@ export const getCollectionInfoTool = tool(
       const { collection } = input;
 
       // Emit progress
-      const toolSignature = `getCollectionInfo:${Date.now()}`;
-      emitProgress("Fetching collection info...", "getCollectionInfo", toolSignature, `Get info for ${collection}`);
+      // Must match generateSignatureFromInput() in browserAgentRunner.ts
+      const toolSignature = `getCollectionInfo:${collection}`;
+      emitProgress("Fetching collection info...", "getCollectionInfo", toolSignature, `Getting Collection Info for ${collection}`);
 
       // Determine if input is a contract address or slug
       const isAddress = collection.startsWith("0x") && collection.length === 42;

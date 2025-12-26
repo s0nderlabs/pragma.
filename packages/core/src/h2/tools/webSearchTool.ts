@@ -90,7 +90,7 @@ export const webSearchTool = tool(
   async ({ query }, config): Promise<string> => {
     try {
       // Emit progress with the actual search query
-      emitProgress(`Searching: "${query}"`, "web_search", `web_search:${query}`, "Web Search");
+      emitProgress(`Searching: "${query}"`, "web_search", `web_search:${query}`, "Searching the Web");
 
       // Check cache first
       const cachedResult = getCachedResult(query);

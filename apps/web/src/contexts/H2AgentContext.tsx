@@ -16,6 +16,18 @@
 import { createContext, useContext, type ReactNode } from 'react';
 
 /**
+ * Send message options for retry functionality
+ */
+export interface SendMessageOptions {
+  /** Current retry count for hallucination auto-retry (internal use) */
+  retryCount?: number;
+  /** Skip adding user message (for internal retries) */
+  skipAddMessage?: boolean;
+  /** Manual retry from MessageActions - inject instruction without showing in chat */
+  isRetry?: boolean;
+}
+
+/**
  * Agent hook result type
  * Common interface between useH2Agent and useH2.5Agent
  */
@@ -26,7 +38,8 @@ export interface AgentHookResult {
   quickMode: boolean;
 
   // Actions
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, options?: SendMessageOptions) => Promise<void>;
+  stopMessage?: () => void; // Stop current generation (H2.5 only)
 
   // Utility (optional, varies between implementations)
   isReady?: boolean;

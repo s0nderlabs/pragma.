@@ -16,6 +16,7 @@ import type { Address, PublicClient } from "viem";
 
 import { createErrorFromCode } from "../../errors/index.js";
 import { getNameForAddress, formatAddressWithName } from "../utils/nameResolution.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Tool Implementation
@@ -51,6 +52,10 @@ export const getAccountInfoTool = tool(
       if (!userAddress) {
         return "No account session found. Please login with `/login` to connect your wallet.";
       }
+
+      // Generate tool signature for progress routing
+      const toolSignature = 'getAccountInfo';
+      emitProgress("Fetching account info...", "getAccountInfo", toolSignature, "Getting Account Info");
 
       // Try to resolve user's NAD/ENS name (optional enhancement)
       let resolvedName: Awaited<ReturnType<typeof getNameForAddress>> = null;

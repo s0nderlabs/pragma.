@@ -29,10 +29,14 @@ import { createSyncTransport, createLogger } from '@pragma/core';
 
 const logger = createLogger('[H2.5Agent]');
 
+/** Max auto-retry attempts for hallucination detection */
+const MAX_HALLUCINATION_RETRIES = 2;
+
 import { createBrowserAgent, validateBrowserEnvironment } from '@/lib/h2.5/createBrowserAgent';
 import { createDirectWeb3AuthBridge } from '@/lib/h2.5/directWeb3AuthBridge';
 import { streamBrowserAgent } from '@/lib/h2.5/browserAgentRunner';
 import { streamSummarize } from '@/lib/h2.5/streamSummarize';
+import { detectHallucination, getRetryPrompt, getMatchedPattern } from '@/lib/h2.5/hallucinationDetector';
 import type { MessageTuple, BrowserAgentCallbacks } from '@/lib/h2.5/browserAgentRunner';
 import { createHybridDelegatorHandle } from '@/lib/onboarding/hybridDelegator';
 import { useNotificationStore } from '@/stores/useNotificationStore';
@@ -47,6 +51,7 @@ import type { HybridDelegatorHandle } from '@/lib/onboarding/hybridDelegator';
  */
 export function useH2_5Agent() {
   const agentRef = useRef<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
 
@@ -83,6 +88,13 @@ export function useH2_5Agent() {
   const updateToolDescription = useH2ChatStore((state) => state.updateToolDescription);
   const setIsStreaming = useH2ChatStore((state) => state.setIsStreaming);
   const completeAllRunningTools = useH2ChatStore((state) => state.completeAllRunningTools);
+
+  // Defensive UX actions
+  const markMessageAsStopped = useH2ChatStore((state) => state.markMessageAsStopped);
+  const setLastUserMessageContent = useH2ChatStore((state) => state.setLastUserMessageContent);
+  const setIsAutoRetrying = useH2ChatStore((state) => state.setIsAutoRetrying);
+  const setExhaustedRetryMessageId = useH2ChatStore((state) => state.setExhaustedRetryMessageId);
+  const resetRetryState = useH2ChatStore((state) => state.resetRetryState);
 
   /**
    * Create authenticated RPC transport
@@ -191,6 +203,34 @@ export function useH2_5Agent() {
             ? `Wrapping ${payload} MON`
             : `Unwrapping ${payload} WMON`;
         }
+        case 'getCollectionInfo': {
+          // Payload is collection slug
+          return `Getting ${payload} Collection Info`;
+        }
+        case 'getTokenInfo': {
+          // Payload is token symbol or truncated address
+          return `Getting ${payload} Token Info`;
+        }
+        case 'resolveName': {
+          // Payload is name or truncated address
+          return `Resolving ${payload}`;
+        }
+        case 'getNFTDetails': {
+          // Payload is contract:tokenIds (e.g., "0x6919f8b7:1,2,3")
+          const parts = payload.split(':');
+          if (parts.length === 2) {
+            return `Getting NFT #${parts[1]} Details`;
+          }
+          return 'Getting NFT Details';
+        }
+        case 'transferNFT': {
+          // Payload is contract:tokenId (e.g., "0x6919f8b7...:4809")
+          const parts = payload.split(':');
+          if (parts.length === 2) {
+            return `Transferring NFT #${parts[1]}`;
+          }
+          return 'Transferring NFTs';
+        }
       }
     }
 
@@ -226,7 +266,7 @@ export function useH2_5Agent() {
       case 'getBalance':
         return 'Checking Balance';
       case 'getAllBalances':
-        return 'Fetching All Balances';
+        return 'Getting All Balances';
       case 'getAccountInfo':
         return 'Getting Account Info';
       case 'listVerifiedTokens':
@@ -258,7 +298,7 @@ export function useH2_5Agent() {
 
       // NFT operations
       case 'getMyNFTs':
-        return 'Fetching Your NFTs';
+        return 'Getting Your NFTs';
       case 'browseCollection':
         return 'Browsing Collection';
       case 'getCollectionInfo':
@@ -274,7 +314,7 @@ export function useH2_5Agent() {
       case 'executeNFTBuy':
         return 'Buying NFT';
       case 'transferNFT':
-        return 'Transferring NFT';
+        return 'Transferring NFTs';
       case 'listNFT':
         return 'Listing NFT';
 
@@ -376,8 +416,24 @@ export function useH2_5Agent() {
    * Note: Progress events are handled via browserAgentRunner which subscribes
    * to the global emitter and bridges to callbacks.onProgress
    */
+  /**
+   * Send message options
+   */
+  interface SendMessageOptions {
+    /** Current retry count for hallucination auto-retry (internal use) */
+    retryCount?: number;
+    /** Skip adding user message (for internal retries) */
+    skipAddMessage?: boolean;
+    /** Manual retry from MessageActions - inject instruction without showing in chat */
+    isRetry?: boolean;
+  }
+
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, options?: SendMessageOptions) => {
+      const retryCount = options?.retryCount ?? 0;
+      const skipAddMessage = options?.skipAddMessage ?? false;
+      const isRetry = options?.isRetry ?? false;
+
       // Check initialization
       if (!isInitialized || !agentRef.current) {
         useNotificationStore.getState().showErrorNotification(
@@ -403,11 +459,21 @@ export function useH2_5Agent() {
         return;
       }
 
-      // Add user message to chat
-      addMessage({
-        role: 'user',
-        content,
-      });
+      // Clear any previous early stop indicator when user sends a new message
+      useH2ChatStore.getState().setEarlyStopUserMessageId(null);
+
+      // Add user message to chat (skip for internal retries)
+      if (!skipAddMessage) {
+        addMessage({
+          role: 'user',
+          content,
+        });
+      }
+
+      // Store last user message for retry functionality (original, not modified)
+      if (retryCount === 0) {
+        setLastUserMessageContent(content);
+      }
 
       // Build message history for agent
       // Filter out tool messages - they're UI-only, not part of conversation history
@@ -418,8 +484,33 @@ export function useH2_5Agent() {
         ['user', content],
       ];
 
-      // Set streaming state
+
+      // BUG FIX: For manual retry, inject instruction into message history (not visible in chat)
+      // This keeps the retry prompt hidden from the user while guiding the agent
+      if (isRetry) {
+        const lastEntry = messageHistory[messageHistory.length - 1];
+        if (lastEntry) {
+          lastEntry[1] = `${lastEntry[1]}\n\n[IMPORTANT: Use proper tool calling, not text descriptions of tools]`;
+        }
+      }
+
+      // FEATURE: Inject negative feedback context if user clicked thumbs down
+      // This helps the agent understand the previous response was unhelpful
+      const negativeFeedbackContext = useH2ChatStore.getState().negativeFeedbackContext;
+      if (negativeFeedbackContext) {
+        const lastEntry = messageHistory[messageHistory.length - 1];
+        if (lastEntry) {
+          lastEntry[1] = `${lastEntry[1]}\n\n${negativeFeedbackContext}`;
+        }
+        // Clear the context after use (one-time injection)
+        useH2ChatStore.getState().setNegativeFeedbackContext(null);
+      }
+
+      // Set streaming state and create AbortController
       setIsStreaming(true);
+      resetRetryState();
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
 
       try {
         // Create authenticated transport (shared by both clients)
@@ -472,6 +563,23 @@ export function useH2_5Agent() {
         // LLM rewrites tool output, so we capture raw output in onToolEnd
         // and attach it to the final message for UI component detection
         const pendingRawOutputRef = { current: '' };
+
+        // Hallucination detection tracking
+        // Tracks accumulated content for pattern matching
+        const accumulatedContentRef = { current: '' };
+        const lastHallucinationCheckRef = { current: 0 }; // Last check position
+        const hallucinationRetryTriggeredRef = { current: false }; // Prevent multiple triggers
+
+        // Soft abort flags for hallucination handling
+        // Instead of calling abort() from within onToken callback (which triggers zone.js errors and HMR),
+        // we set these flags and let browserAgentRunner check them at the start of each iteration
+        const hallucinationAbortRequestedRef = { current: false };
+        const exhaustedAbortRequestedRef = { current: false };
+
+        // Flag for onComplete hallucination detection (post-stream retry)
+        // When onComplete detects hallucination, it sets this flag and returns early
+        // The result handler will check this and schedule the retry
+        const onCompleteHallucinationRef = { current: false };
 
         const flushTokenBuffer = () => {
           // Atomic read-and-clear operation to prevent race conditions
@@ -587,6 +695,15 @@ export function useH2_5Agent() {
 
         // Streaming callbacks for UI updates
         const callbacks: BrowserAgentCallbacks = {
+          // Soft abort check for hallucination handling
+          // browserAgentRunner checks this at the start of each event loop iteration
+          // Returns 'hallucination' for retry, 'exhausted' when retries depleted
+          shouldAbort: () => {
+            if (exhaustedAbortRequestedRef.current) return 'exhausted';
+            if (hallucinationAbortRequestedRef.current) return 'hallucination';
+            return false;
+          },
+
           // DeepSeek reasoning token callback (chain-of-thought)
           onReasoningToken: (token) => {
             // Start timing on first reasoning token
@@ -620,6 +737,54 @@ export function useH2_5Agent() {
             }
 
             tokenBufferRef.current += token;
+
+            // Accumulate content for hallucination detection
+            accumulatedContentRef.current += token;
+
+            // Check for hallucinations every 50 chars after 100 char threshold
+            const contentLength = accumulatedContentRef.current.length;
+            const shouldCheck =
+              contentLength > 100 &&
+              contentLength - lastHallucinationCheckRef.current >= 50 &&
+              !hallucinationRetryTriggeredRef.current;
+
+            if (shouldCheck) {
+              lastHallucinationCheckRef.current = contentLength;
+
+              if (detectHallucination(accumulatedContentRef.current)) {
+                const matchedPattern = getMatchedPattern(accumulatedContentRef.current);
+
+                // Check if we've exhausted retries
+                if (retryCount >= MAX_HALLUCINATION_RETRIES) {
+                  hallucinationRetryTriggeredRef.current = true;
+                  // Track specific message that exhausted retries (not global)
+                  const streamingId = useH2ChatStore.getState().streamingMessageId;
+                  if (streamingId) {
+                    setExhaustedRetryMessageId(streamingId);
+                  }
+                  // SOFT ABORT: Set flag instead of calling abort() directly
+                  // browserAgentRunner will check this flag and return with abortReason: 'exhausted'
+                  // This avoids throwing errors which can trigger HMR in dev mode
+                  exhaustedAbortRequestedRef.current = true;
+                  return;
+                }
+
+                // Mark as triggered to prevent multiple retries
+                hallucinationRetryTriggeredRef.current = true;
+
+                // SOFT ABORT: Set flag instead of calling abort() directly
+                // browserAgentRunner will check this flag on next event loop iteration
+                // This avoids LangChain's zone.js error path which triggers HMR in dev mode
+                hallucinationAbortRequestedRef.current = true;
+
+                // Show retrying indicator
+                setIsAutoRetrying(true);
+
+                // Note: Retry is triggered in result.abortReason handler below
+                // browserAgentRunner returns { abortReason: 'hallucination' } when flag is set
+                // This avoids throwing errors which can trigger HMR in dev mode
+              }
+            }
           },
 
           onProgress: (message, toolName, signature, description) => {
@@ -666,6 +831,16 @@ export function useH2_5Agent() {
             const description = generateToolDescription(toolName, signature);
             // Use signature as unique key for parallel tool matching
             startTool(toolName, signature, description);
+
+            // FEATURE: Track in-flight transactions for stop button disclaimer
+            const transactionTools = [
+              'executeSwap', 'transfer', 'stake', 'unstakeRequest', 'unstakeClaim',
+              'wrap', 'unwrap', 'executeNFTBuy', 'transferNFT', 'listNFT',
+              'fundSessionKey', 'withdrawSessionKeyBalance', // Session key funding/withdrawal
+            ];
+            if (transactionTools.includes(toolName)) {
+              useH2ChatStore.getState().setHasInFlightTransaction(true);
+            }
           },
 
           onToolEnd: (toolName, output, signature) => {
@@ -706,10 +881,18 @@ export function useH2_5Agent() {
               'stake',
               'unstakeRequest',
               'unstakeClaim',
+              'transfer',
+              'wrap',
+              'unwrap',
+              'executeNFTBuy',
+              'transferNFT',
+              'listNFT',
             ];
             if (transactionTools.includes(toolName)) {
               // Trigger balance refresh immediately after transaction completes
               useH2ChatStore.getState().triggerBalanceRefresh();
+              // Clear in-flight transaction flag
+              useH2ChatStore.getState().setHasInFlightTransaction(false);
             }
           },
 
@@ -718,6 +901,15 @@ export function useH2_5Agent() {
             const toolKey = signature || toolName;
             errorTool(toolName, toolKey, error);
             hideProgress();
+
+            // Clear in-flight transaction flag on error too
+            const transactionTools = [
+              'executeSwap', 'transfer', 'stake', 'unstakeRequest', 'unstakeClaim',
+              'wrap', 'unwrap', 'executeNFTBuy', 'transferNFT', 'listNFT',
+            ];
+            if (transactionTools.includes(toolName)) {
+              useH2ChatStore.getState().setHasInFlightTransaction(false);
+            }
           },
 
           onComplete: () => {
@@ -725,6 +917,53 @@ export function useH2_5Agent() {
             clearInterval(flushInterval);
             flushReasoningBuffer();
             flushTokenBuffer();
+
+            // FINAL HALLUCINATION CHECK: Catch patterns at end of response
+            // Periodic checks run every 50 chars and may miss hallucinations
+            // appearing in the final <50 chars of a response
+            if (!hallucinationRetryTriggeredRef.current &&
+                accumulatedContentRef.current.length > 100) {
+
+              if (detectHallucination(accumulatedContentRef.current)) {
+                const matchedPattern = getMatchedPattern(accumulatedContentRef.current);
+
+                if (retryCount >= MAX_HALLUCINATION_RETRIES) {
+                  // Track specific message that exhausted retries
+                  // Note: streamingId may be null here, find last assistant message
+                  const messages = useH2ChatStore.getState().messages;
+                  const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+                  if (lastAssistant) {
+                    setExhaustedRetryMessageId(lastAssistant.id);
+                  }
+                  // Delete the faulty message and cleanup state
+                  useH2ChatStore.getState().deleteMessagesAfterLastUser();
+                  // CRITICAL: Clear token buffer to prevent flushTokenBuffer from creating new message
+                  tokenBufferRef.current = '';
+                  setStreamingMessage(null);
+                  setIsStreaming(false);
+                  hideProgress();
+                  useH2ChatStore.getState().setHasInFlightTransaction(false);
+                  return; // Don't proceed with normal completion - show exhausted banner
+                } else {
+                  hallucinationRetryTriggeredRef.current = true;
+
+                  // Set flag for post-stream retry (handled after streamBrowserAgent returns)
+                  // This avoids scheduling retry from within callback which may trigger HMR
+                  onCompleteHallucinationRef.current = true;
+
+                  // Show retrying indicator and cleanup state
+                  setIsAutoRetrying(true);
+                  // CRITICAL: Clear token buffer to prevent flushTokenBuffer from creating new message
+                  tokenBufferRef.current = '';
+                  setStreamingMessage(null);
+                  setIsStreaming(false);
+                  hideProgress();
+                  useH2ChatStore.getState().setHasInFlightTransaction(false);
+
+                  return; // Don't proceed with normal completion - retry handled after stream returns
+                }
+              }
+            }
 
             // Attach raw tool output to the LAST assistant message
             // NOTE: Can't use streamingMessageId - it's cleared when tools start (line 368 in store)
@@ -748,14 +987,33 @@ export function useH2_5Agent() {
             setStreamingMessage(null);
             setIsStreaming(false);
             hideProgress();
+
+            // Clear in-flight transaction flag on completion
+            useH2ChatStore.getState().setHasInFlightTransaction(false);
           },
 
           onError: (error) => {
+            // Check if this is an abort error (user stop) - don't show error message
+            const isAbortError = error instanceof Error && (
+              error.name === 'AbortError' ||
+              error.message?.toLowerCase().includes('abort') ||
+              error.message === 'User stopped'
+            );
+
             // Stop flush interval and flush any remaining buffers
             clearInterval(flushInterval);
             flushReasoningBuffer();
             flushTokenBuffer();
 
+            // If user stopped, silently clean up without error message
+            if (isAbortError) {
+              setStreamingMessage(null);
+              setIsStreaming(false);
+              hideProgress();
+              return;
+            }
+
+            // Handle actual execution errors (network, tool failures, etc)
             logger.error('Execution error:', error);
             setStreamingMessage(null);
             setIsStreaming(false);
@@ -769,7 +1027,7 @@ export function useH2_5Agent() {
         };
 
         // Run agent in browser with streaming callbacks
-        await streamBrowserAgent(
+        const result = await streamBrowserAgent(
           agentRef.current,
           messageHistory,
           {
@@ -798,9 +1056,192 @@ export function useH2_5Agent() {
             bundlerClient: useH2ChatStore.getState().bundlerClient || undefined,
             // Note: sponsorUserOperationFn removed - session key funding is now self-paid
           },
-          callbacks
+          callbacks,
+          { signal: abortController.signal } // Pass abort signal for stop functionality
         );
+
+        // Handle abort reasons from result (no errors thrown to avoid HMR)
+        if (result.abortReason) {
+          const store = useH2ChatStore.getState();
+
+          if (result.abortReason === 'hallucination') {
+            // Reset soft abort flag
+            hallucinationAbortRequestedRef.current = false;
+
+            // Schedule retry after brief delay
+            setTimeout(async () => {
+              setIsAutoRetrying(false);
+
+              // Delete ALL messages from this turn (assistant + tool messages)
+              useH2ChatStore.getState().deleteMessagesAfterLastUser();
+
+              // Get the original user message
+              const originalMessage = useH2ChatStore.getState().lastUserMessageContent;
+              if (originalMessage) {
+                // Retry with modified prompt
+                const retryPrompt = getRetryPrompt(originalMessage, retryCount);
+                await sendMessage(retryPrompt, {
+                  retryCount: retryCount + 1,
+                  skipAddMessage: true, // Don't add duplicate user message
+                });
+              }
+            }, 300);
+
+            // CRITICAL: Clear token buffer to prevent flushTokenBuffer from creating new message
+            tokenBufferRef.current = '';
+            setStreamingMessage(null);
+            setIsStreaming(false);
+            hideProgress();
+            store.setHasInFlightTransaction(false);
+            return;
+          }
+
+          if (result.abortReason === 'user') {
+            logger.info('Stream aborted by user');
+            const messages = store.messages;
+
+            // Find the last user message (start of current turn)
+            let lastUserIndex = -1;
+            let lastUserMsgId: string | null = null;
+            for (let i = messages.length - 1; i >= 0; i--) {
+              if (messages[i].role === 'user') {
+                lastUserIndex = i;
+                lastUserMsgId = messages[i].id;
+                break;
+              }
+            }
+
+            // Find assistant message in CURRENT turn only
+            let currentTurnAssistantId: string | null = null;
+            if (lastUserIndex >= 0) {
+              for (let i = lastUserIndex + 1; i < messages.length; i++) {
+                if (messages[i].role === 'assistant') {
+                  currentTurnAssistantId = messages[i].id;
+                  break;
+                }
+              }
+            }
+
+            if (currentTurnAssistantId) {
+              markMessageAsStopped(currentTurnAssistantId);
+              if (store.hasInFlightTransaction) {
+                store.markMessageAsStoppedWithInFlightTx(currentTurnAssistantId);
+              }
+              store.setEarlyStopUserMessageId(null);
+            } else if (lastUserMsgId) {
+              store.setEarlyStopUserMessageId(lastUserMsgId);
+            }
+
+            completeAllRunningTools();
+            setStreamingMessage(null);
+            setIsStreaming(false);
+            hideProgress();
+            store.setHasInFlightTransaction(false);
+            abortControllerRef.current = null;
+            return;
+          }
+
+          if (result.abortReason === 'exhausted') {
+            // Delete the faulty assistant message that triggered exhaustion
+            store.deleteMessagesAfterLastUser();
+            // CRITICAL: Clear token buffer to prevent flushTokenBuffer from creating new message
+            // flushTokenBuffer runs on interval and creates new assistant message if streamingId is null
+            tokenBufferRef.current = '';
+            setStreamingMessage(null);
+            setIsStreaming(false);
+            hideProgress();
+            store.setHasInFlightTransaction(false);
+            return;
+          }
+        }
+
+        // Handle onComplete hallucination detection (post-stream retry)
+        // This is set when onComplete detects hallucination but stream already completed
+        if (onCompleteHallucinationRef.current) {
+          onCompleteHallucinationRef.current = false;
+
+          // Schedule retry with delay (outside of any callback context)
+          setTimeout(async () => {
+            setIsAutoRetrying(false);
+            // Delete ALL messages from this turn (assistant + tool messages)
+            useH2ChatStore.getState().deleteMessagesAfterLastUser();
+
+            const originalMessage = useH2ChatStore.getState().lastUserMessageContent;
+            if (originalMessage) {
+              const retryPrompt = getRetryPrompt(originalMessage, retryCount);
+              await sendMessage(retryPrompt, {
+                retryCount: retryCount + 1,
+                skipAddMessage: true,
+              });
+            }
+          }, 500);
+
+          return;
+        }
       } catch (error) {
+        // Handle abort gracefully (user clicked stop)
+        // Check for AbortError name OR abort-related messages (case-insensitive)
+        const isAbortError = error instanceof Error && (
+          error.name === 'AbortError' ||
+          error.message?.toLowerCase().includes('abort') ||
+          error.message === 'User stopped'
+        );
+
+        if (isAbortError) {
+          logger.info('Stream aborted by user');
+          const store = useH2ChatStore.getState();
+
+          // BUG FIX: Find the last assistant message to mark as stopped
+          // streamingMessageId is null during tool execution
+          const messages = store.messages;
+          // BUG FIX: Use same logic as onError handler - find assistant in CURRENT TURN only
+          // Previous code found ANY assistant message, which broke early stop for Turn 2+
+          let lastUserIndex = -1;
+          let lastUserMsgId: string | null = null;
+
+          // First, find the last user message (start of current turn)
+          for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].role === 'user') {
+              lastUserIndex = i;
+              lastUserMsgId = messages[i].id;
+              break;
+            }
+          }
+
+          // Then, find assistant message in CURRENT turn only (after last user message)
+          // This prevents finding assistant from previous turn
+          let currentTurnAssistantId: string | null = null;
+          if (lastUserIndex >= 0) {
+            for (let i = lastUserIndex + 1; i < messages.length; i++) {
+              if (messages[i].role === 'assistant') {
+                currentTurnAssistantId = messages[i].id;
+                break; // Found first assistant in current turn
+              }
+            }
+          }
+
+          if (currentTurnAssistantId) {
+            // Agent responded in this turn - mark as stopped
+            markMessageAsStopped(currentTurnAssistantId);
+            if (store.hasInFlightTransaction) {
+              store.markMessageAsStoppedWithInFlightTx(currentTurnAssistantId);
+            }
+            // Clear any early stop state since we have an assistant message in THIS turn
+            store.setEarlyStopUserMessageId(null);
+          } else if (lastUserMsgId) {
+            // No assistant message in current turn - early stop
+            store.setEarlyStopUserMessageId(lastUserMsgId);
+          }
+
+          completeAllRunningTools(); // Mark tools as done so spinners stop
+          setStreamingMessage(null);
+          setIsStreaming(false);
+          hideProgress();
+          useH2ChatStore.getState().setHasInFlightTransaction(false);
+          abortControllerRef.current = null;
+          return;
+        }
+
         logger.error('Message send failed:', error);
         setIsStreaming(false);
         hideProgress();
@@ -811,6 +1252,9 @@ export function useH2_5Agent() {
             error instanceof Error ? error.message : 'Unknown error'
           }. Please try again.`,
         });
+      } finally {
+        // Clean up abort controller
+        abortControllerRef.current = null;
       }
     },
     [
@@ -837,8 +1281,23 @@ export function useH2_5Agent() {
       updateToolDescription,
       setIsStreaming,
       completeAllRunningTools,
+      markMessageAsStopped,
+      setLastUserMessageContent,
+      resetRetryState,
     ]
   );
+
+  /**
+   * Stop the current message generation
+   * Aborts the stream and marks the message as stopped
+   */
+  const stopMessage = useCallback(() => {
+    if (abortControllerRef.current) {
+      // Use DOMException with 'AbortError' name - this is the standard abort pattern
+      // and won't trigger error overlays in Next.js dev mode
+      abortControllerRef.current.abort(new DOMException('User stopped', 'AbortError'));
+    }
+  }, []);
 
   return {
     // State
@@ -851,6 +1310,7 @@ export function useH2_5Agent() {
 
     // Actions
     sendMessage,
+    stopMessage,
 
     // Utility
     isReady: isInitialized && !initError && !!wallet && !!sessionData,

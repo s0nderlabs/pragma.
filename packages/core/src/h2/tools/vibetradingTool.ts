@@ -13,6 +13,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import type { Address } from "viem";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Tool Implementation
@@ -33,6 +34,10 @@ const vibetradingSchema = z.object({
 export const vibetradingTool = tool(
   async (_input, config) => {
     try {
+      // Generate tool signature for progress routing
+      const toolSignature = 'claimVibetrading';
+      emitProgress("Processing vibetrading claim...", "claimVibetrading", toolSignature, "Claiming Vibetrading");
+
       // Get user's smart account from session config
       const userAddress = config?.configurable?.userAddress as Address | undefined;
       const apiBaseUrl = config?.configurable?.apiBaseUrl as string | undefined;

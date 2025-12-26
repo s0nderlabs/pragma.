@@ -122,10 +122,11 @@ export const getNFTDetailsTool = tool(
       }
 
       // Emit progress - signature MUST match browserAgentRunner.ts generateSignatureFromInput
+      // Use original contract input (not checksummed) to match browserAgentRunner's signature
       // Format: getNFTDetails:${contract.slice(0, 10)}:${tokenIds.join(',')}
-      const toolSignature = `getNFTDetails:${checksummedAddress.slice(0, 10)}:${limitedTokenIds.join(',')}`;
+      const toolSignature = `getNFTDetails:${contract.slice(0, 10)}:${limitedTokenIds.join(',')}`;
       const description = `Fetching details for ${limitedTokenIds.length} NFT${limitedTokenIds.length > 1 ? "s" : ""}`;
-      emitProgress(description, "getNFTDetails", toolSignature, description);
+      emitProgress(description, "getNFTDetails", toolSignature, `Getting NFT #${limitedTokenIds[0]}${limitedTokenIds.length > 1 ? ` +${limitedTokenIds.length - 1} more` : ''} Details`);
 
       // Fetch all NFT details in parallel
       const results = await Promise.all(

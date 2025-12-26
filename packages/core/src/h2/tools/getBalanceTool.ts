@@ -16,6 +16,7 @@ import { formatUnits, parseUnits, getAddress, type Address } from "viem";
 
 import { normalizeBalances } from "../../monorail/balances.js";
 import { createErrorFromCode } from "../../errors/index.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // Native MON token address (0x0... represents native token)
 const MON_ADDRESS = "0x0000000000000000000000000000000000000000";
@@ -101,6 +102,10 @@ export const getBalanceTool = tool(
 
       // Normalize token input
       const tokenNormalized = token.toUpperCase().trim();
+
+      // Generate tool signature for progress routing
+      const toolSignature = `getBalance:${tokenNormalized}`;
+      emitProgress(`Fetching ${tokenNormalized} balance...`, "getBalance", toolSignature, `Getting ${tokenNormalized} Balance`);
 
       // Fetch all balances via proxy (avoids CORS issues with direct Monorail calls)
       // Use authenticated fetch from configurable if available (browser context)

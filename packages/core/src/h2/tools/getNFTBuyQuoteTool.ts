@@ -12,6 +12,7 @@ import { formatUnits, getAddress } from "viem";
 import { generateQuoteId, storeNFTBuyQuote } from "../execution/quoteStore.js";
 import type { NFTBuyQuoteData } from "../execution/types.js";
 import { getMonUsdPrice, formatMonWithUsd } from "./helpers/monPrice.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Configuration
@@ -48,6 +49,10 @@ export const getNFTBuyQuoteTool = tool(
       }
 
       const { collection, tokenId } = input;
+
+      // Generate tool signature for progress routing
+      const toolSignature = `getNFTBuyQuote:${collection.slice(0, 10)}-${tokenId}`;
+      emitProgress("Fetching listing from OpenSea...", "getNFTBuyQuote", toolSignature, `Getting Quote for #${tokenId}`);
 
       // Get best listing for this NFT
       const listingResponse = await fetchFn(

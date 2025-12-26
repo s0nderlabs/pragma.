@@ -126,10 +126,13 @@ export const getTopCollectionsTool = tool(
       const { search, sortBy = "volume", limit = 5 } = input;
 
       // Emit progress
+      // Must match generateSignatureFromInput() in browserAgentRunner.ts
       const description = search
         ? `Searching for "${search}" collection`
         : "Fetching top Monad collections";
-      const toolSignature = `getTopCollections:${search || "top"}`;
+      const toolSignature = search
+        ? `getTopCollections:search:${search.slice(0, 20)}`
+        : `getTopCollections:top`;
       emitProgress(description, "getTopCollections", toolSignature, "Getting Collections");
 
       // Fetch MON/USD price for USD conversion (async, cached)

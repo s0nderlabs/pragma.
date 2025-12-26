@@ -30,6 +30,7 @@ import {
 import { createErrorFromCode } from "../../errors/index.js";
 import { APRIORI_ADDRESS } from "../config.js";
 import { APRIORI_ABI, type RequestData } from "../../contracts/aprMonABI.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Check Unstake Status Tool Implementation
@@ -46,6 +47,10 @@ export const checkUnstakeStatusTool = tool(
           message: "Missing required context",
         });
       }
+
+      // Generate tool signature for progress routing
+      const toolSignature = 'checkUnstakeStatus';
+      emitProgress("Checking unstake requests...", "checkUnstakeStatus", toolSignature, "Checking Unstake Status");
 
       // Get all user requests (paginated - fetch first 100)
       const requestData = await publicClient.readContract({

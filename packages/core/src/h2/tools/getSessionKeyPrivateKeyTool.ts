@@ -21,6 +21,7 @@ import { tool } from "langchain";
 import { z } from "zod";
 
 import { createErrorFromCode } from "../../errors/index.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Get Session Key Private Key Tool Implementation
@@ -29,6 +30,10 @@ import { createErrorFromCode } from "../../errors/index.js";
 export const getSessionKeyPrivateKeyTool = tool(
   async (_input, config) => {
     try {
+      // Generate tool signature for progress routing
+      const toolSignature = 'getSessionKeyPrivateKey';
+      emitProgress("Retrieving session key...", "getSessionKeyPrivateKey", toolSignature, "Getting Session Key");
+
       const sessionData = config?.configurable?.sessionData as any;
 
       if (!sessionData) {

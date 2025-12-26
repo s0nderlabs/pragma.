@@ -91,7 +91,7 @@ export const searchProtocolDocsTool = tool(
   async ({ query }, config): Promise<string> => {
     try {
       // Emit progress with the actual search query
-      emitProgress(`Searching docs: "${query}"`, "search_protocol_docs", `search_protocol_docs:${query}`, "Protocol Docs");
+      emitProgress(`Searching docs: "${query}"`, "search_protocol_docs", `search_protocol_docs:${query}`, "Searching Protocol Docs");
 
       // Check cache first
       const cachedResult = getCachedResult(query);

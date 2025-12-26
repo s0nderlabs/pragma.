@@ -244,9 +244,10 @@ export const getMyNFTsTool = tool(
       const fetchFn = (config?.configurable?.fetch as typeof fetch) || fetch;
 
       // Progress update
-      const toolSignature = `getMyNFTs:${Date.now()}`;
-      const description = collection ? `Fetch NFTs from ${collection}` : "Fetch Your NFTs";
-      emitProgress("Fetching Your NFTs from OpenSea...", "getMyNFTs", toolSignature, description);
+      // Must match generateSignatureFromInput() in browserAgentRunner.ts
+      const toolSignature = 'getMyNFTs';
+      const description = collection ? `Getting NFTs from ${collection}` : "Getting Your NFTs";
+      emitProgress("Getting Your NFTs from OpenSea...", "getMyNFTs", toolSignature, description);
 
       // Call API proxy
       const checksummedAddress = getAddress(userAddress);

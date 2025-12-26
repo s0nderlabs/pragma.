@@ -173,6 +173,10 @@ function applySlidingWindow(messages: MessageTuple[]): MessageTuple[] {
   // Filter out system messages for counting (they're re-added separately)
   const nonSystemMessages = messages.filter(([role]) => role !== "system");
 
+  // Calculate total context size before sliding window
+  const totalCharsBefore = messages.reduce((acc, [, content]) => acc + (content?.length || 0), 0);
+  const estimatedTokensBefore = Math.ceil(totalCharsBefore / 4);
+
   // Find all user message indices (each user message starts a new turn)
   const userIndices: number[] = [];
   nonSystemMessages.forEach(([role], idx) => {
@@ -190,12 +194,12 @@ function applySlidingWindow(messages: MessageTuple[]): MessageTuple[] {
   const keepFromIndex = userIndices[userIndices.length - 2];
   const recentMessages = nonSystemMessages.slice(keepFromIndex);
 
-  // Log kept messages for debugging
-  logger.debug(`Sliding window keeping ${recentMessages.length} messages from turn ${userIndices.length - 1}`);
-  recentMessages.forEach(([role, content], idx) => {
-    const preview = content.length > 100 ? content.slice(0, 100) + '...' : content;
-    logger.debug(`  [${idx}] ${role}: ${preview.replace(/\n/g, ' ')}`);
-  });
+  // Calculate total context size after sliding window
+  const totalCharsAfter = recentMessages.reduce((acc, [, content]) => acc + (content?.length || 0), 0);
+  const estimatedTokensAfter = Math.ceil(totalCharsAfter / 4);
+
+  // Log sliding window effect (compact)
+  logger.info(`📊 [CONTEXT] Sliding window: ${messages.length} → ${recentMessages.length + 1} msgs, ~${estimatedTokensBefore} → ~${estimatedTokensAfter} tokens`);
 
   // Preserve system messages from original
   const systemMessages = messages.filter(([role]) => role === "system");
@@ -263,6 +267,17 @@ export interface BrowserAgentCallbacks {
    * Called when agent loop fails
    */
   onError?: (error: Error) => void;
+
+  /**
+   * Soft abort check callback
+   * Called at the start of each event loop iteration to check if we should abort.
+   * Used for hallucination handling to avoid calling abort() from within callbacks
+   * which triggers LangChain's zone.js error path and causes HMR issues.
+   *
+   * This is different from signal.aborted (user stop button) which is checked separately.
+   * @returns false to continue, 'hallucination' for retry, 'exhausted' when retries depleted
+   */
+  shouldAbort?: () => false | 'hallucination' | 'exhausted';
 }
 
 /**
@@ -468,12 +483,32 @@ export async function runBrowserAgent(
  * Note: This uses LangChain's streamEvents() which is similar to server-side
  * streaming but runs locally in the browser without network transport.
  */
+/**
+ * Options for streamBrowserAgent
+ */
+export interface StreamBrowserAgentOptions {
+  /** AbortSignal for cancelling the stream (e.g., user clicks stop button) */
+  signal?: AbortSignal;
+}
+
+/**
+ * Result from streamBrowserAgent
+ * Uses result type instead of throwing errors to avoid HMR triggers in dev mode
+ */
+export interface StreamBrowserAgentResult {
+  /** Final AI response content */
+  content: string;
+  /** Abort reason if stream was aborted (no error thrown to avoid HMR) */
+  abortReason?: 'user' | 'hallucination' | 'exhausted';
+}
+
 export async function streamBrowserAgent(
   agent: any, // eslint-disable-line @typescript-eslint/no-explicit-any
   messages: MessageTuple[],
   context: BrowserAgentContext,
-  callbacks: BrowserAgentCallbacks = {}
-): Promise<string> {
+  callbacks: BrowserAgentCallbacks = {},
+  options?: StreamBrowserAgentOptions
+): Promise<StreamBrowserAgentResult> {
   // Progress handler - declared here for catch block access
   let progressHandler: ((event: ProgressEvent) => void) | undefined;
 
@@ -640,7 +675,33 @@ export async function streamBrowserAgent(
 
         case 'getMyNFTs':
         case 'browseCollection':
+          return toolName;
+
         case 'getCollectionInfo':
+          // For collection info: use collection slug for parallel queries
+          if (inputObj.collection) {
+            return `${toolName}:${String(inputObj.collection)}`;
+          }
+          return toolName;
+
+        case 'getTokenInfo':
+          // For token info: use displayToken format matching tool's signature
+          if (inputObj.token) {
+            const tokenStr = String(inputObj.token).trim();
+            const displayToken = tokenStr.startsWith('0x')
+              ? `${tokenStr.slice(0, 8)}...`
+              : tokenStr.toUpperCase();
+            return `${toolName}:${displayToken}`;
+          }
+          return toolName;
+
+        case 'resolveName':
+          // For name resolution: use displayName format matching tool's signature
+          if (inputObj.name) {
+            const nameStr = String(inputObj.name).trim();
+            const displayName = nameStr.length > 20 ? `${nameStr.slice(0, 20)}...` : nameStr;
+            return `${toolName}:${displayName}`;
+          }
           return toolName;
 
         case 'getNFTBuyQuote':
@@ -939,6 +1000,8 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
     onProgress(progressHandler);
 
     // Stream events from agent (with dynamic reasoning effort)
+    // IMPORTANT: Pass abort signal to LangChain so it cancels underlying operations immediately
+    // Without this, abort only works between events, not during tool execution (RPC calls, etc.)
     const stream = activeAgent.streamEvents(
       {
         messages: formattedMessages,
@@ -946,6 +1009,7 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
       {
         version: "v2", // Use streamEvents v2 API
         recursionLimit: 60, // Support large batch operations (same as CLI)
+        signal: options?.signal, // Pass abort signal for immediate cancellation
         configurable: {
           userAddress: context.userAddress,
           sessionData: context.sessionData,
@@ -964,8 +1028,25 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
       }
     );
 
+    // Track if we need to exit early
+    let earlyExitReason: 'user' | 'hallucination' | 'exhausted' | null = null;
+
     // Process events
     for await (const event of stream) {
+      // Check abort signal at start of each iteration (stop button)
+      if (options?.signal?.aborted) {
+        logger.info("Stream aborted by user");
+        earlyExitReason = 'user';
+        break; // Use break instead of return to avoid zone.js cleanup issues
+      }
+
+      // Check soft abort (hallucination handling)
+      const softAbortReason = callbacks.shouldAbort?.();
+      if (softAbortReason) {
+        earlyExitReason = softAbortReason;
+        break; // Use break instead of return to avoid zone.js cleanup issues
+      }
+
       if (event.event === "on_chat_model_stream") {
         // LLM token streaming
         const chunk = event.data?.chunk;
@@ -1071,6 +1152,16 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
       }
     }
 
+    // Handle early exit (user abort or hallucination)
+    // Cleanup and return with reason AFTER loop completes naturally
+    // This avoids zone.js error handling that triggers HMR in dev mode
+    if (earlyExitReason) {
+      offProgress(progressHandler);
+      metrics.complete();
+      metrics.logSummary();
+      return { content: currentResponse, abortReason: earlyExitReason };
+    }
+
     // Cleanup progress subscription
     offProgress(progressHandler);
 
@@ -1093,7 +1184,7 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
 
     callbacks.onComplete?.();
 
-    return currentResponse;
+    return { content: currentResponse };
   } catch (error) {
     // Cleanup progress subscription on error
     if (progressHandler) {

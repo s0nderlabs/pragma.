@@ -137,7 +137,8 @@ export const stakeTool = tool(
       }
 
       // Generate tool signature for progress routing
-      const toolSignature = `stake:${Date.now()}`;
+      // Must match generateSignatureFromInput() in browserAgentRunner.ts
+      const toolSignature = `stake:${amount}`;
 
       // Progress: Staking into aPriori
       emitProgress(`Staking ${amountFormatted} MON into aPriori...`, "stake", toolSignature, `Stake ${amountFormatted} MON`);

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { useAgentContext } from '@/contexts/H2AgentContext'
 import { useIdentity } from '@/hooks/useIdentity'
-import { ArrowUpRight, Zap } from 'lucide-react'
+import { ArrowUpRight, Zap, Square } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { motion, useMotionValue, useMotionTemplate, animate } from 'framer-motion'
 
@@ -42,7 +42,7 @@ export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInpu
   const quickMode = useH2ChatStore((state) => state.quickMode)
   const setQuickMode = useH2ChatStore((state) => state.setQuickMode)
   const messages = useH2ChatStore((state) => state.messages)
-  const { sendMessage, isStreaming } = useAgentContext()
+  const { sendMessage, stopMessage, isStreaming } = useAgentContext()
   const { status, wallet } = useIdentity()
   const [input, setInput] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -136,6 +136,11 @@ export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInpu
     }
   }
 
+  // Handle stop button click - aborts current stream
+  const handleStop = () => {
+    stopMessage?.()
+  }
+
   return (
     <div
       className={cn("px-4 pt-4 pb-4 flex justify-center", className)}
@@ -182,16 +187,30 @@ export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInpu
               style={{ overflow: 'hidden' }}
             />
 
-            {/* Send Button - Icon only on mobile, text+hover arrow on desktop */}
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || isStreaming || tokensLoading}
-              className="group relative flex-shrink-0 flex items-center justify-center gap-1 p-2.5 lg:px-5 lg:py-2.5 rounded-full active:scale-[0.985] transition-all bg-black dark:bg-white text-white dark:text-black"
-              aria-label="Send message"
-            >
-              <span className="hidden lg:inline text-sm font-medium">Send</span>
-              <ArrowUpRight className="w-4 h-4 lg:w-0 lg:h-5 lg:overflow-hidden lg:opacity-0 lg:group-hover:w-5 lg:group-hover:opacity-100 group-active:-rotate-45 transition-all duration-200" />
-            </button>
+            {/* Send/Stop Button - Conditional based on streaming state */}
+            {isStreaming ? (
+              // Stop button - neutral colors matching send button with subtle hover animation
+              <button
+                onClick={handleStop}
+                className="group relative flex-shrink-0 flex items-center justify-center gap-1 p-2.5 lg:px-5 lg:py-2.5 rounded-full active:scale-[0.985] hover:scale-[1.03] transition-all duration-150 bg-black dark:bg-white text-white dark:text-black hover:shadow-md"
+                aria-label="Stop generation"
+              >
+                <Square className="w-3.5 h-3.5 fill-current group-hover:scale-110 transition-transform duration-150" />
+                <span className="hidden lg:inline text-sm font-medium ml-0.5">Stop</span>
+              </button>
+            ) : (
+              // Send button - Icon only on mobile, text+hover arrow on desktop
+              // BUG FIX: Removed disabled:opacity-50 to maintain consistent visual styling
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || tokensLoading}
+                className="group relative flex-shrink-0 flex items-center justify-center gap-1 p-2.5 lg:px-5 lg:py-2.5 rounded-full active:scale-[0.985] transition-all bg-black dark:bg-white text-white dark:text-black"
+                aria-label="Send message"
+              >
+                <span className="hidden lg:inline text-sm font-medium">Send</span>
+                <ArrowUpRight className="w-4 h-4 lg:w-0 lg:h-5 lg:overflow-hidden lg:opacity-0 lg:group-hover:w-5 lg:group-hover:opacity-100 group-active:-rotate-45 transition-all duration-200" />
+              </button>
+            )}
           </div>
 
           {/* Rotating beam overlay - only when Quick Mode ON */}

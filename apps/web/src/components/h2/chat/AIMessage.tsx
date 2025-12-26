@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useCallback, useState, useEffect } from 'react'
+import { useMemo, useCallback, useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import type { ChatMessage } from '@/lib/h2/types'
 import { useStreamingMessage } from '@/hooks/useStreamingMessage'
@@ -10,6 +10,7 @@ import { NFTGallery } from '../nft/NFTGallery'
 import { ActivityTable, type ActivityTableData } from '../activity'
 import type { NFTGalleryData, NFTDisplayData } from '@pragma/core'
 import { useAgentContext } from '@/contexts/H2AgentContext'
+import { useH2ChatStore } from '@/stores/useH2ChatStore'
 
 interface AIMessageProps {
   message: ChatMessage
@@ -19,6 +20,42 @@ interface AIMessageProps {
  * Unicode star spinner frames (same as ThinkingBubble)
  */
 const SPINNER_FRAMES = ['✦', '✧', '✶', '✷', '✸', '✹', '✺', '✻']
+
+/**
+ * Reddish color for error/retry states
+ */
+const ERROR_COLOR = '#DC2626' // Red-600
+
+/**
+ * RetryIndicator Component
+ *
+ * Shows animated star spinner when auto-retrying due to hallucination.
+ * Uses reddish color to indicate error state.
+ */
+function RetryIndicator() {
+  const [frameIndex, setFrameIndex] = useState(0)
+
+  // Continuous animation while retrying
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFrameIndex((prev) => (prev + 1) % SPINNER_FRAMES.length)
+    }, 100)
+    return () => clearInterval(interval)
+  }, [])
+
+  return (
+    <div className="mt-3 mb-3">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-2xl font-mono flex-shrink-0" style={{ color: ERROR_COLOR }}>
+          {SPINNER_FRAMES[frameIndex]}
+        </span>
+        <span className="text-sm font-medium" style={{ color: ERROR_COLOR, opacity: 0.9 }}>
+          Retrying...
+        </span>
+      </div>
+    </div>
+  )
+}
 
 /**
  * TableLoader Component
@@ -196,6 +233,9 @@ function parseActivityTable(content: string): { text: string; activityData: Acti
 export function AIMessage({ message }: AIMessageProps) {
   const { sendMessage, isStreaming } = useAgentContext()
 
+  // Auto-retry state for hallucination detection
+  const isAutoRetrying = useH2ChatStore((state) => state.isAutoRetrying)
+
   const { displayedContent } = useStreamingMessage({
     message,
     enabled: message.isStreaming ?? false,
@@ -317,7 +357,7 @@ export function AIMessage({ message }: AIMessageProps) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="mb-6"
+      className="mb-6 group"
     >
       <div className="text-sm lg:text-base max-lg:min-w-0 max-lg:overflow-hidden">
         {/* Chain-of-thought reasoning bubble (DeepSeek) */}
@@ -361,6 +401,14 @@ export function AIMessage({ message }: AIMessageProps) {
             <ActivityTable data={activityData} onExplainClick={handleExplainClick} />
           </div>
         )}
+
+        {/* Stopped indicator moved to MessageList to appear after all messages in the turn */}
+        {/* Message actions moved to TurnMessageActions in MessageList to appear after all messages (including tools) */}
+
+        {/* Auto-retry indicator - shown when hallucination detected and retrying */}
+        {isAutoRetrying && <RetryIndicator />}
+
+        {/* Exhausted banner moved to MessageList to appear after all messages in the turn */}
 
       </div>
     </motion.div>

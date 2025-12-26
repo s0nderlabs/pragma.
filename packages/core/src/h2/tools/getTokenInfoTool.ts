@@ -2,6 +2,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { getAddress, type Address, erc20Abi } from "viem";
 import { type AllowedToken } from "../../monorail/tokens.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // ERC165 Interface IDs
 const ERC721_INTERFACE_ID = "0x80ac58cd";
@@ -244,6 +245,12 @@ export const getTokenInfoTool = tool(
 
     const trimmed = token.trim();
     const lower = trimmed.toLowerCase();
+
+    // Generate tool signature for progress routing
+    // Must match generateSignatureFromInput() in browserAgentRunner.ts
+    const displayToken = trimmed.startsWith('0x') ? `${trimmed.slice(0, 8)}...` : trimmed.toUpperCase();
+    const toolSignature = `getTokenInfo:${displayToken}`;
+    emitProgress(`Fetching info for ${displayToken}...`, "getTokenInfo", toolSignature, `Getting Info for ${displayToken}`);
 
     // =========================================================================
     // Tier 1: Check allowedTokens (verified tokens)

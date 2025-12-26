@@ -10,6 +10,7 @@
 
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Detailed Tool Documentation
@@ -641,6 +642,10 @@ const searchToolDocsSchema = z.object({
  */
 export const searchToolDocsTool = tool(
   async ({ toolName }): Promise<string> => {
+    // Generate tool signature for progress routing
+    const toolSignature = 'search_tool_docs';
+    emitProgress(`Searching for "${toolName}"...`, "search_tool_docs", toolSignature, "Searching Tool Docs");
+
     // Normalize tool name (handle common variations)
     const normalizedName = toolName
       .toLowerCase()

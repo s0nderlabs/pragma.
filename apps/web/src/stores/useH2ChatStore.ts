@@ -87,15 +87,32 @@ function getToolDisplayName(toolName: string): string {
  */
 function getReadableParentDescription(toolName: string, count: number): string {
   const batchDescriptions: Record<string, string> = {
+    // Swap tools
     getSwapQuote: 'Getting Swap Quotes',
     executeSwap: 'Executing Swaps',
+    // Balance/token tools
     getBalance: 'Checking Balances',
+    getTokenInfo: 'Getting Token Info',
+    resolveName: 'Resolving Names',
+    // Transfer tools
     transfer: 'Transferring Tokens',
+    // Staking tools
     stake: 'Staking MON',
     unstakeRequest: 'Requesting Unstakes',
+    unstakeClaim: 'Claiming Unstaked MON',
+    // Wrap tools
     wrap: 'Wrapping MON',
     unwrap: 'Unwrapping WMON',
-    // Analysis tools
+    // NFT tools
+    transferNFT: 'Transferring NFTs',
+    getNFTDetails: 'Getting NFT Details',
+    getNFTActivity: 'Getting NFT Activity',
+    getNFTBuyQuote: 'Getting NFT Quotes',
+    executeNFTBuy: 'Buying NFTs',
+    getCollectionInfo: 'Getting Collection Info',
+    getTopCollections: 'Getting Collections',
+    // Activity tools
+    getOnchainActivity: 'Getting Onchain Activity',
     explainTransaction: 'Analyzing Transactions',
     // Search tools (for parallel queries)
     web_search: 'Searching the Web',

@@ -101,7 +101,8 @@ export const unstakeClaimTool = tool(
       const requestIdArray = requestIds.split(",").map((id) => BigInt(id.trim()));
 
       // Generate tool signature for progress routing
-      const toolSignature = `unstakeClaim:${Date.now()}`;
+      // Must match generateSignatureFromInput() in browserAgentRunner.ts
+      const toolSignature = 'unstakeClaim';
 
       // First progress with description for parent tool display
       const claimLabel = requestIdArray.length > 1 ? `${requestIdArray.length} requests` : `request ${requestIdArray[0]}`;

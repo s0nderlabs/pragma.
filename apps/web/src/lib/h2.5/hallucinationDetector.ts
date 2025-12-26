@@ -37,8 +37,8 @@
  * 5. KEY INSIGHT: Agent NEVER outputs raw `{}` JSON in prose.
  *    Any {key: value} pattern is definitely hallucinated tool output.
  *
- * Last updated: 2025-12-25
- * Pattern count: ~104 patterns across 18 categories
+ * Last updated: 2025-12-26
+ * Pattern count: ~108 patterns across 20 categories
  */
 
 /**
@@ -258,6 +258,17 @@ const HALLUCINATION_PATTERNS = [
   /\bunwrap\s*\(\s*\{/i,
   /\bsearchProtocolDocs\s*\(\s*\{/i,
   /\bwebSearch\s*\(\s*\{/i,
+
+  // ============================================
+  // SECTION 20: INTERNAL DATA MARKERS
+  // ============================================
+  // These markers indicate tool output data that should be rendered as UI,
+  // not printed as text. If they appear in prose, it's a hallucination.
+  // Flexible patterns to catch variations (underscores, spaces, case).
+  /\[NFT[_\s]*GALLERY[_\s]*(DATA)?\]/i,    // [NFT_GALLERY_DATA], [NFT GALLERY], [nft gallery data]
+  /\[ACTIVITY[_\s]*(DATA|TABLE)\]/i,       // [ACTIVITY_DATA], [ACTIVITY TABLE], [activity_data]
+  /<!--\s*NFT[_\s]*GALLERY\s*-->/i,        // <!--NFT_GALLERY-->, <!-- NFT GALLERY -->
+  /<!--\s*ACTIVITY[_\s]*TABLE\s*-->/i,     // <!--ACTIVITY_TABLE-->, <!-- ACTIVITY TABLE -->
 ]
 
 /**

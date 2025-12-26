@@ -117,10 +117,11 @@ export const getAllBalancesTool = tool(
       }
 
       // Generate tool signature for progress routing
-      const toolSignature = `getAllBalances:${Date.now()}`;
+      // Must match generateSignatureFromInput() in browserAgentRunner.ts
+      const toolSignature = 'getAllBalances';
 
       // Progress: Fetching balances (with description for parent display)
-      emitProgress("Fetching Your Portfolio from Monad...", "getAllBalances", toolSignature, "Fetch All Balances");
+      emitProgress("Getting Your Portfolio from Monad...", "getAllBalances", toolSignature, "Getting All Balances");
 
       // Fetch all balances via proxy (avoids CORS issues with direct Monorail calls)
       // Use authenticated fetch from configurable if available (browser context)

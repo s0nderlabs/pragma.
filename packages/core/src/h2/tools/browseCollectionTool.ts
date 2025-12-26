@@ -11,6 +11,7 @@ import type { Address } from "viem";
 import { formatUnits } from "viem";
 import type { NFT, NFTListing, NFTGalleryData, NFTDisplayData } from "../../opensea/types.js";
 import { getMonUsdPrice, formatMonWithUsd } from "./helpers/monPrice.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Tool Schema
@@ -41,6 +42,10 @@ export const browseCollectionTool = tool(
       const origin = config?.configurable?.origin as string || "";
 
       const { collection, limit = 12, maxPrice } = input;
+
+      // Generate tool signature for progress routing
+      const toolSignature = 'browseCollection';
+      emitProgress("Fetching listings from OpenSea...", "browseCollection", toolSignature, `Browsing ${collection}`);
 
       // Fetch MON/USD price for USD conversion (async, cached)
       const monUsdPrice = await getMonUsdPrice(fetchFn, origin);

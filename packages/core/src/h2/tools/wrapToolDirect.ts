@@ -103,7 +103,8 @@ export const wrapTool = tool(
       const amountFormatted = formatUnits(amountWei, 18);
 
       // Generate tool signature for progress routing
-      const toolSignature = `wrap:${Date.now()}`;
+      // Must match generateSignatureFromInput() in browserAgentRunner.ts
+      const toolSignature = `wrap:${amount}`;
 
       // Initial progress
       emitProgress(`Wrapping ${amountFormatted} MON → WMON...`, "wrap", toolSignature, `Wrap ${amountFormatted} MON`);

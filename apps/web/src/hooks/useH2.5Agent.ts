@@ -203,6 +203,34 @@ export function useH2_5Agent() {
             ? `Wrapping ${payload} MON`
             : `Unwrapping ${payload} WMON`;
         }
+        case 'getCollectionInfo': {
+          // Payload is collection slug
+          return `Getting ${payload} Collection Info`;
+        }
+        case 'getTokenInfo': {
+          // Payload is token symbol or truncated address
+          return `Getting ${payload} Token Info`;
+        }
+        case 'resolveName': {
+          // Payload is name or truncated address
+          return `Resolving ${payload}`;
+        }
+        case 'getNFTDetails': {
+          // Payload is contract:tokenIds (e.g., "0x6919f8b7:1,2,3")
+          const parts = payload.split(':');
+          if (parts.length === 2) {
+            return `Getting NFT #${parts[1]} Details`;
+          }
+          return 'Getting NFT Details';
+        }
+        case 'transferNFT': {
+          // Payload is contract:tokenId (e.g., "0x6919f8b7...:4809")
+          const parts = payload.split(':');
+          if (parts.length === 2) {
+            return `Transferring NFT #${parts[1]}`;
+          }
+          return 'Transferring NFTs';
+        }
       }
     }
 
@@ -238,7 +266,7 @@ export function useH2_5Agent() {
       case 'getBalance':
         return 'Checking Balance';
       case 'getAllBalances':
-        return 'Fetching All Balances';
+        return 'Getting All Balances';
       case 'getAccountInfo':
         return 'Getting Account Info';
       case 'listVerifiedTokens':
@@ -270,7 +298,7 @@ export function useH2_5Agent() {
 
       // NFT operations
       case 'getMyNFTs':
-        return 'Fetching Your NFTs';
+        return 'Getting Your NFTs';
       case 'browseCollection':
         return 'Browsing Collection';
       case 'getCollectionInfo':
@@ -286,7 +314,7 @@ export function useH2_5Agent() {
       case 'executeNFTBuy':
         return 'Buying NFT';
       case 'transferNFT':
-        return 'Transferring NFT';
+        return 'Transferring NFTs';
       case 'listNFT':
         return 'Listing NFT';
 
@@ -455,6 +483,7 @@ export function useH2_5Agent() {
           .map((msg) => [msg.role, (msg as { content: string }).content] as MessageTuple),
         ['user', content],
       ];
+
 
       // BUG FIX: For manual retry, inject instruction into message history (not visible in chat)
       // This keeps the retry prompt hidden from the user while guiding the agent

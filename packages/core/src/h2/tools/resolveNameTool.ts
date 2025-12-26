@@ -20,6 +20,7 @@ import { type Address, type PublicClient, isAddress, getAddress } from "viem";
 
 import { resolveName, getNameForAddress } from "../utils/nameResolution.js";
 import { createErrorFromCode } from "../../errors/index.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Tool Implementation
@@ -58,6 +59,12 @@ export const resolveNameTool = tool(
       }
 
       const trimmed = name.trim();
+
+      // Generate tool signature for progress routing
+      // Must match generateSignatureFromInput() in browserAgentRunner.ts
+      const displayName = trimmed.length > 20 ? `${trimmed.slice(0, 20)}...` : trimmed;
+      const toolSignature = `resolveName:${displayName}`;
+      emitProgress("Looking up name registry...", "resolveName", toolSignature, `Resolving ${displayName}`);
 
       // Check if input is an address (reverse lookup)
       if (trimmed.startsWith("0x") && isAddress(trimmed)) {

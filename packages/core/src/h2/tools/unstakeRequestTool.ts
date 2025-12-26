@@ -109,7 +109,8 @@ export const unstakeRequestTool = tool(
       const sharesFormatted = formatUnits(sharesWei, 18);
 
       // Generate tool signature for progress routing
-      const toolSignature = `unstakeRequest:${Date.now()}`;
+      // Must match generateSignatureFromInput() in browserAgentRunner.ts
+      const toolSignature = `unstakeRequest:${amount}`;
 
       // First progress with description for parent tool display
       emitProgress(`Requesting Unstake for ${sharesFormatted} aprMON...`, "unstakeRequest", toolSignature, `Unstake ${sharesFormatted} aprMON`);

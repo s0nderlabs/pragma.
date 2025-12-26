@@ -145,7 +145,7 @@ export async function executeNFTTransfer(params: ExecuteNFTTransferParams): Prom
   const recipientShort = `${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)}`;
   const toolSignature = signature || `nftTransfer:${contractAddress}:${tokenId}`;
 
-  emitProgress(`Preparing to transfer ${displayName}...`, "transferNFT", toolSignature, `Transfer ${displayName}`);
+  emitProgress(`Preparing to transfer ${displayName}...`, "transferNFT", toolSignature, `Transferring ${displayName}`);
 
   // Step 1: Check session key balance
   const sessionKeyBalance = await publicClient.getBalance({ address: sessionKeyAddress });

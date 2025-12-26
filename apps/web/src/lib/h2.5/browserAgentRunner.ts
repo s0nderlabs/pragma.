@@ -173,6 +173,10 @@ function applySlidingWindow(messages: MessageTuple[]): MessageTuple[] {
   // Filter out system messages for counting (they're re-added separately)
   const nonSystemMessages = messages.filter(([role]) => role !== "system");
 
+  // Calculate total context size before sliding window
+  const totalCharsBefore = messages.reduce((acc, [, content]) => acc + (content?.length || 0), 0);
+  const estimatedTokensBefore = Math.ceil(totalCharsBefore / 4);
+
   // Find all user message indices (each user message starts a new turn)
   const userIndices: number[] = [];
   nonSystemMessages.forEach(([role], idx) => {
@@ -190,12 +194,12 @@ function applySlidingWindow(messages: MessageTuple[]): MessageTuple[] {
   const keepFromIndex = userIndices[userIndices.length - 2];
   const recentMessages = nonSystemMessages.slice(keepFromIndex);
 
-  // Log kept messages for debugging
-  logger.debug(`Sliding window keeping ${recentMessages.length} messages from turn ${userIndices.length - 1}`);
-  recentMessages.forEach(([role, content], idx) => {
-    const preview = content.length > 100 ? content.slice(0, 100) + '...' : content;
-    logger.debug(`  [${idx}] ${role}: ${preview.replace(/\n/g, ' ')}`);
-  });
+  // Calculate total context size after sliding window
+  const totalCharsAfter = recentMessages.reduce((acc, [, content]) => acc + (content?.length || 0), 0);
+  const estimatedTokensAfter = Math.ceil(totalCharsAfter / 4);
+
+  // Log sliding window effect (compact)
+  logger.info(`📊 [CONTEXT] Sliding window: ${messages.length} → ${recentMessages.length + 1} msgs, ~${estimatedTokensBefore} → ~${estimatedTokensAfter} tokens`);
 
   // Preserve system messages from original
   const systemMessages = messages.filter(([role]) => role === "system");
@@ -671,7 +675,33 @@ export async function streamBrowserAgent(
 
         case 'getMyNFTs':
         case 'browseCollection':
+          return toolName;
+
         case 'getCollectionInfo':
+          // For collection info: use collection slug for parallel queries
+          if (inputObj.collection) {
+            return `${toolName}:${String(inputObj.collection)}`;
+          }
+          return toolName;
+
+        case 'getTokenInfo':
+          // For token info: use displayToken format matching tool's signature
+          if (inputObj.token) {
+            const tokenStr = String(inputObj.token).trim();
+            const displayToken = tokenStr.startsWith('0x')
+              ? `${tokenStr.slice(0, 8)}...`
+              : tokenStr.toUpperCase();
+            return `${toolName}:${displayToken}`;
+          }
+          return toolName;
+
+        case 'resolveName':
+          // For name resolution: use displayName format matching tool's signature
+          if (inputObj.name) {
+            const nameStr = String(inputObj.name).trim();
+            const displayName = nameStr.length > 20 ? `${nameStr.slice(0, 20)}...` : nameStr;
+            return `${toolName}:${displayName}`;
+          }
           return toolName;
 
         case 'getNFTBuyQuote':

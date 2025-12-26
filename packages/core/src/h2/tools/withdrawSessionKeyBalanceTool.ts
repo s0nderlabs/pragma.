@@ -175,7 +175,8 @@ Not enough MON left to pay for gas. Try withdrawing less or use "all" to withdra
       }
 
       // Generate tool signature for progress routing
-      const toolSignature = `withdrawSessionKey:${Date.now()}`;
+      // Must match generateSignatureFromInput() in browserAgentRunner.ts
+      const toolSignature = 'withdrawSessionKeyBalance';
 
       // Progress message
       const shortRecipient = `${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-4)}`;

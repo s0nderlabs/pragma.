@@ -1,9 +1,14 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import type { AllowedToken } from "../../monorail/tokens.js";
+import { emitProgress } from "../progress/emitter.js";
 
 export const listVerifiedTokensTool = tool(
   async (_input, config) => {
+    // Generate tool signature for progress routing
+    const toolSignature = 'listVerifiedTokens';
+    emitProgress("Loading verified tokens...", "listVerifiedTokens", toolSignature, "Listing Tokens");
+
     const allowedTokens = (config?.configurable?.allowedTokens as AllowedToken[]) || [];
 
     const verifiedTokens = allowedTokens.filter(

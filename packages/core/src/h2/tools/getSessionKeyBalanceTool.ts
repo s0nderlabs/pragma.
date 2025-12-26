@@ -9,6 +9,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { formatUnits, parseUnits } from "viem";
 import type { Address, PublicClient } from "viem";
+import { emitProgress } from "../progress/emitter.js";
 
 const getSessionKeyBalanceSchema = z.object({
   // No parameters needed - uses sessionData from config
@@ -24,6 +25,10 @@ export const getSessionKeyBalanceTool = tool(
     }
 
     const sessionKeyAddress = sessionData.sessionKeyAddress as Address;
+
+    // Generate tool signature for progress routing
+    const toolSignature = 'getSessionKeyBalance';
+    emitProgress("Querying balance from Monad...", "getSessionKeyBalance", toolSignature, "Checking Session Key Balance");
 
     try {
       const balance = await publicClient.getBalance({ address: sessionKeyAddress });

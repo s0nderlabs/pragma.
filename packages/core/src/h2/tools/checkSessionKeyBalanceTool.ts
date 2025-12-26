@@ -23,6 +23,7 @@ import {
   type OperationType,
 } from "../execution/sessionKeyManager.js";
 import { createErrorFromCode } from "../../errors/index.js";
+import { emitProgress } from "../progress/emitter.js";
 
 // ============================================================================
 // Check Session Key Balance Tool Implementation
@@ -42,7 +43,9 @@ export const checkSessionKeyBalanceTool = tool(
         });
       }
 
-      // Simple read-only tool - no progress needed (parent name is sufficient)
+      // Generate tool signature for progress routing
+      const toolSignature = 'checkSessionKeyBalance';
+      emitProgress("Analyzing session key balance...", "checkSessionKeyBalance", toolSignature, "Checking Session Key");
 
       // Check balance (batch-aware if estimatedOperations provided)
       const { balance, recommendedFundingAmount } = await checkSessionKeyBalance(

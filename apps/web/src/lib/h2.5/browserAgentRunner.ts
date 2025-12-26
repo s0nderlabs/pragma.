@@ -1013,7 +1013,6 @@ Group capabilities with **bold section headers**. Use emojis sparingly. Natural,
       // Check soft abort (hallucination handling)
       const softAbortReason = callbacks.shouldAbort?.();
       if (softAbortReason) {
-        logger.info(`Stream soft-aborted (${softAbortReason})`);
         earlyExitReason = softAbortReason;
         break; // Use break instead of return to avoid zone.js cleanup issues
       }

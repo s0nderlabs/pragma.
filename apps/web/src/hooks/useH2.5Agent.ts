@@ -727,7 +727,6 @@ export function useH2_5Agent() {
 
                 // Check if we've exhausted retries
                 if (retryCount >= MAX_HALLUCINATION_RETRIES) {
-                  logger.warn(`Hallucination detected but retries exhausted: ${matchedPattern}`);
                   hallucinationRetryTriggeredRef.current = true;
                   // Track specific message that exhausted retries (not global)
                   const streamingId = useH2ChatStore.getState().streamingMessageId;
@@ -740,8 +739,6 @@ export function useH2_5Agent() {
                   exhaustedAbortRequestedRef.current = true;
                   return;
                 }
-
-                logger.warn(`Hallucination detected (attempt ${retryCount + 1}/${MAX_HALLUCINATION_RETRIES}): ${matchedPattern}`);
 
                 // Mark as triggered to prevent multiple retries
                 hallucinationRetryTriggeredRef.current = true;
@@ -902,7 +899,6 @@ export function useH2_5Agent() {
                 const matchedPattern = getMatchedPattern(accumulatedContentRef.current);
 
                 if (retryCount >= MAX_HALLUCINATION_RETRIES) {
-                  logger.warn(`[onComplete] Hallucination detected but retries exhausted: ${matchedPattern}`);
                   // Track specific message that exhausted retries
                   // Note: streamingId may be null here, find last assistant message
                   const messages = useH2ChatStore.getState().messages;
@@ -910,8 +906,16 @@ export function useH2_5Agent() {
                   if (lastAssistant) {
                     setExhaustedRetryMessageId(lastAssistant.id);
                   }
+                  // Delete the faulty message and cleanup state
+                  useH2ChatStore.getState().deleteMessagesAfterLastUser();
+                  // CRITICAL: Clear token buffer to prevent flushTokenBuffer from creating new message
+                  tokenBufferRef.current = '';
+                  setStreamingMessage(null);
+                  setIsStreaming(false);
+                  hideProgress();
+                  useH2ChatStore.getState().setHasInFlightTransaction(false);
+                  return; // Don't proceed with normal completion - show exhausted banner
                 } else {
-                  logger.warn(`[onComplete] Hallucination detected (attempt ${retryCount + 1}/${MAX_HALLUCINATION_RETRIES}): ${matchedPattern}`);
                   hallucinationRetryTriggeredRef.current = true;
 
                   // Set flag for post-stream retry (handled after streamBrowserAgent returns)
@@ -920,6 +924,8 @@ export function useH2_5Agent() {
 
                   // Show retrying indicator and cleanup state
                   setIsAutoRetrying(true);
+                  // CRITICAL: Clear token buffer to prevent flushTokenBuffer from creating new message
+                  tokenBufferRef.current = '';
                   setStreamingMessage(null);
                   setIsStreaming(false);
                   hideProgress();
@@ -1030,7 +1036,6 @@ export function useH2_5Agent() {
           const store = useH2ChatStore.getState();
 
           if (result.abortReason === 'hallucination') {
-            logger.info('Stream soft-aborted for hallucination retry');
             // Reset soft abort flag
             hallucinationAbortRequestedRef.current = false;
 
@@ -1038,7 +1043,7 @@ export function useH2_5Agent() {
             setTimeout(async () => {
               setIsAutoRetrying(false);
 
-              // Delete ALL messages after last user (assistant + tool messages)
+              // Delete ALL messages from this turn (assistant + tool messages)
               useH2ChatStore.getState().deleteMessagesAfterLastUser();
 
               // Get the original user message
@@ -1053,6 +1058,8 @@ export function useH2_5Agent() {
               }
             }, 300);
 
+            // CRITICAL: Clear token buffer to prevent flushTokenBuffer from creating new message
+            tokenBufferRef.current = '';
             setStreamingMessage(null);
             setIsStreaming(false);
             hideProgress();
@@ -1106,9 +1113,11 @@ export function useH2_5Agent() {
           }
 
           if (result.abortReason === 'exhausted') {
-            logger.info('Stream aborted - hallucination retries exhausted');
             // Delete the faulty assistant message that triggered exhaustion
             store.deleteMessagesAfterLastUser();
+            // CRITICAL: Clear token buffer to prevent flushTokenBuffer from creating new message
+            // flushTokenBuffer runs on interval and creates new assistant message if streamingId is null
+            tokenBufferRef.current = '';
             setStreamingMessage(null);
             setIsStreaming(false);
             hideProgress();
@@ -1120,12 +1129,12 @@ export function useH2_5Agent() {
         // Handle onComplete hallucination detection (post-stream retry)
         // This is set when onComplete detects hallucination but stream already completed
         if (onCompleteHallucinationRef.current) {
-          logger.info('Post-stream hallucination detected, scheduling retry');
           onCompleteHallucinationRef.current = false;
 
           // Schedule retry with delay (outside of any callback context)
           setTimeout(async () => {
             setIsAutoRetrying(false);
+            // Delete ALL messages from this turn (assistant + tool messages)
             useH2ChatStore.getState().deleteMessagesAfterLastUser();
 
             const originalMessage = useH2ChatStore.getState().lastUserMessageContent;

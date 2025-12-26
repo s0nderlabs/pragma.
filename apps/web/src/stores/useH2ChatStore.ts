@@ -324,7 +324,7 @@ export const useH2ChatStore = create<H2ChatState>()(
         updateMessageContent: (id, content) => {
           set((state) => ({
             messages: state.messages.map((msg) =>
-              msg.id === id ? { ...msg, content } : msg
+              msg.id === id ? { ...msg, content, timestamp: Date.now() } : msg
             ),
           }));
         },

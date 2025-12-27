@@ -38,7 +38,7 @@
  *    Any {key: value} pattern is definitely hallucinated tool output.
  *
  * Last updated: 2025-12-27
- * Pattern count: ~109 patterns across 20 categories
+ * Pattern count: ~95 patterns across 16 sections
  */
 
 /**
@@ -61,8 +61,8 @@ const SHORT_ACTIONS = 'swap|balance|quote|stake|unstake|wrap|unwrap|transfer|sea
  * Patterns that indicate hallucinated tool calls
  * These appear when the model describes tool invocation instead of doing it
  *
- * COMPREHENSIVE COVERAGE: ~104 patterns across 18 categories
- * Last updated: 2025-12-25
+ * COMPREHENSIVE COVERAGE: ~95 patterns across 16 sections
+ * Last updated: 2025-12-27
  */
 const HALLUCINATION_PATTERNS = [
   // ============================================
@@ -214,32 +214,7 @@ const HALLUCINATION_PATTERNS = [
   /\b(Invoking|Calling|Running|Executing|Using):\s*\w+/i,           // Invoking: X
 
   // ============================================
-  // SECTION 15: TOOL NAME WITH ACTION VERBS
-  // ============================================
-  /executing\s+(getSwapQuote|executeSwap|getBalance|getAllBalances|transfer|stake|unstake|wrap|unwrap|getMyNFTs|browseCollection|getTopCollections)/i,
-  /invoking\s+(getSwapQuote|executeSwap|getBalance|getAllBalances|transfer|stake|unstake|wrap|unwrap|getMyNFTs|browseCollection|getTopCollections)/i,
-  /running\s+(getSwapQuote|executeSwap|getBalance|getAllBalances|transfer|stake|unstake|wrap|unwrap|getMyNFTs|browseCollection|getTopCollections)/i,
-
-  // ============================================
-  // SECTION 16: RESPONSE/RESULT SIMULATION
-  // ============================================
-  new RegExp(`\\b(${HIGH_RISK_TOOLS})\\s+(returned|returns|response|result)\\s*:`, 'i'),
-  new RegExp(`(Result|Response|Output)\\s+(from|of)\\s+(${HIGH_RISK_TOOLS})`, 'i'),
-
-  // ============================================
-  // SECTION 17: ARROW NOTATION
-  // ============================================
-  new RegExp(`\\b(${HIGH_RISK_TOOLS})\\s*→`, 'i'),                  // X → result
-  new RegExp(`→\\s*(${HIGH_RISK_TOOLS})`, 'i'),                     // → X
-
-  // ============================================
-  // SECTION 18: PIPE/CHAIN SYNTAX
-  // ============================================
-  new RegExp(`\\|\\s*(${HIGH_RISK_TOOLS})`, 'i'),                   // | X
-  new RegExp(`(${HIGH_RISK_TOOLS})\\s*\\|`, 'i'),                   // X |
-
-  // ============================================
-  // SECTION 19: CURLY BRACE FUNCTION CALLS
+  // SECTION 15: CURLY BRACE FUNCTION CALLS
   // ============================================
   /\bgetSwapQuote\s*\(\s*\{/i,
   /\bexecuteSwap\s*\(\s*\{/i,
@@ -261,7 +236,7 @@ const HALLUCINATION_PATTERNS = [
   /\bwebSearch\s*\(\s*\{/i,
 
   // ============================================
-  // SECTION 20: INTERNAL DATA MARKERS
+  // SECTION 16: INTERNAL DATA MARKERS
   // ============================================
   // These markers indicate tool output data that should be rendered as UI,
   // not printed as text. If they appear in prose, it's a hallucination.

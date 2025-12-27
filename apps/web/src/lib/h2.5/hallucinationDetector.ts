@@ -37,8 +37,8 @@
  * 5. KEY INSIGHT: Agent NEVER outputs raw `{}` JSON in prose.
  *    Any {key: value} pattern is definitely hallucinated tool output.
  *
- * Last updated: 2025-12-26
- * Pattern count: ~108 patterns across 20 categories
+ * Last updated: 2025-12-27
+ * Pattern count: ~109 patterns across 20 categories
  */
 
 /**
@@ -71,6 +71,7 @@ const HALLUCINATION_PATTERNS = [
   /\[tool_call:\s*\w+/i,           // [tool_call: X]
   /\[tool:\s*\w+/i,                // [tool: X]
   /\[tool[ _]?calls?\]/i,          // [tool calls], [tool_calls]
+  /\[tools?\s+execut(e|es|ed|ing)\]/i, // [tool executes], [tools executed], [tool executing]
   /\[tool\s*calls?\s*:\s*\w+/i,    // [tool calls: X], [tool call: X]
   /\[tools?\s+called\]/i,          // [tool called]
   /\[calling\s+\w+/i,              // [calling X]

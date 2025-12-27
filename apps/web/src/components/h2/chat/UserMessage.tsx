@@ -211,7 +211,7 @@ export function UserMessage({ message }: UserMessageProps) {
               rows={1}
             />
           ) : (
-            <p className="text-sm lg:text-base leading-normal whitespace-pre-wrap break-words m-0">
+            <p className="text-sm lg:text-base leading-normal whitespace-pre-wrap break-words break-all m-0">
               {message.content}
             </p>
           )}

@@ -95,6 +95,9 @@ const TOPICS = {
     "0x7f4091b46c33e918a0f3aa42307641d17bb67029427a5369e54b3539773057df",
   INCREASED_SPENT_MAP:
     "0xc026e493323d526061a052b5dd562495120e2f648797a48be61966d3a6beec8d",
+  // MonorailSwap(address indexed sender, address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut, ...)
+  MONORAIL_SWAP:
+    "0x6e4c3aa29fc5ed6dc56aa0a95d8ac6660b6bf4e9c2ab49a0ea79b9cdafbcd7eb",
 } as const;
 
 // Known token decimals (fallback)
@@ -268,6 +271,38 @@ async function getTokenInfo(address: string): Promise<TokenInfo> {
       priceUsd: 0,
     };
   }
+}
+
+/**
+ * Prefetch multiple tokens in parallel to warm cache.
+ * This prevents sequential API calls from slowing down transaction analysis.
+ */
+async function prefetchTokenInfo(addresses: string[]): Promise<void> {
+  const unique = [...new Set(addresses.map((a) => a.toLowerCase()))];
+  const uncached = unique.filter((a) => !tokenCache.has(a));
+  if (uncached.length === 0) return;
+
+  await Promise.all(uncached.map((addr) => getTokenInfo(addr)));
+}
+
+/**
+ * Extract all token addresses from transaction logs for prefetching.
+ * Looks for ERC20 Transfer events.
+ */
+function extractTokenAddressesFromLogs(
+  logs: Array<{ address: string; topics: string[] }>
+): string[] {
+  const TRANSFER_TOPIC =
+    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+  const addresses: string[] = [];
+
+  for (const log of logs) {
+    if (log.topics[0]?.toLowerCase() === TRANSFER_TOPIC.toLowerCase()) {
+      addresses.push(log.address);
+    }
+  }
+
+  return addresses;
 }
 
 // ============================================================================
@@ -680,6 +715,13 @@ export async function explainTransaction(
 
   // Decode events
   const events = decodeEvents(logs);
+
+  // Prefetch all token info in parallel to warm cache before analysis
+  // This prevents sequential API calls from slowing down extractSwapDetails()
+  const tokenAddresses = extractTokenAddressesFromLogs(logs);
+  if (tokenAddresses.length > 0) {
+    await prefetchTokenInfo(tokenAddresses);
+  }
 
   // =========================================================================
   // Classification Logic (based on validated test script)
@@ -1468,6 +1510,81 @@ export async function explainTransaction(
 // ============================================================================
 
 /**
+ * Fallback: Parse MonorailSwap event directly when RedeemedDelegation is not available.
+ * MonorailSwap(address indexed sender, address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut, ...)
+ * - topic1 = sender
+ * - topic2 = tokenIn address (0x0 = native MON)
+ * - topic3 = tokenOut address (0x0 = native MON)
+ * - data = amountIn (bytes 0-31), amountOut (bytes 32-63)
+ */
+async function parseMonorailSwapFallback(
+  logs: Array<{ address: string; topics: string[]; data: string }>
+): Promise<{
+  tokenIn?: TransactionExplanation["tokenIn"];
+  tokenOut?: TransactionExplanation["tokenOut"];
+  summary: string;
+  route?: string[];
+} | null> {
+  const monorailSwapLog = logs.find(
+    (l) =>
+      l.topics[0]?.toLowerCase() === TOPICS.MONORAIL_SWAP.toLowerCase() &&
+      l.address.toLowerCase() === CONTRACTS.MONORAIL_ROUTER
+  );
+
+  if (!monorailSwapLog || !monorailSwapLog.topics[2] || !monorailSwapLog.topics[3] || !monorailSwapLog.data) {
+    return null;
+  }
+
+  // Extract tokenIn and tokenOut from indexed topics
+  const tokenInAddress = ("0x" + monorailSwapLog.topics[2].slice(-40)).toLowerCase();
+  const tokenOutAddress = ("0x" + monorailSwapLog.topics[3].slice(-40)).toLowerCase();
+
+  // Extract amounts from data (each 32 bytes = 64 hex chars)
+  const dataHex = monorailSwapLog.data.slice(2); // Remove 0x prefix
+  const amountIn = BigInt("0x" + dataHex.slice(0, 64));
+  const amountOut = BigInt("0x" + dataHex.slice(64, 128));
+
+  // Determine if tokens are native MON (address 0x0)
+  const isTokenInNative = tokenInAddress === "0x0000000000000000000000000000000000000000";
+  const isTokenOutNative = tokenOutAddress === "0x0000000000000000000000000000000000000000";
+
+  // Get token info (use WMON price for native MON)
+  const tokenInInfo = await getTokenInfo(isTokenInNative ? CONTRACTS.WMON : tokenInAddress);
+  const tokenOutInfo = await getTokenInfo(isTokenOutNative ? CONTRACTS.WMON : tokenOutAddress);
+
+  const amountInFormatted = formatUnits(amountIn, tokenInInfo.decimals);
+  const amountOutFormatted = formatUnits(amountOut, tokenOutInfo.decimals);
+
+  const tokenInSymbol = isTokenInNative ? "MON" : tokenInInfo.symbol;
+  const tokenOutSymbol = isTokenOutNative ? "MON" : tokenOutInfo.symbol;
+
+  return {
+    tokenIn: {
+      address: tokenInAddress,
+      symbol: tokenInSymbol,
+      amount: amountIn.toString(),
+      amountFormatted: amountInFormatted,
+      valueUsd:
+        tokenInInfo.priceUsd > 0
+          ? (parseFloat(amountInFormatted) * tokenInInfo.priceUsd).toFixed(2)
+          : undefined,
+    },
+    tokenOut: {
+      address: tokenOutAddress,
+      symbol: tokenOutSymbol,
+      amount: amountOut.toString(),
+      amountFormatted: amountOutFormatted,
+      valueUsd:
+        tokenOutInfo.priceUsd > 0
+          ? (parseFloat(amountOutFormatted) * tokenOutInfo.priceUsd).toFixed(2)
+          : undefined,
+    },
+    summary: `Swapped ${amountInFormatted} ${tokenInSymbol} for ${amountOutFormatted} ${tokenOutSymbol}`,
+    route: [tokenInSymbol, tokenOutSymbol],
+  };
+}
+
+/**
  * Extract swap details from transaction events.
  *
  * Strategy:
@@ -1475,6 +1592,8 @@ export async function explainTransaction(
  * 2. tokenIn = ALL tokens sent FROM the smart account (user's input)
  * 3. tokenOut = Check for WMON Withdrawal event first (means user gets native MON)
  *               Otherwise, ALL tokens sent TO the smart account
+ *
+ * Fallback: If no RedeemedDelegation event, parse MonorailSwap event directly.
  */
 async function extractSwapDetails(
   events: DecodedEvent[],
@@ -1507,7 +1626,13 @@ async function extractSwapDetails(
   }
 
   if (!smartAccount) {
-    console.warn("[extractSwapDetails] Could not find smart account from RedeemedDelegation");
+    // Fallback: Try parsing MonorailSwap event directly (for txs without RedeemedDelegation)
+    const fallbackResult = await parseMonorailSwapFallback(logs);
+    if (fallbackResult) {
+      callback(fallbackResult);
+      return;
+    }
+    // No smart account and no MonorailSwap event - return generic summary
     callback({ summary: "Token swap" });
     return;
   }
@@ -1618,6 +1743,16 @@ async function extractSwapDetails(
     if (depositEvent && depositEvent.params.wad) {
       tokenInAddr = "0x0000000000000000000000000000000000000000";
       tokenInAmount = depositEvent.params.wad as bigint;
+    }
+  }
+
+  // Step 6b: If we found tokenOut but no tokenIn, try MonorailSwap fallback for complete info
+  // This handles cases where native MON is sent directly to router (no WMON Deposit event)
+  if (!tokenInAddr && tokenOutAmount > 0n) {
+    const fallbackResult = await parseMonorailSwapFallback(logs);
+    if (fallbackResult) {
+      callback(fallbackResult);
+      return;
     }
   }
 

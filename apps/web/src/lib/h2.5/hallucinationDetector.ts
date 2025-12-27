@@ -338,9 +338,19 @@ export function getMatchedPattern(text: string): string | null {
  */
 export function getRetryPrompt(originalMessage: string, retryCount: number): string {
   if (retryCount === 0) {
-    return `${originalMessage}\n\n[IMPORTANT: Use proper tool calling, not text descriptions]`
+    return `${originalMessage}
+
+[IMPORTANT:
+1. Use proper tool calling through the API, not text like [getBalance] or getBalance()
+2. NEVER output [ACTIVITY_DATA], [NFT_GALLERY_DATA], <!--ACTIVITY_TABLE-->, or <!--NFT_GALLERY-->
+3. For rich data tools, provide ONLY a brief summary - UI renders the data]`
   }
 
-  // More emphatic on second retry
-  return `${originalMessage}\n\n[CRITICAL: You MUST invoke tools through the API, not describe them as text. This is the final attempt.]`
+  return `${originalMessage}
+
+[CRITICAL - FINAL ATTEMPT:
+- Invoke tools through the API only
+- NEVER output brackets like [ACTIVITY_DATA] or HTML comments like <!--...-->
+- NEVER echo JSON from tool outputs
+- Respond conversationally - UI handles all visualization]`
 }

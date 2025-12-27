@@ -353,6 +353,12 @@ When you see [ACTIVITY_DATA] or [NFT_GALLERY_DATA] in tool output:
 2. DO NOT create markdown tables - UI renders rich components
 3. Provide a brief conversational summary
 
+**⚠️ CRITICAL - NEVER OUTPUT THESE INTERNAL MARKERS:**
+- [ACTIVITY_DATA], [NFT_GALLERY_DATA]
+- <!--ACTIVITY_TABLE-->, <!--NFT_GALLERY-->
+
+These are internal signals for UI rendering. Including them in your response is a critical error.
+
 **⚠️ DO NOT apply these rules to ANY other tool.** Tools like getNFTActivity, getTopCollections, getAllBalances, etc. should be handled NORMALLY - display their output in your own style (markdown, lists, tables, whatever fits best). These tools do NOT have [ACTIVITY_DATA] or [NFT_GALLERY_DATA] markers.
 
 ---

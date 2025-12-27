@@ -127,7 +127,12 @@ function formatRelativeTime(timestamp: number): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-function formatActivityType(type: string): string {
+function formatActivityType(type: string, typeDescription?: string): string {
+  // Prefer typeDescription when available (contains direction info like "NFT Transfer In")
+  if (typeDescription) {
+    return typeDescription;
+  }
+
   const typeMap: Record<string, string> = {
     swap: 'Swap',
     stake: 'Stake',
@@ -139,6 +144,7 @@ function formatActivityType(type: string): string {
     wrap: 'Wrap',
     unwrap: 'Unwrap',
     nft_purchase: 'NFT Buy',
+    nft_transfer: 'NFT Transfer',
     approve: 'Approve',
     native_transfer: 'Send',
   };
@@ -192,6 +198,22 @@ function generateSummary(activity: ActivityItem): string {
         return `Buy ${tokenOut.symbol}`;
       }
       return 'NFT purchase';
+
+    case 'nft_transfer':
+      // tokenIn = NFT being sent (outgoing), tokenOut = NFT being received (incoming)
+      if (tokenIn) {
+        // Outgoing transfer
+        const recipient = activity.to ? truncateAddress(activity.to) : (activity.counterparty ? truncateAddress(activity.counterparty) : '');
+        const toText = recipient ? ` to ${recipient}` : '';
+        return `${formatAmount(tokenIn.amountFormatted)} ${tokenIn.symbol}${toText}`;
+      }
+      if (tokenOut) {
+        // Incoming transfer
+        const sender = activity.from ? truncateAddress(activity.from) : (activity.counterparty ? truncateAddress(activity.counterparty) : '');
+        const fromText = sender ? ` from ${sender}` : '';
+        return `${formatAmount(tokenOut.amountFormatted)} ${tokenOut.symbol}${fromText}`;
+      }
+      return 'NFT Transfer';
 
     case 'stake':
       if (tokenIn) {
@@ -411,7 +433,7 @@ export function ActivityTable({
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 dark:bg-white/[0.08] text-gray-700 dark:text-white/80">
-                      {formatActivityType(activity.type)}
+                      {formatActivityType(activity.type, activity.typeDescription)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-900 dark:text-white">

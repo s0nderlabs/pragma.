@@ -224,6 +224,7 @@ export type ActivityType =
   | "unwrap"
   | "nft_purchase"
   | "nft_sell"
+  | "nft_transfer"
   | "approve"
   | "unknown";
 
@@ -395,7 +396,7 @@ async function prefetchTokenInfo(addresses: Set<string>): Promise<void> {
 }
 
 // ============================================================================
-// NFT Metadata Cache
+// NFT Metadata Cache (Legacy - kept for reference, not used)
 // ============================================================================
 
 interface NFTMetadata {
@@ -410,11 +411,151 @@ interface NFTMetadata {
 const nftCache = new Map<string, NFTMetadata>();
 const NFT_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
+// Track pending NFT requests to deduplicate concurrent calls
+const nftPendingRequests = new Map<string, Promise<NFTMetadata>>();
+
 const OPENSEA_API_KEY = process.env.OPENSEA_API_KEY;
+
+// ============================================================================
+// Collection Name Cache (On-Chain RPC)
+// ============================================================================
+
+// Collection name cache (immutable, very long TTL since names never change)
+const collectionNameCache = new Map<string, string>();
+
+// ERC721 name() function selector
+const ERC721_NAME_SELECTOR = "0x06fdde03";
+
+/**
+ * Batch fetch ERC721 collection names via RPC
+ * Much faster than OpenSea API - single batch call for all contracts
+ */
+async function batchFetchCollectionNames(
+  contracts: string[]
+): Promise<Map<string, string>> {
+  const results = new Map<string, string>();
+  if (contracts.length === 0) return results;
+
+  // Filter out already cached contracts
+  const uncached = contracts.filter((c) => !collectionNameCache.has(c.toLowerCase()));
+
+  // Return cached results if all are cached
+  if (uncached.length === 0) {
+    for (const c of contracts) {
+      const cached = collectionNameCache.get(c.toLowerCase());
+      if (cached) results.set(c.toLowerCase(), cached);
+    }
+    return results;
+  }
+
+  // Build eth_call requests for each contract
+  const requests = uncached.map((contract) => ({
+    method: "eth_call",
+    params: [{ to: contract, data: ERC721_NAME_SELECTOR }, "latest"],
+  }));
+
+  const rpcResults = await batchRpcCalls(requests);
+
+  // Decode results
+  for (let i = 0; i < uncached.length; i++) {
+    const contract = uncached[i].toLowerCase();
+    const result = rpcResults[i];
+
+    if (result && typeof result === "string" && result.length > 2) {
+      try {
+        const name = decodeAbiString(result);
+        if (name) {
+          collectionNameCache.set(contract, name);
+          results.set(contract, name);
+        }
+      } catch {
+        // Fallback: use shortened address
+        const fallbackName = `NFT ${contract.slice(0, 8)}...`;
+        collectionNameCache.set(contract, fallbackName);
+        results.set(contract, fallbackName);
+      }
+    } else {
+      // No result - use fallback
+      const fallbackName = `NFT ${contract.slice(0, 8)}...`;
+      collectionNameCache.set(contract, fallbackName);
+      results.set(contract, fallbackName);
+    }
+  }
+
+  // Add any remaining cached results
+  for (const c of contracts) {
+    const lc = c.toLowerCase();
+    if (!results.has(lc)) {
+      const cached = collectionNameCache.get(lc);
+      if (cached) results.set(lc, cached);
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Decode ABI-encoded string from eth_call result
+ */
+function decodeAbiString(hex: string): string | null {
+  try {
+    if (!hex || hex === "0x") return null;
+
+    const data = hex.slice(2); // Remove 0x
+    if (data.length < 128) return null; // Minimum: offset (32 bytes) + length (32 bytes)
+
+    // Parse length from second 32-byte word
+    const lengthHex = data.slice(64, 128);
+    const length = parseInt(lengthHex, 16);
+    if (length === 0 || length > 100) return null; // Sanity check
+
+    // Extract and decode string bytes
+    const stringHex = data.slice(128, 128 + length * 2);
+    const bytes = new Uint8Array(length);
+    for (let i = 0; i < length; i++) {
+      bytes[i] = parseInt(stringHex.slice(i * 2, i * 2 + 2), 16);
+    }
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract unique NFT contract addresses from logs
+ * Only includes contracts where user is sender or recipient
+ */
+function extractNFTContracts(
+  logs: HypersyncLog[],
+  userAddress: string
+): Set<string> {
+  const contracts = new Set<string>();
+  const normalizedUser = userAddress.toLowerCase();
+
+  for (const log of logs) {
+    if (
+      log.topic0?.toLowerCase() === TOPICS.TRANSFER.toLowerCase() &&
+      log.topic1 &&
+      log.topic2 &&
+      log.topic3 // ERC721 has tokenId in topic3
+    ) {
+      const fromAddress = "0x" + log.topic1.slice(-40).toLowerCase();
+      const toAddress = "0x" + log.topic2.slice(-40).toLowerCase();
+
+      if (fromAddress === normalizedUser || toAddress === normalizedUser) {
+        contracts.add(log.address.toLowerCase());
+      }
+    }
+  }
+
+  return contracts;
+}
 
 /**
  * Fetch NFT metadata from OpenSea API
  * Returns collection name + NFT name for display
+ * Uses pending request deduplication to avoid concurrent API calls for same NFT
+ * @deprecated Use collectionNameCache with batchFetchCollectionNames instead
  */
 async function getNFTMetadata(
   contractAddress: string,
@@ -422,15 +563,43 @@ async function getNFTMetadata(
 ): Promise<NFTMetadata> {
   const cacheKey = `${contractAddress.toLowerCase()}-${tokenId}`;
 
-  // Check cache
+  // Check cache first
   const cached = nftCache.get(cacheKey);
   if (cached && Date.now() - cached.fetchedAt < NFT_CACHE_TTL) {
     return cached;
   }
 
+  // Check if there's already a pending request for this NFT (dedup concurrent calls)
+  const pending = nftPendingRequests.get(cacheKey);
+  if (pending) {
+    return pending;
+  }
+
+  // Create and track the request
+  const requestPromise = fetchNFTMetadata(contractAddress.toLowerCase(), tokenId);
+  nftPendingRequests.set(cacheKey, requestPromise);
+
+  try {
+    const result = await requestPromise;
+    return result;
+  } finally {
+    // Clean up pending request
+    nftPendingRequests.delete(cacheKey);
+  }
+}
+
+/**
+ * Actually fetch NFT metadata from OpenSea API (internal)
+ */
+async function fetchNFTMetadata(
+  contractAddress: string,
+  tokenId: string
+): Promise<NFTMetadata> {
+  const cacheKey = `${contractAddress}-${tokenId}`;
+
   // Default fallback
   const fallback: NFTMetadata = {
-    contractAddress: contractAddress.toLowerCase(),
+    contractAddress,
     tokenId,
     name: null,
     collectionName: null,
@@ -466,7 +635,7 @@ async function getNFTMetadata(
       if (collectionResponse.ok) {
         const collectionData = await collectionResponse.json();
         const metadata: NFTMetadata = {
-          contractAddress: contractAddress.toLowerCase(),
+          contractAddress,
           tokenId,
           name: null,
           collectionName: collectionData.name || collectionData.collection || null,
@@ -485,7 +654,7 @@ async function getNFTMetadata(
     const nft = data.nft || data;
 
     const metadata: NFTMetadata = {
-      contractAddress: contractAddress.toLowerCase(),
+      contractAddress,
       tokenId,
       name: nft.name || null,
       collectionName: nft.collection || nft.asset_contract?.name || null,
@@ -714,51 +883,74 @@ async function queryRedeemedDelegationEvents(
   const paddedAddress =
     "0x000000000000000000000000" + smartAccount.slice(2).toLowerCase();
 
-  const response = await fetch(HYPERSYNC_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${ENVIO_TOKEN}`,
-    },
-    body: JSON.stringify({
-      from_block: fromBlock,
-      to_block: toBlock,
-      logs: [
-        {
-          address: [CONTRACTS.DELEGATION_MANAGER],
-          topics: [[TOPICS.REDEEMED_DELEGATION], [paddedAddress]],
-        },
-      ],
-      field_selection: {
-        log: [
-          "block_number",
-          "transaction_hash",
-          "log_index",
-          "topic0",
-          "topic1",
-          "topic2",
-          "data",
-          "address",
-        ],
-        block: ["number", "timestamp"],
-      },
-      include_all_blocks: false,
-    }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`HyperSync query failed: ${response.status} - ${text}`);
-  }
-
-  const result: HypersyncResponse = await response.json();
-
   const logs: HypersyncLog[] = [];
   const blocks: HypersyncBlock[] = [];
 
-  for (const dataItem of result.data) {
-    if (dataItem.logs) logs.push(...dataItem.logs);
-    if (dataItem.blocks) blocks.push(...dataItem.blocks);
+  // HyperSync paginates results - loop until we have all data
+  let currentFromBlock = fromBlock;
+  let pageCount = 0;
+  const MAX_PAGES = 50; // Safety limit to prevent infinite loops
+
+  while (currentFromBlock < toBlock && pageCount < MAX_PAGES) {
+    pageCount++;
+
+    const response = await fetch(HYPERSYNC_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${ENVIO_TOKEN}`,
+      },
+      body: JSON.stringify({
+        from_block: currentFromBlock,
+        to_block: toBlock,
+        logs: [
+          {
+            address: [CONTRACTS.DELEGATION_MANAGER],
+            topics: [[TOPICS.REDEEMED_DELEGATION], [paddedAddress]],
+          },
+        ],
+        field_selection: {
+          log: [
+            "block_number",
+            "transaction_hash",
+            "log_index",
+            "topic0",
+            "topic1",
+            "topic2",
+            "data",
+            "address",
+          ],
+          block: ["number", "timestamp"],
+        },
+        include_all_blocks: false,
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`HyperSync query failed: ${response.status} - ${text}`);
+    }
+
+    const result: HypersyncResponse = await response.json();
+
+    // Extract logs and blocks from this page
+    for (const dataItem of result.data) {
+      if (dataItem.logs) logs.push(...dataItem.logs);
+      if (dataItem.blocks) blocks.push(...dataItem.blocks);
+    }
+
+    // Check if there are more pages
+    // next_block indicates where to continue; if undefined or >= toBlock, we're done
+    if (!result.next_block || result.next_block >= toBlock) {
+      break;
+    }
+
+    // Continue from next_block
+    currentFromBlock = result.next_block;
+  }
+
+  if (pageCount >= MAX_PAGES) {
+    console.warn(`[queryRedeemedDelegationEvents] Hit max pages limit (${MAX_PAGES}), results may be incomplete`);
   }
 
   return { logs, blocks };
@@ -781,56 +973,78 @@ async function queryIncomingTransfers(
   const paddedAddress =
     "0x000000000000000000000000" + address.slice(2).toLowerCase();
 
-  const response = await fetch(HYPERSYNC_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${ENVIO_TOKEN}`,
-    },
-    body: JSON.stringify({
-      from_block: fromBlock,
-      to_block: toBlock,
-      logs: [
-        {
-          // Query ERC20 Transfer events where topic2 (to) = user address
-          topics: [
-            [TOPICS.TRANSFER],
-            [], // topic1 = from (any)
-            [paddedAddress], // topic2 = to (user)
-          ],
-        },
-      ],
-      field_selection: {
-        log: [
-          "block_number",
-          "transaction_hash",
-          "log_index",
-          "topic0",
-          "topic1",
-          "topic2",
-          "topic3",
-          "data",
-          "address",
-        ],
-        block: ["number", "timestamp"],
-      },
-      include_all_blocks: false,
-    }),
-  });
-
-  if (!response.ok) {
-    console.error("[queryIncomingTransfers] HyperSync error:", response.status);
-    return { logs: [], blocks: [] };
-  }
-
-  const result: HypersyncResponse = await response.json();
-
   const logs: HypersyncLog[] = [];
   const blocks: HypersyncBlock[] = [];
 
-  for (const dataItem of result.data) {
-    if (dataItem.logs) logs.push(...dataItem.logs);
-    if (dataItem.blocks) blocks.push(...dataItem.blocks);
+  // HyperSync paginates results - loop until we have all data
+  let currentFromBlock = fromBlock;
+  let pageCount = 0;
+  const MAX_PAGES = 50; // Safety limit to prevent infinite loops
+
+  while (currentFromBlock < toBlock && pageCount < MAX_PAGES) {
+    pageCount++;
+
+    const response = await fetch(HYPERSYNC_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${ENVIO_TOKEN}`,
+      },
+      body: JSON.stringify({
+        from_block: currentFromBlock,
+        to_block: toBlock,
+        logs: [
+          {
+            // Query ERC20 Transfer events where topic2 (to) = user address
+            topics: [
+              [TOPICS.TRANSFER],
+              [], // topic1 = from (any)
+              [paddedAddress], // topic2 = to (user)
+            ],
+          },
+        ],
+        field_selection: {
+          log: [
+            "block_number",
+            "transaction_hash",
+            "log_index",
+            "topic0",
+            "topic1",
+            "topic2",
+            "topic3",
+            "data",
+            "address",
+          ],
+          block: ["number", "timestamp"],
+        },
+        include_all_blocks: false,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("[queryIncomingTransfers] HyperSync error:", response.status);
+      return { logs, blocks }; // Return what we have so far
+    }
+
+    const result: HypersyncResponse = await response.json();
+
+    // Extract logs and blocks from this page
+    for (const dataItem of result.data) {
+      if (dataItem.logs) logs.push(...dataItem.logs);
+      if (dataItem.blocks) blocks.push(...dataItem.blocks);
+    }
+
+    // Check if there are more pages
+    if (!result.next_block || result.next_block >= toBlock) {
+      break;
+    }
+
+    // Continue from next_block
+    currentFromBlock = result.next_block;
+  }
+
+  if (pageCount >= MAX_PAGES) {
+    console.warn(`[queryIncomingTransfers] Hit max pages limit (${MAX_PAGES}), results may be incomplete`);
   }
 
   return { logs, blocks };
@@ -1152,24 +1366,22 @@ async function classifyPragmaTransaction(
   const uniqueTokens = new Set(erc20Transfers.map((t) => t.address.toLowerCase()));
 
   // =========================================================================
-  // 1. NFT Purchase (OrderFulfilled from Seaport or ERC721 Transfer)
+  // 1. NFT Detection - OrderFulfilled = Purchase, plain ERC721 = Transfer
   // =========================================================================
   const hasOrderFulfilled = hasEvent(TOPICS.ORDER_FULFILLED, CONTRACTS.SEAPORT);
-  const hasERC721Transfer = logs.some(
+  const erc721TransferLog = logs.find(
     (l) =>
       l.topic0?.toLowerCase() === TOPICS.TRANSFER.toLowerCase() &&
       l.topic1 &&
       l.topic2 &&
       l.topic3 // ERC721 has tokenId in topic3
   );
+  const hasERC721Transfer = !!erc721TransferLog;
 
-  if (hasOrderFulfilled || hasERC721Transfer) {
+  // 1a. NFT Purchase (OrderFulfilled from Seaport = marketplace purchase)
+  if (hasOrderFulfilled) {
     // Extract NFT details (contract + tokenId)
-    const nftTransfer = logs.find(
-      (l) =>
-        l.topic0?.toLowerCase() === TOPICS.TRANSFER.toLowerCase() &&
-        l.topic3 // ERC721
-    );
+    const nftTransfer = erc721TransferLog;
 
     // Extract payment - check ERC20 transfers or WMON events
     let tokenIn: ActivityItem["tokenIn"] | undefined;
@@ -1222,27 +1434,20 @@ async function classifyPragmaTransaction(
       }
     }
 
-    // Extract NFT tokenId and fetch metadata for display
+    // Extract NFT tokenId and get collection name from cache
     const tokenId = nftTransfer?.topic3
       ? BigInt(nftTransfer.topic3).toString()
       : undefined;
 
-    // Fetch NFT metadata (collection name, NFT name)
+    // Get NFT display name (collection name from RPC cache + tokenId)
     let nftSymbol = "NFT";
     if (nftTransfer && tokenId) {
-      try {
-        const metadata = await getNFTMetadata(nftTransfer.address, tokenId);
-        if (metadata.name) {
-          // NFT name from OpenSea already includes collection + token ID
-          // e.g., "The Daks #2739" - use directly
-          nftSymbol = metadata.name;
-        } else {
-          // Fallback: "NFT #tokenId"
-          nftSymbol = `NFT #${tokenId}`;
-        }
-      } catch {
-        // Fallback on error
-        nftSymbol = tokenId ? `NFT #${tokenId}` : "NFT";
+      const contractAddr = nftTransfer.address.toLowerCase();
+      const collectionName = collectionNameCache.get(contractAddr);
+      if (collectionName) {
+        nftSymbol = `${collectionName} #${tokenId}`;
+      } else {
+        nftSymbol = `NFT #${tokenId}`;
       }
     }
 
@@ -1259,6 +1464,58 @@ async function classifyPragmaTransaction(
             amountFormatted: "1",
           }
         : undefined,
+    };
+  }
+
+  // 1b. NFT Transfer (ERC721 transfer WITHOUT OrderFulfilled = p2p transfer)
+  if (hasERC721Transfer && erc721TransferLog) {
+    const nftTransfer = erc721TransferLog;
+
+    // Determine direction: is smart account sender or receiver?
+    // Use slice(-40) for robustness - works with or without 0x prefix
+    const nftFrom = nftTransfer.topic1
+      ? ("0x" + nftTransfer.topic1.slice(-40)).toLowerCase()
+      : "";
+    const nftTo = nftTransfer.topic2
+      ? ("0x" + nftTransfer.topic2.slice(-40)).toLowerCase()
+      : "";
+    const isOutgoing = nftFrom === normalizedAccount;
+    const isIncoming = nftTo === normalizedAccount;
+
+    // Extract NFT tokenId and get collection name from cache
+    const tokenId = nftTransfer.topic3
+      ? BigInt(nftTransfer.topic3).toString()
+      : undefined;
+
+    // Get NFT display name (collection name from RPC cache + tokenId)
+    let nftSymbol = "NFT";
+    if (tokenId) {
+      const contractAddr = nftTransfer.address.toLowerCase();
+      const collectionName = collectionNameCache.get(contractAddr);
+      if (collectionName) {
+        nftSymbol = `${collectionName} #${tokenId}`;
+      } else {
+        nftSymbol = `NFT #${tokenId}`;
+      }
+    }
+
+    const nftInfo = {
+      address: nftTransfer.address,
+      symbol: nftSymbol,
+      amount: "1",
+      amountFormatted: "1",
+    };
+
+    return {
+      type: "nft_transfer",
+      typeDescription: isOutgoing ? "NFT Transfer Out" : isIncoming ? "NFT Transfer In" : "NFT Transfer",
+      protocol: "ERC721",
+      // For outgoing: tokenIn = NFT sent, for incoming: tokenOut = NFT received
+      tokenIn: isOutgoing ? nftInfo : undefined,
+      tokenOut: isIncoming ? nftInfo : undefined,
+      from: nftFrom,
+      to: nftTo,
+      counterparty: isOutgoing ? nftTo : isIncoming ? nftFrom : undefined,
     };
   }
 
@@ -1433,7 +1690,7 @@ async function classifyPragmaTransaction(
 
       return {
         type: "swap",
-        typeDescription: "Token Swap",
+        typeDescription: "Swap",
         protocol: "Monorail",
         tokenIn: {
           address: tokenInAddress,
@@ -1506,7 +1763,7 @@ async function classifyPragmaTransaction(
 
         return {
           type: "swap",
-          typeDescription: "Token Swap",
+          typeDescription: "Swap",
           protocol: "Monorail",
           tokenIn: {
             address: firstTokenAddr,
@@ -1552,7 +1809,7 @@ async function classifyPragmaTransaction(
 
           return {
             type: "swap",
-            typeDescription: "Token Swap",
+            typeDescription: "Swap",
             protocol: "Monorail",
             tokenIn: {
               address: firstTokenAddr,
@@ -1594,7 +1851,7 @@ async function classifyPragmaTransaction(
 
           return {
             type: "swap",
-            typeDescription: "Token Swap",
+            typeDescription: "Swap",
             protocol: "Monorail",
             tokenIn: {
               address: "0x0000000000000000000000000000000000000000",
@@ -1623,7 +1880,7 @@ async function classifyPragmaTransaction(
       // Truly single token swap (rare case)
       return {
         type: "swap",
-        typeDescription: "Token Swap",
+        typeDescription: "Swap",
         protocol: "Monorail",
         tokenIn: {
           address: firstTokenAddr,
@@ -1636,7 +1893,7 @@ async function classifyPragmaTransaction(
 
     return {
       type: "swap",
-      typeDescription: "Token Swap",
+      typeDescription: "Swap",
       protocol: "Monorail",
     };
   }
@@ -1700,7 +1957,7 @@ async function classifyPragmaTransaction(
 
         return {
           type: "swap",
-          typeDescription: "Token Swap",
+          typeDescription: "Swap",
           protocol: "0x",
           tokenIn: {
             address: tokenInAddr,
@@ -1749,7 +2006,7 @@ async function classifyPragmaTransaction(
 
           return {
             type: "swap",
-            typeDescription: "Token Swap",
+            typeDescription: "Swap",
             protocol: "0x",
             tokenIn: {
               address: tokenInAddr,
@@ -1825,7 +2082,7 @@ async function classifyPragmaTransaction(
 
         return {
           type: "swap",
-          typeDescription: "Token Swap",
+          typeDescription: "Swap",
           protocol: "0x",
           tokenIn: {
             address: "0x0000000000000000000000000000000000000000",
@@ -1893,7 +2150,7 @@ async function classifyPragmaTransaction(
 
       return {
         type: "swap",
-        typeDescription: "Token Swap",
+        typeDescription: "Swap",
         protocol: "0x",
         tokenIn: {
           address: firstTokenAddr,
@@ -2185,14 +2442,6 @@ async function classifyPragmaTransaction(
 // Main Fetch Function
 // ============================================================================
 
-/**
- * Performance logging helper
- */
-const logTiming = (label: string, startTime: number): number => {
-  const elapsed = Date.now() - startTime;
-  console.log(`[ActivityFetcher] ${label} - ${elapsed}ms`);
-  return elapsed;
-};
 
 /**
  * Fetch on-chain activity for an address (smart account or EOA)
@@ -2203,35 +2452,23 @@ export async function fetchActivity(
   page: number = 1,
   pageSize: number = 20
 ): Promise<ActivityResponse> {
-  const totalStart = Date.now();
-  const shortAddr = `${address.slice(0, 6)}...${address.slice(-4)}`;
-  console.log(`[ActivityFetcher] ========================================`);
-  console.log(`[ActivityFetcher] Starting fetch for ${shortAddr}, timeRange: ${timeRange}`);
-
   // Step 1: Detect address type
-  const step1Start = Date.now();
   const addressType = await detectAddressType(address);
-  logTiming(`Address type detection (${addressType})`, step1Start);
 
   // Step 2: Get current block height
-  const step2Start = Date.now();
   const currentBlock = await getCurrentBlock();
-  logTiming(`Get current block (${currentBlock})`, step2Start);
 
   // Step 3: Parse time range to block range
   const { fromBlock, toBlock } = parseTimeRange(timeRange, currentBlock);
-  console.log(`[ActivityFetcher] Block range: ${fromBlock} -> ${toBlock} (${toBlock - fromBlock} blocks)`);
 
   const activities: ActivityItem[] = [];
 
   if (addressType === "smart_account") {
     // Step 4: HyperSync queries (parallel)
-    const step4Start = Date.now();
     const [pragmaResult, incomingResult] = await Promise.all([
       queryRedeemedDelegationEvents(address, fromBlock, toBlock),
       queryIncomingTransfers(address, fromBlock, toBlock),
     ]);
-    logTiming(`HyperSync queries (pragma: ${pragmaResult.logs.length}, incoming: ${incomingResult.logs.length} logs)`, step4Start);
 
     // Build block timestamp map from both queries
     const blockMap = new Map<number, number>();
@@ -2253,23 +2490,20 @@ export async function fetchActivity(
 
     // Batch fetch all transaction data in a single RPC call
     const allTxHashes = [...pragmaTxHashes, ...incomingTxHashes];
-    const step5Start = Date.now();
-    console.log(`[ActivityFetcher] Batch fetching RPC data for ${allTxHashes.length} transactions...`);
     const txDataMap = await batchFetchTransactionData(allTxHashes);
-    logTiming(`Batch RPC fetch (${allTxHashes.length} txs)`, step5Start);
 
     // Step 5b: Pre-fetch token info to warm cache before parallel processing
     const allLogs = [...txDataMap.values()].flatMap((v) => v.logs);
     const tokenAddresses = extractTokenAddresses(allLogs);
-    const step5bStart = Date.now();
-    console.log(`[ActivityFetcher] Pre-fetching ${tokenAddresses.size} unique tokens...`);
     await prefetchTokenInfo(tokenAddresses);
-    logTiming(`Token prefetch (${tokenAddresses.size} tokens)`, step5bStart);
+
+    // Step 5c: Pre-fetch NFT collection names via RPC (fast, no external API)
+    const nftContracts = extractNFTContracts(allLogs, address);
+    if (nftContracts.size > 0) {
+      await batchFetchCollectionNames([...nftContracts]);
+    }
 
     // Step 6: Process Pragma transactions IN PARALLEL (using cached data)
-    const step6Start = Date.now();
-    console.log(`[ActivityFetcher] Processing ${pragmaTxHashes.length} Pragma transactions in parallel...`);
-
     const pragmaActivities = await Promise.all(
       pragmaTxHashes.map(async (txHash) => {
         const logEntry = pragmaResult.logs.find((l) => l.transaction_hash === txHash);
@@ -2304,11 +2538,8 @@ export async function fetchActivity(
 
     // Filter out nulls and add to activities
     activities.push(...pragmaActivities.filter((a): a is NonNullable<typeof a> => a !== null));
-    logTiming(`Pragma tx processing (${pragmaTxHashes.length} txs, parallel)`, step6Start);
 
     // Step 7: Process incoming transfers IN PARALLEL (using cached data)
-    const step7Start = Date.now();
-    console.log(`[ActivityFetcher] Processing ${incomingTxHashes.length} incoming transactions in parallel...`);
 
     const incomingActivities = await Promise.all(
       incomingTxHashes.map(async (txHash) => {
@@ -2344,16 +2575,13 @@ export async function fetchActivity(
 
     // Filter out nulls and add to activities
     activities.push(...incomingActivities.filter((a): a is NonNullable<typeof a> => a !== null));
-    logTiming(`Incoming tx processing (${incomingTxHashes.length} txs, parallel)`, step7Start);
   } else {
     // EOA branch - Query transactions
-    const step4Start = Date.now();
     const { transactions, blocks } = await queryEOATransactions(
       address,
       fromBlock,
       toBlock
     );
-    logTiming(`EOA query (${transactions.length} txs)`, step4Start);
 
     // Build block timestamp map
     const blockMap = new Map<number, number>();
@@ -2363,23 +2591,20 @@ export async function fetchActivity(
 
     // Batch fetch all transaction data in a single RPC call
     const txHashes = transactions.map((tx) => tx.hash);
-    const step5Start = Date.now();
-    console.log(`[ActivityFetcher] Batch fetching RPC data for ${txHashes.length} EOA transactions...`);
     const txDataMap = await batchFetchTransactionData(txHashes);
-    logTiming(`Batch RPC fetch (${txHashes.length} txs)`, step5Start);
 
     // Pre-fetch token info to warm cache before parallel processing
     const allLogs = [...txDataMap.values()].flatMap((v) => v.logs);
     const tokenAddresses = extractTokenAddresses(allLogs);
-    const step5bStart = Date.now();
-    console.log(`[ActivityFetcher] Pre-fetching ${tokenAddresses.size} unique tokens...`);
     await prefetchTokenInfo(tokenAddresses);
-    logTiming(`Token prefetch (${tokenAddresses.size} tokens)`, step5bStart);
+
+    // Pre-fetch NFT collection names via RPC (fast, no external API)
+    const nftContracts = extractNFTContracts(allLogs, address);
+    if (nftContracts.size > 0) {
+      await batchFetchCollectionNames([...nftContracts]);
+    }
 
     // Process each transaction IN PARALLEL (using cached data)
-    const step6Start = Date.now();
-    console.log(`[ActivityFetcher] Processing ${transactions.length} EOA transactions in parallel...`);
-
     const eoaActivities = await Promise.all(
       transactions.map(async (tx) => {
         const blockNumber = tx.block_number;
@@ -2415,11 +2640,9 @@ export async function fetchActivity(
     );
 
     activities.push(...eoaActivities);
-    logTiming(`EOA tx processing (${transactions.length} txs, parallel)`, step6Start);
   }
 
   // Step 8: Sort and deduplicate
-  const step8Start = Date.now();
   activities.sort((a, b) => b.timestamp - a.timestamp);
 
   const seen = new Set<string>();
@@ -2428,16 +2651,9 @@ export async function fetchActivity(
     seen.add(a.txHash);
     return true;
   });
-  logTiming(`Sort & dedupe (${activities.length} -> ${uniqueActivities.length})`, step8Start);
 
   // Return ALL activities - UI table handles its own pagination
   const totalCount = uniqueActivities.length;
-
-  // Final summary
-  const totalElapsed = Date.now() - totalStart;
-  console.log(`[ActivityFetcher] ========================================`);
-  console.log(`[ActivityFetcher] TOTAL: ${uniqueActivities.length} activities in ${totalElapsed}ms`);
-  console.log(`[ActivityFetcher] ========================================`);
 
   return {
     activities: uniqueActivities, // Return ALL, not paginated

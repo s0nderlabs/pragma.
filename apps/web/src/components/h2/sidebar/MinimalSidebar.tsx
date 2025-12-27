@@ -115,6 +115,11 @@ export function MinimalSidebar({ status, wallet, connect, disconnect }: MinimalS
         e.preventDefault()
         setActiveTab('balances')
       }
+      // Alt + n - NFTs
+      else if (e.code === 'KeyN' && e.altKey) {
+        e.preventDefault()
+        setActiveTab('nfts')
+      }
       // Alt + m - Quick Mode
       else if (e.code === 'KeyM' && e.altKey) {
         e.preventDefault()

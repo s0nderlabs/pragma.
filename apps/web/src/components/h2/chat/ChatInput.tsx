@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
 import { useAgentContext } from '@/contexts/H2AgentContext'
 import { useIdentity } from '@/hooks/useIdentity'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { useVoiceRecorder, getAudioExtension } from '@/hooks/useVoiceRecorder'
 import { authenticatedFetch } from '@/lib/api/authenticatedFetch'
 import { ArrowUpRight, Zap, Square, Mic, X } from 'lucide-react'
@@ -56,6 +57,7 @@ export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInpu
   const messages = useH2ChatStore((state) => state.messages)
   const { sendMessage, stopMessage, isStreaming } = useAgentContext()
   const { status, wallet } = useIdentity()
+  const isMobile = useIsMobile()
   const [input, setInput] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -181,7 +183,9 @@ export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInpu
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    // Mobile: Enter = new line (natural typing), use button to send
+    // Desktop: Enter = send, Shift+Enter = new line
+    if (e.key === 'Enter' && !e.shiftKey && !isMobile) {
       e.preventDefault()
       handleSend()
     }

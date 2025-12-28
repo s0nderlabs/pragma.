@@ -150,7 +150,8 @@ export function TurnMessageActions({
   return (
     <div
       className={cn(
-        'flex items-center gap-1 mt-3 mb-6 opacity-0 group-hover:opacity-100 transition-opacity duration-200',
+        // Always visible on mobile, hover-to-show on desktop
+        'flex items-center gap-1 mt-3 mb-6 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200',
         className
       )}
     >

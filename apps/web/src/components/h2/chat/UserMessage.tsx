@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ChatMessage } from '@/lib/h2/types'
 import { useAgentContext } from '@/contexts/H2AgentContext'
 import { useH2ChatStore } from '@/stores/useH2ChatStore'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { Copy, Check, Pencil, Info } from 'lucide-react'
 import gsap from 'gsap'
 
@@ -47,6 +48,7 @@ export function UserMessage({ message }: UserMessageProps) {
 
   // Agent context for resubmit
   const { sendMessage, isStreaming } = useAgentContext()
+  const isMobile = useIsMobile()
 
   // Can edit only when not streaming
   const canEdit = !isStreaming
@@ -172,13 +174,14 @@ export function UserMessage({ message }: UserMessageProps) {
   }
 
   // Handle keyboard shortcuts in textarea
-  // Enter = send, Shift+Enter = new line, Escape = cancel
+  // Mobile: Enter = new line (natural typing), Escape = cancel
+  // Desktop: Enter = send, Shift+Enter = new line, Escape = cancel
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Escape') {
       e.preventDefault()
       handleCancel()
     }
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isMobile) {
       e.preventDefault()
       handleSave()
     }
@@ -241,7 +244,7 @@ export function UserMessage({ message }: UserMessageProps) {
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-between mt-1.5 px-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center justify-between mt-1.5 px-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
             <span className="text-xs text-neutral-400 dark:text-neutral-500">
               {formatTime(message.timestamp)}
             </span>

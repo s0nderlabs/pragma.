@@ -73,7 +73,7 @@ export function ChatContainer({ status, wallet, connect, disconnect }: ChatConta
       >
         <div className="flex h-full relative">
           {/* Messages Section */}
-          <div className="flex-1 relative">
+          <div className="flex-1 relative min-w-0">
             <LayoutGroup>
               <AnimatePresence mode="wait">
                 {isEmpty ? (

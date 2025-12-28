@@ -225,7 +225,7 @@ export function MarkdownRenderer({ content, isAnimating = false }: MarkdownRende
   return (
     <>
       <style>{codeBlockCSS}</style>
-      <div className={`markdown-renderer prose ${isDark ? 'prose-invert' : ''} max-w-none max-lg:break-words max-lg:overflow-hidden`}>
+      <div className={`markdown-renderer prose ${isDark ? 'prose-invert' : ''} max-w-none max-lg:break-words`}>
         <Streamdown
           isAnimating={isAnimating}
           mermaid={mermaidOptions}

@@ -41,7 +41,7 @@ export function BalanceCard({ status, wallet }: BalanceCardProps) {
       <div className="flex flex-col h-full justify-between">
         <div className="flex items-start justify-between gap-3 mb-4">
           {/* Address */}
-          <div className="text-sm opacity-60 font-mono truncate flex-1">
+          <div className="text-sm opacity-60 font-mono truncate flex-1 min-w-0">
             {address}
           </div>
 

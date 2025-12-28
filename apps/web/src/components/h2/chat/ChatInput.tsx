@@ -478,7 +478,7 @@ export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInpu
 
   return (
     <div
-      className={cn("px-4 pt-4 pb-4 flex justify-center", className)}
+      className={cn("px-4 pt-4 pb-4 flex justify-center overflow-x-hidden", className)}
       style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}
     >
       {/* Voice notification toast */}
@@ -525,7 +525,7 @@ export function ChatInput({ prefillText, onPrefillApplied, className }: ChatInpu
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="flex-1 flex items-center justify-center min-h-[24px] relative"
+                  className="flex-1 min-w-0 flex items-center justify-center min-h-[24px] relative overflow-hidden"
                 >
                   {/* Waveform - fades out as user drags */}
                   <div

@@ -325,7 +325,7 @@ export function MessageList() {
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="h-full overflow-y-auto px-4 lg:px-8 pt-6 pb-32 scroll-smooth"
+        className="h-full overflow-y-auto overflow-x-hidden px-4 lg:px-8 pt-6 pb-32 scroll-smooth"
       >
         <div className="max-w-4xl mx-auto group">
           {messages.map((message, index) => {

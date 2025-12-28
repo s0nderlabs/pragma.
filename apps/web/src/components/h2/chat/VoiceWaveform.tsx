@@ -23,7 +23,7 @@ interface VoiceWaveformProps {
 }
 
 // Wave configuration
-const NUM_BARS = 64
+const NUM_BARS = 112 // 112 bars × 5px = 557px (~62% of max-w-4xl container)
 const BAR_WIDTH = 2
 const BAR_GAP = 3
 const MIN_HEIGHT = 2
@@ -51,11 +51,15 @@ function VoiceWaveformComponent({
     const bufferLength = analyserNode.frequencyBinCount
     dataArrayRef.current = new Uint8Array(bufferLength)
 
-    // Calculate canvas dimensions
+    // Calculate canvas dimensions with HiDPI support
+    const dpr = window.devicePixelRatio || 1
     const width = NUM_BARS * (BAR_WIDTH + BAR_GAP) - BAR_GAP
     const height = MAX_HEIGHT * 2
-    canvas.width = width
-    canvas.height = height
+
+    // Scale canvas for crisp rendering on high-DPI displays
+    canvas.width = width * dpr
+    canvas.height = height * dpr
+    ctx.scale(dpr, dpr)
 
     // Always use terracotta for waveform
     const barColor = '#D4622A' // terracotta
@@ -136,7 +140,7 @@ function VoiceWaveformComponent({
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
       className={cn(
-        'flex items-center justify-center',
+        'w-full flex items-center justify-center',
         className
       )}
     >
@@ -145,6 +149,7 @@ function VoiceWaveformComponent({
         className="block"
         style={{
           width: NUM_BARS * (BAR_WIDTH + BAR_GAP) - BAR_GAP,
+          maxWidth: '100%',
           height: MAX_HEIGHT * 2,
         }}
       />

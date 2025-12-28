@@ -99,9 +99,9 @@ export function EmptyState({ children }: EmptyStateProps) {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center h-full px-4">
+    <div className="flex flex-col items-center justify-center h-full px-4 overflow-x-hidden">
       {/* Greeting - Elegant serif typography */}
-      <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-light tracking-tight text-center mb-10">
+      <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-light tracking-tight text-center mb-10 max-w-full">
         <span className="mr-3 inline-block">{greeting.emoji}</span>
         {greeting.text}
       </h1>

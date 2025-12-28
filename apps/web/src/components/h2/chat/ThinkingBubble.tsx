@@ -113,8 +113,9 @@ function ThinkingSegment({
         </span>
 
         {/* Text content - shimmer effect when showing "Thinking", terracotta when complete */}
+        {/* min-w-0 allows flex item to shrink, enabling truncate to work properly */}
         <span
-          className={`truncate text-sm font-medium ${
+          className={`min-w-0 truncate text-sm font-medium ${
             shimmer
               ? 'shimmer-text'
               : 'text-[#E07A5F]'
@@ -221,7 +222,7 @@ function StreamingSegment({
         </span>
 
         {/* "Thinking" with shimmer */}
-        <span className="shimmer-text truncate text-sm font-medium" style={{ opacity: 0.9 }}>Thinking</span>
+        <span className="min-w-0 shimmer-text truncate text-sm font-medium" style={{ opacity: 0.9 }}>Thinking</span>
       </button>
 
       {/* Expandable content (live streaming) */}

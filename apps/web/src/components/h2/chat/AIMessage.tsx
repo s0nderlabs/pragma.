@@ -85,7 +85,7 @@ function TableLoader({ type }: { type: 'activity' | 'gallery' }) {
         </span>
 
         {/* Label with shimmer effect */}
-        <span className="shimmer-text truncate text-sm font-medium" style={{ opacity: 0.9 }}>
+        <span className="min-w-0 shimmer-text truncate text-sm font-medium" style={{ opacity: 0.9 }}>
           {label}
         </span>
       </div>
@@ -359,7 +359,7 @@ export function AIMessage({ message }: AIMessageProps) {
       transition={{ duration: 0.3 }}
       className="mb-6 group"
     >
-      <div className="text-sm lg:text-base max-lg:min-w-0 max-lg:overflow-hidden">
+      <div className="text-sm lg:text-base">
         {/* Chain-of-thought reasoning bubble (DeepSeek) */}
         {hasReasoning && (
           <ThinkingBubble

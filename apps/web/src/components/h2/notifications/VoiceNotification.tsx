@@ -11,7 +11,7 @@
  */
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { Mic, MicOff, AlertTriangle } from 'lucide-react'
+import { MicOff, AlertTriangle } from 'lucide-react'
 import type { VoiceRecorderError } from '@/hooks/useVoiceRecorder'
 
 interface VoiceNotificationProps {
@@ -25,7 +25,6 @@ const ERROR_MESSAGES: Record<VoiceRecorderError, string> = {
   permission_denied: 'Mic access denied. Enable in browser settings.',
   no_microphone: 'No microphone detected.',
   browser_unsupported: 'Voice input not supported in this browser.',
-  recording_too_short: 'Recording too short. Hold longer.',
   unknown: 'Something went wrong. Please try again.',
 }
 
@@ -34,7 +33,6 @@ const ERROR_ICONS: Record<VoiceRecorderError, React.ReactNode> = {
   permission_denied: <MicOff className="w-4 h-4" />,
   no_microphone: <MicOff className="w-4 h-4" />,
   browser_unsupported: <AlertTriangle className="w-4 h-4" />,
-  recording_too_short: <Mic className="w-4 h-4" />,
   unknown: <AlertTriangle className="w-4 h-4" />,
 }
 

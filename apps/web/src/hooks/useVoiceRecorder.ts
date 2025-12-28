@@ -21,7 +21,6 @@ export type VoiceRecorderError =
   | 'permission_denied'
   | 'no_microphone'
   | 'browser_unsupported'
-  | 'recording_too_short'
   | 'unknown'
 
 export interface VoiceRecorderState {
@@ -64,6 +63,23 @@ function getSupportedMimeType(): { mimeType: string; extension: string } {
 
   // Fallback (browser will use default)
   return { mimeType: '', extension: 'webm' }
+}
+
+// Module-level singleton AudioContext
+// Browsers limit concurrent AudioContexts (~4-6 on mobile)
+// Reusing one context prevents exhaustion after many recordings
+let sharedAudioContext: AudioContext | null = null
+
+function getOrCreateAudioContext(): AudioContext {
+  // Create new if doesn't exist or was closed
+  if (!sharedAudioContext || sharedAudioContext.state === 'closed') {
+    sharedAudioContext = new AudioContext()
+  }
+  // Resume if suspended (browsers suspend inactive contexts)
+  if (sharedAudioContext.state === 'suspended') {
+    sharedAudioContext.resume()
+  }
+  return sharedAudioContext
 }
 
 export function useVoiceRecorder(): UseVoiceRecorderReturn {
@@ -113,14 +129,8 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
       streamRef.current = null
     }
 
-    // Close audio context
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      try {
-        audioContextRef.current.close()
-      } catch {
-        // Ignore errors during cleanup
-      }
-    }
+    // Don't close shared AudioContext - just clear the ref
+    // The singleton persists for the lifetime of the page
     audioContextRef.current = null
 
     // Clear chunks
@@ -177,7 +187,8 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
       chunksRef.current = []
 
       // Set up audio analyser for waveform visualization
-      const audioContext = new AudioContext()
+      // Use singleton AudioContext to prevent exhaustion after many recordings
+      const audioContext = getOrCreateAudioContext()
       audioContextRef.current = audioContext
       const source = audioContext.createMediaStreamSource(stream)
       const analyser = audioContext.createAnalyser()
@@ -254,11 +265,11 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
         return
       }
 
-      // Check minimum duration
+      // Check minimum duration - silent discard for short recordings
+      // No error toast, just return null (cleaner UX on mobile)
       if (recordingDuration < MIN_RECORDING_DURATION) {
         cleanup()
         setIsRecording(false)
-        setError('recording_too_short')
         resolve(null)
         return
       }
@@ -268,15 +279,13 @@ export function useVoiceRecorder(): UseVoiceRecorderReturn {
         const mimeType = mimeTypeRef.current.mimeType || 'audio/webm'
         const blob = new Blob(chunksRef.current, { type: mimeType })
 
-        // Cleanup
+        // Cleanup stream tracks (but keep shared AudioContext)
         if (streamRef.current) {
           streamRef.current.getTracks().forEach(track => track.stop())
           streamRef.current = null
         }
-        if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-          audioContextRef.current.close()
-          audioContextRef.current = null
-        }
+        // Don't close shared AudioContext - just clear ref
+        audioContextRef.current = null
 
         chunksRef.current = []
         mediaRecorderRef.current = null

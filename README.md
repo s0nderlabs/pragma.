@@ -73,7 +73,7 @@ pnpm build
 |-------|------------|
 | Frontend | Next.js 15, React 19, Tailwind CSS |
 | Blockchain | viem, wagmi, MetaMask Delegation Toolkit |
-| AI | LangChain, OpenAI gpt-5-mini |
+| AI | LangChain |
 | Infrastructure | Pimlico (bundler), Monorail (DEX), aPriori (staking) |
 
 ## Links

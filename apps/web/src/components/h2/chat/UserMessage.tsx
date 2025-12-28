@@ -200,7 +200,7 @@ export function UserMessage({ message }: UserMessageProps) {
         }}
       >
         {/* Bubble - w-fit when not editing prevents expanding to container width when timestamp row is wider */}
-        <div className={`rounded-[24px] px-5 py-3 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 ${showEditUI ? '' : 'w-fit'}`}>
+        <div className={`rounded-[24px] px-5 py-3 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 ${showEditUI ? '' : 'w-fit max-w-full'}`}>
           {showEditUI ? (
             <textarea
               ref={textareaRef}
@@ -211,7 +211,7 @@ export function UserMessage({ message }: UserMessageProps) {
               rows={1}
             />
           ) : (
-            <p className="text-sm lg:text-base leading-normal whitespace-pre-wrap break-words break-all m-0">
+            <p className="text-sm lg:text-base leading-normal whitespace-pre-wrap break-words [overflow-wrap:anywhere] m-0">
               {message.content}
             </p>
           )}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Keyboard, Compass, Zap, MessageSquare, HelpCircle, MousePointer, Lightbulb } from 'lucide-react'
+import { Keyboard, Compass, Zap, MessageSquare, HelpCircle, MousePointer, Lightbulb, Mic } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useShortcutPanelStore } from '@/stores/useShortcutPanelStore'
 import { useIsMobile } from '@/hooks/useIsMobile'
@@ -29,6 +29,7 @@ const shortcutCategories: ShortcutCategory[] = [
       { winKey: 'Alt + →', macKey: '⌥ →', description: 'Next tab' },
       { winKey: 'Alt + A', macKey: '⌥ A', description: 'Activity tab' },
       { winKey: 'Alt + B', macKey: '⌥ B', description: 'Balances tab' },
+      { winKey: 'Alt + N', macKey: '⌥ N', description: 'NFTs tab' },
       { winKey: 'Alt + ,', macKey: '⌥ ,', description: 'Settings tab' },
     ],
   },
@@ -48,6 +49,15 @@ const shortcutCategories: ShortcutCategory[] = [
     shortcuts: [
       { winKey: 'Alt + /', macKey: '⌥ /', description: 'Focus chat input' },
       { winKey: 'Enter', macKey: 'Return', description: 'Send message' },
+    ],
+  },
+  {
+    title: 'Voice',
+    icon: <Mic className="w-4 h-4" />,
+    shortcuts: [
+      { winKey: 'Alt + V', macKey: '⌥ V', description: 'Toggle voice recording' },
+      { winKey: 'Alt + V (hold)', macKey: '⌥ V (hold)', description: 'Push-to-talk' },
+      { winKey: 'Esc', macKey: 'Esc', description: 'Cancel recording' },
     ],
   },
   {

@@ -508,7 +508,11 @@ export function useH2_5Agent() {
 
       // Set streaming state and create AbortController
       setIsStreaming(true);
-      resetRetryState();
+      // Only reset retry state for new messages, not for auto-retries
+      // This keeps isAutoRetrying true during retry until AI response arrives
+      if (retryCount === 0) {
+        resetRetryState();
+      }
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
@@ -716,6 +720,13 @@ export function useH2_5Agent() {
           },
 
           onToken: (token) => {
+            // First content token during retry = reset retry indicator to normal thinking
+            // This switches from "Hmm, that didn't come out right" to normal pragma vibes
+            // Check store directly to avoid multiple calls (buffer gets flushed periodically)
+            if (retryCount > 0 && useH2ChatStore.getState().isAutoRetrying) {
+              setIsAutoRetrying(false);
+            }
+
             // First content token = reasoning phase complete
             // Finalize current segment with duration
             if (reasoningStartTimeRef.current > 0 && tokenBufferRef.current.length === 0) {
@@ -1070,8 +1081,6 @@ export function useH2_5Agent() {
 
             // Schedule retry after brief delay
             setTimeout(async () => {
-              setIsAutoRetrying(false);
-
               // Delete ALL messages from this turn (assistant + tool messages)
               useH2ChatStore.getState().deleteMessagesAfterLastUser();
 
@@ -1085,6 +1094,8 @@ export function useH2_5Agent() {
                   skipAddMessage: true, // Don't add duplicate user message
                 });
               }
+              // Note: Don't reset isAutoRetrying here - let it stay true until AI response arrives
+              // The ThinkingIndicator will hide when the AI message starts streaming
             }, 300);
 
             // CRITICAL: Clear token buffer to prevent flushTokenBuffer from creating new message
@@ -1162,7 +1173,6 @@ export function useH2_5Agent() {
 
           // Schedule retry with delay (outside of any callback context)
           setTimeout(async () => {
-            setIsAutoRetrying(false);
             // Delete ALL messages from this turn (assistant + tool messages)
             useH2ChatStore.getState().deleteMessagesAfterLastUser();
 
@@ -1174,6 +1184,8 @@ export function useH2_5Agent() {
                 skipAddMessage: true,
               });
             }
+            // Note: Don't reset isAutoRetrying here - let it stay true until AI response arrives
+            // The ThinkingIndicator will hide when the AI message starts streaming
           }, 500);
 
           return;

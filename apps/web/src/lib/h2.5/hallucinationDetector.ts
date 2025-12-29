@@ -143,6 +143,16 @@ const HALLUCINATION_PATTERNS = [
   /\[(Result|Output|Response|Balance|Quote|Transaction|Status|Error|Success|Failed|NFT|NFTs|Collection|Collections|Activity|Swap|Transfer|Data|Info|Details)\s*:/i,
 
   // ============================================
+  // SECTION 6.5: PHASE/STATUS INDICATORS IN BRACKETS
+  // ============================================
+  /\[PHASE\s*\d*\]/i,              // [PHASE 1], [PHASE 2], [PHASE]
+  /\[STEP\s*\d*\]/i,               // [STEP 1], [STEP 2], [STEP]
+  /\[(SEARCHING|LOADING|PROCESSING|WAITING|ANALYZING|PREPARING|COMPLETING|FETCHING|CHECKING|VERIFYING|CONFIRMING|EXECUTING)\]/i,
+  /\[(DONE|COMPLETE|FINISHED|STARTED|BEGINNING|INITIATING|IN PROGRESS|PENDING)\]/i,
+  /\[STATUS\s*:/i,                 // [STATUS: X]
+  /\[PROGRESS\s*:/i,               // [PROGRESS: X]
+
+  // ============================================
   // SECTION 7: FUNCTION CALL SYNTAX (dynamic)
   // ============================================
   // Non-brace args: getBalance('MON')
@@ -310,23 +320,25 @@ export function getMatchedPattern(text: string): string | null {
  *
  * @param originalMessage - The original user message
  * @param retryCount - Current retry attempt (0-indexed)
- * @returns Modified prompt with escalating reminders
+ * @returns Modified prompt with context about retry and safety instructions
  */
-export function getRetryPrompt(originalMessage: string, retryCount: number): string {
-  if (retryCount === 0) {
-    return `${originalMessage}
-
-[IMPORTANT:
-1. Use proper tool calling through the API, not text like [getBalance] or getBalance()
-2. NEVER output [ACTIVITY_DATA], [NFT_GALLERY_DATA], <!--ACTIVITY_TABLE-->, or <!--NFT_GALLERY-->
-3. For rich data tools, provide ONLY a brief summary - UI renders the data]`
-  }
-
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function getRetryPrompt(originalMessage: string, _retryCount: number): string {
+  // Unified message for all retry attempts - "escalation" doesn't work on LLMs
+  // _retryCount kept for interface compatibility but not used (same message for all retries)
   return `${originalMessage}
 
-[CRITICAL - FINAL ATTEMPT:
-- Invoke tools through the API only
-- NEVER output brackets like [ACTIVITY_DATA] or HTML comments like <!--...-->
-- NEVER echo JSON from tool outputs
-- Respond conversationally - UI handles all visualization]`
+[SYSTEM NOTICE:
+Your previous response contained text that looked like tool invocations (e.g., [getBalance], [PHASE 1], or function syntax) instead of actually calling tools. This message is being re-sent.
+
+REQUIRED:
+- Invoke tools properly - never output text like [toolName] or toolName(). Actually call the tool.
+- Never output bracket-formatted status like [PHASE 1], [SEARCHING], [LOADING]
+- Never output [ACTIVITY_DATA], [NFT_GALLERY_DATA], or HTML comments
+
+FOR THIS MESSAGE ONLY:
+If this message involves on-chain execution (swap, transfer, stake, wrap, unwrap, NFT buy):
+- Call getOnchainActivity first to check if the action was already completed
+- If found, report the existing transaction instead of re-executing
+- Skip this check for read-only requests]`
 }

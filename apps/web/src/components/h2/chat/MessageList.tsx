@@ -158,6 +158,7 @@ function ExhaustedBanner({ onRetry, disabled }: { onRetry: () => void; disabled:
 export function MessageList() {
   const messages = useH2ChatStore((state) => state.messages)
   const isStreaming = useH2ChatStore((state) => state.isStreaming)
+  const isAutoRetrying = useH2ChatStore((state) => state.isAutoRetrying)
   const stoppedMessageIds = useH2ChatStore((state) => state.stoppedMessageIds)
   const earlyStopUserMessageId = useH2ChatStore((state) => state.earlyStopUserMessageId)
   const exhaustedRetryMessageId = useH2ChatStore((state) => state.exhaustedRetryMessageId)
@@ -382,10 +383,10 @@ export function MessageList() {
             )
           })}
 
-          {/* Thinking Indicator - shows before AI starts responding */}
+          {/* Thinking Indicator - shows before AI starts responding, or retry message when retrying */}
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          {isStreaming && messages.length > 0 && !(messages[messages.length - 1] as any)?.isStreaming && (
-            <ThinkingIndicator />
+          {(isStreaming || isAutoRetrying) && messages.length > 0 && !(messages[messages.length - 1] as any)?.isStreaming && (
+            <ThinkingIndicator isRetrying={isAutoRetrying} />
           )}
 
           {/* Stopped Indicator - shows after all messages when turn was stopped */}

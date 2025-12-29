@@ -161,10 +161,10 @@ function ThinkingSegment({
       <style jsx>{`
         @keyframes shimmer {
           0% {
-            background-position: -200% 0;
+            background-position: 200% 0;
           }
           100% {
-            background-position: 200% 0;
+            background-position: -200% 0;
           }
         }
         .shimmer-text {
@@ -178,7 +178,7 @@ function ThinkingSegment({
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
-          animation: shimmer 2s linear infinite;
+          animation: shimmer 5s linear infinite;
         }
       `}</style>
     </div>
@@ -253,10 +253,10 @@ function StreamingSegment({
       <style jsx>{`
         @keyframes shimmer {
           0% {
-            background-position: -200% 0;
+            background-position: 200% 0;
           }
           100% {
-            background-position: 200% 0;
+            background-position: -200% 0;
           }
         }
         .shimmer-text {
@@ -270,7 +270,7 @@ function StreamingSegment({
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
-          animation: shimmer 2s linear infinite;
+          animation: shimmer 5s linear infinite;
         }
       `}</style>
     </div>

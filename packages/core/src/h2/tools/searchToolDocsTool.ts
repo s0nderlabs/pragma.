@@ -36,30 +36,37 @@ const toolDocs: Record<string, string> = {
 
 **IMPORTANT:** Call this tool instead of trying to answer from memory.`,
 
-  getBalance: `**getBalance** - Fetch user's balance for a specific token
+  getBalance: `**getBalance** - Fetch token balance (yours or any address)
 
-**Use when:** User says "all", "max", "half", "quarter" or any amount keyword before swap/transfer/wrap
-
-**Workflow:**
-1. Call getBalance({ token: "MON" }) → Returns "3.5 MON"
-2. Calculate: all = 3.5, half = 1.75, quarter = 0.875
-3. Call swap/transfer/wrap/unwrap with numeric amount
-
-**IMPORTANT:** Always call getBalance BEFORE executing when user uses amount keywords.
+**Use when:**
+- User says "all", "max", "half", "quarter" before swap/transfer
+- User asks "what's my MON balance?" (no address param needed)
+- User asks "what's 0x123's MON balance?" (pass address param)
 
 **Parameters:**
-- token: Token symbol (MON, USDC, etc.) or "all" to show all balances`,
+- token: Token symbol (MON, USDC, etc.) or "all" for full portfolio
+- address: (optional) Address to query. Omit to use user's own address.
 
-  getAllBalances: `**getAllBalances** - Get all token balances in user's smart account
+**Workflow:**
+1. Call getBalance({ token: "MON" }) → Returns user's balance
+2. Or: getBalance({ token: "MON", address: "0x123..." }) → Returns that address's balance
 
-**Use when:** User asks "show my portfolio", "what tokens do I have?", "all my balances"
+**IMPORTANT:** Always call BEFORE executing when user uses amount keywords.`,
+
+  getAllBalances: `**getAllBalances** - Get complete portfolio (yours or any address)
+
+**Use when:** "show my portfolio", "what do I have", "show 0x123's balances"
+
+**Parameters:**
+- address: (optional) Address to query. Omit to use user's own address.
 
 **Returns:**
 - List of all tokens with balances and USD values
-- Shows both verified and unverified tokens
 - Token addresses in [brackets] for future operations
 
-**Example:** "show all my tokens" or "what's my portfolio"`,
+**Examples:**
+- "show all my tokens" → getAllBalances({})
+- "what does 0x123 have?" → getAllBalances({ address: "0x123..." })`,
 
   getSessionKeyBalance: `**getSessionKeyBalance** - Get session key MON balance (for gas)
 

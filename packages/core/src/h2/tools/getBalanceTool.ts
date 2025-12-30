@@ -67,6 +67,13 @@ const getBalanceSchema = z.object({
     .describe(
       "Token symbol or address to check balance for. Use 'all' to show all token balances. Examples: 'MON', 'USDC', 'DAK', 'WMON', 'all', or contract address '0x760...'"
     ),
+  address: z
+    .string()
+    .optional()
+    .describe(
+      "Address to check balance for. If not provided, uses user's smart account. " +
+      "Use when user asks about another wallet, e.g., 'check 0x123's MON balance' or 'what does vitalik have'."
+    ),
 });
 
 /**
@@ -88,15 +95,18 @@ const getBalanceSchema = z.object({
  * ```
  */
 export const getBalanceTool = tool(
-  async ({ token }, config) => {
+  async ({ token, address: inputAddress }, config) => {
     try {
       // Get user address and public client from config
       const userAddress = config?.configurable?.userAddress as Address | undefined;
       const publicClient = config?.configurable?.publicClient;
 
-      if (!userAddress) {
+      // Use provided address or fall back to user's address
+      const targetAddress = (inputAddress as Address) || userAddress;
+
+      if (!targetAddress) {
         throw createErrorFromCode("SESSION_INCOMPLETE", {
-          message: "User address not found in session. Cannot fetch balances.",
+          message: "No address provided and user address not found in session. Cannot fetch balances.",
         });
       }
 
@@ -110,7 +120,7 @@ export const getBalanceTool = tool(
       // Fetch all balances via proxy (avoids CORS issues with direct Monorail calls)
       // Use authenticated fetch from configurable if available (browser context)
       const fetchFn = (config?.configurable?.fetch as typeof fetch) || fetch;
-      const checksummedAddress = getAddress(userAddress);
+      const checksummedAddress = getAddress(targetAddress);
       const response = await fetchFn(`/api/monorail/balances?address=${checksummedAddress}`);
 
       if (!response.ok) {
@@ -292,7 +302,7 @@ export const getBalanceTool = tool(
               address: getAddress(WMON_ADDRESS),
               abi: ERC20_ABI,
               functionName: "balanceOf",
-              args: [getAddress(userAddress)],
+              args: [getAddress(targetAddress)],
             }) as bigint;
 
             // Blockchain balances should never be negative, but validate anyway

@@ -94,23 +94,26 @@ const safeBalanceToBigInt = (balanceStr: string, decimals: number): bigint => {
 // ============================================================================
 
 export const getAllBalancesTool = tool(
-  async (_input, config) => {
+  async ({ address: inputAddress }, config) => {
     try {
       // Get user address and public client from config
       const userAddress = config?.configurable?.userAddress as Address | undefined;
       const publicClient = config?.configurable?.publicClient as PublicClient | undefined;
 
-      if (!userAddress) {
+      // Use provided address or fall back to user's address
+      const targetAddress = (inputAddress as Address) || userAddress;
+
+      if (!targetAddress) {
         throw createErrorFromCode("SESSION_INCOMPLETE", {
-          message: "User address not found in session. Cannot fetch balances.",
+          message: "No address provided and user address not found in session. Cannot fetch balances.",
         });
       }
 
-      // Try to resolve user's NAD/ENS name (optional enhancement)
+      // Try to resolve NAD/ENS name (optional enhancement)
       let resolvedName: Awaited<ReturnType<typeof getNameForAddress>> = null;
       if (publicClient) {
         try {
-          resolvedName = await getNameForAddress(userAddress, publicClient);
+          resolvedName = await getNameForAddress(targetAddress, publicClient);
         } catch {
           // Name resolution failed, continue without name
         }
@@ -126,7 +129,7 @@ export const getAllBalancesTool = tool(
       // Fetch all balances via proxy (avoids CORS issues with direct Monorail calls)
       // Use authenticated fetch from configurable if available (browser context)
       const fetchFn = (config?.configurable?.fetch as typeof fetch) || fetch;
-      const checksummedAddress = getAddress(userAddress);
+      const checksummedAddress = getAddress(targetAddress);
       const response = await fetchFn(`/api/monorail/balances?address=${checksummedAddress}`);
 
       if (!response.ok) {
@@ -267,8 +270,8 @@ export const getAllBalancesTool = tool(
 
       // Format address display (with name if available)
       const addressDisplay = resolvedName
-        ? `${resolvedName.name} (${userAddress})`
-        : userAddress;
+        ? `${resolvedName.name} (${targetAddress})`
+        : targetAddress;
 
       // Build response
       if (nonZeroBalances.length === 0) {
@@ -306,6 +309,14 @@ Source: Monorail API (cached)`;
   {
     name: "getAllBalances",
     description: "Get complete portfolio with all token balances and USD values. Shows total portfolio value. Use for 'show my balances', 'portfolio', 'what do I have'. For single token balance, use getBalance instead.",
-    schema: z.object({}),
+    schema: z.object({
+      address: z
+        .string()
+        .optional()
+        .describe(
+          "Address to fetch portfolio for. If not provided, uses user's smart account. " +
+          "Use when user asks about another wallet, e.g., 'show 0x123's portfolio' or 'what tokens does vitalik have'."
+        ),
+    }),
   }
 );

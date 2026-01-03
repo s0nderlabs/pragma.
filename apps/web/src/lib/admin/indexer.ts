@@ -807,6 +807,19 @@ async function insertPayments(supabase: SupabaseClient, payments: PaymentRecord[
 }
 
 async function getLastIndexedBlock(supabase: SupabaseClient): Promise<number> {
+  // First try indexer_syncs table (tracks progress even when no events found)
+  const { data: syncData, error: syncError } = await supabase
+    .from("indexer_syncs")
+    .select("to_block")
+    .order("synced_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (syncData && !syncError) {
+    return syncData.to_block || 0;
+  }
+
+  // Fallback to validated_payments if indexer_syncs doesn't exist yet
   const { data, error } = await supabase
     .from("validated_payments")
     .select("block_number")
